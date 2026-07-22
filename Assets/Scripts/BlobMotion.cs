@@ -19,7 +19,9 @@ public class BlobMotion : MonoBehaviour
 
     [Header("튀어오름")]
     [Tooltip("몸 높이 대비 최대 도약 비율")]
-    public float hopHeight = 0.14f;
+    public float hopHeight = 0.34f;
+    [Tooltip("가만히 있을 때도 이만큼은 튄다 (0=제자리, 1=이동 중과 동일)")]
+    public float idleHopRatio = 0.45f;
     [Tooltip("물속에서는 동작이 느려지고 작아진다")]
     public float wetSlow = 0.5f, wetAmp = 0.55f;
 
@@ -30,6 +32,9 @@ public class BlobMotion : MonoBehaviour
 
     Vector3 baseScale;
     float t, bodyHeight = 1f;
+    // 원점이 몸 한가운데인 모델은 그냥 지면 높이에 두면 반쯤 묻힌다.
+    // 원점에서 발바닥까지의 거리를 재두고 그만큼 띄운다.
+    float footOffset;
     Mode mode = Mode.Idle;
     float speed01;          // 0=정지, 1=최고속
     bool wet;
@@ -49,6 +54,7 @@ public class BlobMotion : MonoBehaviour
             var b = rs[0].bounds;
             foreach (var r in rs) b.Encapsulate(r.bounds);
             bodyHeight = Mathf.Max(0.2f, b.size.y);
+            footOffset = Mathf.Max(0f, transform.position.y - b.min.y);
         }
     }
 
@@ -77,11 +83,14 @@ public class BlobMotion : MonoBehaviour
         float sxz = 1f / Mathf.Sqrt(Mathf.Max(0.05f, sy));
         transform.localScale = new Vector3(baseScale.x * sxz, baseScale.y * sy, baseScale.z * sxz);
 
-        // 도약 (정지 상태에서는 거의 안 뜬다)
-        float hop = up * bodyHeight * hopHeight * Mathf.Lerp(0.12f, 1f, speed01);
+        // 도약 — 제자리에서도 통통 튄다
+        float hop = up * bodyHeight * hopHeight * Mathf.Lerp(idleHopRatio, 1f, speed01);
+        if (wet) hop *= wetAmp;
         if (!float.IsNaN(GroundY))
         {
-            var p = transform.position; p.y = GroundY + hop; transform.position = p;
+            // 발바닥이 지면에 닿는 높이 + 도약. 스쿼시로 눌린 만큼도 따라 내려간다.
+            float half = footOffset * (transform.localScale.y / Mathf.Max(1e-4f, baseScale.y));
+            var p = transform.position; p.y = GroundY + half + hop; transform.position = p;
         }
 
         // 달릴수록 앞으로 기울기
