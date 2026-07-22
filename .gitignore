@@ -1,0 +1,40 @@
+# Unity 생성 폴더
+/[Ll]ibrary/
+/[Tt]emp/
+/[Oo]bj/
+/[Bb]uild/
+/[Bb]uilds/
+/[Ll]ogs/
+/[Uu]ser[Ss]ettings/
+/[Mm]emoryCaptures/
+/[Rr]ecordings/
+
+# 자동 생성 파일
+*.csproj
+*.unityproj
+*.sln
+*.suo
+*.user
+*.pidb
+*.booproj
+*.svd
+*.pdb
+*.mdb
+*.opendb
+*.VC.db
+sysinfo.txt
+*.apk
+*.aab
+*.unitypackage
+*.app
+.vs/
+.vscode/
+.idea/
+
+# 스크린샷 (검증용, 버전관리 불필요)
+/Assets/Screenshots/
+/Assets/Screenshots.meta
+
+# OS
+.DS_Store
+Thumbs.db

@@ -1,0 +1,53 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!21 &2100000
+Material:
+  serializedVersion: 8
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_Name: KTWater
+  m_Shader: {fileID: 4800000, guid: a2be6d2eaeecd7944b3e8f0d9c2dc525, type: 3}
+  m_Parent: {fileID: 0}
+  m_ModifiedSerializedProperties: 0
+  m_ValidKeywords: []
+  m_InvalidKeywords: []
+  m_LightmapFlags: 4
+  m_EnableInstancingVariants: 0
+  m_DoubleSidedGI: 0
+  m_CustomRenderQueue: -1
+  stringTagMap: {}
+  disabledShaderPasses: []
+  m_LockedProperties: 
+  m_SavedProperties:
+    serializedVersion: 3
+    m_TexEnvs:
+    - _WaterTex:
+        m_Texture: {fileID: 2800000, guid: 7fcab01afbfb4d145a0485f77019f319, type: 3}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    m_Ints: []
+    m_Floats:
+    - _Bright: 1.32
+    - _CenterDark: 0.329
+    - _Contrast: 0.94
+    - _DepthFade: 6.23
+    - _EdgeAlpha: 0.42
+    - _Flow: 0.1
+    - _FoamEdge: 0.8
+    - _FoamLines: 3.95
+    - _FoamNoise: 0.12
+    - _FoamSoft: 0.05
+    - _FoamSpeed: 1.44
+    - _FoamStr: 0.8
+    - _FoamWarp: 0.1
+    - _FoamWidth: 1.03
+    - _FoamWobble: 0.32
+    - _Hue: 3
+    - _Noise: 0.085
+    - _Sat: 0.9
+    - _Scale: 13.82
+    m_Colors: []
+  m_BuildTextureStacks: []
+  m_AllowLocking: 1
