@@ -248,14 +248,14 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 3f6fd6a725bc08942870b995022f48cb, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::BlobMotion
-  idleRate: 1.8
+  idleRate: 1.6
   idleAmp: 0.055
-  walkRate: 4
-  walkAmp: 0.08
-  runRate: 5.2
-  runAmp: 0.11
-  hopHeight: 0.34
-  idleHopRatio: 0.45
+  walkRate: 2.4
+  walkAmp: 0.14
+  runRate: 3
+  runAmp: 0.2
+  hopHeight: 0.85
+  idleHopRatio: 0.15
   wetSlow: 0.5
   wetAmp: 0.55
   turnSpeed: 10
