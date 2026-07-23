@@ -4,23 +4,32 @@ using UnityEngine.InputSystem;
 #endif
 
 /// 캐릭터를 따라다니는 카메라. 우클릭 드래그 = 회전, 휠 = 거리.
-/// 지형에 파묻히지 않게 카메라를 지면 위로 밀어올린다.
+/// - 회전/줌은 목표값으로 두고 매 프레임 부드럽게 수렴(lerp)한다.
+/// - 위에서 내려다보지 못하게 pitch 상한을 둔다.
+/// - 캐릭터가 통통 튀어도 카메라는 안 흔들리게, 세로 추적은 '지면 높이'만 따른다.
 public class FollowCam : MonoBehaviour
 {
     public Transform target;
-    public float distance = 22f, minDist = 5f, maxDist = 90f;
-    public float height = 5f;
-    public float yaw = 35f, pitch = 26f;
-    public float minPitch = 6f, maxPitch = 75f;
-    public float rotSpeed = 0.18f, zoomSpeed = 0.12f, follow = 10f;
+    public float distance = 22f, minDist = 6f, maxDist = 70f;
+    public float height = 4.5f;
+    public float yaw = 35f, pitch = 28f;
+    [Tooltip("이 이상 올려다보면 위에서 내려다보게 되니 막는다")]
+    public float minPitch = 12f, maxPitch = 46f;
+
+    [Header("입력 감도")]
+    public float rotSpeed = 0.16f, zoomSpeed = 0.10f;
+    [Header("부드러움 (클수록 빠르게 수렴)")]
+    public float rotSmooth = 10f, zoomSmooth = 8f, followXZ = 8f, followY = 4f;
 
     Terrain[] terrains;
-    Vector3 look;
+    Vector3 look;                 // 카메라가 바라보는 지점 (부드럽게 따라감)
+    float yawT, pitchT, distT;    // 목표값
 
     void Awake()
     {
         terrains = FindObjectsByType<Terrain>(FindObjectsSortMode.None);
-        if (target != null) look = target.position;
+        yawT = yaw; pitchT = pitch; distT = distance;
+        if (target != null) { look = target.position; look.y = GroundAt(target.position); }
     }
 
     float GroundAt(Vector3 p)
@@ -34,7 +43,7 @@ public class FollowCam : MonoBehaviour
             float h = t.SampleHeight(p) + o.y;
             if (h > best) best = h;
         }
-        return best == float.MinValue ? 0f : best;
+        return best == float.MinValue ? p.y : best;
     }
 
     void ReadLook(out Vector2 delta, out float scroll)
@@ -57,12 +66,25 @@ public class FollowCam : MonoBehaviour
 
         Vector2 d; float sc;
         ReadLook(out d, out sc);
-        yaw += d.x * rotSpeed;
-        pitch = Mathf.Clamp(pitch - d.y * rotSpeed, minPitch, maxPitch);
-        if (Mathf.Abs(sc) > 0.0001f)
-            distance = Mathf.Clamp(distance - sc * zoomSpeed * distance * 10f, minDist, maxDist);
 
-        look = Vector3.Lerp(look, target.position, follow * Time.deltaTime);
+        // 목표값 갱신
+        yawT += d.x * rotSpeed;
+        pitchT = Mathf.Clamp(pitchT - d.y * rotSpeed, minPitch, maxPitch);
+        if (Mathf.Abs(sc) > 0.0001f)
+            distT = Mathf.Clamp(distT - sc * zoomSpeed * distT * 10f, minDist, maxDist);
+
+        // 부드럽게 수렴
+        yaw = Mathf.LerpAngle(yaw, yawT, rotSmooth * Time.deltaTime);
+        pitch = Mathf.Lerp(pitch, pitchT, rotSmooth * Time.deltaTime);
+        distance = Mathf.Lerp(distance, distT, zoomSmooth * Time.deltaTime);
+
+        // 바라보는 지점: 가로는 캐릭터, 세로는 '지면 높이'만 추적 → 통통 튐이 카메라에 안 옴
+        float groundY = GroundAt(target.position);
+        Vector3 flat = new Vector3(target.position.x, look.y, target.position.z);
+        look.x = Mathf.Lerp(look.x, flat.x, followXZ * Time.deltaTime);
+        look.z = Mathf.Lerp(look.z, flat.z, followXZ * Time.deltaTime);
+        look.y = Mathf.Lerp(look.y, groundY, followY * Time.deltaTime);
+
         var rot = Quaternion.Euler(pitch, yaw, 0f);
         var pos = look + Vector3.up * height + rot * Vector3.back * distance;
 

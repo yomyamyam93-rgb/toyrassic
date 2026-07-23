@@ -20,11 +20,11 @@ RenderSettings:
   m_FogDensity: 0.01
   m_LinearFogStart: 0
   m_LinearFogEnd: 300
-  m_AmbientSkyColor: {r: 0.86, g: 0.92, b: 1, a: 1}
-  m_AmbientEquatorColor: {r: 0.84, g: 0.88, b: 0.8, a: 1}
-  m_AmbientGroundColor: {r: 0.62, g: 0.62, b: 0.56, a: 1}
-  m_AmbientIntensity: 1.38
-  m_AmbientMode: 1
+  m_AmbientSkyColor: {r: 0.78, g: 0.82, b: 0.78, a: 1}
+  m_AmbientEquatorColor: {r: 0.88, g: 0.92, b: 0.84, a: 1}
+  m_AmbientGroundColor: {r: 0.7, g: 0.7, b: 0.62, a: 1}
+  m_AmbientIntensity: 0.9
+  m_AmbientMode: 0
   m_SubtractiveShadowColor: {r: 0.42, g: 0.478, b: 0.627, a: 1}
   m_SkyboxMaterial: {fileID: 10304, guid: 0000000000000000f000000000000000, type: 0}
   m_HaloStrength: 0.5
@@ -186,9 +186,9 @@ Terrain:
   m_TreeBillboardDistance: 320
   m_TreeCrossFadeLength: 0
   m_TreeMaximumFullLODCount: 2000
-  m_DetailObjectDistance: 150
+  m_DetailObjectDistance: 250
   m_DetailObjectDensity: 1
-  m_HeightmapPixelError: 6
+  m_HeightmapPixelError: 3
   m_SplatMapDistance: 250
   m_HeightmapMinimumLODSimplification: 0
   m_HeightmapMaximumLOD: 0
@@ -230,8 +230,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: a5e4f2f8682618448877c43d564e44f4, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PlayerMove
-  walkSpeed: 4.5
-  runSpeed: 8.5
+  walkSpeed: 3.4
+  runSpeed: 5.8
   accel: 14
   waterY: 40
   wetFactor: 0.55
@@ -248,12 +248,12 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 3f6fd6a725bc08942870b995022f48cb, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::BlobMotion
-  idleRate: 2
+  idleRate: 1.8
   idleAmp: 0.055
-  walkRate: 4.6
-  walkAmp: 0.09
-  runRate: 6.2
-  runAmp: 0.12
+  walkRate: 4
+  walkAmp: 0.08
+  runRate: 5.2
+  runAmp: 0.11
   hopHeight: 0.34
   idleHopRatio: 0.45
   wetSlow: 0.5
@@ -422,9 +422,9 @@ Terrain:
   m_TreeBillboardDistance: 320
   m_TreeCrossFadeLength: 0
   m_TreeMaximumFullLODCount: 2000
-  m_DetailObjectDistance: 150
+  m_DetailObjectDistance: 250
   m_DetailObjectDensity: 1
-  m_HeightmapPixelError: 6
+  m_HeightmapPixelError: 3
   m_SplatMapDistance: 250
   m_HeightmapMinimumLODSimplification: 0
   m_HeightmapMaximumLOD: 0
@@ -788,15 +788,18 @@ MonoBehaviour:
   target: {fileID: 107336113}
   distance: 18
   minDist: 6
-  maxDist: 90
+  maxDist: 70
   height: 4
   yaw: 35
   pitch: 22
-  minPitch: 8
-  maxPitch: 75
+  minPitch: 12
+  maxPitch: 46
   rotSpeed: 3.2
   zoomSpeed: 6
-  follow: 10
+  rotSmooth: 10
+  zoomSmooth: 8
+  followXZ: 8
+  followY: 4
 --- !u!1 &374053267
 GameObject:
   m_ObjectHideFlags: 0
@@ -915,7 +918,7 @@ Light:
   m_Enabled: 1
   serializedVersion: 12
   m_Type: 1
-  m_Color: {r: 1, g: 0.97, b: 0.9, a: 1}
+  m_Color: {r: 1, g: 0.97, b: 0.88, a: 1}
   m_Intensity: 1.05
   m_Range: 10
   m_SpotAngle: 30
@@ -925,7 +928,7 @@ Light:
     m_Type: 2
     m_Resolution: -1
     m_CustomResolution: -1
-    m_Strength: 0.4
+    m_Strength: 0.3
     m_Bias: 0.04
     m_NormalBias: 0.5
     m_NearPlane: 0.2
@@ -978,7 +981,7 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 410087039}
   serializedVersion: 2
-  m_LocalRotation: {x: 0.39713126, y: 0.30997553, z: -0.14454395, w: 0.8516508}
+  m_LocalRotation: {x: 0.4974886, y: -0.22185123, z: 0.13330168, w: 0.8279601}
   m_LocalPosition: {x: 0, y: 3, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
@@ -1081,9 +1084,9 @@ Terrain:
   m_TreeBillboardDistance: 320
   m_TreeCrossFadeLength: 0
   m_TreeMaximumFullLODCount: 2000
-  m_DetailObjectDistance: 150
+  m_DetailObjectDistance: 250
   m_DetailObjectDensity: 1
-  m_HeightmapPixelError: 6
+  m_HeightmapPixelError: 3
   m_SplatMapDistance: 250
   m_HeightmapMinimumLODSimplification: 0
   m_HeightmapMaximumLOD: 0
@@ -1573,9 +1576,9 @@ Terrain:
   m_TreeBillboardDistance: 320
   m_TreeCrossFadeLength: 0
   m_TreeMaximumFullLODCount: 2000
-  m_DetailObjectDistance: 150
+  m_DetailObjectDistance: 250
   m_DetailObjectDensity: 1
-  m_HeightmapPixelError: 6
+  m_HeightmapPixelError: 3
   m_SplatMapDistance: 250
   m_HeightmapMinimumLODSimplification: 0
   m_HeightmapMaximumLOD: 0
@@ -1667,9 +1670,9 @@ Terrain:
   m_TreeBillboardDistance: 320
   m_TreeCrossFadeLength: 0
   m_TreeMaximumFullLODCount: 2000
-  m_DetailObjectDistance: 150
+  m_DetailObjectDistance: 250
   m_DetailObjectDensity: 1
-  m_HeightmapPixelError: 6
+  m_HeightmapPixelError: 3
   m_SplatMapDistance: 250
   m_HeightmapMinimumLODSimplification: 0
   m_HeightmapMaximumLOD: 0
@@ -1824,9 +1827,9 @@ Terrain:
   m_TreeBillboardDistance: 320
   m_TreeCrossFadeLength: 0
   m_TreeMaximumFullLODCount: 2000
-  m_DetailObjectDistance: 150
+  m_DetailObjectDistance: 250
   m_DetailObjectDensity: 1
-  m_HeightmapPixelError: 6
+  m_HeightmapPixelError: 3
   m_SplatMapDistance: 250
   m_HeightmapMinimumLODSimplification: 0
   m_HeightmapMaximumLOD: 0
@@ -1918,9 +1921,9 @@ Terrain:
   m_TreeBillboardDistance: 320
   m_TreeCrossFadeLength: 0
   m_TreeMaximumFullLODCount: 2000
-  m_DetailObjectDistance: 150
+  m_DetailObjectDistance: 250
   m_DetailObjectDensity: 1
-  m_HeightmapPixelError: 6
+  m_HeightmapPixelError: 3
   m_SplatMapDistance: 250
   m_HeightmapMinimumLODSimplification: 0
   m_HeightmapMaximumLOD: 0
@@ -2012,9 +2015,9 @@ Terrain:
   m_TreeBillboardDistance: 320
   m_TreeCrossFadeLength: 0
   m_TreeMaximumFullLODCount: 2000
-  m_DetailObjectDistance: 150
+  m_DetailObjectDistance: 250
   m_DetailObjectDensity: 1
-  m_HeightmapPixelError: 6
+  m_HeightmapPixelError: 3
   m_SplatMapDistance: 250
   m_HeightmapMinimumLODSimplification: 0
   m_HeightmapMaximumLOD: 0
@@ -2162,9 +2165,9 @@ Terrain:
   m_TreeBillboardDistance: 320
   m_TreeCrossFadeLength: 0
   m_TreeMaximumFullLODCount: 2000
-  m_DetailObjectDistance: 150
+  m_DetailObjectDistance: 250
   m_DetailObjectDensity: 1
-  m_HeightmapPixelError: 6
+  m_HeightmapPixelError: 3
   m_SplatMapDistance: 250
   m_HeightmapMinimumLODSimplification: 0
   m_HeightmapMaximumLOD: 0
