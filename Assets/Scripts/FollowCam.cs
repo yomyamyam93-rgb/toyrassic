@@ -13,17 +13,20 @@ public class FollowCam : MonoBehaviour
     public float distance = 22f, minDist = 6f, maxDist = 70f;
     public float height = 4.5f;
     public float yaw = 35f, pitch = 28f;
-    [Tooltip("이 이상 올려다보면 위에서 내려다보게 되니 막는다")]
-    public float minPitch = 12f, maxPitch = 46f;
+    [Tooltip("pitch 범위 (넓게 = 위에서도 볼 수 있음)")]
+    public float minPitch = 2f, maxPitch = 85f;
 
     [Header("입력 감도")]
     public float rotSpeed = 0.16f, zoomSpeed = 0.10f;
-    [Header("부드러움 (클수록 빠르게 수렴)")]
-    public float rotSmooth = 10f, zoomSmooth = 8f, followXZ = 8f, followY = 4f;
+    [Header("부드러움 (작을수록 빠르게 멈춤)")]
+    [Tooltip("회전 스무스 시간(초). 작을수록 놓으면 바로 멈춤")]
+    public float rotSmoothTime = 0.06f, zoomSmoothTime = 0.10f;
+    public float followXZ = 8f, followY = 4f;
 
     Terrain[] terrains;
     Vector3 look;                 // 카메라가 바라보는 지점 (부드럽게 따라감)
     float yawT, pitchT, distT;    // 목표값
+    float yawVel, pitchVel, distVel;   // SmoothDamp 속도
 
     void Awake()
     {
@@ -73,10 +76,10 @@ public class FollowCam : MonoBehaviour
         if (Mathf.Abs(sc) > 0.0001f)
             distT = Mathf.Clamp(distT - sc * zoomSpeed * distT * 10f, minDist, maxDist);
 
-        // 부드럽게 수렴
-        yaw = Mathf.LerpAngle(yaw, yawT, rotSmooth * Time.deltaTime);
-        pitch = Mathf.Lerp(pitch, pitchT, rotSmooth * Time.deltaTime);
-        distance = Mathf.Lerp(distance, distT, zoomSmooth * Time.deltaTime);
+        // SmoothDamp = 드래그 중엔 부드럽게, 놓으면 짧게 감속하고 멈춤(관성·밀림 없음)
+        yaw = Mathf.SmoothDampAngle(yaw, yawT, ref yawVel, rotSmoothTime);
+        pitch = Mathf.SmoothDamp(pitch, pitchT, ref pitchVel, rotSmoothTime);
+        distance = Mathf.SmoothDamp(distance, distT, ref distVel, zoomSmoothTime);
 
         // 바라보는 지점: 가로는 캐릭터, 세로는 '지면 높이'만 추적 → 통통 튐이 카메라에 안 옴
         float groundY = GroundAt(target.position);
