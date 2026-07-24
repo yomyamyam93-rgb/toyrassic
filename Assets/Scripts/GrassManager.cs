@@ -18,8 +18,8 @@ public class GrassManager : MonoBehaviour
 
     public Terrain terrain;
 
-    [Tooltip("ON = 슬라이더에서 손을 떼면 자동으로 다시 심는다 (드래그 중엔 안 돌아 안 얼음)")]
-    public bool autoApply = true;
+    [Tooltip("ON = 슬라이더에서 손을 떼면 자동으로 다시 심는다. OFF = '적용' 버튼을 눌러야 반영")]
+    public bool autoApply = false;
 
     // ── 풀 종류 (지형 detail prototype 과 1:1, '종류 불러오기'로 동기화) ──
     public GrassType[] types = new GrassType[0];
