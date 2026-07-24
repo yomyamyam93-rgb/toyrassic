@@ -50,9 +50,8 @@ Shader "Toyrassic/PetToon"
             #pragma multi_compile _ _MAIN_LIGHT_SHADOWS _MAIN_LIGHT_SHADOWS_CASCADE
             #pragma multi_compile_fragment _ _SHADOWS_SOFT
             #pragma multi_compile_fog
-            // ★Forward+(Unity 6 기본) 에서 환경반사·추가광 클러스터를 받으려면 필수 — 없으면 금속이 검게 나옴
-            #pragma multi_compile _ USE_CLUSTER_LIGHT_LOOP
-            #pragma multi_compile _ _FORWARD_PLUS
+            // ★Forward+(Unity 6 기본) 클러스터 대응 — 버전에 따라 키워드명이 달라 둘 다 후보로
+            #pragma multi_compile _ _FORWARD_PLUS USE_CLUSTER_LIGHT_LOOP
             #pragma multi_compile _ _ADDITIONAL_LIGHTS
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
@@ -160,7 +159,7 @@ Shader "Toyrassic/PetToon"
                 SurfaceData sd = (SurfaceData)0;
                 sd.albedo = albedo; sd.alpha = alpha;
                 sd.metallic = metallic; sd.smoothness = smooth;
-                sd.normalTS = nTS; sd.occlusion = occ;
+                sd.normalTS = half3(0, 0, 1); sd.occlusion = occ;   // 노멀은 InputData.normalWS 로 전달됨
                 sd.emission = _EmissionColor.rgb;
                 sd.specular = half3(0,0,0);
 
