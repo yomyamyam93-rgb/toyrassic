@@ -325,13 +325,20 @@ public class TreeManagerEditor : Editor
             if (CliffNear(fx, fz)) continue;
 
             float biome = Mathf.PerlinNoise(wx * 0.0006f + 40f, wz * 0.0006f + 40f);
-            float forest = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0.42f, 0.60f, biome));
+            float forest = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0.44f, 0.56f, biome));
             forest = Mathf.Lerp(0.5f, forest, tm.forestContrast);   // 대비 0 = 균일
+            // 대비 0.5 이상에선 이분법으로 몰아붙임 → 1.0 이면 숲 아니면 완전 벌판
+            if (tm.forestContrast > 0.5f)
+            {
+                float k = (tm.forestContrast - 0.5f) * 2f;
+                forest = Mathf.Lerp(forest, forest >= 0.5f ? 1f : 0f, k);
+            }
             float p = Mathf.Lerp(tm.plainsDensity, tm.forestDensity, forest);
-            // 뭉침: 중간 크기 노이즈 2옥타브로 확률을 출렁이게 → 무리지었다 성겼다
+            // 뭉침: 노이즈 2옥타브. 강도 높으면 빈 데는 거의 0, 뭉친 코어는 3배까지
             float cl = Mathf.PerlinNoise(wx / tm.clumpSize + 13f, wz / tm.clumpSize + 13f) * 0.65f
                      + Mathf.PerlinNoise(wx / (tm.clumpSize * 0.33f) + 57f, wz / (tm.clumpSize * 0.33f) + 57f) * 0.35f;
-            p *= Mathf.Lerp(1f, Mathf.SmoothStep(0f, 1f, cl) * 1.7f, tm.clumpStrength);
+            float g = Mathf.SmoothStep(0f, 1f, cl);
+            p *= Mathf.Lerp(1f, g * g * 3f, tm.clumpStrength);
             if (rnd.NextDouble() > p) continue;
             if (TooClose(wx, wz, tm.minDistance)) continue;
 
