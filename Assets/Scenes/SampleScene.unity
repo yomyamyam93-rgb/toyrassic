@@ -1409,7 +1409,7 @@ ParticleSystem:
         m_RotationOrder: 4
     startSizeY:
       serializedVersion: 2
-      minMaxState: 0
+      minMaxState: 3
       scalar: 1
       minScalar: 1
       maxCurve:
@@ -1462,7 +1462,7 @@ ParticleSystem:
         m_RotationOrder: 4
     startSizeZ:
       serializedVersion: 2
-      minMaxState: 0
+      minMaxState: 3
       scalar: 1
       minScalar: 1
       maxCurve:
@@ -6112,23 +6112,23 @@ MonoBehaviour:
   - name: flower_white
     active: 1
     weight: 0.106
-    size: 1.33
-    spacing: 9
+    size: 1.51
+    spacing: 20.2
   - name: flower_pink
     active: 1
     weight: 0.1
-    size: 1
-    spacing: 12
+    size: 1.79
+    spacing: 15.1
   - name: flower_yellow
     active: 1
     weight: 0.1
-    size: 1
-    spacing: 12
+    size: 1.89
+    spacing: 25.4
   - name: flower_purple
     active: 1
     weight: 0.1
-    size: 1
-    spacing: 12
+    size: 1.87
+    spacing: 20.8
   placeLayers:
   - layer: {fileID: 8574412962073106934, guid: 8ea4f713b896a824fbb4c249bc377cf4, type: 2}
     on: 1
@@ -6149,13 +6149,13 @@ MonoBehaviour:
   layerThreshold: 0.744
   density: 0.85
   drawDistance: 300
-  cellSize: 1.5
+  cellSize: 2
   blockStrength: 0.105
   edgeBand: 7.34
   edgeDensity: 0.46
   edgeSize: 0.914
   edgeJitter: 0.209
-  edgeProtoCount: 0
+  edgeProtoCount: 3
   maxSlope: 34
   minHeight: 2
   maxHeight: 267

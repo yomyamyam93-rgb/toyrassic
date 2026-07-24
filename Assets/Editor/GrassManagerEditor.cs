@@ -339,27 +339,30 @@ public class GrassManagerEditor : Editor
             protoList[i].minWidth = 0.85f * s; protoList[i].maxWidth = 1.15f * s;
             protoList[i].minHeight = 0.85f * s; protoList[i].maxHeight = 1.2f * s;
         }
-        // 경계 크기<1 이면 종류마다 '작은 경계용 프로토'를 하나씩 뒤에 추가
+        // 경계용 작은 프로토는 '활성 잔디(Weight 모드)'에만 붙인다.
+        // 꽃(간격 모드)·꺼진 종류까지 만들면 디테일맵 레이어가 배로 늘어 지형 파일이 폭증한다.
         bool useEdge = gm.edgeSize < 0.995f;
         var edgeIdx = new int[typeCount];
-        if (useEdge)
+        int edgeMade = 0;
+        for (int i = 0; i < typeCount; i++)
         {
-            for (int i = 0; i < typeCount; i++)
+            edgeIdx[i] = -1;
+            var t2 = gm.types[i];
+            if (!useEdge || !t2.active || t2.weight <= 0.001f || t2.spacing > 0.01f) continue;
+            var s = protoList[i];
+            edgeIdx[i] = protoList.Count;
+            protoList.Add(new DetailPrototype
             {
-                var s = protoList[i];
-                edgeIdx[i] = protoList.Count;
-                protoList.Add(new DetailPrototype
-                {
-                    renderMode = s.renderMode, usePrototypeMesh = s.usePrototypeMesh,
-                    useInstancing = s.useInstancing, prototype = s.prototype,
-                    prototypeTexture = s.prototypeTexture, noiseSpread = s.noiseSpread,
-                    healthyColor = s.healthyColor, dryColor = s.dryColor,
-                    minWidth = s.minWidth * gm.edgeSize, maxWidth = s.maxWidth * gm.edgeSize,
-                    minHeight = s.minHeight * gm.edgeSize, maxHeight = s.maxHeight * gm.edgeSize
-                });
-            }
-            gm.edgeProtoCount = typeCount;
+                renderMode = s.renderMode, usePrototypeMesh = s.usePrototypeMesh,
+                useInstancing = s.useInstancing, prototype = s.prototype,
+                prototypeTexture = s.prototypeTexture, noiseSpread = s.noiseSpread,
+                healthyColor = s.healthyColor, dryColor = s.dryColor,
+                minWidth = s.minWidth * gm.edgeSize, maxWidth = s.maxWidth * gm.edgeSize,
+                minHeight = s.minHeight * gm.edgeSize, maxHeight = s.maxHeight * gm.edgeSize
+            });
+            edgeMade++;
         }
+        gm.edgeProtoCount = edgeMade;
         td.detailPrototypes = protoList.ToArray();
 
         // 격자 해상도 — 칸이 작을수록 경계가 정밀하고 덜 각진다
@@ -450,7 +453,7 @@ public class GrassManagerEditor : Editor
         {
             var t = gm.types[layer];
             var map = new int[res, res];
-            var emap = useEdge ? new int[res, res] : null;
+            var emap = (useEdge && edgeIdx[layer] >= 0) ? new int[res, res] : null;
             if (t.active && t.weight > 0.001f && gm.density > 0.001f)
             {
                 for (int y = 0; y < res; y++)
@@ -490,7 +493,7 @@ public class GrassManagerEditor : Editor
                         int amt = FracAmt(dens * gm.edgeDensity * Mathf.Lerp(0.25f, 1f, band), x, y, layer * 2 + 2);
                         if (amt > 0)
                         {
-                            if (useEdge) emap[y, x] = amt;
+                            if (emap != null) emap[y, x] = amt;
                             else map[y, x] = amt;
                             total++;
                         }
@@ -498,7 +501,7 @@ public class GrassManagerEditor : Editor
                 }
             }
             td.SetDetailLayer(0, 0, layer, map);   // OFF 종류는 빈 맵 = 지움
-            if (useEdge) td.SetDetailLayer(0, 0, edgeIdx[layer], emap);
+            if (emap != null) td.SetDetailLayer(0, 0, edgeIdx[layer], emap);
         }
         gm.terrain.detailObjectDistance = gm.drawDistance;
         gm.terrain.detailObjectDensity = 1f;
