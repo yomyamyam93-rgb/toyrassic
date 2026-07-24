@@ -233,10 +233,17 @@ public class TreeManagerEditor : Editor
             else { land.Add(i); landWSum += t.weight; }
         }
 
-        var rnd = new System.Random(20260724);
-        int PickLand()
+        // ★자리 고정 랜덤 — 격자 좌표 해시라서 설정을 바꿔도 '그 자리'의 랜덤은 그대로.
+        //   한 종류만 만지면 다른 나무들은 위치·크기·회전이 안 흔들린다.
+        float H(int a, int b, int s)
         {
-            double r = rnd.NextDouble() * landWSum; float acc = 0f;
+            uint h = (uint)(a * 73856093 ^ b * 19349663 ^ s * 83492791);
+            h ^= h >> 13; h *= 0x85ebca6b; h ^= h >> 16;
+            return (h & 0xFFFFFF) / 16777215f;
+        }
+        int PickLand(float r01)
+        {
+            float r = r01 * landWSum, acc = 0f;
             foreach (int i in land) { acc += tm.types[i].weight; if (r <= acc) return i; }
             return land[land.Count - 1];
         }
@@ -270,14 +277,14 @@ public class TreeManagerEditor : Editor
             return mx > 34f;
         }
 
-        TreeInstance Make(int proto, float fx, float ny, float fz, float baseS, float varS)
+        TreeInstance Make(int proto, float fx, float ny, float fz, float baseS, float varS, float rs, float rr)
         {
-            float s = tm.types[proto].size * (baseS + (float)rnd.NextDouble() * varS);
+            float s = tm.types[proto].size * (baseS + rs * varS);
             return new TreeInstance
             {
                 position = new Vector3(fx, ny, fz), prototypeIndex = proto,
                 widthScale = s, heightScale = s,
-                rotation = (float)rnd.NextDouble() * Mathf.PI * 2f,
+                rotation = rr * Mathf.PI * 2f,
                 color = Color.white, lightmapColor = Color.white
             };
         }
@@ -289,8 +296,8 @@ public class TreeManagerEditor : Editor
         for (int j = 0; j < rows; j++)
         for (int i = 0; i < cols; i++)
         {
-            float fx = (i + 0.5f + ((float)rnd.NextDouble() - 0.5f) * 0.9f) / cols;
-            float fz = (j + 0.5f + ((float)rnd.NextDouble() - 0.5f) * 0.9f) / rows;
+            float fx = (i + 0.5f + (H(i, j, 1) - 0.5f) * 0.9f) / cols;
+            float fz = (j + 0.5f + (H(i, j, 2) - 0.5f) * 0.9f) / rows;
             if (fx <= 0f || fx >= 1f || fz <= 0f || fz >= 1f) continue;
 
             float h = td.GetInterpolatedHeight(fx, fz);
@@ -302,9 +309,10 @@ public class TreeManagerEditor : Editor
             if (GridAt(sandG, fx, fz) > 0.3f)
             {
                 if (palm.Count == 0) continue;
-                if (rnd.NextDouble() > tm.palmDensity) continue;
+                if (H(i, j, 3) > tm.palmDensity) continue;
                 if (TooClose(wx, wz, Mathf.Max(tm.minDistance, 6.5f))) continue;
-                list.Add(Make(palm[rnd.Next(palm.Count)], fx, h / size.y, fz, 0.9f, 0.35f));
+                int pi = palm[Mathf.Min((int)(H(i, j, 4) * palm.Count), palm.Count - 1)];
+                list.Add(Make(pi, fx, h / size.y, fz, 0.9f, 0.35f, H(i, j, 6), H(i, j, 7)));
                 Occupy(wx, wz); palms++;
                 continue;
             }
@@ -339,10 +347,10 @@ public class TreeManagerEditor : Editor
                      + Mathf.PerlinNoise(wx / (tm.clumpSize * 0.33f) + 57f, wz / (tm.clumpSize * 0.33f) + 57f) * 0.35f;
             float g = Mathf.SmoothStep(0f, 1f, cl);
             p *= Mathf.Lerp(1f, g * g * 3f, tm.clumpStrength);
-            if (rnd.NextDouble() > p) continue;
+            if (H(i, j, 8) > p) continue;
             if (TooClose(wx, wz, tm.minDistance)) continue;
 
-            list.Add(Make(PickLand(), fx, h / size.y, fz, 0.85f, 0.4f));
+            list.Add(Make(PickLand(H(i, j, 5)), fx, h / size.y, fz, 0.85f, 0.4f, H(i, j, 6), H(i, j, 7)));
             Occupy(wx, wz);
         }
 
