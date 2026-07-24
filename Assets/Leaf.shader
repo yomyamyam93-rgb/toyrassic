@@ -27,6 +27,7 @@ Shader "Toyrassic/Leaf"
             #pragma fragment frag
             #pragma multi_compile _ _MAIN_LIGHT_SHADOWS _MAIN_LIGHT_SHADOWS_CASCADE
             #pragma multi_compile _ _SHADOWS_SOFT
+            #pragma multi_compile_fog
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
 
@@ -37,7 +38,7 @@ Shader "Toyrassic/Leaf"
 
             struct A { float4 pos:POSITION; float3 nrm:NORMAL; float2 uv:TEXCOORD0; };
             struct V { float4 hcs:SV_POSITION; float3 wp:TEXCOORD0; float3 wn:TEXCOORD1;
-                       float2 uv:TEXCOORD2; float4 sc:TEXCOORD3; };
+                       float2 uv:TEXCOORD2; float4 sc:TEXCOORD3; float fog:TEXCOORD4; };
 
             V vert(A i){
                 V o;
@@ -46,6 +47,7 @@ Shader "Toyrassic/Leaf"
                 o.hcs = TransformWorldToHClip(o.wp);
                 o.uv = i.uv;
                 o.sc = TransformWorldToShadowCoord(o.wp);
+                o.fog = ComputeFogFactor(o.hcs.z);
                 return o;
             }
 
@@ -80,6 +82,7 @@ Shader "Toyrassic/Leaf"
                 float sh = lerp(0.72, 1.0, L.shadowAttenuation);      // 그림자만 받는다
                 float3 col = sat * tone * L.color * 0.92 * sh;
                 col += sat * SampleSH(i.wn) * 0.18;
+                col = MixFog(col, i.fog);        // 멀리 나무도 지형처럼 안개에 잠기게
                 return half4(col, 1);
             }
             ENDHLSL
