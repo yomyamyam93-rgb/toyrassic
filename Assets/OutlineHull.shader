@@ -14,6 +14,11 @@ Shader "Toyrassic/OutlineHull"
         {
             Name "Outline"
             Cull Front          // 뒷면만 그림 = 테두리만 보임
+            Stencil             // ★몸이 찍어둔 스텐실(1) '바깥'에만 그림 = 내부 선 제거, 최외곽 실루엣만
+            {
+                Ref 1
+                Comp NotEqual
+            }
             HLSLPROGRAM
             #pragma vertex vert
             #pragma fragment frag
