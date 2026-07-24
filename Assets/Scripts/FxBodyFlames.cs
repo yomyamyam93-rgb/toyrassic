@@ -5,8 +5,8 @@ using UnityEngine;
 [DisallowMultipleComponent]
 public class FxBodyFlames : MonoBehaviour
 {
-    public float rate = 40f;          // 초당 불꽃 수
-    public float flameSize = 0.10f;   // 몸높이 대비 불꽃 크기
+    public float rate = 110f;         // 초당 불꽃 수 (업계식: 겹겹이 많이)
+    public float flameSize = 0.15f;   // 몸높이 대비 불꽃 크기
     public float riseSpeed = 0.35f;   // 몸높이 대비 상승 속도
 
     ParticleSystem ps;
@@ -37,8 +37,6 @@ public class FxBodyFlames : MonoBehaviour
     }
 
     ParticleSystem embers;
-    Light fireLight;
-    float lightBase;
 
     // 업계 레시피: ①가산 불꽃 ②불티 ③실제 조명(플리커) (+난류)
     void MakePS()
@@ -46,23 +44,23 @@ public class FxBodyFlames : MonoBehaviour
         // ── 절차 불꽃 텍스처 (아래 밝고 위로 갈수록 좁아지는 물방울형) ──
         var ftex = MakeFlameTex();
 
-        // ── ① 불꽃 본체: 가산 블렌드 = 겹칠수록 밝게 타오름 ──
-        ps = NewPS("fx_flames", ftex, true);
+        // ── ① 불꽃 본체: 침식 불꽃 셰이더(FlameCard) — 노이즈가 알파를 갉아 날름거림 ──
+        ps = NewPS("fx_flames", null, true);
+        var pr2 = ps.GetComponent<ParticleSystemRenderer>();
+        pr2.material = new Material(Shader.Find("Toyrassic/FlameCard"));
         var main = ps.main;
-        main.startSpeed = 0f; main.maxParticles = 800;
+        main.startSpeed = 0f; main.maxParticles = 1500;
         var noise = ps.noise; noise.enabled = true;                 // 난류 — 흔들리며 상승
-        noise.strength = new ParticleSystem.MinMaxCurve(bodyH * 0.12f);
+        noise.strength = new ParticleSystem.MinMaxCurve(bodyH * 0.10f);
         noise.frequency = 0.6f; noise.scrollSpeed = 0.8f;
-        var col = ps.colorOverLifetime; col.enabled = true;
+        var col = ps.colorOverLifetime; col.enabled = true;         // 알파 = 침식 구동 (색은 셰이더가)
         var grad = new Gradient();
-        grad.SetKeys(new[] { new GradientColorKey(new Color(1f, 0.95f, 0.65f), 0f),   // 심지 백황
-                             new GradientColorKey(new Color(1f, 0.55f, 0.10f), 0.45f),
-                             new GradientColorKey(new Color(0.85f, 0.15f, 0.03f), 1f) },
-                     new[] { new GradientAlphaKey(1f, 0f), new GradientAlphaKey(0.7f, 0.55f), new GradientAlphaKey(0f, 1f) });
+        grad.SetKeys(new[] { new GradientColorKey(Color.white, 0f), new GradientColorKey(Color.white, 1f) },
+                     new[] { new GradientAlphaKey(1f, 0f), new GradientAlphaKey(0.85f, 0.45f), new GradientAlphaKey(0f, 1f) });
         col.color = grad;
         var sol = ps.sizeOverLifetime; sol.enabled = true;
         sol.size = new ParticleSystem.MinMaxCurve(1f, new AnimationCurve(
-            new Keyframe(0f, 0.55f), new Keyframe(0.2f, 1f), new Keyframe(1f, 0.05f)));
+            new Keyframe(0f, 0.7f), new Keyframe(0.25f, 1f), new Keyframe(1f, 0.35f)));
         ps.Play();
 
         // ── ② 불티: 작고 밝은 HDR 점이 높이 흩날림 (둥근 점 스프라이트) ──
@@ -79,17 +77,7 @@ public class FxBodyFlames : MonoBehaviour
         col2.color = g2;
         embers.Play();
 
-        // ── ④ 실제 조명: 몸·바닥을 비추는 주황 포인트 라이트 (Update 에서 플리커) ──
-        var lgo = new GameObject("fx_firelight");
-        lgo.transform.SetParent(transform, false);
-        lgo.transform.localPosition = Vector3.up * (bodyH * 0.4f / Mathf.Max(0.01f, transform.lossyScale.y));
-        fireLight = lgo.AddComponent<Light>();
-        fireLight.type = LightType.Point;
-        fireLight.color = new Color(1f, 0.55f, 0.22f);
-        fireLight.range = bodyH * 2.4f;
-        lightBase = Mathf.Clamp(bodyH * 0.5f, 2f, 14f);
-        fireLight.intensity = lightBase;
-        fireLight.shadows = LightShadows.None;
+        // (포인트 라이트는 몸속에 박힌 느낌이라 제거 — 라인 발광은 균열 HDR + 블룸이 담당)
     }
 
     ParticleSystem NewPS(string name, Texture2D tex, bool additive)
@@ -217,10 +205,6 @@ public class FxBodyFlames : MonoBehaviour
     void Update()
     {
         if (ps == null || verts == null) return;
-
-        // 조명 플리커 — 불빛이 일렁이며 주변을 비춤
-        if (fireLight != null)
-            fireLight.intensity = lightBase * (0.8f + 0.4f * Mathf.PerlinNoise(Time.time * 7f, 0.37f));
 
         // 불티 — 뜨거운 정점에서 가끔 튀어오름
         emberAcc += Time.deltaTime * 10f;
