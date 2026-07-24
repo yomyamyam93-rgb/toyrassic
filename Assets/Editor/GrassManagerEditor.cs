@@ -120,6 +120,7 @@ public class GrassManagerEditor : Editor
         {
             gm.density = EditorGUILayout.Slider("전체 밀도", gm.density, 0f, 1.5f);
             gm.drawDistance = EditorGUILayout.Slider("그리기 거리(m)", gm.drawDistance, 50f, 400f);
+            gm.cellSize = EditorGUILayout.Slider("격자 크기(m/칸) — 작을수록 정밀", gm.cellSize, 1f, 4f);
         }
         EditorGUILayout.EndFoldoutHeaderGroup();
 
@@ -360,12 +361,61 @@ public class GrassManagerEditor : Editor
         }
         td.detailPrototypes = protoList.ToArray();
 
+        // 격자 해상도 — 칸이 작을수록 경계가 정밀하고 덜 각진다
+        int wantRes = Mathf.Clamp(Mathf.CeilToInt(td.size.x / Mathf.Max(1f, gm.cellSize)), 512, 4096);
+        if (td.detailResolution != wantRes)
+            td.SetDetailResolution(wantRes, 32);   // 맵은 아래서 전부 다시 쓴다
         int res = td.detailResolution;
+
         int aw = td.alphamapWidth, ah = td.alphamapHeight, al = td.alphamapLayers;
         var splat = td.GetAlphamaps(0, 0, aw, ah);
+
+        // ① 알파맵 텍셀별 마스크(허용 − 금지×강도) 그리드
+        var maskGrid = new float[aw * ah];
+        for (int y = 0; y < ah; y++)
+        for (int x = 0; x < aw; x++)
+        {
+            float allow = 0f, blocked = 0f;
+            for (int l = 0; l < al; l++)
+            {
+                float w = splat[y, x, l];
+                if (l < allowIdx.Length && allowIdx[l]) allow += w; else blocked += w;
+            }
+            maskGrid[y * aw + x] = allow - blocked * gm.blockStrength;
+        }
+        float MaskAt(float u, float v)   // 부드러운(bilinear) 샘플
+        {
+            float gx = Mathf.Clamp01(u) * (aw - 1), gy = Mathf.Clamp01(v) * (ah - 1);
+            int x0 = (int)gx, y0 = (int)gy;
+            int x1 = Mathf.Min(x0 + 1, aw - 1), y1 = Mathf.Min(y0 + 1, ah - 1);
+            float tx = gx - x0, ty = gy - y0;
+            float a = Mathf.Lerp(maskGrid[y0 * aw + x0], maskGrid[y0 * aw + x1], tx);
+            float b = Mathf.Lerp(maskGrid[y1 * aw + x0], maskGrid[y1 * aw + x1], tx);
+            return Mathf.Lerp(a, b, ty);
+        }
+
+        // ② 셀 공통 판정 한 번만: 높이·경사 + 셀 '네 모서리' 마스크
+        //    최솟값 기준 → 칸 일부라도 길·soil 이면 안 심는다 = 길 위로 안 삐져나감
+        var cellMin = new float[res * res];
+        var cellAvg = new float[res * res];
+        float inv = 1f / (res - 1);
+        for (int y = 0; y < res; y++)
+        for (int x = 0; x < res; x++)
+        {
+            int ci = y * res + x;
+            cellMin[ci] = -9f;                     // 기본 = 심기 불가
+            float fx = x * inv, fz = y * inv;
+            float h = td.GetInterpolatedHeight(fx, fz);
+            if (h < gm.minHeight || h > gm.maxHeight) continue;
+            if (Vector3.Angle(td.GetInterpolatedNormal(fx, fz), Vector3.up) > gm.maxSlope) continue;
+            float m00 = MaskAt(fx, fz),       m10 = MaskAt(fx + inv, fz);
+            float m01 = MaskAt(fx, fz + inv), m11 = MaskAt(fx + inv, fz + inv);
+            cellMin[ci] = Mathf.Min(Mathf.Min(m00, m10), Mathf.Min(m01, m11));
+            cellAvg[ci] = (m00 + m10 + m01 + m11) * 0.25f;
+        }
+
         const int AMT_MAX = 16;
         long total = 0;
-
         for (int layer = 0; layer < typeCount; layer++)
         {
             var t = gm.types[layer];
@@ -376,34 +426,21 @@ public class GrassManagerEditor : Editor
                 for (int y = 0; y < res; y++)
                 for (int x = 0; x < res; x++)
                 {
-                    float fx = (float)x / (res - 1), fz = (float)y / (res - 1);
-                    float h = td.GetInterpolatedHeight(fx, fz);
-                    if (h < gm.minHeight || h > gm.maxHeight) continue;
-                    if (Vector3.Angle(td.GetInterpolatedNormal(fx, fz), Vector3.up) > gm.maxSlope) continue;
-
-                    // 허용 − 금지 비중 = 심기 마스크. 체크 안 한 레이어(soil 등)가 진한
-                    // 칸은 grass 가 조금 섞여 있어도 밀려나서 잔디가 안 생긴다.
-                    int ax = Mathf.Clamp((int)(fx * (aw - 1)), 0, aw - 1);
-                    int az = Mathf.Clamp((int)(fz * (ah - 1)), 0, ah - 1);
-                    float allow = 0f, blocked = 0f;
-                    for (int l = 0; l < al; l++)
-                    {
-                        if (l < allowIdx.Length && allowIdx[l]) allow += splat[az, ax, l];
-                        else blocked += splat[az, ax, l];
-                    }
-                    float mask = allow - blocked * gm.blockStrength;   // 강도 0 = 안 밀어냄, 1 = 완전 밀어냄
+                    float mn = cellMin[y * res + x];
+                    if (mn < -2f) continue;
+                    float fx = x * inv, fz = y * inv;
 
                     // 들쭉날쭉: 문턱을 노이즈로 흔들어 경계선이 직선으로 안 보이게
                     float th = gm.layerThreshold
                              + (Mathf.PerlinNoise(fx * 220f, fz * 220f) - 0.5f) * 2f * gm.edgeJitter;
-                    if (mask < th) continue;
+                    if (mn < th) continue;
                     // 0 = 경계 바로 위, 1 = 완전 안쪽
-                    float band = Mathf.InverseLerp(th, th + Mathf.Max(0.01f, gm.edgeBand), mask);
+                    float band = Mathf.InverseLerp(th, th + Mathf.Max(0.01f, gm.edgeBand), mn);
 
                     float d = Mathf.PerlinNoise(fx * 90f + layer * 37.7f, fz * 90f + layer * 37.7f);
                     if (d < 0.05f) continue;
                     float dens = Mathf.Lerp(8f, AMT_MAX, (d - 0.05f) / 0.95f)
-                               * gm.density * t.weight * Mathf.Clamp01(mask);
+                               * gm.density * t.weight * Mathf.Clamp01(cellAvg[y * res + x]);
 
                     if (band >= 1f)
                     {   // 안쪽: 정상 크기·정상 밀도

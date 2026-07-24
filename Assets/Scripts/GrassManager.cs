@@ -39,6 +39,8 @@ public class GrassManager : MonoBehaviour
     // ── 밀도 ──
     [Range(0f, 1.5f)] public float density = 0.85f;
     [Range(50f, 400f)] public float drawDistance = 250f;
+    [Tooltip("잔디 격자 한 칸 크기(m) — 작을수록 경계가 정밀하고 덜 각지지만 적용이 느려진다")]
+    [Range(1f, 4f)] public float cellSize = 1.5f;
 
     // ── 경계 다듬기: 잔디가 길·모래와 만나는 가장자리 ──
     [Range(0f, 1f)] public float blockStrength = 1f;       // 체크 안 한 레이어가 잔디를 밀어내는 강도
