@@ -682,7 +682,15 @@ public static class WorldBuilder
     // ══════════════════════════════════════════════════════════
     static void DoWater(Terrain terrain)
     {
-        var ocean = GameObject.Find("Ocean");
+        // ★GameObject.Find 는 '켜진' 오브젝트만 찾는다 — Ocean 이 꺼져 있으면 못 찾아 물이 통째로 건너뛰어졌다.
+        //   그래서 씬 루트부터 자식까지(비활성 포함) 직접 뒤진다.
+        GameObject ocean = null;
+        foreach (var root in UnityEngine.SceneManagement.SceneManager.GetActiveScene().GetRootGameObjects())
+        {
+            foreach (var t in root.GetComponentsInChildren<Transform>(true))   // true = 비활성 포함
+                if (t.name == "Ocean") { ocean = t.gameObject; break; }
+            if (ocean != null) break;
+        }
         if (ocean == null)
         {
             Debug.LogWarning("[월드] 'Ocean' 오브젝트를 못 찾음 — 물 건너뜀. (씬에 KTWater 평면이 있어야 함)");
