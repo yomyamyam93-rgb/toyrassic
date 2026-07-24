@@ -20,6 +20,12 @@ Shader "Toyrassic/PetToon"
         _Twist ("비틀림", Range(-2,2)) = 0
         _RefLen ("긴축 반길이", Float) = 1
         _AxisX ("긴축=X면 1", Float) = 0
+        // 전용 반사 큐브맵 (URP 환경반사 대신 직접 샘플 — 금속·유리의 생명)
+        _EnvCube ("전용 반사 큐브맵", Cube) = "black" {}
+        _EnvIntensity ("반사 세기", Range(0,2)) = 0
+        // 트라이플래너 (UV 무시, 오브젝트 좌표 투영 — UV 불균일 모델용)
+        _Triplanar ("트라이플래너 사용", Float) = 0
+        _TriScale ("트라이플래너 타일 (반복/유닛)", Float) = 4
         // 투명(유리)용
         _SrcBlend ("Src", Float) = 1
         _DstBlend ("Dst", Float) = 0
@@ -56,9 +62,11 @@ Shader "Toyrassic/PetToon"
             TEXTURE2D(_BumpMap); SAMPLER(sampler_BumpMap);
             TEXTURE2D(_MetallicGlossMap); SAMPLER(sampler_MetallicGlossMap);
             TEXTURE2D(_OcclusionMap); SAMPLER(sampler_OcclusionMap);
+            TEXTURECUBE(_EnvCube); SAMPLER(sampler_EnvCube);
             float4 _BaseMap_ST;
             half4 _BaseColor, _EmissionColor;
             half _BumpScale, _Metallic, _Smoothness, _OcclusionStrength;
+            half _EnvIntensity, _Triplanar; float _TriScale;
 
             struct A
             {
@@ -70,12 +78,14 @@ Shader "Toyrassic/PetToon"
                 float4 positionCS:SV_POSITION; float2 uv:TEXCOORD0;
                 float3 wpos:TEXCOORD1; half3 nrm:TEXCOORD2;
                 half4 tan:TEXCOORD3; half fog:TEXCOORD4;
+                float3 opos:TEXCOORD5; half3 onrm:TEXCOORD6;     // 트라이플래너용 (벤드 전 원본)
             };
 
             V vert(A i)
             {
                 V o;
                 float3 p = i.positionOS.xyz; float3 n = i.normalOS;
+                o.opos = p; o.onrm = i.normalOS;                     // 원본 좌표 → 무늬가 몸에 붙음
                 ApplyPetBend(p, n);                                  // ★구부리기
                 float3 tn = i.tangentOS.xyz; float3 dummy = tn; ApplyPetBend(dummy, tn);
                 o.wpos = TransformObjectToWorld(p);
@@ -89,29 +99,63 @@ Shader "Toyrassic/PetToon"
 
             half4 frag(V i) : SV_Target
             {
-                half4 baseTex = SAMPLE_TEXTURE2D(_BaseMap, sampler_BaseMap, i.uv);
-                half3 albedo = baseTex.rgb * _BaseColor.rgb;
-                half alpha = baseTex.a * _BaseColor.a;
-
-                half metallic = _Metallic, smooth = _Smoothness;
-            #ifdef _METALLICSPECGLOSSMAP
-                half4 mg = SAMPLE_TEXTURE2D(_MetallicGlossMap, sampler_MetallicGlossMap, i.uv);
-                metallic = mg.r; smooth = mg.a * _Smoothness;
-            #endif
-                half occ = 1;
-            #ifdef _OCCLUSIONMAP
-                occ = lerp(1, SAMPLE_TEXTURE2D(_OcclusionMap, sampler_OcclusionMap, i.uv).g, _OcclusionStrength);
-            #endif
-                half3 nTS = half3(0,0,1);
-            #ifdef _NORMALMAP
-                nTS = UnpackNormalScale(SAMPLE_TEXTURE2D(_BumpMap, sampler_BumpMap, i.uv), _BumpScale);
-            #endif
-
                 half3 nWS = normalize(i.nrm);
-                half3 tWS = normalize(i.tan.xyz);
-                half3 bWS = cross(nWS, tWS) * i.tan.w;
-                half3x3 tbn = half3x3(tWS, bWS, nWS);
-                half3 normalWS = normalize(mul(nTS, tbn));
+                half3 albedo; half alpha; half metallic = _Metallic, smooth = _Smoothness; half occ = 1;
+                half3 normalWS;
+
+                if (_Triplanar > 0.5)
+                {   // ── 트라이플래너: UV 무시, 오브젝트 좌표로 3면 투영 (UV 불균일 모델용) ──
+                    float3 op = i.opos * _TriScale;
+                    half3 an = abs(normalize(i.onrm)); an = pow(an, 4); an /= (an.x + an.y + an.z);
+                    half4 bx = SAMPLE_TEXTURE2D(_BaseMap, sampler_BaseMap, op.zy);
+                    half4 by = SAMPLE_TEXTURE2D(_BaseMap, sampler_BaseMap, op.xz);
+                    half4 bz = SAMPLE_TEXTURE2D(_BaseMap, sampler_BaseMap, op.xy);
+                    half4 baseTex = bx * an.x + by * an.y + bz * an.z;
+                    albedo = baseTex.rgb * _BaseColor.rgb; alpha = baseTex.a * _BaseColor.a;
+                #ifdef _METALLICSPECGLOSSMAP
+                    half4 mg = SAMPLE_TEXTURE2D(_MetallicGlossMap, sampler_MetallicGlossMap, op.xz)
+                             ;
+                    metallic = mg.r; smooth = mg.a * _Smoothness;
+                #endif
+                #ifdef _OCCLUSIONMAP
+                    occ = lerp(1, SAMPLE_TEXTURE2D(_OcclusionMap, sampler_OcclusionMap, op.xz).g, _OcclusionStrength);
+                #endif
+                #ifdef _NORMALMAP
+                    // 오브젝트 공간 트라이플래너 노멀 (whiteout 근사)
+                    half3 tnx = UnpackNormalScale(SAMPLE_TEXTURE2D(_BumpMap, sampler_BumpMap, op.zy), _BumpScale);
+                    half3 tny = UnpackNormalScale(SAMPLE_TEXTURE2D(_BumpMap, sampler_BumpMap, op.xz), _BumpScale);
+                    half3 tnz = UnpackNormalScale(SAMPLE_TEXTURE2D(_BumpMap, sampler_BumpMap, op.xy), _BumpScale);
+                    half3 no = normalize(i.onrm);
+                    half3 pert = half3(tnx.z * sign(no.x), tny.z * sign(no.y), tnz.z * sign(no.z)) * 0
+                               + half3(0, tnx.x, tnx.y) * an.x
+                               + half3(tny.x, 0, tny.y) * an.y
+                               + half3(tnz.x, tnz.y, 0) * an.z;
+                    half3 bentO = normalize(no + pert);
+                    normalWS = normalize(TransformObjectToWorldNormal(bentO));
+                #else
+                    normalWS = nWS;
+                #endif
+                }
+                else
+                {   // ── 일반 UV 경로 ──
+                    half4 baseTex = SAMPLE_TEXTURE2D(_BaseMap, sampler_BaseMap, i.uv);
+                    albedo = baseTex.rgb * _BaseColor.rgb; alpha = baseTex.a * _BaseColor.a;
+                #ifdef _METALLICSPECGLOSSMAP
+                    half4 mg = SAMPLE_TEXTURE2D(_MetallicGlossMap, sampler_MetallicGlossMap, i.uv);
+                    metallic = mg.r; smooth = mg.a * _Smoothness;
+                #endif
+                #ifdef _OCCLUSIONMAP
+                    occ = lerp(1, SAMPLE_TEXTURE2D(_OcclusionMap, sampler_OcclusionMap, i.uv).g, _OcclusionStrength);
+                #endif
+                    half3 nTS = half3(0,0,1);
+                #ifdef _NORMALMAP
+                    nTS = UnpackNormalScale(SAMPLE_TEXTURE2D(_BumpMap, sampler_BumpMap, i.uv), _BumpScale);
+                #endif
+                    half3 tWS = normalize(i.tan.xyz);
+                    half3 bWS = cross(nWS, tWS) * i.tan.w;
+                    half3x3 tbn = half3x3(tWS, bWS, nWS);
+                    normalWS = normalize(mul(nTS, tbn));
+                }
 
                 SurfaceData sd = (SurfaceData)0;
                 sd.albedo = albedo; sd.alpha = alpha;
@@ -131,6 +175,19 @@ Shader "Toyrassic/PetToon"
                 id.shadowMask = half4(1,1,1,1);
 
                 half4 col = UniversalFragmentPBR(id, sd);
+
+                // ★전용 반사 큐브맵 — URP 환경반사를 안 거치고 직접 샘플 (금속·유리의 은빛)
+                if (_EnvIntensity > 0.001)
+                {
+                    half3 refl = reflect(-id.viewDirectionWS, normalWS);
+                    half mip = (1 - smooth) * 6;
+                    half3 env = SAMPLE_TEXTURECUBE_LOD(_EnvCube, sampler_EnvCube, refl, mip).rgb;
+                    half fres = pow(1 - saturate(dot(normalWS, id.viewDirectionWS)), 4);
+                    half3 tint = lerp(half3(1,1,1), albedo, metallic);   // 금속은 몸색으로 착색
+                    half amt = lerp(fres * 0.10, 1, metallic) * smooth * _EnvIntensity;
+                    col.rgb += env * tint * amt * occ;
+                }
+
                 col.rgb = MixFog(col.rgb, i.fog);
                 return col;
             }
