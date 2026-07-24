@@ -12,6 +12,7 @@ GameObject:
   - component: {fileID: 9014338740171656236}
   - component: {fileID: 1877255716305916245}
   - component: {fileID: 988672700544634146}
+  - component: {fileID: 4197843935465554866}
   m_Layer: 0
   m_Name: BirchTree_Dead_2
   m_TagString: Untagged
@@ -115,3 +116,22 @@ CapsuleCollider:
   m_Height: 5.7750006
   m_Direction: 1
   m_Center: {x: 0, y: 2.8875003, z: 0}
+--- !u!205 &4197843935465554866
+LODGroup:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2009420899418927010}
+  serializedVersion: 2
+  m_LocalReferencePoint: {x: 0.059821844, y: 4.8500004, z: -0.005973339}
+  m_Size: 10.500002
+  m_FadeMode: 0
+  m_AnimateCrossFading: 0
+  m_LastLODIsBillboard: 0
+  m_LODs:
+  - screenRelativeHeight: 0.005
+    fadeTransitionWidth: 0
+    renderers:
+    - renderer: {fileID: 1877255716305916245}
+  m_Enabled: 1

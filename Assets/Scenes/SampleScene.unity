@@ -6179,61 +6179,61 @@ MonoBehaviour:
     size: 1
   - name: BirchTree_Dead_2
     active: 1
-    weight: 1
-    size: 1
+    weight: 0.29
+    size: 2.18
   - name: BirchTree_Dead_3
-    active: 1
+    active: 0
     weight: 1
     size: 1
   - name: BirchTree_Dead_4
-    active: 1
+    active: 0
     weight: 1
     size: 1
   - name: Willow_Dead_1
-    active: 1
+    active: 0
     weight: 1
     size: 1
   - name: Willow_Dead_2
-    active: 1
+    active: 0
     weight: 1
-    size: 1
+    size: 1.875
   - name: Willow_Dead_4
-    active: 1
+    active: 0
     weight: 1
     size: 1
   - name: palmtree_1
-    active: 1
-    weight: 1
-    size: 1
+    active: 0
+    weight: 0.49
+    size: 5
   - name: palmtree_2
-    active: 1
+    active: 0
     weight: 1
     size: 1
   - name: palmtree_3
-    active: 1
+    active: 0
     weight: 1
     size: 1
   - name: palmtree_4
-    active: 1
+    active: 0
     weight: 1
     size: 1
   - name: Rock_Medium_1
-    active: 1
+    active: 0
     weight: 1
     size: 1
   - name: Rock_Medium_2
-    active: 1
+    active: 0
     weight: 1
     size: 1
   - name: Rock_Medium_3
-    active: 1
+    active: 0
     weight: 1
     size: 1
   placeLayers:
   - layer: {fileID: 8574412962073106934, guid: ab8fee9c7db9e19478e459ae5a7ab6da, type: 2}
     on: 0
   - layer: {fileID: 8574412962073106934, guid: f8da8618b1b6ac8479ef6800b5d8d8a1, type: 2}
-    on: 1
+    on: 0
   - layer: {fileID: 8574412962073106934, guid: 8ea4f713b896a824fbb4c249bc377cf4, type: 2}
     on: 1
   - layer: {fileID: 8574412962073106934, guid: 8a1d0f58444fb7048a325554d29e75dc, type: 2}
@@ -6246,13 +6246,16 @@ MonoBehaviour:
     on: 0
   - layer: {fileID: 8574412962073106934, guid: 734244157d9e7d445b51cf0c3e0a0c17, type: 2}
     on: 0
-  layerThreshold: 0.2
-  spacing: 10
-  minDistance: 3.5
-  forestContrast: 0.8
-  forestDensity: 0.75
-  plainsDensity: 0.02
-  palmDensity: 0.05
+  layerThreshold: 0.05
+  spacing: 10.3
+  minDistance: 2.11
+  forestContrast: 1
+  forestDensity: 0.079
+  plainsDensity: 0.284
+  palmDensity: 0
+  edgeMargin: 12
+  clumpStrength: 1
+  clumpSize: 300
   maxSlope: 28
   minHeight: 2
   maxHeight: 267
