@@ -488,7 +488,7 @@ public static class WorldBuilder
     /// ★잔디 색 매칭의 진짜 열쇠 — 지형 표면색을 구워서(bake) GrassGround 재질에 연결.
     ///   GrassCross 재질은 이미 GrassGround 셰이더(땅색맵을 월드XZ로 샘플)를 쓰는데,
     ///   _WorldSize 가 1500 으로 박혀 있어 6000m 지형에선 색이 어긋났다. 여기서 바로잡는다.
-    static void BakeGroundColorForGrass(Terrain terrain)
+    public static void BakeGroundColorForGrass(Terrain terrain)   // 잔디 매니저에서도 부른다
     {
         var td = terrain.terrainData;
         var layers = td.terrainLayers;

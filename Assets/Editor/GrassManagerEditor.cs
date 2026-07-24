@@ -104,9 +104,16 @@ public class GrassManagerEditor : Editor
         {
             EditorGUI.BeginChangeCheck();
             gm.tint = EditorGUILayout.ColorField("전체 색조", gm.tint);
+            gm.brightness = EditorGUILayout.Slider("밝기 보정 (바닥 대비)", gm.brightness, 0.7f, 1.3f);
             gm.rootDark = EditorGUILayout.Slider("밑동 어둠", gm.rootDark, 0.4f, 1f);
             gm.tipBoost = EditorGUILayout.Slider("잎끝 밝기", gm.tipBoost, 1f, 1.6f);
             colorChanged = EditorGUI.EndChangeCheck();
+
+            EditorGUILayout.Space(4);
+            EditorGUILayout.HelpBox("잔디색은 '구운 바닥색 맵'을 따라간다. 지형을 새로 칠했거나\n" +
+                "절벽·길 재질을 바꿔서 색이 어긋나면 아래 버튼으로 다시 굽는다.", MessageType.Info);
+            if (GUILayout.Button("바닥색 다시 굽기 — 잔디색을 지금 바닥에 일치"))
+            { WorldBuilder.BakeGroundColorForGrass(gm.terrain); ApplyColors(gm); }
         }
         EditorGUILayout.EndFoldoutHeaderGroup();
         if (colorChanged) ApplyColors(gm);
@@ -247,7 +254,7 @@ public class GrassManagerEditor : Editor
         {
             var m = AssetDatabase.LoadAssetAtPath<Material>(p);
             if (m == null) continue;
-            if (m.HasProperty("_Tint")) m.SetColor("_Tint", gm.tint);
+            if (m.HasProperty("_Tint")) { var c = gm.tint * gm.brightness; c.a = 1f; m.SetColor("_Tint", c); }
             if (m.HasProperty("_BaseDark")) m.SetFloat("_BaseDark", gm.rootDark);
             if (m.HasProperty("_TipBoost")) m.SetFloat("_TipBoost", gm.tipBoost);
             EditorUtility.SetDirty(m);

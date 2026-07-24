@@ -40,6 +40,7 @@ public class GrassManager : MonoBehaviour
 
     // ── 색 (GrassGround 셰이더 재질에 즉시 반영) ──
     public Color tint = Color.white;              // 전체 색조
+    [Range(0.7f, 1.3f)] public float brightness = 1f;  // 바닥 대비 잔디 밝기 보정
     [Range(0.4f, 1f)] public float rootDark = 0.72f;   // 밑동 어둠
     [Range(1f, 1.6f)] public float tipBoost = 1.22f;   // 잎끝 밝기
 }
