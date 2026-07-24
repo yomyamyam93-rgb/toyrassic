@@ -7,8 +7,9 @@ using UnityEngine;
 public class BodyLeaves : MonoBehaviour
 {
     [Header("잎 양·크기")]
-    [Range(50, 4000)] public int leafCount = 1200;
-    [Range(0.01f, 0.2f)] public float leafSize = 0.05f;    // 몸높이 대비
+    [Range(50, 4000)] public int leafCount = 1500;
+    [Range(0.005f, 0.2f)] public float leafSize = 0.02f;   // 몸높이 대비 (폭)
+    [Range(0.5f, 3f)] public float leafLength = 1.6f;      // 폭 대비 길이 비율
     [Range(0f, 1f)] public float sizeJitter = 0.5f;
 
     [Header("배치")]
@@ -22,7 +23,24 @@ public class BodyLeaves : MonoBehaviour
     GameObject holder;
 
     void Start() { Build(); }
-    void OnValidate() { if (isActiveAndEnabled) Build(); }
+
+    bool rebuildPending;   // delayCall 중복 등록 방지 (277개 축적 사고의 원인)
+
+    void OnValidate()
+    {   // OnValidate 안에서 직접 삭제하면 유니티가 에러 — 한 프레임 미뤄서 재생성
+#if UNITY_EDITOR
+        if (rebuildPending) return;
+        rebuildPending = true;
+        UnityEditor.EditorApplication.delayCall += () =>
+        {
+            if (this == null) return;
+            rebuildPending = false;
+            if (isActiveAndEnabled) Build();
+        };
+#else
+        if (isActiveAndEnabled) Build();
+#endif
+    }
 
     public void Build()
     {
@@ -36,9 +54,10 @@ public class BodyLeaves : MonoBehaviour
         float sizeLocal = bodyH * leafSize / ls;           // 로컬 단위 잎 크기
         float liftLocal = bodyH * liftOff / ls;
 
-        // 홀더 정리
-        var old = transform.Find("BodyLeaves");
-        if (old != null) { if (Application.isPlaying) Destroy(old.gameObject); else DestroyImmediate(old.gameObject); }
+        // 홀더 정리 — 이름이 같은 잔재를 '전부' 제거 (중복 축적 방지)
+        var stale = new System.Collections.Generic.List<GameObject>();
+        foreach (Transform c in transform) if (c.name == "BodyLeaves") stale.Add(c.gameObject);
+        foreach (var s0 in stale) { if (Application.isPlaying) Destroy(s0); else DestroyImmediate(s0); }
         holder = new GameObject("BodyLeaves");
         holder.transform.SetParent(transform, false);
 
@@ -68,8 +87,8 @@ public class BodyLeaves : MonoBehaviour
             int b = i * 4;
             v[b] = p - side * s * 0.5f;
             v[b + 1] = p + side * s * 0.5f;
-            v[b + 2] = p - side * s * 0.5f + up * s * 1.6f;
-            v[b + 3] = p + side * s * 0.5f + up * s * 1.6f;
+            v[b + 2] = p - side * s * 0.5f + up * s * leafLength;
+            v[b + 3] = p + side * s * 0.5f + up * s * leafLength;
             uv[b] = new Vector2(0, 0); uv[b + 1] = new Vector2(1, 0);
             uv[b + 2] = new Vector2(0, 1); uv[b + 3] = new Vector2(1, 1);
             nr[b] = nr[b + 1] = nr[b + 2] = nr[b + 3] = nm;
