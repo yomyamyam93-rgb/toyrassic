@@ -291,7 +291,7 @@ public static class WorldBuilder
         var ccx = new float[NCLUST]; var ccz = new float[NCLUST]; var ccr = new float[NCLUST];
         for (int c = 0; c < NCLUST; c++) { ccx[c] = (float)rnd.NextDouble(); ccz[c] = (float)rnd.NextDouble(); ccr[c] = 0.03f + (float)rnd.NextDouble() * 0.05f; }
 
-        float spacing = TreeSpacing * 0.7f;
+        float spacing = TreeSpacing * 0.5f;   // 격자 곱게 → 셀당 여러 그루와 합쳐 진짜 빽빽
         int cols = Mathf.Max(1, (int)(size.x / spacing)), rows = Mathf.Max(1, (int)(size.z / spacing));
 
         for (int j = 0; j < rows; j++)
@@ -318,25 +318,50 @@ public static class WorldBuilder
                 continue;
             }
 
-            // ── 내륙: 숲/평야 대비 ──
+            // ── 내륙: 숲/평야 대비 + '빽빽 속 더 빽빽' ──
             if (landIdx.Count == 0) continue;
-            // ① 바이옴(저주파) — 어디가 숲/평야인가. smoothstep 으로 대비를 세게.
+            // ① 바이옴(저주파) — 숲/평야 큰 구분. smoothstep 으로 대비 세게.
             float biomeN = Mathf.PerlinNoise(wx * 0.0006f + 40f, wz * 0.0006f + 40f);
-            float forest = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0.44f, 0.60f, biomeN));
-            // ② 숲 안 밀도 변화(중주파)
-            float med = Mathf.PerlinNoise(wx * 0.004f + 7f, wz * 0.004f + 7f);
-            // ③ 빽빽한 군집
+            float forest = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0.42f, 0.60f, biomeN));
+            // ② 다중 옥타브 얼룩 — 숲 안에서도 더 빽빽/성긴 데가 갈리게
+            float lump = Mathf.PerlinNoise(wx * 0.0025f + 7f, wz * 0.0025f + 7f) * 0.55f
+                       + Mathf.PerlinNoise(wx * 0.008f + 3f, wz * 0.008f + 3f) * 0.30f
+                       + Mathf.PerlinNoise(wx * 0.02f + 11f, wz * 0.02f + 11f) * 0.20f;
+            lump = Mathf.Clamp01(lump / 1.05f);
+            // ③ 빽빽한 군집 중심
             float clust = 0f;
             for (int c = 0; c < NCLUST; c++)
             {
                 float dx = fx - ccx[c], dz = fz - ccz[c];
                 clust = Mathf.Max(clust, Mathf.Exp(-(dx * dx + dz * dz) / (ccr[c] * ccr[c])));
             }
-            float dens = forest * (0.45f + 0.55f * med) + clust * 0.7f;
-            float p = dens * 0.9f + 0.012f;      // 평야도 1.2% 홑나무는 있음
-            if ((float)rnd.NextDouble() > p) continue;
+            // 밀도(0~1.7+). 코어는 1 넘어서 → 셀당 여러 그루로 진짜 빽빽.
+            float packed = forest * lump * 1.35f + clust * 1.15f;
+            float expect = packed * 2.4f + 0.02f;     // 셀당 기대 그루수(평야 ~0, 숲코어 3~4)
+            int nTree = Mathf.FloorToInt(expect);
+            if ((float)rnd.NextDouble() < expect - nTree) nTree++;
+            nTree = Mathf.Min(nTree, 4);
 
-            list.Add(MakeTree(landIdx[rnd.Next(landIdx.Count)], fx, h / size.y, fz, rnd, 0.55f, 0.6f));
+            float cellN = 1f / cols, cellM = 1f / rows;
+            for (int t = 0; t < nTree; t++)
+            {
+                float jx = fx + ((float)rnd.NextDouble() - 0.5f) * cellN;
+                float jz = fz + ((float)rnd.NextDouble() - 0.5f) * cellM;
+                if (jx <= 0f || jx >= 1f || jz <= 0f || jz >= 1f) continue;
+                float hh = td.GetInterpolatedHeight(jx, jz);
+                if (hh < MinHeight || hh > maxH) continue;
+                if (SandAmount(td, jx, jz) > 0.3f) continue;
+                // ★크기 확 다르게 — 작게 치우치고 가끔 큰 나무(pow), 넓이·높이 상관
+                float baseS = Mathf.Lerp(0.55f, 1.75f, Mathf.Pow((float)rnd.NextDouble(), 0.6f));
+                list.Add(new TreeInstance {
+                    position = new Vector3(jx, hh / size.y, jz),
+                    prototypeIndex = landIdx[rnd.Next(landIdx.Count)],
+                    widthScale = baseS * (0.9f + (float)rnd.NextDouble() * 0.2f),
+                    heightScale = baseS * (0.92f + (float)rnd.NextDouble() * 0.16f),
+                    rotation = (float)rnd.NextDouble() * Mathf.PI * 2f,
+                    color = Color.white, lightmapColor = Color.white,
+                });
+            }
         }
         td.SetTreeInstances(list.ToArray(), true);
         terrain.treeDistance = Mathf.Max(terrain.treeDistance, 3000f);
