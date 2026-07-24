@@ -6071,8 +6071,8 @@ MonoBehaviour:
   terrain: {fileID: 1274771777}
   smoothRadius: 4
   colorLevels: 6
-  saturation: 1.241
-  brightness: 1.077
+  saturation: 1.643
+  brightness: 1.327
   contrast: 0.658
 --- !u!114 &653440019
 MonoBehaviour:
@@ -6106,29 +6106,15 @@ MonoBehaviour:
     weight: 0.07
     size: 0.798
   placeLayers:
-  - layer: {fileID: 8574412962073106934, guid: ab8fee9c7db9e19478e459ae5a7ab6da, type: 2}
-    on: 0
-  - layer: {fileID: 8574412962073106934, guid: f8da8618b1b6ac8479ef6800b5d8d8a1, type: 2}
-    on: 1
   - layer: {fileID: 8574412962073106934, guid: 8ea4f713b896a824fbb4c249bc377cf4, type: 2}
     on: 1
-  - layer: {fileID: 8574412962073106934, guid: 8a1d0f58444fb7048a325554d29e75dc, type: 2}
-    on: 1
-  - layer: {fileID: 8574412962073106934, guid: 70102ca576d77f04596f26cb4077c9b0, type: 2}
-    on: 0
-  - layer: {fileID: 8574412962073106934, guid: e5c15e517299a3f4ba56a6ac441016c2, type: 2}
-    on: 0
-  - layer: {fileID: 8574412962073106934, guid: 865f3a4dc702a004aa5494fe6a3f9829, type: 2}
-    on: 0
-  - layer: {fileID: 8574412962073106934, guid: 734244157d9e7d445b51cf0c3e0a0c17, type: 2}
-    on: 0
-  layerThreshold: 0.274
+  layerThreshold: 0.233
   density: 0.85
   drawDistance: 250
-  edgeBand: 0.25
-  edgeDensity: 0.6
-  edgeSize: 0.8
-  edgeJitter: 0.08
+  edgeBand: 0.5
+  edgeDensity: 0.31
+  edgeSize: 0.616
+  edgeJitter: 0.246
   edgeProtoCount: 4
   maxSlope: 34
   minHeight: 2

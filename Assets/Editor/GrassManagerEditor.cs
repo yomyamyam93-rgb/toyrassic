@@ -380,23 +380,29 @@ public class GrassManagerEditor : Editor
                     if (h < gm.minHeight || h > gm.maxHeight) continue;
                     if (Vector3.Angle(td.GetInterpolatedNormal(fx, fz), Vector3.up) > gm.maxSlope) continue;
 
-                    // 허용 레이어 비중 합 = 심기 마스크
+                    // 허용 − 금지 비중 = 심기 마스크. 체크 안 한 레이어(soil 등)가 진한
+                    // 칸은 grass 가 조금 섞여 있어도 밀려나서 잔디가 안 생긴다.
                     int ax = Mathf.Clamp((int)(fx * (aw - 1)), 0, aw - 1);
                     int az = Mathf.Clamp((int)(fz * (ah - 1)), 0, ah - 1);
-                    float allow = 0f;
-                    for (int l = 0; l < al; l++) if (l < allowIdx.Length && allowIdx[l]) allow += splat[az, ax, l];
+                    float allow = 0f, blocked = 0f;
+                    for (int l = 0; l < al; l++)
+                    {
+                        if (l < allowIdx.Length && allowIdx[l]) allow += splat[az, ax, l];
+                        else blocked += splat[az, ax, l];
+                    }
+                    float mask = allow - blocked;
 
                     // 들쭉날쭉: 문턱을 노이즈로 흔들어 경계선이 직선으로 안 보이게
                     float th = gm.layerThreshold
                              + (Mathf.PerlinNoise(fx * 220f, fz * 220f) - 0.5f) * 2f * gm.edgeJitter;
-                    if (allow < th) continue;
+                    if (mask < th) continue;
                     // 0 = 경계 바로 위, 1 = 완전 안쪽
-                    float band = Mathf.InverseLerp(th, th + Mathf.Max(0.01f, gm.edgeBand), allow);
+                    float band = Mathf.InverseLerp(th, th + Mathf.Max(0.01f, gm.edgeBand), mask);
 
                     float d = Mathf.PerlinNoise(fx * 90f + layer * 37.7f, fz * 90f + layer * 37.7f);
                     if (d < 0.05f) continue;
                     float dens = Mathf.Lerp(8f, AMT_MAX, (d - 0.05f) / 0.95f)
-                               * gm.density * t.weight * Mathf.Clamp01(allow);
+                               * gm.density * t.weight * Mathf.Clamp01(mask);
 
                     if (band >= 1f)
                     {   // 안쪽: 정상 크기·정상 밀도
