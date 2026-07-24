@@ -59,7 +59,7 @@ public static class EnvironmentScatter
         var rnd = new System.Random(20260724);
 
         // 어디서 잘려나가는지 세어둔다. 추측하지 않기 위해.
-        int cand = 0, rejNoise = 0, rejEdge = 0, rejHeight = 0, rejSlope = 0;
+        int cand = 0, rejNoise = 0, rejEdge = 0, rejHeight = 0, rejSlope = 0, rejRoad = 0;
 
         for (int j = 0; j < rows; j++)
         for (int i = 0; i < cols; i++)
@@ -87,6 +87,7 @@ public static class EnvironmentScatter
             if (h < MinHeight || h > maxH) { rejHeight++; continue; }
             Vector3 n = td.GetInterpolatedNormal(fx, fz);
             if (Vector3.Angle(n, Vector3.up) > TreeMaxSlope) { rejSlope++; continue; }
+            if (OnRoad(td, fx, fz)) { rejRoad++; continue; }   // 길 위엔 안 심는다
 
             var t = new TreeInstance
             {
@@ -109,7 +110,7 @@ public static class EnvironmentScatter
 
         Debug.Log($"[환경] 나무 {list.Count}그루 배치 완료 (프로토타입 {protos.Length}종).\n" +
                   $"지형 {size.x:F0}×{size.z:F0}m, 최고높이 {size.y:F0}m (심는 상한 {maxH:F0}m)\n" +
-                  $"후보 {cand} → 탈락: 숲노이즈 {rejNoise} / 가장자리 {rejEdge} / 높이 {rejHeight} / 경사 {rejSlope}\n" +
+                  $"후보 {cand} → 탈락: 숲노이즈 {rejNoise} / 가장자리 {rejEdge} / 높이 {rejHeight} / 경사 {rejSlope} / 길 {rejRoad}\n" +
                   "너무 적으면 ForestCut 을 낮추고, 너무 많으면 올린다. TreeSpacing 은 간격.");
     }
 
@@ -151,6 +152,7 @@ public static class EnvironmentScatter
                 if (h < MinHeight || h > maxH) continue;
                 Vector3 n = td.GetInterpolatedNormal(fx, fz);
                 if (Vector3.Angle(n, Vector3.up) > GrassMaxSlope) continue;
+                if (OnRoad(td, fx, fz)) continue;   // 길 위엔 풀이 안 난다
 
                 // 층마다 다른 노이즈 → 풀 종류가 자연스럽게 섞인다
                 float d = Mathf.PerlinNoise(fx * 90f + layer * 37.7f, fz * 90f + layer * 37.7f);
@@ -199,6 +201,29 @@ public static class EnvironmentScatter
         EditorUtility.SetDirty(td);
         AssetDatabase.SaveAssets();
         Debug.Log("[환경] 나무·풀 전부 지움.");
+    }
+
+    /// 그 자리가 길인지 — 스플랫맵의 흙 레이어 비중으로 판정.
+    /// 길을 낸 뒤 나무·풀을 뿌려야 길이 덮이지 않는다.
+    static int _dirtLayer = -2;
+    static bool OnRoad(TerrainData td, float fx, float fz)
+    {
+        if (_dirtLayer == -2)
+        {
+            _dirtLayer = -1;
+            var ls = td.terrainLayers;
+            for (int i = 0; i < ls.Length; i++)
+            {
+                string n = ls[i] != null ? ls[i].name.ToLower() : "";
+                if (n.Contains("dirt")) { _dirtLayer = i; break; }
+                if (n.Contains("drysoil") && _dirtLayer < 0) _dirtLayer = i;
+            }
+        }
+        if (_dirtLayer < 0) return false;
+        int x = Mathf.Clamp(Mathf.RoundToInt(fx * (td.alphamapWidth - 1)), 0, td.alphamapWidth - 1);
+        int z = Mathf.Clamp(Mathf.RoundToInt(fz * (td.alphamapHeight - 1)), 0, td.alphamapHeight - 1);
+        var a = td.GetAlphamaps(x, z, 1, 1);
+        return a[0, 0, _dirtLayer] > 0.45f;
     }
 
     static Terrain GetTerrain()
