@@ -4,9 +4,25 @@ using UnityEngine;
 /// GrassManager 의 커스텀 인스펙터 — 폴드아웃 섹션 + 슬라이더 + 위험 존.
 /// '적용' = 설정대로 지형 디테일맵을 다시 굽는다. 색은 만지는 즉시 재질에 반영.
 [CustomEditor(typeof(GrassManager))]
+[InitializeOnLoad]
 public class GrassManagerEditor : Editor
 {
     static bool fTypes = true, fLayers = true, fDensity, fRemove, fColor;
+
+    // ── 자동 적용: 슬라이더에서 손을 뗀 뒤 0.5초 지나면 한 번만 다시 심는다 ──
+    static GrassManager pending;
+    static double lastChange;
+    static GrassManagerEditor()
+    {
+        EditorApplication.update += () =>
+        {
+            if (pending == null) return;
+            if (GUIUtility.hotControl != 0) { lastChange = EditorApplication.timeSinceStartup; return; }  // 아직 드래그 중
+            if (EditorApplication.timeSinceStartup - lastChange < 0.5) return;
+            var gm = pending; pending = null;
+            if (gm != null && gm.terrain != null) Rebuild(gm);
+        };
+    }
     static readonly string[] GrassMats = {
         "Assets/Models/GrassCross_a.mat", "Assets/Models/GrassCross_b.mat", "Assets/Models/GrassCross_c.mat" };
 
@@ -23,6 +39,8 @@ public class GrassManagerEditor : Editor
         var td = gm.terrain.terrainData;
 
         Undo.RecordObject(gm, "GrassManager");
+        gm.autoApply = EditorGUILayout.ToggleLeft("자동 적용 (슬라이더 놓으면 다시 심기)", gm.autoApply);
+        EditorGUILayout.Space(2);
         EditorGUI.BeginChangeCheck();
 
         // ── 풀 종류 ─────────────────────────────────────
@@ -77,6 +95,7 @@ public class GrassManagerEditor : Editor
             gm.maxHeight = EditorGUILayout.FloatField("최대 높이(m)", gm.maxHeight);
         }
         EditorGUILayout.EndFoldoutHeaderGroup();
+        bool placementChanged = EditorGUI.EndChangeCheck();
 
         // ── 색 (즉시 반영) ──────────────────────────────
         fColor = EditorGUILayout.BeginFoldoutHeaderGroup(fColor, "색 조정 (즉시 반영)");
@@ -92,7 +111,12 @@ public class GrassManagerEditor : Editor
         EditorGUILayout.EndFoldoutHeaderGroup();
         if (colorChanged) ApplyColors(gm);
 
-        if (EditorGUI.EndChangeCheck()) EditorUtility.SetDirty(gm);
+        if (placementChanged || colorChanged) EditorUtility.SetDirty(gm);
+        if (placementChanged)
+        {
+            gm.terrain.detailObjectDistance = gm.drawDistance;   // 그리기 거리는 값싸서 즉시
+            if (gm.autoApply) { pending = gm; lastChange = EditorApplication.timeSinceStartup; }
+        }
 
         // ── 적용 ────────────────────────────────────────
         EditorGUILayout.Space(6);
