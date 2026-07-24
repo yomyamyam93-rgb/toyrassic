@@ -81,7 +81,8 @@ public class PetMotion : MonoBehaviour
         // ── 좌우 무게 흔들림 + 앞뒤 끄덕임 + 전진 기울기 ──
         float waddle = Mathf.Sin(t * Mathf.PI) * waddleDeg * speed01;
         float nod = Mathf.Sin(t * Mathf.PI * 2f) * 2.5f * speed01;               // 걸음 박자 끄덕임
-        float lean = leanDeg * speed01 + nod + pk * 6f - fl * 4f;
+        // 장전: 뒷다리에 체중 싣듯 코가 들림 → 발사 때 pk 가 앞으로 콱 눌러줌
+        float lean = leanDeg * speed01 + nod + pk * 6f - fl * 4f - Mathf.Clamp01(charge) * 9f;
         var e = transform.localEulerAngles;
         transform.localRotation = Quaternion.Euler(lean, e.y, waddle);
     }

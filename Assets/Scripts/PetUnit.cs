@@ -30,7 +30,7 @@ public class PetUnit : MonoBehaviour
     // ── 내부 ──
     public static readonly List<PetUnit> All = new List<PetUnit>();
     PetUnit target;
-    float atkCd, wanderT, fleeT, spinT;
+    float atkCd, wanderT, fleeT, spinT, prevSwing; bool swingHit;
     Vector3 wanderDir;
     Terrain terrain;
     float footOff;
@@ -88,11 +88,15 @@ public class PetUnit : MonoBehaviour
         if (dead) { LungeFx(); return; }
         atkCd -= Time.deltaTime;
 
-        // 나무 회전 공격 연출 (휘휘휙)
+        // 나무 휘두르기 — 215° 한 번 휙 갔다가 되돌아옴 (사인 곡선), 타격은 스윙 중간
         if (spinT > 0f)
         {
-            spinT -= Time.deltaTime / 0.7f;
-            transform.Rotate(0f, 1080f * Time.deltaTime / 0.7f, 0f);   // 0.7초에 3바퀴
+            spinT -= Time.deltaTime / 0.55f;
+            float pr = 1f - Mathf.Clamp01(spinT);
+            float off = Mathf.Sin(pr * Mathf.PI) * 215f;      // 0→215°→0 부드럽게
+            transform.Rotate(0f, off - prevSwing, 0f);
+            prevSwing = spinT <= 0f ? 0f : off;
+            if (!swingHit && pr > 0.32f) { swingHit = true; WoodAoE(); }   // 휘두르는 순간 타격
         }
 
         // 고무 점프 진행 (이동 명령 없어도 장전/공중이면 마저 진행)
@@ -105,7 +109,8 @@ public class PetUnit : MonoBehaviour
         if (winding)
         {
             windupT -= Time.deltaTime;
-            if (motion != null) motion.charge = Mathf.Max(motion.charge, 1f - windupT / WindupDur);
+            float wp = 1f - Mathf.Clamp01(windupT / WindupDur);
+            if (motion != null) motion.charge = Mathf.Max(motion.charge, wp * wp);   // 가속 압축 (물리 곡선)
             if (target == null || !target.Alive) winding = false;
             else
             {
@@ -189,20 +194,8 @@ public class PetUnit : MonoBehaviour
                 lungeTo = transform.position + dir.normalized * (body * 0.38f);
                 break;
 
-            case Mat.Wood:   // 회전 광역 + 약한 넉백 (휘휘휙)
-                spinT = 1f;
-                float aoe = body * 1.15f;
-                foreach (var u in All)
-                {
-                    if (u == this || !u.Alive || u.team == team) continue;
-                    if (Dist(u.transform.position) > aoe) continue;
-                    if (TryHit(u, Damage))
-                    {
-                        var push = (u.transform.position - transform.position); push.y = 0;
-                        if (push.sqrMagnitude > 1e-4f)
-                            u.transform.position += push.normalized * body * 0.14f;   // 넉백
-                    }
-                }
+            case Mat.Wood:   // 휘두르기 시작 — 타격은 스윙 중간(Update)에서
+                spinT = 1f; prevSwing = 0f; swingHit = false;
                 break;
 
             case Mat.Rubber: // 고무공 투척 (물리 원거리)
@@ -214,6 +207,23 @@ public class PetUnit : MonoBehaviour
                 PetProjectile.Throw(this, target, Damage,
                     new Color(0.75f, 0.93f, 1f), body * 0.06f, 0.3f, body * 0.08f);
                 break;
+        }
+    }
+
+    // 나무 광역 — 스윙이 실제로 도는 순간 주변 타격 + 약한 넉백
+    void WoodAoE()
+    {
+        float aoe = body * 1.15f;
+        foreach (var u in All)
+        {
+            if (u == this || !u.Alive || u.team == team) continue;
+            if (Dist(u.transform.position) > aoe) continue;
+            if (TryHit(u, Damage))
+            {
+                var push = (u.transform.position - transform.position); push.y = 0;
+                if (push.sqrMagnitude > 1e-4f)
+                    u.transform.position += push.normalized * body * 0.14f;
+            }
         }
     }
 
@@ -354,7 +364,9 @@ public class PetUnit : MonoBehaviour
     {
         if (terrain == null) return;
         var p = transform.position;
-        float g = terrain.SampleHeight(p) + terrain.transform.position.y + footOff;
+        // ★발높이를 '현재 스케일'로 환산 — 스쿼시로 눌려도 발이 땅에 붙는다 (바닥 기준점 효과)
+        float footNow = footOff * (baseScale.y > 1e-4f ? transform.localScale.y / baseScale.y : 1f);
+        float g = terrain.SampleHeight(p) + terrain.transform.position.y + footNow;
         p.y = dead ? p.y : g;
         if (!dead && motion != null) p.y += motion.BobY;
         if (!dead) p.y += hopArcY;
