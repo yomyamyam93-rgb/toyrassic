@@ -715,9 +715,11 @@ public static class WorldBuilder
         }
         hs.Sort();
         float hMin = hs[0], hMax = hs[hs.Count - 1];
-        float seaY = hs[hs.Count * 12 / 100];             // 하위 12% = 물가
+        // 바다 바닥(최저점)이 넓은 평지라 '하위 %' 는 그냥 바닥값(=물깊이 0)이 나온다.
+        // → 최저점 위로 높이범위의 4% 만큼 물을 채운다 (0~430 이면 약 17m 깊이 = 잘 보이는 바다).
+        float seaY = hMin + (hMax - hMin) * 0.04f;
         ocean.transform.position = new Vector3(center.x, seaY, center.z);
-        Debug.Log($"[월드] 해수면 — 지형높이 {hMin:F1}~{hMax:F1}m, 하위12% → 물 y={seaY:F1}");
+        Debug.Log($"[월드] 해수면 — 지형높이 {hMin:F1}~{hMax:F1}m → 물 y={seaY:F1} (바닥위 {seaY - hMin:F1}m)");
 
         // 맵 전체(+여유 20%)를 덮도록 스케일 자동 보정. 메시 기본 크기를 렌더러 bounds 로 역산.
         var rend = ocean.GetComponentInChildren<Renderer>();
