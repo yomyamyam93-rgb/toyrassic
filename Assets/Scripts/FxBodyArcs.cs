@@ -11,6 +11,10 @@ public class FxBodyArcs : MonoBehaviour
     [Range(0.03f, 0.5f)] public float arcLifeMin = 0.06f;
     [Range(0.05f, 0.8f)] public float arcLifeMax = 0.16f;
 
+    [Header("몸에서 띄우기 (0=표면 밀착)")]
+    [Range(0f, 0.6f)] public float hoverMin = 0.03f;     // 최소 거리 (몸높이 비)
+    [Range(0f, 1.0f)] public float hoverMax = 0.18f;     // 최대 거리
+
     [Header("아크 모양")]
     [Range(0.1f, 1.2f)] public float arcLen = 0.5f;      // 몸높이 대비 최대 길이
     [Range(3, 16)] public int segments = 8;              // 지그재그 꺾임 수
@@ -25,7 +29,7 @@ public class FxBodyArcs : MonoBehaviour
     [Range(1.5f, 12f)] public float glowWidthMul = 5f;      // 코어 대비 몇 배 넓게
     public Color colorGlow = new Color(0.35f, 0.7f, 2.2f, 0.4f);
 
-    Vector3[] verts;
+    Vector3[] verts; Vector3[] norms;
     float bodyH = 3f;
     float acc;
     readonly List<LineRenderer> pool = new List<LineRenderer>();      // 코어
@@ -56,6 +60,7 @@ public class FxBodyArcs : MonoBehaviour
         var mr = GetComponent<MeshRenderer>();
         if (mf == null || mf.sharedMesh == null || mr == null) { enabled = false; return; }
         verts = mf.sharedMesh.vertices;
+        norms = mf.sharedMesh.normals;
         bodyH = mr.bounds.size.y;
         coreMat = new Material(Shader.Find("Sprites/Default"));
         coreMat.mainTexture = MakeLineTex(1.2f);                        // 심: 또렷
@@ -109,19 +114,26 @@ public class FxBodyArcs : MonoBehaviour
         for (int i = 0; i < pool.Count; i++) if (lifeLeft[i] <= 0f) { slot = i; break; }
         if (slot < 0) return;
 
-        // 몸 위 두 점: 적당히 떨어진 정점 쌍
-        Vector3 a = Vector3.zero, b = Vector3.zero; bool ok = false;
+        // 몸 위 두 점: 적당히 떨어진 정점 쌍 (법선 방향으로 띄움 = 거리 조절)
+        int ia = 0, ib = 0; bool ok = false;
         for (int t = 0; t < 20 && !ok; t++)
         {
-            a = verts[Random.Range(0, verts.Length)];
-            b = verts[Random.Range(0, verts.Length)];
-            float dWorld = Vector3.Distance(transform.TransformPoint(a), transform.TransformPoint(b));
+            ia = Random.Range(0, verts.Length);
+            ib = Random.Range(0, verts.Length);
+            float dWorld = Vector3.Distance(transform.TransformPoint(verts[ia]), transform.TransformPoint(verts[ib]));
             ok = dWorld > bodyH * 0.12f && dWorld < bodyH * arcLen;
         }
         if (!ok) return;
 
-        var wa = transform.TransformPoint(a);
-        var wb = transform.TransformPoint(b);
+        float hMin = Mathf.Min(hoverMin, hoverMax), hMax = Mathf.Max(hoverMin, hoverMax);
+        Vector3 Hover(int vi2)
+        {
+            var nrm = norms != null && vi2 < norms.Length ? norms[vi2] : Vector3.up;
+            return transform.TransformPoint(verts[vi2])
+                 + transform.TransformDirection(nrm).normalized * bodyH * Random.Range(hMin, hMax);
+        }
+        var wa = Hover(ia);
+        var wb = Hover(ib);
         float len = Vector3.Distance(wa, wb);
 
         // 중점 변위 지그재그 — 코어와 글로우가 같은 경로
