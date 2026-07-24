@@ -63,6 +63,7 @@ public static class WorldBuilder
         int trees = DoTrees(terrain);
         int grass = DoGrass(terrain);
         int flowers = DoFlowers(terrain);
+        DoWater(terrain);
 
         var td = terrain.terrainData;
         terrain.Flush();
@@ -522,8 +523,9 @@ public static class WorldBuilder
         }
         td.detailPrototypes = protos;
 
-        // ★2배 더 빽빽 — 디테일 해상도를 넉넉히 올린다(셀당 상한 16을 넘는 밀도는 해상도로).
-        int wantRes = Mathf.Clamp(Mathf.CeilToInt(td.size.x / 3f), 512, 2048);   // 3m당 1셀 목표
+        // ★또 2배 — 셀당 상한(16)에 이미 걸려서, 잔디를 더 심으려면 '셀 자체'를 촘촘히.
+        //   3m/셀 → 2.2m/셀 이면 셀 수가 약 1.86배 = 잔디 총량 ~2배.
+        int wantRes = Mathf.Clamp(Mathf.CeilToInt(td.size.x / 2.2f), 512, 3072);   // 2.2m당 1셀
         if (td.detailResolution < wantRes)
             td.SetDetailResolution(wantRes, Mathf.Min(td.detailResolutionPerPatch, 32));
         int res = td.detailResolution;
@@ -630,6 +632,48 @@ public static class WorldBuilder
         }
         td.SetDetailLayer(0, 0, idx, map);
         return total;
+    }
+
+    // ══════════════════════════════════════════════════════════
+    //  물 — 씬의 Ocean(KTWater)을 켜고 맵 전체를 덮도록 보정
+    // ══════════════════════════════════════════════════════════
+    static void DoWater(Terrain terrain)
+    {
+        var ocean = GameObject.Find("Ocean");
+        if (ocean == null)
+        {
+            Debug.LogWarning("[월드] 'Ocean' 오브젝트를 못 찾음 — 물 건너뜀. (씬에 KTWater 평면이 있어야 함)");
+            return;
+        }
+        ocean.SetActive(true);                          // ★꺼져 있던 물을 켠다
+
+        var td = terrain.terrainData;
+        Vector3 tOrigin = terrain.transform.position;
+        Vector3 tSize = td.size;
+        Vector3 center = tOrigin + new Vector3(tSize.x * 0.5f, 0f, tSize.z * 0.5f);
+
+        // 해수면 높이: 기존에 작가가 잡아둔 y 를 존중(그대로 둔다). XZ 만 지형 중앙으로.
+        float seaY = ocean.transform.position.y;
+        ocean.transform.position = new Vector3(center.x, seaY, center.z);
+
+        // 맵 전체(+여유 20%)를 덮도록 스케일 자동 보정. 메시 기본 크기를 렌더러 bounds 로 역산.
+        var rend = ocean.GetComponentInChildren<Renderer>();
+        if (rend != null)
+        {
+            Vector3 s = ocean.transform.localScale;
+            float baseX = rend.bounds.size.x / Mathf.Max(0.0001f, s.x);   // 스케일 1 일 때의 실제 너비
+            float baseZ = rend.bounds.size.z / Mathf.Max(0.0001f, s.z);
+            float need = Mathf.Max(tSize.x, tSize.z) * 1.2f;
+            float sx = need / Mathf.Max(1f, baseX);
+            float sz = need / Mathf.Max(1f, baseZ);
+            ocean.transform.localScale = new Vector3(sx, s.y, sz);
+            Debug.Log($"[월드] 물 ON — 해수면 y={seaY:F1}, 중앙 정렬, {need:F0}m 덮도록 스케일 (×{sx:F1},{sz:F1}).");
+        }
+        else
+        {
+            Debug.Log($"[월드] 물 ON — 해수면 y={seaY:F1} (렌더러 없어 스케일은 그대로).");
+        }
+        EditorUtility.SetDirty(ocean);
     }
 
     // ══════════════════════════════════════════════════════════
