@@ -18,15 +18,37 @@ public class FxBodyArcs : MonoBehaviour
     [Range(0.002f, 0.08f)] public float width = 0.012f;  // 굵기 (몸높이 비)
 
     [Header("색 (HDR)")]
-    public Color colorCore = new Color(1.8f, 2.3f, 3.2f);   // 백청
+    public Color colorCore = new Color(1.8f, 2.3f, 3.2f);   // 백청 심
     public Color colorTail = new Color(0.3f, 0.7f, 2.0f);   // 파랑
+
+    [Header("글로우 (선을 감싸는 빛무리)")]
+    [Range(1.5f, 12f)] public float glowWidthMul = 5f;      // 코어 대비 몇 배 넓게
+    public Color colorGlow = new Color(0.35f, 0.7f, 2.2f, 0.4f);
 
     Vector3[] verts;
     float bodyH = 3f;
     float acc;
-    readonly List<LineRenderer> pool = new List<LineRenderer>();
+    readonly List<LineRenderer> pool = new List<LineRenderer>();      // 코어
+    readonly List<LineRenderer> glowPool = new List<LineRenderer>();  // 글로우 헤일로
     readonly List<float> lifeLeft = new List<float>();
-    Material lineMat;
+    Material coreMat, glowMat;
+
+    // 폭 방향으로 부드럽게 빠지는 선 텍스처 (글로우의 핵심)
+    static Texture2D lineTexCache;
+    static Texture2D MakeLineTex(float softness)
+    {
+        int W = 4, H = 32;
+        var t = new Texture2D(W, H, TextureFormat.RGBA32, false);
+        var px = new Color[W * H];
+        for (int y = 0; y < H; y++)
+        {
+            float d = Mathf.Abs((y + 0.5f) / H * 2f - 1f);           // 0=중심 1=가장자리
+            float a = Mathf.Pow(Mathf.Clamp01(1f - d), softness);
+            for (int x = 0; x < W; x++) px[y * W + x] = new Color(1, 1, 1, a);
+        }
+        t.SetPixels(px); t.Apply();
+        return t;
+    }
 
     void Start()
     {
@@ -35,17 +57,29 @@ public class FxBodyArcs : MonoBehaviour
         if (mf == null || mf.sharedMesh == null || mr == null) { enabled = false; return; }
         verts = mf.sharedMesh.vertices;
         bodyH = mr.bounds.size.y;
-        lineMat = new Material(Shader.Find("Sprites/Default"));
-        for (int i = 0; i < 12; i++)   // 풀 미리 생성
+        coreMat = new Material(Shader.Find("Sprites/Default"));
+        coreMat.mainTexture = MakeLineTex(1.2f);                        // 심: 또렷
+        glowMat = new Material(Shader.Find("Sprites/Default"));
+        glowMat.mainTexture = MakeLineTex(2.6f);                        // 글로우: 아주 부드럽게 빠짐
+        for (int i = 0; i < 12; i++)   // 풀 미리 생성 (코어+글로우 쌍)
         {
             var go = new GameObject("arc_" + i);
             go.transform.SetParent(transform, false);
             var lr = go.AddComponent<LineRenderer>();
-            lr.material = lineMat;
+            lr.material = coreMat;
             lr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
             lr.useWorldSpace = true;
             lr.enabled = false;
-            pool.Add(lr); lifeLeft.Add(0f);
+            pool.Add(lr);
+            var gg = new GameObject("arcGlow_" + i);
+            gg.transform.SetParent(transform, false);
+            var gl = gg.AddComponent<LineRenderer>();
+            gl.material = glowMat;
+            gl.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            gl.useWorldSpace = true;
+            gl.enabled = false;
+            glowPool.Add(gl);
+            lifeLeft.Add(0f);
         }
     }
 
@@ -56,7 +90,7 @@ public class FxBodyArcs : MonoBehaviour
         {
             if (lifeLeft[i] <= 0f) continue;
             lifeLeft[i] -= Time.deltaTime;
-            if (lifeLeft[i] <= 0f) pool[i].enabled = false;
+            if (lifeLeft[i] <= 0f) { pool[i].enabled = false; glowPool[i].enabled = false; }
         }
 
         acc += Time.deltaTime * arcRate;
@@ -90,10 +124,12 @@ public class FxBodyArcs : MonoBehaviour
         var wb = transform.TransformPoint(b);
         float len = Vector3.Distance(wa, wb);
 
-        // 중점 변위 지그재그
+        // 중점 변위 지그재그 — 코어와 글로우가 같은 경로
         var lr = pool[slot];
+        var gl = glowPool[slot];
         int n = segments;
         lr.positionCount = n + 1;
+        gl.positionCount = n + 1;
         for (int i = 0; i <= n; i++)
         {
             float t = (float)i / n;
@@ -104,12 +140,14 @@ public class FxBodyArcs : MonoBehaviour
                 p += Random.insideUnitSphere * amp;
             }
             lr.SetPosition(i, p);
+            gl.SetPosition(i, p);
         }
-        lr.startWidth = bodyH * width * Random.Range(0.7f, 1.4f);
-        lr.endWidth = lr.startWidth * 0.4f;
-        lr.startColor = colorCore;
-        lr.endColor = colorTail;
-        lr.enabled = true;
+        float w = bodyH * width * Random.Range(0.7f, 1.4f);
+        lr.startWidth = w; lr.endWidth = w * 0.4f;
+        lr.startColor = colorCore; lr.endColor = colorTail;
+        gl.startWidth = w * glowWidthMul; gl.endWidth = w * glowWidthMul * 0.5f;   // ★넓고 부드러운 빛무리
+        gl.startColor = colorGlow; gl.endColor = new Color(colorGlow.r, colorGlow.g, colorGlow.b, colorGlow.a * 0.4f);
+        lr.enabled = true; gl.enabled = true;
         lifeLeft[slot] = Random.Range(arcLifeMin, arcLifeMax);
     }
 }
