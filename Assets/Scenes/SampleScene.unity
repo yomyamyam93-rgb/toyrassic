@@ -6098,18 +6098,37 @@ MonoBehaviour:
     active: 1
     weight: 0.99
     size: 1
+    spacing: 0
   - name: GrassProto_1
     active: 1
     weight: 1
     size: 1.371
+    spacing: 0
   - name: GrassProto_2
     active: 1
     weight: 1
     size: 1
+    spacing: 0
   - name: flower_white
     active: 1
-    weight: 0.027
-    size: 1.47
+    weight: 0.106
+    size: 1.33
+    spacing: 9
+  - name: flower_pink
+    active: 1
+    weight: 0.1
+    size: 1
+    spacing: 12
+  - name: flower_yellow
+    active: 1
+    weight: 0.1
+    size: 1
+    spacing: 12
+  - name: flower_purple
+    active: 1
+    weight: 0.1
+    size: 1
+    spacing: 12
   placeLayers:
   - layer: {fileID: 8574412962073106934, guid: 8ea4f713b896a824fbb4c249bc377cf4, type: 2}
     on: 1
@@ -6136,7 +6155,7 @@ MonoBehaviour:
   edgeDensity: 0.46
   edgeSize: 0.914
   edgeJitter: 0.209
-  edgeProtoCount: 4
+  edgeProtoCount: 0
   maxSlope: 34
   minHeight: 2
   maxHeight: 267
