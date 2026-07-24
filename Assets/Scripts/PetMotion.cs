@@ -63,7 +63,10 @@ public class PetMotion : MonoBehaviour
         float step = Mathf.Abs(Mathf.Sin(t * Mathf.PI));                // 0(접지)→1(공중)→0
         BobY = step * hopAmp * bodyH * speed01;
         // 접지 순간(0 부근)에 확 나가고 공중에서 멈칫 → 미끄럼이 아니라 '걸음'
-        MovePulse = Mathf.Lerp(1f, 1.45f - step * 0.9f, speed01);
+        // ★평균이 정확히 1이 되게 정규화 (raw 평균 = 1.45-0.9×(2/π) = 0.8771)
+        //   → 걷기 실효 속도 = MoveSpd 그대로 = 고무 점프 사이클과 수학적으로 동일
+        float raw = (1.45f - step * 0.9f) / 0.8771f;
+        MovePulse = Mathf.Lerp(1f, raw, speed01);
 
         // ── 스쿼시&스트레치 (부피 보존) + 공격 펀치 + 피격 움찔 ──
         punch = Mathf.MoveTowards(punch, 0f, PunchSpeed * dt);
