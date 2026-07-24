@@ -22,6 +22,15 @@ public class GrassManagerEditor : Editor
             var gm = pending; pending = null;
             if (gm != null && gm.terrain != null) Rebuild(gm);
         };
+        // Ctrl+Z/Y 로 설정이 되돌아가면 그 값대로 잔디도 다시 심는다
+        Undo.undoRedoPerformed += () =>
+        {
+            var sel = Selection.activeGameObject;
+            if (sel == null) return;
+            var gm = sel.GetComponent<GrassManager>();
+            if (gm != null && gm.autoApply && gm.terrain != null)
+            { pending = gm; lastChange = EditorApplication.timeSinceStartup; }
+        };
     }
     static readonly string[] GrassMats = {
         "Assets/Models/GrassCross_a.mat", "Assets/Models/GrassCross_b.mat", "Assets/Models/GrassCross_c.mat" };
@@ -215,6 +224,7 @@ public class GrassManagerEditor : Editor
     // ── 종류 추가/삭제 ──────────────────────────────────
     static void AddType(GrassManager gm, TerrainData td, Object obj)
     {
+        Undo.RegisterCompleteObjectUndo(td, "잔디 종류 추가");
         StripEdgeProtos(gm, td);   // 경계용 프로토는 걷어내고 작업 (다음 적용 때 재생성)
         var protos = new System.Collections.Generic.List<DetailPrototype>(td.detailPrototypes);
         var p = new DetailPrototype
@@ -242,6 +252,7 @@ public class GrassManagerEditor : Editor
 
     static void RemoveType(GrassManager gm, TerrainData td, int idx)
     {
+        Undo.RegisterCompleteObjectUndo(td, "잔디 종류 삭제");
         StripEdgeProtos(gm, td);   // 경계용 프로토는 걷어내고 작업
         int res = td.detailResolution;
         var protos = new System.Collections.Generic.List<DetailPrototype>(td.detailPrototypes);
@@ -302,6 +313,7 @@ public class GrassManagerEditor : Editor
     static void Rebuild(GrassManager gm)
     {
         var td = gm.terrain.terrainData;
+        Undo.RegisterCompleteObjectUndo(td, "잔디 적용");   // Ctrl+Z 가능하게
         StripEdgeProtos(gm, td);
         if (gm.types.Length != td.detailPrototypes.Length) SyncTypes(gm, td);
         if (gm.placeLayers.Count == 0) SyncLayers(gm, td);
@@ -414,6 +426,7 @@ public class GrassManagerEditor : Editor
 
     static void ClearAll(TerrainData td)
     {
+        Undo.RegisterCompleteObjectUndo(td, "잔디 전체 삭제");
         int res = td.detailResolution;
         var empty = new int[res, res];
         for (int l = 0; l < td.detailPrototypes.Length; l++) td.SetDetailLayer(0, 0, l, empty);
