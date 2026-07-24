@@ -193,7 +193,10 @@ public static class WorldBuilder
         int aw = td.alphamapWidth, ah = td.alphamapHeight, al = td.alphamapLayers;
         BackupSplat(td);                                // ★칠하기 전 원본 보존 (지우기용)
         var alpha = td.GetAlphamaps(0, 0, aw, ah);
-        float scale = size.x / (grid * (float)cell);   // 계획서(8424m) → 실제 지형 축척
+        // 계획서(칸 104m) → 실제 지형 축척. 육지 폭끼리 비교해야 정확하다.
+        float planLandM = (_planBB.z - _planBB.x) * cell;
+        float terrLandM = (_terrBB.z - _terrBB.x) * size.x;
+        float scale = planLandM > 1f ? terrLandM / planLandM : 1f;
 
         int roads = 0, painted = 0, seed = 0;
         foreach (var ln in lines)
@@ -439,9 +442,46 @@ public static class WorldBuilder
     // ══════════════════════════════════════════════════════════
     //  잡동사니
     // ══════════════════════════════════════════════════════════
-    /// ★격자 → 월드. 칸 크기를 곱하지 않고 **지형 실측 크기에 비례**시킨다.
+    /// ★격자 → 월드 : **두 섬의 "육지 경계"끼리 맞춘다.**
+    ///   격자 전체(0~81)를 지형 전체에 늘리면 안 된다 — 계획서의 섬은 격자 6~71,6~74 에만
+    ///   있고 바깥은 바다 여백이라, 전체를 늘리면 길이 섬 밖으로 삐져나간다(실제로 겪음).
+    ///   그래서 계획서 육지 bbox → 지형 육지 bbox 로 대응시킨다. 여백이 얼마든 자동 정렬.
+    static Vector4 _planBB, _terrBB;   // (minX, minY, maxX, maxY)
+
     static Vector3 GridToWorld(float gx, float gy, Vector3 origin, Vector3 size, int grid)
-        => new Vector3(origin.x + gx / grid * size.x, 0f, origin.z + gy / grid * size.z);
+    {
+        float u = Mathf.InverseLerp(_planBB.x, _planBB.z, gx);
+        float v = Mathf.InverseLerp(_planBB.y, _planBB.w, gy);
+        return new Vector3(
+            origin.x + Mathf.Lerp(_terrBB.x, _terrBB.z, u) * size.x, 0f,
+            origin.z + Mathf.Lerp(_terrBB.y, _terrBB.w, v) * size.z);
+    }
+
+    /// 지형에서 육지(해수면 위)가 차지하는 정규화 범위를 실측한다.
+    static Vector4 MeasureTerrainLand(Terrain terrain)
+    {
+        var td = terrain.terrainData;
+        // 해수면: 씬의 Ocean 오브젝트 높이를 쓰고, 없으면 1m
+        float seaY = 1f;
+        var ocean = GameObject.Find("Ocean");
+        if (ocean != null) seaY = ocean.transform.position.y - terrain.transform.position.y;
+
+        const int S = 256;
+        float minX = 1f, minY = 1f, maxX = 0f, maxY = 0f;
+        int land = 0;
+        for (int j = 0; j < S; j++)
+        for (int i = 0; i < S; i++)
+        {
+            float u = i / (float)(S - 1), v = j / (float)(S - 1);
+            if (td.GetInterpolatedHeight(u, v) <= seaY + 0.05f) continue;
+            land++;
+            if (u < minX) minX = u; if (u > maxX) maxX = u;
+            if (v < minY) minY = v; if (v > maxY) maxY = v;
+        }
+        if (land == 0) { Debug.LogWarning("[월드] 해수면 위 지형을 못 찾음 — 전체 범위로 대체."); return new Vector4(0, 0, 1, 1); }
+        Debug.Log($"[월드] 지형 육지 실측: x {minX:F3}~{maxX:F3}, z {minY:F3}~{maxY:F3} (해수면 {seaY:F1}m, 표본 {land}/{S*S})");
+        return new Vector4(minX, minY, maxX, maxY);
+    }
 
     static int _dirtCache = -2;
     static bool OnRoad(TerrainData td, float fx, float fz)
@@ -520,7 +560,16 @@ public static class WorldBuilder
         {
             if (ln.StartsWith("CELL ")) cell = int.Parse(ln.Substring(5).Trim());
             if (ln.StartsWith("SIZE ")) grid = int.Parse(ln.Substring(5).Trim());
+            if (ln.StartsWith("LANDBB "))
+            {
+                var t = ln.Split(' ');
+                _planBB = new Vector4(float.Parse(t[1]), float.Parse(t[2]),
+                                      float.Parse(t[3]), float.Parse(t[4]));
+            }
         }
+        if (_planBB == Vector4.zero) _planBB = new Vector4(0, 0, grid - 1, grid - 1);
+        _terrBB = MeasureTerrainLand(terrain);
+        Debug.Log($"[월드] 계획서 육지 격자: x {_planBB.x}~{_planBB.z}, y {_planBB.y}~{_planBB.w} → 지형 육지에 정렬");
         _dirtCache = -2;
         return true;
     }
