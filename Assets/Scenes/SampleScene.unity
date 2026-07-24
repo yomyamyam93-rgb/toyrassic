@@ -6851,7 +6851,7 @@ ParticleSystem:
       serializedVersion: 2
       minMaxState: 0
       minColor: {r: 1, g: 1, b: 1, a: 1}
-      maxColor: {r: 1.5, g: 1.9, b: 2.6, a: 1}
+      maxColor: {r: 2.6, g: 3.2, b: 4.5, a: 1}
       maxGradient:
         serializedVersion: 2
         key0: {r: 1, g: 1, b: 1, a: 1}
@@ -15055,15 +15055,15 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 8e942a07925182643914217a5867a024, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::FxBodyArcs
-  arcRate: 7
+  arcRate: 13
   arcLifeMin: 0.06
   arcLifeMax: 0.16
   arcLen: 0.5
   segments: 8
   jaggedness: 0.16
-  width: 0.012
-  colorCore: {r: 1.8, g: 2.3, b: 3.2, a: 1}
-  colorTail: {r: 0.3, g: 0.7, b: 2, a: 1}
+  width: 0.018
+  colorCore: {r: 3.2, g: 4.2, b: 6, a: 1}
+  colorTail: {r: 0.5, g: 1.2, b: 3.6, a: 1}
 --- !u!1 &1377496950
 GameObject:
   m_ObjectHideFlags: 0

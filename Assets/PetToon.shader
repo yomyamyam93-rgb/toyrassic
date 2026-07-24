@@ -252,13 +252,14 @@ Shader "Toyrassic/PetToon"
                         col.rgb += lerp(_GlowColorB.rgb, _GlowColorA.rgb, g) * g * _GlowIntensity;
                     }
                     else if (_GlowMode < 2.5)
-                    {   // 번개: 틱마다 위치가 튀는 전기 맥 (크롤링) + 플리커
-                        float seed = floor(_Time.y * max(_GlowSpeed, 0.1) * 8);
-                        float2 jump = (VHash(float2(seed, seed * 1.73)) - 0.5) * 1.6;   // 맥이 매 틱 다른 자리로
+                    {   // 번개 맥 — 속도 0이면 '고정 선'(어지러움 없음), >0이면 틱마다 점프
+                        float tickRate = _GlowSpeed * 8;
+                        float seed = tickRate > 0.4 ? floor(_Time.y * tickRate) : 0;
+                        float2 jump = tickRate > 0.4 ? (VHash(float2(seed, seed * 1.73)) - 0.5) * 1.6 : float2(0, 0);
                         float2 vp2 = gp * _CrackDensity + jump;
                         half e2 = VoroEdge(vp2);
                         half vein = 1 - smoothstep(_CrackWidth * 0.1, _CrackWidth, e2);
-                        half flick = 0.3 + 0.7 * step(0.3, frac(sin(seed * 12.9898) * 43758.5453));
+                        half flick = tickRate > 0.4 ? (0.3 + 0.7 * step(0.3, frac(sin(seed * 12.9898) * 43758.5453))) : 1;
                         half heat2 = pow(vein, 2.5);
                         col.rgb += lerp(_GlowColorB.rgb, _GlowColorA.rgb, heat2) * vein * _GlowIntensity * flick;
                     }

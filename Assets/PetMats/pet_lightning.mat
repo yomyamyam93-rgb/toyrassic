@@ -53,16 +53,16 @@ Material:
     - _BendF: 0
     - _BendS: 0
     - _BumpScale: 1
-    - _CrackDensity: 4
-    - _CrackWarp: 0.12
-    - _CrackWidth: 0.06
+    - _CrackDensity: 0.5
+    - _CrackWarp: 0
+    - _CrackWidth: 0.085
     - _DstBlend: 0
     - _EnvIntensity: 0.35
     - _GlowCut: 0
-    - _GlowIntensity: 2.2
-    - _GlowMode: 2
-    - _GlowScale: 2.2
-    - _GlowSpeed: 1.2
+    - _GlowIntensity: 2.6
+    - _GlowMode: 2.32
+    - _GlowScale: 29.3
+    - _GlowSpeed: 0
     - _Metallic: 0.25
     - _OcclusionStrength: 1
     - _RefLen: 1
