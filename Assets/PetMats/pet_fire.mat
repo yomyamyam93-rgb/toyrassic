@@ -61,7 +61,7 @@ Material:
     - _DstBlend: 0
     - _EnvIntensity: 0.4
     - _GlowCut: 0.5
-    - _GlowIntensity: 1.37
+    - _GlowIntensity: 1.7
     - _GlowMode: 3
     - _GlowScale: 1.02
     - _GlowSpeed: 0
@@ -77,7 +77,7 @@ Material:
     m_Colors:
     - _BaseColor: {r: 0.55, g: 0.5, b: 0.48, a: 1}
     - _EmissionColor: {r: 0, g: 0, b: 0, a: 1}
-    - _GlowColorA: {r: 3.2, g: 1.7, b: 0.35, a: 1}
-    - _GlowColorB: {r: 1.3, g: 0.15, b: 0.03, a: 1}
+    - _GlowColorA: {r: 4, g: 3.4, b: 1.8, a: 1}
+    - _GlowColorB: {r: 2, g: 0.22, b: 0.02, a: 1}
   m_BuildTextureStacks: []
   m_AllowLocking: 1

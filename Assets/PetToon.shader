@@ -264,7 +264,9 @@ Shader "Toyrassic/PetToon"
                                   + float2(ProcNoise(gp * 2.6) - 0.5, ProcNoise(gp * 2.6 + 7.7) - 0.5) * _CrackWarp;
                         half e = VoroEdge(vp);
                         half crack = 1 - smoothstep(_CrackWidth * 0.1, _CrackWidth, e);
-                        col.rgb += lerp(_GlowColorB.rgb, _GlowColorA.rgb, crack) * crack * _GlowIntensity;
+                        // 온도 그라디언트: 가장자리=어두운색(B, 적주황) → 중심 한가운데만 밝은색(A, 백황)
+                        half heat = pow(crack, 3.0);
+                        col.rgb += lerp(_GlowColorB.rgb, _GlowColorA.rgb, heat) * crack * _GlowIntensity;
                     }
                 }
 
