@@ -285,6 +285,35 @@ public static class WorldBuilder
         var rnd = new System.Random(20260724);
         var list = new List<TreeInstance>();
 
+        // ★완전 겹침 방지 — 공간 해시로 최소 간격 확보(가까이는 OK, 겹치는 건 배제)
+        const float HC = 4f;
+        var occ = new Dictionary<long, List<Vector2>>();
+        long HKey(int a, int b) => ((long)a << 32) ^ (uint)b;
+        bool TooClose(float wxp, float wzp, float minD)
+        {
+            int cxp = Mathf.FloorToInt(wxp / HC), czp = Mathf.FloorToInt(wzp / HC);
+            int r = Mathf.CeilToInt(minD / HC);
+            for (int dx = -r; dx <= r; dx++)
+            for (int dz = -r; dz <= r; dz++)
+                if (occ.TryGetValue(HKey(cxp + dx, czp + dz), out var lst))
+                    foreach (var pp in lst) { float ex = pp.x - wxp, ez = pp.y - wzp; if (ex * ex + ez * ez < minD * minD) return true; }
+            return false;
+        }
+        void Occupy(float wxp, float wzp)
+        {
+            long k = HKey(Mathf.FloorToInt(wxp / HC), Mathf.FloorToInt(wzp / HC));
+            if (!occ.TryGetValue(k, out var lst)) { lst = new List<Vector2>(); occ[k] = lst; }
+            lst.Add(new Vector2(wxp, wzp));
+        }
+        // ★절벽 끝 나무 배제 — 그 자리뿐 아니라 주변 경사도 본다(평평한 절벽 위 끝도 걸러짐)
+        bool CliffNear(float nfx, float nfz)
+        {
+            float mx = 0f;
+            foreach (var o in new[] { new Vector2(0, 0), new Vector2(0.003f, 0), new Vector2(-0.003f, 0), new Vector2(0, 0.003f), new Vector2(0, -0.003f) })
+                mx = Mathf.Max(mx, Vector3.Angle(td.GetInterpolatedNormal(Mathf.Clamp01(nfx + o.x), Mathf.Clamp01(nfz + o.y)), Vector3.up));
+            return mx > 34f;
+        }
+
         // ★숲/평야 강한 대비 — 저주파 '바이옴' 노이즈로 큰 덩어리를 나누고, 그 위에 군집.
         //   plains = 거의 빈 벌판(홑나무 1~2%), forest = 빽빽, 사이는 그라데이션.
         const int NCLUST = 18;
@@ -314,7 +343,9 @@ public static class WorldBuilder
             {
                 if (palmIdx.Count == 0) continue;
                 if ((float)rnd.NextDouble() > 0.05f) continue;         // 해안선에 야자수 성기게
+                if (TooClose(wx, wz, 6.5f)) continue;                  // 야자수는 넉넉히 띄움
                 list.Add(MakeTree(palmIdx[rnd.Next(palmIdx.Count)], fx, h / size.y, fz, rnd, 0.9f, 0.35f));
+                Occupy(wx, wz);
                 continue;
             }
 
@@ -351,8 +382,11 @@ public static class WorldBuilder
                 float hh = td.GetInterpolatedHeight(jx, jz);
                 if (hh < MinHeight || hh > maxH) continue;
                 if (SandAmount(td, jx, jz) > 0.3f) continue;
+                if (CliffNear(jx, jz)) continue;                 // 절벽 끝 배제
+                float jwx = origin.x + jx * size.x, jwz = origin.z + jz * size.z;
                 // ★크기 확 다르게 — 작게 치우치고 가끔 큰 나무(pow), 넓이·높이 상관
                 float baseS = Mathf.Lerp(0.55f, 1.75f, Mathf.Pow((float)rnd.NextDouble(), 0.6f));
+                if (TooClose(jwx, jwz, 2.6f + baseS * 2.2f)) continue;   // 크기 비례 최소 간격
                 list.Add(new TreeInstance {
                     position = new Vector3(jx, hh / size.y, jz),
                     prototypeIndex = landIdx[rnd.Next(landIdx.Count)],
@@ -361,6 +395,7 @@ public static class WorldBuilder
                     rotation = (float)rnd.NextDouble() * Mathf.PI * 2f,
                     color = Color.white, lightmapColor = Color.white,
                 });
+                Occupy(jwx, jwz);
             }
         }
         td.SetTreeInstances(list.ToArray(), true);
@@ -507,6 +542,7 @@ public static class WorldBuilder
                 float h = td.GetInterpolatedHeight(fx, fz);
                 if (h < MinHeight || h > maxH) continue;
                 if (Vector3.Angle(td.GetInterpolatedNormal(fx, fz), Vector3.up) > GrassMaxSlope) continue;
+                if (SandAmount(td, fx, fz) > 0.3f) continue;   // ★모래사장엔 잔디 없음
 
                 // ★도로 페이드: 흙(도로) 비중이 높을수록 잔디를 줄인다 = 도로가 잔디로 서서히 번짐
                 float dirt = DirtAmount(td, fx, fz);
