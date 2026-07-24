@@ -271,9 +271,20 @@ public static class WorldBuilder
         var size = td.size;
         var origin = terrain.transform.position;
         float maxH = size.y * MaxHeightFrac;
-        int cols = Mathf.Max(1, (int)(size.x / TreeSpacing)), rows = Mathf.Max(1, (int)(size.z / TreeSpacing));
         var rnd = new System.Random(20260724);
         var list = new List<TreeInstance>();
+
+        // ★마인크래프트/스타듀식 함수 배치 — 세 층을 합친다:
+        //   ① 넓은 저주파 노이즈 = 숲/들판의 큰 구분 (어디가 숲이 될 땅인가)
+        //   ② 군집 중심 = 빽빽한 숲 덩어리 (가우시안 봉우리 여러 개)
+        //   ③ 어디서나 낮은 확률 = 홑나무 흩뿌림 (허전한 벌판 방지)
+        const int NCLUST = 16;
+        var cx = new float[NCLUST]; var cz = new float[NCLUST]; var cr = new float[NCLUST];
+        for (int c = 0; c < NCLUST; c++) { cx[c] = (float)rnd.NextDouble(); cz[c] = (float)rnd.NextDouble(); cr[c] = 0.035f + (float)rnd.NextDouble() * 0.06f; }
+
+        // 군집 안은 촘촘히 뿌릴 수 있게 격자를 조금 곱게
+        float spacing = TreeSpacing * 0.7f;
+        int cols = Mathf.Max(1, (int)(size.x / spacing)), rows = Mathf.Max(1, (int)(size.z / spacing));
 
         for (int j = 0; j < rows; j++)
         for (int i = 0; i < cols; i++)
@@ -282,12 +293,20 @@ public static class WorldBuilder
             float fz = (j + 0.5f + ((float)rnd.NextDouble() - 0.5f) * TreeJitter) / rows;
             if (fx <= 0f || fx >= 1f || fz <= 0f || fz >= 1f) continue;
 
-            // ★PerlinNoise 는 0~1 을 골고루 안 쓰고 0.3~0.7 에 몰린다 → 실사용 구간을 늘려 쓴다
             float wx = origin.x + fx * size.x, wz = origin.z + fz * size.z;
-            float raw = Mathf.PerlinNoise(wx * ForestScale + 1000f, wz * ForestScale + 1000f);
-            float forest = Mathf.InverseLerp(0.32f, 0.68f, raw);
-            if (forest < ForestCut) continue;
-            if ((float)rnd.NextDouble() > Mathf.InverseLerp(ForestCut, ForestCut + 0.30f, forest)) continue;
+            // ① 넓은 숲/들판 (0.3~0.7 에 몰리는 Perlin 을 펴서)
+            float broad = Mathf.InverseLerp(0.40f, 0.66f, Mathf.PerlinNoise(wx * ForestScale + 1000f, wz * ForestScale + 1000f));
+            // ② 군집 봉우리 (가장 가까운 중심의 가우시안)
+            float clust = 0f;
+            for (int c = 0; c < NCLUST; c++)
+            {
+                float dx = fx - cx[c], dz = fz - cz[c];
+                clust = Mathf.Max(clust, Mathf.Exp(-(dx * dx + dz * dz) / (cr[c] * cr[c])));
+            }
+            // 밀도 = 숲(약) 이거나 군집(강) 중 큰 쪽, + 홑나무 바닥확률
+            float dens = Mathf.Max(broad * 0.55f, clust);
+            float p = dens * 0.85f + 0.05f;
+            if ((float)rnd.NextDouble() > p) continue;
 
             float h = td.GetInterpolatedHeight(fx, fz);
             if (h < MinHeight || h > maxH) continue;
@@ -297,8 +316,8 @@ public static class WorldBuilder
             list.Add(new TreeInstance {
                 position = new Vector3(fx, h / size.y, fz),
                 prototypeIndex = rnd.Next(protos.Length),
-                widthScale = 0.85f + (float)rnd.NextDouble() * 0.45f,
-                heightScale = 0.85f + (float)rnd.NextDouble() * 0.5f,
+                widthScale = 0.8f + (float)rnd.NextDouble() * 0.55f,
+                heightScale = 0.8f + (float)rnd.NextDouble() * 0.6f,
                 rotation = (float)rnd.NextDouble() * Mathf.PI * 2f,
                 color = Color.white, lightmapColor = Color.white,
             });
@@ -320,9 +339,24 @@ public static class WorldBuilder
             return 0;
         }
 
+        // ★프로토타입 조정 — 크기 아주 조금 랜덤 + 초록 땅색 톤(애니 밝은 녹색)
+        //   (터레인 빌보드 잔디는 위치별 정확한 땅색 매칭은 안 되므로 '초록 톤'으로 맞춘다.
+        //    위치별 완전 매칭이 필요하면 GrassGround 셰이더를 디테일 메시로 연결하는 별도 작업)
+        var healthy = new Color(0.53f, 0.78f, 0.36f); // 밝은 애니 녹색
+        var dry = new Color(0.62f, 0.80f, 0.40f);
+        for (int l = 0; l < protos.Length; l++)
+        {
+            protos[l].minWidth = 0.85f; protos[l].maxWidth = 1.15f;   // 크기 아주 조금 랜덤
+            protos[l].minHeight = 0.85f; protos[l].maxHeight = 1.2f;
+            protos[l].healthyColor = healthy; protos[l].dryColor = dry;
+            protos[l].noiseSpread = 0.3f;
+        }
+        td.detailPrototypes = protos;
+
         int res = td.detailResolution;
         float maxH = td.size.y * MaxHeightFrac;
         int total = 0;
+        const int AMT_MAX = 16;                 // ★유니티 셀당 상한(밀도 4배의 핵심)
 
         for (int layer = 0; layer < protos.Length; layer++)
         {
@@ -334,13 +368,19 @@ public static class WorldBuilder
                 float h = td.GetInterpolatedHeight(fx, fz);
                 if (h < MinHeight || h > maxH) continue;
                 if (Vector3.Angle(td.GetInterpolatedNormal(fx, fz), Vector3.up) > GrassMaxSlope) continue;
-                if (OnRoad(td, fx, fz)) continue;
 
+                // ★도로 페이드: 흙(도로) 비중이 높을수록 잔디를 줄인다 = 도로가 잔디로 서서히 번짐
+                float dirt = DirtAmount(td, fx, fz);
+                float roadFade = Mathf.SmoothStep(1f, 0f, Mathf.InverseLerp(0.12f, 0.5f, dirt));
+                if (roadFade <= 0.02f) continue;
+
+                // 커버리지 넓힘(문턱 0.42→0.2) + 상한 상향 = 약 4배 빽빽
                 float d = Mathf.PerlinNoise(fx * 90f + layer * 37.7f, fz * 90f + layer * 37.7f);
-                if (d < 0.42f) continue;
-                int amt = Mathf.RoundToInt(Mathf.Lerp(1f, 6f, (d - 0.42f) / 0.58f) * GrassDensityMax);
+                if (d < 0.20f) continue;
+                float dens = Mathf.Lerp(4f, AMT_MAX, (d - 0.20f) / 0.80f) * GrassDensityMax;
+                int amt = Mathf.RoundToInt(dens * roadFade);   // 도로 근처는 성기게
                 if (amt <= 0) continue;
-                map[y, x] = amt;
+                map[y, x] = Mathf.Min(AMT_MAX, amt);
                 total++;
             }
             td.SetDetailLayer(0, 0, layer, map);
@@ -491,13 +531,16 @@ public static class WorldBuilder
     }
 
     static int _dirtCache = -2;
-    static bool OnRoad(TerrainData td, float fx, float fz)
+    static bool OnRoad(TerrainData td, float fx, float fz) => DirtAmount(td, fx, fz) > 0.45f;
+
+    /// 그 자리 흙(도로) 레이어 비중 0~1. 잔디 도로-페이드에 쓴다.
+    static float DirtAmount(TerrainData td, float fx, float fz)
     {
         if (_dirtCache == -2) _dirtCache = FindLayer(td, "dirt", "drysoil");
-        if (_dirtCache < 0) return false;
+        if (_dirtCache < 0) return 0f;
         int x = Mathf.Clamp(Mathf.RoundToInt(fx * (td.alphamapWidth - 1)), 0, td.alphamapWidth - 1);
         int z = Mathf.Clamp(Mathf.RoundToInt(fz * (td.alphamapHeight - 1)), 0, td.alphamapHeight - 1);
-        return td.GetAlphamaps(x, z, 1, 1)[0, 0, _dirtCache] > 0.45f;
+        return td.GetAlphamaps(x, z, 1, 1)[0, 0, _dirtCache];
     }
 
     static int FindLayer(TerrainData td, params string[] keys)
