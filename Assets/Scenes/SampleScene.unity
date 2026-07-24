@@ -11915,17 +11915,17 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: c860a466c27627343b938c017b036779, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::FxBodyFlames
-  rate: 800
-  flameSize: 0.055
-  sizeJitter: 0.55
-  riseSpeed: 0.35
-  riseJitter: 0.6
-  sway: 0.12
-  swayFreq: 0.7
-  lifeMin: 0.2
-  lifeMax: 0.65
-  emberRate: 12
-  emberSize: 0.02
+  rate: 3346
+  flameSize: 0.048
+  sizeJitter: 0.594
+  riseSpeed: 0.12
+  riseJitter: 0.749
+  sway: 0.166
+  swayFreq: 0.95
+  lifeMin: 0.221
+  lifeMax: 0.87
+  emberRate: 141
+  emberSize: 0.0853
   flameMat: {fileID: 2100000, guid: a6b0b5f0047abd94d83bf977d98852f9, type: 2}
 --- !u!1 &642329116
 GameObject:
@@ -14960,6 +14960,7 @@ GameObject:
   - component: {fileID: 1362080004}
   - component: {fileID: 1362080006}
   - component: {fileID: 1362080005}
+  - component: {fileID: 1362080007}
   m_Layer: 0
   m_Name: "\uC1FC\uCF00\uC774\uC2A4_lightning"
   m_TagString: Untagged
@@ -15042,6 +15043,27 @@ MeshFilter:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1362080003}
   m_Mesh: {fileID: -1901923605265949594, guid: b39f3738d8bdf6d44a666ccbb76e071d, type: 3}
+--- !u!114 &1362080007
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1362080003}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 8e942a07925182643914217a5867a024, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::FxBodyArcs
+  arcRate: 7
+  arcLifeMin: 0.06
+  arcLifeMax: 0.16
+  arcLen: 0.5
+  segments: 8
+  jaggedness: 0.16
+  width: 0.012
+  colorCore: {r: 1.8, g: 2.3, b: 3.2, a: 1}
+  colorTail: {r: 0.3, g: 0.7, b: 2, a: 1}
 --- !u!1 &1377496950
 GameObject:
   m_ObjectHideFlags: 0

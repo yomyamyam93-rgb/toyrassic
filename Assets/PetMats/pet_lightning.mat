@@ -53,12 +53,16 @@ Material:
     - _BendF: 0
     - _BendS: 0
     - _BumpScale: 1
+    - _CrackDensity: 4
+    - _CrackWarp: 0.12
+    - _CrackWidth: 0.06
     - _DstBlend: 0
     - _EnvIntensity: 0.35
-    - _GlowIntensity: 3
+    - _GlowCut: 0
+    - _GlowIntensity: 2.2
     - _GlowMode: 2
     - _GlowScale: 2.2
-    - _GlowSpeed: 1
+    - _GlowSpeed: 1.2
     - _Metallic: 0.25
     - _OcclusionStrength: 1
     - _RefLen: 1
@@ -71,7 +75,7 @@ Material:
     m_Colors:
     - _BaseColor: {r: 0.1, g: 0.1, b: 0.18, a: 1}
     - _EmissionColor: {r: 0, g: 0, b: 0, a: 1}
-    - _GlowColorA: {r: 1.4, g: 1.8, b: 2.6, a: 1}
-    - _GlowColorB: {r: 0, g: 0, b: 0, a: 1}
+    - _GlowColorA: {r: 1.8, g: 2.3, b: 3.2, a: 1}
+    - _GlowColorB: {r: 0.15, g: 0.45, b: 1.6, a: 1}
   m_BuildTextureStacks: []
   m_AllowLocking: 1

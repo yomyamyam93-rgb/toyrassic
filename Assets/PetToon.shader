@@ -252,11 +252,15 @@ Shader "Toyrassic/PetToon"
                         col.rgb += lerp(_GlowColorB.rgb, _GlowColorA.rgb, g) * g * _GlowIntensity;
                     }
                     else if (_GlowMode < 2.5)
-                    {   // 번개: 가는 맥이 지지직 + 플리커
-                        half v = abs(n1 - 0.5) * 2;
-                        half vein = pow(saturate(1 - v), 14);
-                        half flick = 0.35 + 0.65 * step(0.4, frac(sin(floor(_Time.y * 13) * 12.9898) * 43758.5453));
-                        col.rgb += _GlowColorA.rgb * vein * _GlowIntensity * flick;
+                    {   // 번개: 틱마다 위치가 튀는 전기 맥 (크롤링) + 플리커
+                        float seed = floor(_Time.y * max(_GlowSpeed, 0.1) * 8);
+                        float2 jump = (VHash(float2(seed, seed * 1.73)) - 0.5) * 1.6;   // 맥이 매 틱 다른 자리로
+                        float2 vp2 = gp * _CrackDensity + jump;
+                        half e2 = VoroEdge(vp2);
+                        half vein = 1 - smoothstep(_CrackWidth * 0.1, _CrackWidth, e2);
+                        half flick = 0.3 + 0.7 * step(0.3, frac(sin(seed * 12.9898) * 43758.5453));
+                        half heat2 = pow(vein, 2.5);
+                        col.rgb += lerp(_GlowColorB.rgb, _GlowColorA.rgb, heat2) * vein * _GlowIntensity * flick;
                     }
                     else
                     {   // 마그마 균열: 보로노이 셀 경계 = 각지게 쩍쩍 갈라진 균열망
