@@ -14,6 +14,8 @@ public class GrassManager : MonoBehaviour
         public bool active = true;                // OFF = 이 종류는 안 심음
         [Range(0f, 2f)] public float weight = 1f; // 출현량 배율
         [Range(0.5f, 5f)] public float size = 1f; // 크기 배율
+        [Tooltip("0보다 크면 '평균 몇 m마다 하나' 모드 — 꽃처럼 아주 드문드문 심을 때. 0=Weight 방식")]
+        [Range(0f, 50f)] public float spacing = 0f;
     }
 
     public Terrain terrain;

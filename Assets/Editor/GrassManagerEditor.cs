@@ -74,6 +74,7 @@ public class GrassManagerEditor : Editor
                 EditorGUILayout.EndHorizontal();
                 t.weight = EditorGUILayout.Slider("  Weight", t.weight, 0f, 2f);
                 t.size = EditorGUILayout.Slider("  Size", t.size, 0.5f, 5f);
+                t.spacing = EditorGUILayout.Slider("  간격(m) — 0=Weight, >0=몇 m마다 하나", t.spacing, 0f, 50f);
             }
             if (removeIdx >= 0) RemoveType(gm, td, removeIdx);
 
@@ -465,10 +466,19 @@ public class GrassManagerEditor : Editor
                     if (mn < th) continue;
                     float band = cellBand[y * res + x];   // 경계까지 실거리 기반 (0=가장자리, 1=안쪽)
 
-                    float d = Mathf.PerlinNoise(fx * 90f + layer * 37.7f, fz * 90f + layer * 37.7f);
-                    if (d < 0.05f) continue;
-                    float dens = Mathf.Lerp(8f, AMT_MAX, (d - 0.05f) / 0.95f)
-                               * gm.density * t.weight * Mathf.Clamp01(cellAvg[y * res + x]);
+                    float dens;
+                    if (t.spacing > 0.01f)
+                    {   // 간격 모드: 평균 spacing(m)마다 하나 — 노이즈 뭉침 없이 고르게 흩뿌림
+                        float cellM = td.size.x / res;
+                        dens = (cellM * cellM) / (t.spacing * t.spacing) * Mathf.Clamp01(cellAvg[y * res + x]);
+                    }
+                    else
+                    {
+                        float d = Mathf.PerlinNoise(fx * 90f + layer * 37.7f, fz * 90f + layer * 37.7f);
+                        if (d < 0.05f) continue;
+                        dens = Mathf.Lerp(8f, AMT_MAX, (d - 0.05f) / 0.95f)
+                             * gm.density * t.weight * Mathf.Clamp01(cellAvg[y * res + x]);
+                    }
 
                     if (band >= 1f)
                     {   // 안쪽: 정상 크기·정상 밀도
