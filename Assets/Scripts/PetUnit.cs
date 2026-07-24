@@ -194,8 +194,10 @@ public class PetUnit : MonoBehaviour
                 lungeTo = transform.position + dir.normalized * (body * 0.38f);
                 break;
 
-            case Mat.Wood:   // 휘두르기 시작 — 타격은 스윙 중간(Update)에서
+            case Mat.Wood:   // 휘두르기 시작 — 참격 호가 스윙과 같은 방향·타이밍으로 쫙
                 spinT = 1f; prevSwing = 0f; swingHit = false;
+                FX.Sweep(transform.position, transform.eulerAngles.y, 215f, body * 1.15f,
+                         new Color(1f, 0.93f, 0.55f, 0.7f), 0.275f, 0.22f);
                 break;
 
             case Mat.Rubber: // 고무공 투척 (물리 원거리)
@@ -214,8 +216,6 @@ public class PetUnit : MonoBehaviour
     void WoodAoE()
     {
         float aoe = body * 1.15f;
-        FX.Slash(transform.position, transform.eulerAngles.y, aoe,
-                 215f, new Color(1f, 0.93f, 0.55f, 0.55f));          // 참격 호
         FollowCam.Shake(body * 0.012f);
         foreach (var u in All)
         {

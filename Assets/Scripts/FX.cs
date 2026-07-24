@@ -41,27 +41,25 @@ public static class FX
         Object.Destroy(go, life + 0.4f);
     }
 
-    /// 부채꼴 스윙 궤적 — 나무 휘두르기 참격 호 (안쪽 진하고 바깥 투명, 서서히 사라짐)
-    public static void Slash(Vector3 center, float yawDeg, float radius, float angleDeg, Color c, float dur = 0.32f)
+    /// 참격 스윕 — 칼 휘두르듯 스윙 방향 따라 호가 쫙 그려지고, 지나간 자리는 꼬리처럼 사라짐.
+    /// startYaw 에서 sweepDeg 만큼(부호=방향) sweepDur 동안 진행.
+    public static void Sweep(Vector3 center, float startYaw, float sweepDeg, float radius, Color c,
+                             float sweepDur = 0.28f, float fadeDur = 0.22f)
     {
-        var go = new GameObject("fx_slash");
+        var go = new GameObject("fx_sweep");
         go.transform.position = center + Vector3.up * 0.6f;
-        go.transform.rotation = Quaternion.Euler(0f, yawDeg, 0f);
+        go.transform.rotation = Quaternion.Euler(0f, startYaw, 0f);
 
-        int seg = 24;
+        int seg = 30;
         float inner = radius * 0.35f;
         var verts = new Vector3[(seg + 1) * 2];
-        var cols = new Color[(seg + 1) * 2];
         var tris = new int[seg * 6];
         for (int i = 0; i <= seg; i++)
         {
-            float a = Mathf.Deg2Rad * (-angleDeg * 0.5f + angleDeg * i / seg);
+            float a = Mathf.Deg2Rad * (sweepDeg * i / seg);          // 0 → sweep (부호로 방향)
             var dir = new Vector3(Mathf.Sin(a), 0f, Mathf.Cos(a));
             verts[i * 2] = dir * inner;
             verts[i * 2 + 1] = dir * radius;
-            float edgeFade = Mathf.Sin((float)i / seg * Mathf.PI);   // 양 끝 얇게
-            cols[i * 2] = new Color(c.r, c.g, c.b, c.a * edgeFade);
-            cols[i * 2 + 1] = new Color(c.r, c.g, c.b, 0f);          // 바깥은 투명
         }
         for (int i = 0; i < seg; i++)
         {
@@ -69,13 +67,52 @@ public static class FX
             tris[t] = v; tris[t + 1] = v + 1; tris[t + 2] = v + 2;
             tris[t + 3] = v + 1; tris[t + 4] = v + 3; tris[t + 5] = v + 2;
         }
-        var mesh = new Mesh { vertices = verts, colors = cols, triangles = tris };
+        var mesh = new Mesh { vertices = verts, triangles = tris };
         mesh.RecalculateBounds();
         go.AddComponent<MeshFilter>().mesh = mesh;
         var mr = go.AddComponent<MeshRenderer>();
         mr.material = PMat();
         mr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
-        go.AddComponent<FxFade>().Init(mr, dur);
+        go.AddComponent<FxSweep>().Init(mesh, seg, c, sweepDur, fadeDur);
+    }
+}
+
+/// 참격 스윕 애니 — 진행선까지 그려지고, 지나간 자리는 꼬리처럼 옅어짐. 끝나면 전체 페이드
+public class FxSweep : MonoBehaviour
+{
+    Mesh mesh; int seg; Color c; float sweepDur, fadeDur, t;
+    Color[] cols;
+
+    public void Init(Mesh m, int segments, Color col, float sd, float fd)
+    {
+        mesh = m; seg = segments; c = col; sweepDur = sd; fadeDur = fd;
+        cols = new Color[(seg + 1) * 2];
+        Apply(0f, 1f);
+        Destroy(gameObject, sd + fd + 0.1f);
+    }
+
+    void Update()
+    {
+        t += Time.deltaTime;
+        float prog = Mathf.Clamp01(t / sweepDur);                       // 스윕 진행(칼끝 위치)
+        float g = t <= sweepDur ? 1f : 1f - Mathf.Clamp01((t - sweepDur) / fadeDur);
+        Apply(prog, g * g);                                             // 곡선 페이드
+    }
+
+    void Apply(float prog, float global)
+    {
+        const float tail = 0.55f;                                       // 꼬리 길이(진행 비율)
+        for (int i = 0; i <= seg; i++)
+        {
+            float a = (float)i / seg;                                   // 이 조각의 위치 0~1
+            float behind = prog - a;                                    // 칼끝 뒤로 얼마나 지났나
+            float alpha = behind < 0f ? 0f                              // 아직 안 지나감 = 안 보임
+                        : Mathf.Clamp01(1f - behind / tail);            // 지나간 만큼 꼬리 페이드
+            alpha *= alpha;                                             // 곡선
+            cols[i * 2] = new Color(c.r, c.g, c.b, c.a * alpha * global);
+            cols[i * 2 + 1] = new Color(c.r, c.g, c.b, 0f);             // 바깥 가장자리 투명
+        }
+        mesh.colors = cols;
     }
 }
 
