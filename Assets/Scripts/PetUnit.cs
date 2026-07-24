@@ -59,6 +59,8 @@ public class PetUnit : MonoBehaviour
         if (r != null) body = Mathf.Max(1f, Mathf.Max(r.bounds.size.x, Mathf.Max(r.bounds.size.y, r.bounds.size.z)));
         motion = GetComponent<PetMotion>();
         if (motion == null) motion = gameObject.AddComponent<PetMotion>();
+        rend = GetComponent<MeshRenderer>();
+        mpb = new MaterialPropertyBlock();
         MakeBar(r);
         Ground(true);
     }
@@ -66,6 +68,8 @@ public class PetUnit : MonoBehaviour
     [HideInInspector] public float body = 3f;   // 몸 크기(m, 바운딩 최대변) — 사거리·속도가 여기 비례
     float bounceT; Vector3 bounceFrom, bounceTo; // 고무: 팅겨서 뒤로 빠지기
     float bounceArcY;
+    float flashT, slowT;                         // 피격: 흰 번쩍 + 미세 둔화
+    MeshRenderer rend; MaterialPropertyBlock mpb;
 
     // 재질 = 같은 스탯의 '발현'만 다르게 (수치 총량은 비슷하게 유지)
     float AtkPeriod => (mat == Mat.Iron ? 2.4f : 1.7f) / (1f + agi * 0.010f);
@@ -91,7 +95,19 @@ public class PetUnit : MonoBehaviour
         Separate();
         Ground(false);
         LungeFx();
+        HitFlash();
         Bar();
+    }
+
+    // 피격 흰 번쩍 (행동은 안 끊음)
+    void HitFlash()
+    {
+        if (rend == null) return;
+        if (flashT <= 0f && slowT <= 0f) return;
+        flashT = Mathf.Max(0f, flashT - Time.deltaTime * 7f);
+        slowT = Mathf.Max(0f, slowT - Time.deltaTime);
+        mpb.SetColor("_EmissionColor", Color.white * flashT * 0.85f);
+        rend.SetPropertyBlock(mpb);
     }
 
     float Dist(Vector3 p) { p.y = 0; var q = transform.position; q.y = 0; return Vector3.Distance(p, q); }
@@ -179,14 +195,12 @@ public class PetUnit : MonoBehaviour
         if (hp <= 0f) { hp = 0f; Die(); }
     }
 
-    /// 피격 리액션 — 밀려나며 움찔 (임팩트)
+    /// 피격 리액션 — 행동 방해 없음: 하얗게 번쩍 + 아주 살짝 이동 둔화만
     public void OnHit(Vector3 fromDir)
     {
         if (dead) return;
-        fromDir.y = 0;
-        if (fromDir.sqrMagnitude > 1e-4f)
-            transform.position += fromDir.normalized * body * 0.06f;
-        if (motion != null) motion.Flinch();
+        flashT = 1f;
+        slowT = 0.3f;
     }
 
     /// 유닛끼리 겹침 방지 — 몸 반경만큼 서로 밀어냄 (비비적 방지)
@@ -235,6 +249,7 @@ public class PetUnit : MonoBehaviour
         if (dir.sqrMagnitude < 1e-4f) return;
         dir.Normalize();
         float pulse = motion != null ? motion.MovePulse : 1f;   // 발걸음 박자 맥동 (미끄럼 방지)
+        if (slowT > 0f) pulse *= 0.88f;                          // 피격 직후 아주 살짝 둔화
         transform.position += dir * spd * pulse * Time.deltaTime;
         curSpeed = spd;
         Face(dir);
