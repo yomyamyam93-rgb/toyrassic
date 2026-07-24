@@ -55,6 +55,9 @@ Material:
     - _BendF: 0
     - _BendS: 0
     - _BumpScale: 1.2
+    - _CrackDensity: 3
+    - _CrackWarp: 0.12
+    - _CrackWidth: 0.08
     - _DstBlend: 0
     - _EnvIntensity: 0.4
     - _GlowCut: 0.5

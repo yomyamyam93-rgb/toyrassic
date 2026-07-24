@@ -35,11 +35,16 @@ Shader "Toyrassic/PetToon"
         _GlowScale ("글로우 스케일", Float) = 1
         _GlowSpeed ("글로우 속도", Float) = 1
         _GlowCut ("글로우 문턱 (0=부드럽게, >0=얼룩 컷)", Range(0,0.95)) = 0
+        // 마그마 균열 (글로우 모드 3)
+        _CrackDensity ("균열 밀도 (셀 수)", Range(0.5,8)) = 3
+        _CrackWidth ("균열 두께", Range(0.01,0.25)) = 0.07
+        _CrackWarp ("균열 비틀림 (0=직선)", Range(0,0.6)) = 0.12
         // 투명(유리)용
         _SrcBlend ("Src", Float) = 1
         _DstBlend ("Dst", Float) = 0
         _ZWrite ("ZWrite", Float) = 1
     }
+    CustomEditor "PetToonGUI"
     SubShader
     {
         Tags { "RenderType"="Opaque" "Queue"="Geometry" "RenderPipeline"="UniversalPipeline" }
@@ -77,6 +82,7 @@ Shader "Toyrassic/PetToon"
             half _BumpScale, _Metallic, _Smoothness, _OcclusionStrength;
             half _EnvIntensity, _Triplanar; float _TriScale;
             half _GlowMode, _GlowIntensity, _GlowCut; float _GlowScale, _GlowSpeed;
+            float _CrackDensity, _CrackWidth, _CrackWarp;
 
             // 절차 노이즈 — 텍스처 대신 수식 (해상도 무한 = 확대해도 안 깨짐). C# FxBodyFlames 와 동일 수치
             static const float2 NF[10] = { float2(1,3), float2(2,-1), float2(3,2), float2(-2,4), float2(4,1),
@@ -254,10 +260,10 @@ Shader "Toyrassic/PetToon"
                     }
                     else
                     {   // 마그마 균열: 보로노이 셀 경계 = 각지게 쩍쩍 갈라진 균열망
-                        float2 vp = gp * 3.0
-                                  + float2(ProcNoise(gp * 2.6) - 0.5, ProcNoise(gp * 2.6 + 7.7) - 0.5) * 0.12; // 살짝만 비틈 (직선 유지)
+                        float2 vp = gp * _CrackDensity
+                                  + float2(ProcNoise(gp * 2.6) - 0.5, ProcNoise(gp * 2.6 + 7.7) - 0.5) * _CrackWarp;
                         half e = VoroEdge(vp);
-                        half crack = 1 - smoothstep(0.004, 0.042, e);                   // 반절 더 얇게, 쫙쫙
+                        half crack = 1 - smoothstep(_CrackWidth * 0.1, _CrackWidth, e);
                         col.rgb += lerp(_GlowColorB.rgb, _GlowColorA.rgb, crack) * crack * _GlowIntensity;
                     }
                 }

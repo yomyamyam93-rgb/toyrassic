@@ -29,6 +29,9 @@ public class FxBodyFlames : MonoBehaviour
         glowCut = Mathf.Max(0.3f, m.GetFloat("_GlowCut"));
         glowMode = m.GetFloat("_GlowMode");
         axisX = m.GetFloat("_AxisX");
+        if (m.HasProperty("_CrackDensity")) crackDensity = m.GetFloat("_CrackDensity");
+        if (m.HasProperty("_CrackWidth")) crackWidth = m.GetFloat("_CrackWidth");
+        if (m.HasProperty("_CrackWarp")) crackWarp = m.GetFloat("_CrackWarp");
         bodyH = mr.bounds.size.y;
         MakePS();
     }
@@ -154,6 +157,7 @@ public class FxBodyFlames : MonoBehaviour
     }
 
     float glowMode = 1f;
+    float crackDensity = 3f, crackWidth = 0.07f, crackWarp = 0.12f;
 
     // 셰이더와 동일한 절차 노이즈 (텍스처 불필요 — 수치 완전 일치)
     static readonly Vector2[] NF = { new Vector2(1,3), new Vector2(2,-1), new Vector2(3,2), new Vector2(-2,4), new Vector2(4,1),
@@ -200,10 +204,10 @@ public class FxBodyFlames : MonoBehaviour
         float n2 = ProcNoise(gp * 1.7f + new Vector2(0.13f, 0f));
         if (glowMode >= 2.5f)
         {   // 마그마 균열 — 셰이더와 동일한 보로노이 경계 (판정은 조금 넓게)
-            Vector2 vp = gp * 3.0f
-                       + new Vector2(ProcNoise(gp * 2.6f) - 0.5f, ProcNoise(gp * 2.6f + new Vector2(7.7f, 7.7f)) - 0.5f) * 0.12f;
+            Vector2 vp = gp * crackDensity
+                       + new Vector2(ProcNoise(gp * 2.6f) - 0.5f, ProcNoise(gp * 2.6f + new Vector2(7.7f, 7.7f)) - 0.5f) * crackWarp;
             float e = VoroEdge(vp);
-            return 1f - Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0.01f, 0.08f, e));   // 판정은 셰이더보다 넉넉히
+            return 1f - Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(crackWidth * 0.1f, crackWidth * 1.8f, e));   // 판정은 셰이더보다 넉넉히
         }
         return Mathf.Clamp01(n1 * n2 * 1.8f);
     }
