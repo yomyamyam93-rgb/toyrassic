@@ -96,11 +96,12 @@ public class FxSwingTrail : MonoBehaviour
         var em = ps.emission; em.enabled = false;               // 수동 방출만
         var col = ps.colorOverLifetime; col.enabled = true;
         var grad = new Gradient();
+        // 쫙 생기고 → 잠깐 유지 → 쫙 사라짐
         grad.SetKeys(new[] { new GradientColorKey(Color.white, 0f), new GradientColorKey(Color.white, 1f) },
-                     new[] { new GradientAlphaKey(1f, 0f), new GradientAlphaKey(0.7f, 0.4f), new GradientAlphaKey(0f, 1f) });
+                     new[] { new GradientAlphaKey(1f, 0f), new GradientAlphaKey(1f, 0.65f), new GradientAlphaKey(0f, 1f) });
         col.color = grad;
         var sol = ps.sizeOverLifetime; sol.enabled = true;
-        sol.size = new ParticleSystem.MinMaxCurve(1f, AnimationCurve.EaseInOut(0f, 1f, 1f, 0.25f));
+        sol.size = new ParticleSystem.MinMaxCurve(1f, AnimationCurve.EaseInOut(0f, 1f, 1f, 0.55f));
         var r = go.GetComponent<ParticleSystemRenderer>();
         r.material = new Material(Shader.Find("Sprites/Default"));
         r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
@@ -117,20 +118,23 @@ public class FxSwingTrail : MonoBehaviour
         float sign = Mathf.Sign(sweepDeg);
         while (emitted < targetAng)
         {
-            emitted += 3.2f;                                              // 3.2° 마다 조각 하나 = 촙촙
+            emitted += 1.4f;                                              // 1.4° 마다 = 훨씬 촘촘
             var dir = Quaternion.Euler(0f, startYaw + sign * emitted, 0f) * Vector3.forward;
-            var pos = center + dir * radius * Random.Range(0.78f, 1.02f);
-            var ep = new ParticleSystem.EmitParams
+            // 반경 방향으로 2겹 (안쪽·바깥쪽) — 띠가 도톰하게
+            for (int k = 0; k < 2; k++)
             {
-                position = pos + Vector3.up * Random.Range(-0.06f, 0.10f) * radius,
-                velocity = dir * radius * Random.Range(0.15f, 0.45f)      // 바깥으로 살짝 흩어짐
-                         + Vector3.up * radius * 0.05f,
-                startSize = radius * Random.Range(0.045f, 0.10f),
-                startLifetime = Random.Range(0.18f, 0.32f),
-                startColor = c,
-                rotation = Random.Range(0f, 360f)
-            };
-            ps.Emit(ep, 1);
+                var pos = center + dir * radius * (k == 0 ? Random.Range(0.72f, 0.86f) : Random.Range(0.86f, 1.0f));
+                var ep = new ParticleSystem.EmitParams
+                {
+                    position = pos + Vector3.up * Random.Range(-0.04f, 0.08f) * radius,
+                    velocity = dir * radius * Random.Range(0.02f, 0.10f), // 거의 제자리 (유지되다 사라짐)
+                    startSize = radius * Random.Range(0.05f, 0.085f),
+                    startLifetime = Random.Range(0.30f, 0.40f),
+                    startColor = c * 1.9f,                                // HDR 밝기 → 블룸으로 발광
+                    rotation = Random.Range(0f, 360f)
+                };
+                ps.Emit(ep, 1);
+            }
         }
     }
 }

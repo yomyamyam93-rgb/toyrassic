@@ -197,7 +197,7 @@ public class PetUnit : MonoBehaviour
             case Mat.Wood:   // 휘두르기 시작 — 파티클 잔상이 스윙 따라 촥 뿌려짐
                 spinT = 1f; prevSwing = 0f; swingHit = false;
                 FxSwingTrail.Spawn(transform.position + Vector3.up * body * 0.15f,
-                                   transform.eulerAngles.y, 215f, body * 1.05f,
+                                   transform.eulerAngles.y + 180f, 215f, body * 1.05f,   // ★꼬리에서 시작
                                    new Color(1f, 0.93f, 0.55f, 0.9f), 0.275f);
                 break;
 
