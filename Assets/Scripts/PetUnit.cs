@@ -37,7 +37,10 @@ public class PetUnit : MonoBehaviour
     Transform barRoot, barFill;
     Vector3 baseScale;
     float lungeT; Vector3 lungeFrom, lungeTo;
-    float hopT, hopPause; Vector3 hopFrom, hopTo; float hopArcY;   // 고무 점프 이동
+    // 고무 점프 3박자: 1=장전(쭈우욱) 2=공중(통!) 3=착지 휴식
+    int hopPhase; float hopPhaseT; Vector3 hopDir, hopFrom, hopTo; float hopArcY;
+    const float HopCharge = 0.38f, HopAir = 0.30f, HopRest = 0.42f;
+    float windupT; bool winding;                    // 공격 사전동작
     float flashT, slowT;
     MeshRenderer rend; MaterialPropertyBlock mpb;
     PetMotion motion;
@@ -72,10 +75,13 @@ public class PetUnit : MonoBehaviour
     float AtkPeriod => (mat == Mat.Iron ? 2.4f : mat == Mat.Wood ? 3.1f : mat == Mat.Rubber ? 1.9f : 2.7f)
                        / (1f + agi * 0.010f);
     float Damage => str * (mat == Mat.Iron ? 1.35f : mat == Mat.Wood ? 0.95f : mat == Mat.Rubber ? 0.9f : 1.7f);
-    float MoveSpd => ((mat == Mat.Iron ? 3.0f : 4.4f) + agi * 0.08f) * (0.5f + body * 0.10f);
+    // ★이속은 재질 무관 동일 (고무 점프도 사이클 평균이 이 값이 되게 설계)
+    float MoveSpd => (3.2f + agi * 0.05f) * (0.5f + body * 0.10f);
     float AtkRange => mat == Mat.Rubber ? body * 2.2f
                     : mat == Mat.Glass ? body * 3.5f
                     : body * 0.95f + 1f;
+    // 공격 사전동작(장전) 길이 — 퓩 안 나가고 웅크렸다 때린다
+    float WindupDur => mat == Mat.Iron ? 0.5f : mat == Mat.Wood ? 0.45f : mat == Mat.Rubber ? 0.4f : 0.5f;
 
     void Update()
     {
@@ -89,13 +95,25 @@ public class PetUnit : MonoBehaviour
             transform.Rotate(0f, 1080f * Time.deltaTime / 0.7f, 0f);   // 0.7초에 3바퀴
         }
 
-        // 고무 점프 진행 (이동 명령 없어도 공중이면 마저 착지)
+        // 고무 점프 진행 (이동 명령 없어도 장전/공중이면 마저 진행)
         HopAdvance();
 
         if (target == null || !target.Alive || Dist(target.transform.position) > AggroRange * 1.8f)
             target = FindTarget();
 
-        if (target != null) Combat();
+        // 공격 사전동작: 웅크렸다가(장전) 발사
+        if (winding)
+        {
+            windupT -= Time.deltaTime;
+            if (motion != null) motion.charge = Mathf.Max(motion.charge, 1f - windupT / WindupDur);
+            if (target == null || !target.Alive) winding = false;
+            else
+            {
+                Face(target.transform.position - transform.position);
+                if (windupT <= 0f) { winding = false; ExecuteAttack(); }
+            }
+        }
+        else if (target != null) Combat();
         else Peace();
 
         curSpeed = Mathf.MoveTowards(curSpeed, 0f, MoveSpd * 2.5f * Time.deltaTime);
@@ -151,13 +169,14 @@ public class PetUnit : MonoBehaviour
 
         float d = Dist(target.transform.position);
         if (d > AtkRange) Step(target.transform.position - transform.position, MoveSpd);
-        else if (atkCd <= 0f) Attack();
+        else if (atkCd <= 0f && hopPhase == 0)       // 점프 중엔 착지하고 나서
+        { winding = true; windupT = WindupDur; }     // ← 장전 시작 (즉시 안 때림)
         else Face(target.transform.position - transform.position);
     }
 
-    void Attack()
+    void ExecuteAttack()
     {
-        atkCd = AtkPeriod;
+        atkCd = Mathf.Max(0.4f, AtkPeriod - WindupDur);   // 장전 시간만큼 쿨에서 빼 TTK 유지
         var dir = (target.transform.position - transform.position); dir.y = 0;
         Face(dir);
         if (motion != null) motion.Punch();
@@ -265,29 +284,48 @@ public class PetUnit : MonoBehaviour
         Face(dir);
     }
 
-    // 고무: 뛰고 → 잠깐 쉬고 → 또 뛰고 (평균 속도는 걷기와 비슷하게)
+    // 고무 3박자: 쭈우욱 장전(눌림) → 통! 도약 → 착지 멈춤. 사이클 평균속도 = 걷기와 동일
     void HopStart(Vector3 dir, float spd)
     {
-        if (hopT > 0f || hopPause > 0f) return;      // 이미 점프/휴식 중
+        if (hopPhase != 0) return;                   // 이미 사이클 진행 중
         dir.y = 0; dir.Normalize();
-        const float dur = 0.34f, rest = 0.26f;
-        hopFrom = transform.position;
-        hopTo = transform.position + dir * spd * (dur + rest);   // 쉬는 시간까지 벌어야 평균속도 유지
-        hopT = 1f;
+        hopDir = dir;
+        hopPhase = 1; hopPhaseT = HopCharge;
         Face(dir);
     }
 
     void HopAdvance()
     {
-        if (hopPause > 0f) { hopPause -= Time.deltaTime; curSpeed = 0f; return; }
-        if (hopT <= 0f) { hopArcY = 0f; return; }
-        hopT -= Time.deltaTime / 0.34f;
-        float k = 1f - Mathf.Clamp01(hopT);
-        var p = Vector3.Lerp(hopFrom, hopTo, k);
-        transform.position = new Vector3(p.x, transform.position.y, p.z);
-        hopArcY = Mathf.Sin(k * Mathf.PI) * body * 0.16f;        // 쫀득 포물선
-        curSpeed = MoveSpd;
-        if (hopT <= 0f) { hopPause = 0.26f; hopArcY = 0f; if (motion != null) motion.Punch(); }  // 착지 쿵
+        switch (hopPhase)
+        {
+            case 1:   // 장전 — 제자리에서 쭈우욱 눌림
+                hopPhaseT -= Time.deltaTime;
+                if (motion != null) motion.charge = Mathf.Max(motion.charge, 1f - hopPhaseT / HopCharge);
+                Face(hopDir); curSpeed = 0f;
+                if (hopPhaseT <= 0f)
+                {
+                    hopPhase = 2; hopPhaseT = HopAir;
+                    hopFrom = transform.position;
+                    // 전체 사이클(장전+공중+휴식) 동안 걷기만큼 가야 하니 한 번에 그만큼 도약
+                    hopTo = transform.position + hopDir * MoveSpd * (HopCharge + HopAir + HopRest);
+                }
+                break;
+            case 2:   // 통! — 포물선 도약
+                hopPhaseT -= Time.deltaTime;
+                float k = 1f - Mathf.Clamp01(hopPhaseT / HopAir);
+                var p = Vector3.Lerp(hopFrom, hopTo, k);
+                transform.position = new Vector3(p.x, transform.position.y, p.z);
+                hopArcY = Mathf.Sin(k * Mathf.PI) * body * 0.20f;
+                curSpeed = MoveSpd;
+                if (hopPhaseT <= 0f)
+                { hopPhase = 3; hopPhaseT = HopRest; hopArcY = 0f; if (motion != null) motion.Punch(); }  // 착지 쿵
+                break;
+            case 3:   // 착지 후 멈춰 서 있기
+                hopPhaseT -= Time.deltaTime;
+                curSpeed = 0f;
+                if (hopPhaseT <= 0f) hopPhase = 0;   // 다음 Step 에서 새 방향으로 재장전
+                break;
+        }
     }
 
     void Face(Vector3 dir)

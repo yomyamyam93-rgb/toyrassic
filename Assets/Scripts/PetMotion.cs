@@ -28,6 +28,8 @@ public class PetMotion : MonoBehaviour
     public float MovePulse { get; private set; } = 1f;
 
     float flinch;   // 피격 움찔
+    /// 장전(웅크림) 0~1 — PetUnit 이 매 프레임 넣음 (점프 장전·공격 사전동작). 안 넣으면 풀림
+    [HideInInspector] public float charge;
 
     Vector3 baseScale;
     float t, punch;
@@ -70,7 +72,9 @@ public class PetMotion : MonoBehaviour
         float fl = Mathf.Sin(Mathf.Clamp01(flinch) * Mathf.PI);
         float walkSquish = Mathf.Sin(t * Mathf.PI * 2f) * 0.03f * speed01;
         float breathe = breathAmp * Mathf.Sin(t * Mathf.PI * 2f) * (1f - speed01);
-        float sy = 1f + walkSquish + breathe + pk * punchScale - fl * 0.16f;      // 맞으면 납작
+        float sy = 1f + walkSquish + breathe + pk * punchScale - fl * 0.16f
+                 - Mathf.Clamp01(charge) * 0.22f;                                 // 장전: 쭈우욱 눌림
+        charge = Mathf.MoveTowards(charge, 0f, 3.5f * dt);                        // 안 넣으면 스르륵 풀림
         float sxz = 1f / Mathf.Sqrt(Mathf.Max(0.3f, sy));
         transform.localScale = new Vector3(baseScale.x * sxz, baseScale.y * sy, baseScale.z * sxz);
 
