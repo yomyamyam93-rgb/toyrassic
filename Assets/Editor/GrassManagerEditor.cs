@@ -128,6 +128,7 @@ public class GrassManagerEditor : Editor
         if (fEdge)
         {
             gm.layerThreshold = EditorGUILayout.Slider("경계 문턱 (어디부터 잔디인가)", gm.layerThreshold, 0.05f, 0.9f);
+            gm.blockStrength = EditorGUILayout.Slider("밀어내기 강도 (체크 안 한 재질)", gm.blockStrength, 0f, 1f);
             gm.edgeBand = EditorGUILayout.Slider("경계 폭 (넓을수록 서서히)", gm.edgeBand, 0.02f, 0.5f);
             gm.edgeDensity = EditorGUILayout.Slider("경계 개체수 배율", gm.edgeDensity, 0f, 1f);
             gm.edgeSize = EditorGUILayout.Slider("경계 크기 배율 (작은 잔디)", gm.edgeSize, 0.5f, 1f);
@@ -390,7 +391,7 @@ public class GrassManagerEditor : Editor
                         if (l < allowIdx.Length && allowIdx[l]) allow += splat[az, ax, l];
                         else blocked += splat[az, ax, l];
                     }
-                    float mask = allow - blocked;
+                    float mask = allow - blocked * gm.blockStrength;   // 강도 0 = 안 밀어냄, 1 = 완전 밀어냄
 
                     // 들쭉날쭉: 문턱을 노이즈로 흔들어 경계선이 직선으로 안 보이게
                     float th = gm.layerThreshold
