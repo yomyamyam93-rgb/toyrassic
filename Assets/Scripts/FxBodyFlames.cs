@@ -160,11 +160,14 @@ public class FxBodyFlames : MonoBehaviour
         float n1 = ProcNoise(gp);
         float n2 = ProcNoise(gp * 1.7f + new Vector2(0.13f, 0f));
         if (glowMode >= 2.5f)
-        {   // 마그마 균열 — 셰이더보다 '조금 넓게' 판정 (가는 선 위에 정점이 드물어서)
-            float v1 = Mathf.Abs(n1 - 0.5f) * 2f;
-            float v2 = Mathf.Abs(n2 - 0.5f) * 2f;
-            float crack = Mathf.Max(Mathf.Pow(Mathf.Clamp01(1f - v1), 8f), Mathf.Pow(Mathf.Clamp01(1f - v2), 10f) * 0.35f);
-            return Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0.30f, 0.60f, crack));   // 판정은 넉넉히
+        {   // 마그마 균열 — 셰이더와 동일한 워프, 판정은 '조금 넓게' (가는 선 위 정점이 드묾)
+            Vector2 wgp = gp + new Vector2(ProcNoise(gp * 5.3f) - 0.5f, ProcNoise(gp * 5.3f + new Vector2(7.7f, 7.7f)) - 0.5f) * 0.11f;
+            float m1 = ProcNoise(wgp);
+            float m2 = ProcNoise(wgp * 1.7f + new Vector2(0.13f, 0f));
+            float v1 = Mathf.Abs(m1 - 0.5f) * 2f;
+            float v2 = Mathf.Abs(m2 - 0.5f) * 2f;
+            float crack = Mathf.Max(Mathf.Pow(Mathf.Clamp01(1f - v1), 15f), Mathf.Pow(Mathf.Clamp01(1f - v2), 18f) * 0.35f);
+            return Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0.25f, 0.55f, crack));
         }
         return Mathf.Clamp01(n1 * n2 * 1.8f);
     }

@@ -231,11 +231,14 @@ Shader "Toyrassic/PetToon"
                         col.rgb += _GlowColorA.rgb * vein * _GlowIntensity * flick;
                     }
                     else
-                    {   // 마그마 균열: 굵직한 갈라짐 몇 줄만 (고정, 쩍쩍)
-                        half v1 = abs(n1 - 0.5) * 2;
-                        half v2 = abs(n2 - 0.5) * 2;
-                        half crack = max(pow(saturate(1 - v1), 8), pow(saturate(1 - v2), 10) * 0.35);
-                        crack = smoothstep(0.45, 0.75, crack);       // 약한 선 쳐냄 → 줄 수 감소
+                    {   // 마그마 균열: 얇고 자글자글한 갈라짐 (도메인 워프로 라인 흔들기)
+                        float2 wgp = gp + float2(ProcNoise(gp * 5.3) - 0.5, ProcNoise(gp * 5.3 + 7.7) - 0.5) * 0.11;
+                        half m1 = ProcNoise(wgp);
+                        half m2 = ProcNoise(wgp * 1.7 + float2(0.13, 0));
+                        half v1 = abs(m1 - 0.5) * 2;
+                        half v2 = abs(m2 - 0.5) * 2;
+                        half crack = max(pow(saturate(1 - v1), 15), pow(saturate(1 - v2), 18) * 0.35);   // 더 얇게
+                        crack = smoothstep(0.42, 0.72, crack);
                         col.rgb += lerp(_GlowColorB.rgb, _GlowColorA.rgb, crack) * crack * _GlowIntensity;
                     }
                 }
