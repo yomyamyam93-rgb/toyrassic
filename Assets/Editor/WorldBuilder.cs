@@ -246,11 +246,11 @@ public static class WorldBuilder
             if (path.Count < 2) continue;
 
             float width = (TierWidth.TryGetValue(tier, out var w) ? w : 3f) * scale;
-            float amp = (TierMeander.TryGetValue(tier, out var a) ? a : 26f) * scale;
 
-            var dense = Resample(path, StepM);
-            var wavy = IrregularMeander(dense, amp, seed++);
-            painted += Paint(alpha, aw, ah, al, dirt, Smooth(wavy, 4), origin, size, width, seed);
+            // ★계획서에 이미 유선형 곡선이 들어있다(mapplan 의 SMOOTH). 여기서 사행을 또
+            //   넣으면 이중으로 흔들린다 → 촘촘히 재표본만 해서 그대로 칠한다.
+            var dense = Resample(path, StepM * 0.5f);
+            painted += Paint(alpha, aw, ah, al, dirt, dense, origin, size, width, seed++);
             roads++;
         }
         td.SetAlphamaps(0, 0, alpha);
