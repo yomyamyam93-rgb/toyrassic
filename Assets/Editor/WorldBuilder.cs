@@ -23,6 +23,9 @@ using UnityEngine;
 public static class WorldBuilder
 {
     const string PlanPath = "Assets/World/mapplan.txt";
+    /// 길 칠하기 전 원본 스플랫맵 백업. ★"지우기"는 이걸 복원하는 것이다 —
+    /// 흙을 잔디로 밀어버리면 모래사장 위를 지나던 길이 초록 줄로 남는다(실제로 겪음).
+    const string SplatBackup = "Assets/World/splat_backup.bytes";
 
     // 길 폭(m) — 계획 지도의 spec_tier 그대로 (8424m 대륙 기준, 축척 환산해서 씀)
     static readonly Dictionary<string, float> TierWidth = new Dictionary<string, float> {
@@ -101,24 +104,10 @@ public static class WorldBuilder
                 Undo.DestroyObjectImmediate(root.transform.GetChild(i).gameObject);
         }
 
-        // 길 — 흙 레이어를 0 으로 밀고 바닥 레이어(잔디)를 1 로. 덧칠은 이렇게만 지워진다.
-        int dirt = FindLayer(td, "dirt", "drysoil");
-        int baseL = FindLayer(td, "grass");
-        if (baseL < 0) baseL = 0;
-        int aw = td.alphamapWidth, ah = td.alphamapHeight, al = td.alphamapLayers;
-        if (dirt >= 0 && al > 1)
-        {
-            var a = td.GetAlphamaps(0, 0, aw, ah);
-            for (int z = 0; z < ah; z++)
-            for (int x = 0; x < aw; x++)
-            {
-                float d = a[z, x, dirt];
-                if (d <= 0.001f) continue;
-                a[z, x, dirt] = 0f;
-                a[z, x, baseL] = Mathf.Min(1f, a[z, x, baseL] + d);
-            }
-            td.SetAlphamaps(0, 0, a);
-        }
+        // 길 — ★백업된 원본 스플랫맵을 그대로 복원한다.
+        //   예전엔 "흙을 잔디로 밀기"로 지웠는데, 모래사장 위 길이 초록 줄로 남았다.
+        //   어떤 재질 위에 칠했든 원본으로 되돌리려면 스냅샷 복원뿐이다.
+        string road = RestoreSplat(td) ? "길 복원" : "길 백업 없음(건너뜀)";
 
         // 나무·풀
         td.SetTreeInstances(new TreeInstance[0], true);
@@ -128,7 +117,7 @@ public static class WorldBuilder
 
         terrain.Flush();
         EditorUtility.SetDirty(td);
-        if (!silent) Debug.Log($"[월드] 지움 — 마커 {m}개 / 길·나무·풀 초기화. 지형은 그대로.");
+        if (!silent) Debug.Log($"[월드] 지움 — 마커 {m}개 · {road} · 나무·풀 초기화. 지형 높이는 그대로.");
     }
 
     // ══════════════════════════════════════════════════════════
@@ -202,6 +191,7 @@ public static class WorldBuilder
         }
 
         int aw = td.alphamapWidth, ah = td.alphamapHeight, al = td.alphamapLayers;
+        BackupSplat(td);                                // ★칠하기 전 원본 보존 (지우기용)
         var alpha = td.GetAlphamaps(0, 0, aw, ah);
         float scale = size.x / (grid * (float)cell);   // 계획서(8424m) → 실제 지형 축척
 
@@ -470,6 +460,46 @@ public static class WorldBuilder
             for (int i = 0; i < ls.Length; i++)
                 if (ls[i] != null && ls[i].name.ToLower().Contains(k)) return i;
         return -1;
+    }
+
+    /// 스플랫맵 원본 스냅샷 — 이미 있으면 덮어쓰지 않는다(길 칠한 상태를 원본으로 굳히면 끝장).
+    static void BackupSplat(TerrainData td)
+    {
+        if (File.Exists(SplatBackup)) return;
+        int w = td.alphamapWidth, h = td.alphamapHeight, l = td.alphamapLayers;
+        var a = td.GetAlphamaps(0, 0, w, h);
+        using (var fs = new FileStream(SplatBackup, FileMode.Create))
+        using (var bw = new BinaryWriter(fs))
+        {
+            bw.Write(w); bw.Write(h); bw.Write(l);
+            for (int z = 0; z < h; z++)
+            for (int x = 0; x < w; x++)
+            for (int i = 0; i < l; i++) bw.Write(a[z, x, i]);
+        }
+        AssetDatabase.Refresh();
+        Debug.Log($"[월드] 스플랫맵 원본 백업 저장 ({w}×{h}×{l}). 지우기는 이걸 복원한다.");
+    }
+
+    static bool RestoreSplat(TerrainData td)
+    {
+        if (!File.Exists(SplatBackup)) return false;
+        using (var fs = new FileStream(SplatBackup, FileMode.Open))
+        using (var br = new BinaryReader(fs))
+        {
+            int w = br.ReadInt32(), h = br.ReadInt32(), l = br.ReadInt32();
+            if (w != td.alphamapWidth || h != td.alphamapHeight || l != td.alphamapLayers)
+            {
+                Debug.LogWarning($"[월드] 백업 규격 불일치({w}×{h}×{l}) — 복원 건너뜀. " +
+                                 "지형을 다시 만들었다면 splat_backup.bytes 를 지우고 새로 뜨는 게 맞다.");
+                return false;
+            }
+            var a = new float[h, w, l];
+            for (int z = 0; z < h; z++)
+            for (int x = 0; x < w; x++)
+            for (int i = 0; i < l; i++) a[z, x, i] = br.ReadSingle();
+            td.SetAlphamaps(0, 0, a);
+        }
+        return true;
     }
 
     static Terrain FindTerrain()
