@@ -60,6 +60,7 @@ public static class WorldBuilder
         ClearAll(terrain, silent: true);
         int markers = DoMarkers(terrain, lines, grid);
         var (roads, cells) = DoRoads(terrain, lines, cell, grid);
+        int rocks = DoRocks(terrain);
         int trees = DoTrees(terrain);
         int grass = DoGrass(terrain);
         int flowers = DoFlowers(terrain);
@@ -71,7 +72,7 @@ public static class WorldBuilder
         EditorUtility.SetDirty(terrain);
         AssetDatabase.SaveAssets();
 
-        Debug.Log($"[월드] 완성 — 마커 {markers} · 길 {roads}구간({cells}칸) · 나무 {trees} · 풀 {grass}칸 · 꽃 {flowers}\n" +
+        Debug.Log($"[월드] 완성 — 마커 {markers} · 길 {roads}구간({cells}칸) · 바위 {rocks}칸 · 나무 {trees} · 풀 {grass}칸 · 꽃 {flowers}\n" +
                   $"지형 실측 {td.size.x:F0}×{td.size.z:F0}m · 격자 {grid} → 칸 {td.size.x / grid:F1}m " +
                   $"(계획서 {cell}m 기준, 비례 환산)");
     }
@@ -257,6 +258,47 @@ public static class WorldBuilder
         }
         td.SetAlphamaps(0, 0, alpha);
         return (roads, painted);
+    }
+
+    // ══════════════════════════════════════════════════════════
+    //  절벽 = 바위 — 경사 급한 알파맵 칸에 L_rock 을 칠한다 (정공법 ①)
+    // ══════════════════════════════════════════════════════════
+    static int DoRocks(Terrain terrain)
+    {
+        var td = terrain.terrainData;
+        int rock = FindLayer(td, "rock", "cliff", "stone");
+        if (rock < 0)
+        {
+            Debug.LogWarning("[월드] 바위 지형레이어(L_rock)를 못 찾아 절벽칠 건너뜀.");
+            return 0;
+        }
+        int aw = td.alphamapWidth, ah = td.alphamapHeight, al = td.alphamapLayers;
+        var a = td.GetAlphamaps(0, 0, aw, ah);
+        int painted = 0;
+        for (int y = 0; y < ah; y++)
+        for (int x = 0; x < aw; x++)
+        {
+            float fx = (float)x / (aw - 1), fz = (float)y / (ah - 1);
+            float slope = Vector3.Angle(td.GetInterpolatedNormal(fx, fz), Vector3.up);
+            // 32° 부터 서서히, 50° 이상 완전 바위 — 경계가 딱 떨어지지 않게 그라데이션
+            float rockW = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(32f, 50f, slope));
+            if (rockW <= 0.01f) continue;
+
+            // 기존 rock 과 비교해 더 센 값으로. 나머지 레이어는 남은 비중(1-rockW)에 비례 축소.
+            float target = Mathf.Max(a[y, x, rock], rockW);
+            float others = 0f;
+            for (int l = 0; l < al; l++) if (l != rock) others += a[y, x, l];
+            if (others > 1e-5f)
+            {
+                float scale = (1f - target) / others;
+                for (int l = 0; l < al; l++) if (l != rock) a[y, x, l] *= scale;
+            }
+            a[y, x, rock] = target;
+            painted++;
+        }
+        td.SetAlphamaps(0, 0, a);
+        Debug.Log($"[월드] 절벽 바위칠 완료 — {painted}칸(경사 32°↑). 레이어 idx={rock}");
+        return painted;
     }
 
     static int DoTrees(Terrain terrain)
