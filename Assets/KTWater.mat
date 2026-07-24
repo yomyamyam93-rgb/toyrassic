@@ -25,30 +25,37 @@ Material:
     m_TexEnvs:
     - _WaterTex:
         m_Texture: {fileID: 2800000, guid: 7fcab01afbfb4d145a0485f77019f319, type: 3}
-        m_Scale: {x: 1, y: 1}
+        m_Scale: {x: 4, y: 4}
         m_Offset: {x: 0, y: 0}
     m_Ints: []
     m_Floats:
-    - _Bright: 1.32
-    - _CenterDark: 0.66
-    - _Contrast: 0.94
+    - _Bright: 1.29
+    - _CenterDark: 0.575
+    - _Contrast: 0.65
     - _DepthFade: 2
-    - _EdgeAlpha: 0.703
+    - _EdgeAlpha: 0.728
     - _Flow: 0.13
-    - _FoamEdge: 0.931
-    - _FoamLines: 3.95
-    - _FoamNoise: 0.084
-    - _FoamSoft: 0.141
-    - _FoamSpeed: 1.4
+    - _FoamEdge: 1
+    - _FoamLines: -3.01
+    - _FoamNoise: 0
+    - _FoamSoft: 0.169
+    - _FoamSpeed: -1.39
     - _FoamStr: 1
-    - _FoamWarp: 0.014
-    - _FoamWidth: 1.03
-    - _FoamWobble: 0.057
-    - _Hue: -14
-    - _Noise: 0.177
-    - _Sat: 0.9
+    - _FoamWarp: 0.035
+    - _FoamWidth: 4.45
+    - _FoamWobble: 0
+    - _GlintAmount: 0.13
+    - _GlintBright: 38.5
+    - _GlintOn: 1
+    - _GlintShape: 0
+    - _GlintSpacing: 0.52
+    - _GlintSpeed: 3
+    - _Hue: -12
+    - _Noise: 0.027
+    - _Sat: 1.42
     - _Scale: 22.2
     m_Colors:
-    - _Tint: {r: 0, g: 0.76477957, b: 1, a: 1}
+    - _FoamColor: {r: 1, g: 1, b: 1, a: 1}
+    - _Tint: {r: 0.8726415, g: 0.9658861, b: 1, a: 1}
   m_BuildTextureStacks: []
   m_AllowLocking: 1
