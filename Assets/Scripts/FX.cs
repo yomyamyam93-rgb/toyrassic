@@ -80,7 +80,8 @@ public static class FX
 /// 참격 파티클 잔상 — 스윙 궤적을 따라 촙촙한 조각이 촥 뿌려지고 짧게 흩어져 사라짐
 public class FxSwingTrail : MonoBehaviour
 {
-    ParticleSystem ps; Vector3 center; float startYaw, sweepDeg, radius, dur, t, emitted;
+    ParticleSystem ps; Vector3 center; float startYaw, sweepDeg, radius, dur, t;
+    float emitted = 90f;   // ★90° 돌고 나서부터 잔상 시작
     Color c;
 
     public static void Spawn(Vector3 center, float startYaw, float sweepDeg, float radius, Color c, float dur)
@@ -92,7 +93,7 @@ public class FxSwingTrail : MonoBehaviour
         main.loop = false; main.playOnAwake = false;
         main.simulationSpace = ParticleSystemSimulationSpace.World;
         main.startSpeed = 0f; main.gravityModifier = 0f;
-        main.maxParticles = 300;
+        main.maxParticles = 6000;                               // 고밀도 잔상
         var em = ps.emission; em.enabled = false;               // 수동 방출만
         var col = ps.colorOverLifetime; col.enabled = true;
         var grad = new Gradient();
@@ -100,8 +101,10 @@ public class FxSwingTrail : MonoBehaviour
         grad.SetKeys(new[] { new GradientColorKey(Color.white, 0f), new GradientColorKey(Color.white, 1f) },
                      new[] { new GradientAlphaKey(1f, 0f), new GradientAlphaKey(1f, 0.65f), new GradientAlphaKey(0f, 1f) });
         col.color = grad;
+        // 혜성형: 최신(꼬리 끝)은 굵고, 시간이 지날수록 빠르게 가늘어짐
         var sol = ps.sizeOverLifetime; sol.enabled = true;
-        sol.size = new ParticleSystem.MinMaxCurve(1f, AnimationCurve.EaseInOut(0f, 1f, 1f, 0.55f));
+        var sc = new AnimationCurve(new Keyframe(0f, 1f), new Keyframe(0.35f, 0.5f), new Keyframe(1f, 0.08f));
+        sol.size = new ParticleSystem.MinMaxCurve(1f, sc);
         var r = go.GetComponent<ParticleSystemRenderer>();
         r.material = new Material(Shader.Find("Sprites/Default"));
         r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
@@ -114,27 +117,24 @@ public class FxSwingTrail : MonoBehaviour
     void Update()
     {
         t += Time.deltaTime;
-        float targetAng = Mathf.Abs(sweepDeg) * Mathf.Clamp01(t / dur);   // 스윙 진행 각도
+        // ★몸 스윙과 같은 곡선(슈우웅..팍!) — 잔상이 채찍 타이밍에 정확히 맞춰 쏟아짐
+        float ang = PetUnit.SwingAngle(Mathf.Clamp01(t / dur));
         float sign = Mathf.Sign(sweepDeg);
-        while (emitted < targetAng)
+        while (emitted < ang)
         {
-            emitted += 1.4f;                                              // 1.4° 마다 = 훨씬 촘촘
+            emitted += 0.14f;                                             // 0.14° 간격 = 초고밀도 (사각 없음)
             var dir = Quaternion.Euler(0f, startYaw + sign * emitted, 0f) * Vector3.forward;
-            // 반경 방향으로 2겹 (안쪽·바깥쪽) — 띠가 도톰하게
-            for (int k = 0; k < 2; k++)
+            var pos = center + dir * radius * Random.Range(0.74f, 1.0f);
+            var ep = new ParticleSystem.EmitParams
             {
-                var pos = center + dir * radius * (k == 0 ? Random.Range(0.72f, 0.86f) : Random.Range(0.86f, 1.0f));
-                var ep = new ParticleSystem.EmitParams
-                {
-                    position = pos + Vector3.up * Random.Range(-0.04f, 0.08f) * radius,
-                    velocity = dir * radius * Random.Range(0.02f, 0.10f), // 거의 제자리 (유지되다 사라짐)
-                    startSize = radius * Random.Range(0.05f, 0.085f),
-                    startLifetime = Random.Range(0.30f, 0.40f),
-                    startColor = c * 1.9f,                                // HDR 밝기 → 블룸으로 발광
-                    rotation = Random.Range(0f, 360f)
-                };
-                ps.Emit(ep, 1);
-            }
+                position = pos + Vector3.up * Random.Range(-0.03f, 0.06f) * radius,
+                velocity = dir * radius * Random.Range(0.02f, 0.08f),
+                startSize = radius * Random.Range(0.022f, 0.04f),         // 알맹이 축소
+                startLifetime = Random.Range(0.28f, 0.38f),
+                startColor = c * 1.9f,                                    // HDR → 블룸 발광
+                rotation = Random.Range(0f, 360f)
+            };
+            ps.Emit(ep, 1);
         }
     }
 }

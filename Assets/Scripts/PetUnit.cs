@@ -30,7 +30,7 @@ public class PetUnit : MonoBehaviour
     // ── 내부 ──
     public static readonly List<PetUnit> All = new List<PetUnit>();
     PetUnit target;
-    float atkCd, wanderT, fleeT, spinT, prevSwing; bool swingHit;
+    float atkCd, wanderT, fleeT, spinT, prevSwing, retargetT; bool swingHit;
     Vector3 wanderDir;
     Terrain terrain;
     float footOff;
@@ -48,7 +48,7 @@ public class PetUnit : MonoBehaviour
     bool dead;
 
     float AggroRange => 13f + body * 1.2f;
-    float TauntRange => 6f + body * 0.8f;
+    float TauntRange => 10f + body * 1.5f;   // 쇠 어그로 — 넉넉하게 (원거리 딜러도 걸리게)
 
     public bool Alive => !dead;
 
@@ -88,20 +88,28 @@ public class PetUnit : MonoBehaviour
         if (dead) { LungeFx(); return; }
         atkCd -= Time.deltaTime;
 
-        // 나무 휘두르기 — 215° 한 번 휙 갔다가 되돌아옴 (사인 곡선), 타격은 스윙 중간
+        // 나무 휘두르기 — "슈우우웅(반대로 감기).. 팍!(폭발 채찍) → 복귀"
         if (spinT > 0f)
         {
-            spinT -= Time.deltaTime / 0.55f;
+            spinT -= Time.deltaTime / 0.75f;
             float pr = 1f - Mathf.Clamp01(spinT);
-            float off = Mathf.Sin(pr * Mathf.PI) * 215f;      // 0→215°→0 부드럽게
+            float off = SwingAngle(pr);
             transform.Rotate(0f, off - prevSwing, 0f);
             prevSwing = spinT <= 0f ? 0f : off;
-            if (!swingHit && pr > 0.32f) { swingHit = true; WoodAoE(); }   // 휘두르는 순간 타격
+            if (!swingHit && pr >= 0.58f) { swingHit = true; WoodAoE(); }   // 채찍 한복판에서 타격
         }
 
         // 고무 점프 진행 (이동 명령 없어도 장전/공중이면 마저 진행)
         HopAdvance();
 
+        // ★주기적 재평가 — 싸움 중에 쇠(탱커)가 어그로 범위로 들어오면 그쪽으로 갈아탐
+        retargetT -= Time.deltaTime;
+        if (retargetT <= 0f)
+        {
+            retargetT = 0.8f;
+            var nt = FindTarget();
+            if (nt != null) target = nt;
+        }
         if (target == null || !target.Alive || Dist(target.transform.position) > AggroRange * 1.8f)
             target = FindTarget();
 
@@ -198,7 +206,7 @@ public class PetUnit : MonoBehaviour
                 spinT = 1f; prevSwing = 0f; swingHit = false;
                 FxSwingTrail.Spawn(transform.position + Vector3.up * body * 0.15f,
                                    transform.eulerAngles.y + 180f, 215f, body * 1.05f,   // ★꼬리에서 시작
-                                   new Color(1f, 0.93f, 0.55f, 0.9f), 0.275f);
+                                   new Color(1f, 0.93f, 0.55f, 0.9f), 0.75f);            // 스윙 전체와 동기
                 break;
 
             case Mat.Rubber: // 고무공 투척 (물리 원거리)
@@ -211,6 +219,15 @@ public class PetUnit : MonoBehaviour
                     new Color(0.75f, 0.93f, 1f), body * 0.06f, 0.3f, body * 0.08f);
                 break;
         }
+    }
+
+    /// 스윙 각도 곡선 — 슈우우웅(0~0.5: -28° 반대 감기) 팍!(0.5~0.75: 폭발 가속) 복귀(0.75~1)
+    /// FX 잔상도 같은 곡선을 써서 몸과 이펙트가 정확히 동기화된다.
+    public static float SwingAngle(float pr)
+    {
+        if (pr < 0.5f) { float s = pr / 0.5f; return -28f * Mathf.Sin(s * Mathf.PI * 0.5f); }
+        if (pr < 0.75f) { float s = (pr - 0.5f) / 0.25f; return Mathf.Lerp(-28f, 215f, Mathf.Pow(s, 1.7f)); }
+        { float s = (pr - 0.75f) / 0.25f; return Mathf.Lerp(215f, 0f, s * s * (3f - 2f * s)); }
     }
 
     // 나무 광역 — 스윙이 실제로 도는 순간 주변 타격 + 약한 넉백
@@ -329,7 +346,8 @@ public class PetUnit : MonoBehaviour
             case 2:   // 통! — 포물선 도약
                 hopPhaseT -= Time.deltaTime;
                 float k = 1f - Mathf.Clamp01(hopPhaseT / HopAir);
-                var p = Vector3.Lerp(hopFrom, hopTo, k);
+                float kh = 1f - (1f - k) * (1f - k);              // 발사 순간 팍 나가고 감속 (물리)
+                var p = Vector3.Lerp(hopFrom, hopTo, kh);
                 transform.position = new Vector3(p.x, transform.position.y, p.z);
                 hopArcY = Mathf.Sin(k * Mathf.PI) * body * 0.20f;
                 curSpeed = MoveSpd;
@@ -389,7 +407,8 @@ public class PetUnit : MonoBehaviour
         if (lungeT <= 0f) return;
         lungeT -= Time.deltaTime * 5.5f;
         float t = Mathf.Clamp01(lungeT);
-        float arc = Mathf.Sin((1f - t) * Mathf.PI);
+        float q = 1f - t;
+        float arc = Mathf.Sin(q * q * (3f - 2f * q) * Mathf.PI);   // 천천히 감았다 팍 (S-곡선)
         if (!dead) transform.position = Vector3.Lerp(lungeFrom, lungeTo, arc * 0.8f) + Vector3.up * (transform.position.y - lungeFrom.y);
     }
 
