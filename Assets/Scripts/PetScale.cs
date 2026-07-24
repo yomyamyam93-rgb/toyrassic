@@ -9,12 +9,12 @@ public static class PetScale
 
     public static float Target(Tier t)
     {
-        switch (t)
+        switch (t)   // 2026-07-24 사용자 확정: "7m = 스몰". 기획 비율(1:2:3.5:6) 유지하고 ×7
         {
-            case Tier.S: return 1f;    // 콤피·다람쥐
-            case Tier.M: return 2f;    // 랩터·늑대
-            case Tier.L: return 3.5f;  // 트리케·사슴·스테고
-            default: return 6f;        // 티라노·브론토
+            case Tier.S: return 7f;    // 콤피·다람쥐
+            case Tier.M: return 14f;   // 랩터·늑대
+            case Tier.L: return 24f;   // 트리케·사슴·스테고
+            default: return 42f;       // 티라노·브론토
         }
     }
 

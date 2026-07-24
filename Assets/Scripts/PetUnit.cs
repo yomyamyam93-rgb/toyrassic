@@ -38,8 +38,8 @@ public class PetUnit : MonoBehaviour
     float lungeT; Vector3 lungeFrom, lungeTo;
     bool dead;
 
-    const float AggroRange = 13f;
-    const float TauntRange = 9f;       // 쇠의 어그로 — 이 안의 적은 쇠부터 노림
+    float AggroRange => 13f + body * 1.2f;
+    float TauntRange => 6f + body * 0.8f;   // 쇠의 어그로 — 이 안의 적은 쇠부터 노림
 
     public bool Alive => !dead;
 
@@ -56,17 +56,20 @@ public class PetUnit : MonoBehaviour
         baseScale = transform.localScale;
         var r = GetComponentInChildren<Renderer>();
         footOff = r != null ? transform.position.y - r.bounds.min.y : 0f;
+        if (r != null) body = Mathf.Max(1f, Mathf.Max(r.bounds.size.x, Mathf.Max(r.bounds.size.y, r.bounds.size.z)));
         motion = GetComponent<PetMotion>();
         if (motion == null) motion = gameObject.AddComponent<PetMotion>();
         MakeBar(r);
         Ground(true);
     }
 
+    float body = 3f;   // 몸 크기(m, 바운딩 최대변) — 사거리·속도가 여기 비례
+
     // 재질 = 같은 스탯의 '발현'만 다르게 (수치 총량은 비슷하게 유지)
     float AtkPeriod => (mat == Mat.Iron ? 2.4f : 1.7f) / (1f + agi * 0.010f);
     float Damage    => str * (mat == Mat.Iron ? 1.35f : 0.95f);  // 쇠 묵직·느림 / 고무 가볍고 잦음
-    float MoveSpd   => (mat == Mat.Iron ? 3.0f : 4.6f) + agi * 0.08f;
-    float AtkRange  => 2.2f;
+    float MoveSpd   => ((mat == Mat.Iron ? 3.0f : 4.6f) + agi * 0.08f) * (0.5f + body * 0.10f);
+    float AtkRange  => body * 0.55f + 1f;
 
     void Update()
     {
@@ -109,7 +112,7 @@ public class PetUnit : MonoBehaviour
         if (team == Team.Player && followTarget != null)
         {   // 주인 따라다니기
             float d = Dist(followTarget.position);
-            if (d > 4f) Step((followTarget.position - transform.position), MoveSpd);
+            if (d > body * 0.9f + 3f) Step((followTarget.position - transform.position), MoveSpd);
         }
         else
         {   // 야생: 어슬렁
@@ -143,7 +146,7 @@ public class PetUnit : MonoBehaviour
         // 런지 연출 (위치는 여기서, 스케일 펀치는 PetMotion 이)
         lungeT = 1f; lungeFrom = transform.position;
         var dir = (target.transform.position - transform.position); dir.y = 0;
-        lungeTo = transform.position + dir.normalized * 0.9f;
+        lungeTo = transform.position + dir.normalized * (body * 0.22f);
         if (motion != null) motion.Punch();
         if (mat == Mat.Rubber) retreatT = 1.1f;      // 고무: 치면 빠진다
         Face(dir);
@@ -174,7 +177,7 @@ public class PetUnit : MonoBehaviour
         g.name = "drop_" + (mat == Mat.Iron ? "iron" : "rubber");
         Destroy(g.GetComponent<Collider>());
         g.transform.position = transform.position + Vector3.up * 0.6f;
-        g.transform.localScale = Vector3.one * 0.45f;
+        g.transform.localScale = Vector3.one * Mathf.Clamp(body * 0.08f, 0.45f, 2f);
         var mr = g.GetComponent<MeshRenderer>();
         mr.material = new Material(Shader.Find("Universal Render Pipeline/Lit"));
         mr.material.color = mat == Mat.Iron ? new Color(0.62f, 0.65f, 0.70f) : new Color(0.95f, 0.55f, 0.65f);
@@ -222,10 +225,12 @@ public class PetUnit : MonoBehaviour
     // ── HP 바 (월드 스페이스 쿼드) ──
     void MakeBar(Renderer r)
     {
-        float top = r != null ? (r.bounds.max.y - transform.position.y) : 2f;
+        float top = r != null ? (r.bounds.max.y - transform.position.y) : 2f;   // 월드 미터
+        float ls = Mathf.Max(0.01f, transform.lossyScale.y);                    // 부모 스케일 역보정
         barRoot = new GameObject("hpbar").transform;
         barRoot.SetParent(transform, false);
-        barRoot.localPosition = new Vector3(0f, top + 0.6f, 0f);
+        barRoot.localPosition = new Vector3(0f, (top + body * 0.10f) / ls, 0f);
+        barRoot.localScale = Vector3.one * (body * 0.16f) / ls;                 // 몸 크기에 비례한 바 폭
         Transform Quad(string n, Color c, float z)
         {
             var q = GameObject.CreatePrimitive(PrimitiveType.Quad).transform;
