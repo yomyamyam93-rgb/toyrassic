@@ -112,8 +112,10 @@ public class GrassManagerEditor : Editor
             EditorGUILayout.Space(4);
             EditorGUILayout.HelpBox("잔디색은 '구운 바닥색 맵'을 따라간다. 지형을 새로 칠했거나\n" +
                 "절벽·길 재질을 바꿔서 색이 어긋나면 아래 버튼으로 다시 굽는다.", MessageType.Info);
+            gm.bakeResolution = EditorGUILayout.IntPopup("굽기 해상도", gm.bakeResolution,
+                new[] { "512 (거침)", "1024", "2048 (권장)", "4096 (정밀)" }, new[] { 512, 1024, 2048, 4096 });
             if (GUILayout.Button("바닥색 다시 굽기 — 잔디색을 지금 바닥에 일치"))
-            { WorldBuilder.BakeGroundColorForGrass(gm.terrain); ApplyColors(gm); }
+            { WorldBuilder.BakeGroundColorForGrass(gm.terrain, gm.bakeResolution); ApplyColors(gm); }
         }
         EditorGUILayout.EndFoldoutHeaderGroup();
         if (colorChanged) ApplyColors(gm);
