@@ -678,67 +678,75 @@ public static class WorldBuilder
     }
 
     // ══════════════════════════════════════════════════════════
-    //  물 — 씬의 Ocean(KTWater)을 켜고 맵 전체를 덮도록 보정
+    //  물 — 씬의 Ocean(KTWater) 을 켜고 맵 전체를 덮도록 보정
+    //  ★높이(Y)는 안 건드린다 — 사용자가 맞춰둔 물높이를 다시 짓기가 덮어쓰지 않게.
+    //    높이 자동맞춤이 필요하면 메뉴 'ⓦ 물 높이 자동맞춤' 을 따로 누른다.
     // ══════════════════════════════════════════════════════════
+    static GameObject FindOcean()
+    {
+        // GameObject.Find 는 켜진 것만 찾는다 → 비활성 Ocean 도 잡도록 씬 루트~자식 직접 순회.
+        foreach (var root in UnityEngine.SceneManagement.SceneManager.GetActiveScene().GetRootGameObjects())
+            foreach (var t in root.GetComponentsInChildren<Transform>(true))
+                if (t.name == "Ocean") return t.gameObject;
+        return null;
+    }
+
     static void DoWater(Terrain terrain)
     {
-        // ★GameObject.Find 는 '켜진' 오브젝트만 찾는다 — Ocean 이 꺼져 있으면 못 찾아 물이 통째로 건너뛰어졌다.
-        //   그래서 씬 루트부터 자식까지(비활성 포함) 직접 뒤진다.
-        GameObject ocean = null;
-        foreach (var root in UnityEngine.SceneManagement.SceneManager.GetActiveScene().GetRootGameObjects())
-        {
-            foreach (var t in root.GetComponentsInChildren<Transform>(true))   // true = 비활성 포함
-                if (t.name == "Ocean") { ocean = t.gameObject; break; }
-            if (ocean != null) break;
-        }
+        var ocean = FindOcean();
         if (ocean == null)
         {
             Debug.LogWarning("[월드] 'Ocean' 오브젝트를 못 찾음 — 물 건너뜀. (씬에 KTWater 평면이 있어야 함)");
             return;
         }
-        ocean.SetActive(true);                          // ★꺼져 있던 물을 켠다
+        ocean.SetActive(true);                          // 꺼져 있던 물을 켠다
 
         var td = terrain.terrainData;
-        Vector3 tOrigin = terrain.transform.position;
         Vector3 tSize = td.size;
-        Vector3 center = tOrigin + new Vector3(tSize.x * 0.5f, 0f, tSize.z * 0.5f);
+        Vector3 center = terrain.transform.position + new Vector3(tSize.x * 0.5f, 0f, tSize.z * 0.5f);
 
-        // ★해수면 = 전체 지형높이의 낮은 12% 지점. 바다·호수 바닥에만 물이 고이고 땅은 안 잠긴다.
-        //  (해변 중앙값 방식은 물이 너무 높게 잡혀 섬을 삼켰다 — 폐기)
-        const int N = 160;
-        var hs = new List<float>(N * N);
-        for (int y = 0; y < N; y++)
-        for (int x = 0; x < N; x++)
-        {
-            float fx = (float)x / (N - 1), fz = (float)y / (N - 1);
-            hs.Add(tOrigin.y + td.GetInterpolatedHeight(fx, fz));
-        }
-        hs.Sort();
-        float hMin = hs[0], hMax = hs[hs.Count - 1];
-        // 바다 바닥(최저점)이 넓은 평지라 '하위 %' 는 그냥 바닥값(=물깊이 0)이 나온다.
-        // → 최저점 위로 높이범위의 4% 만큼 물을 채운다 (0~430 이면 약 17m 깊이 = 잘 보이는 바다).
-        float seaY = hMin + (hMax - hMin) * 0.04f;
-        ocean.transform.position = new Vector3(center.x, seaY, center.z);
-        Debug.Log($"[월드] 해수면 — 지형높이 {hMin:F1}~{hMax:F1}m → 물 y={seaY:F1} (바닥위 {seaY - hMin:F1}m)");
+        // ★Y 는 현재값 유지(사용자 설정 존중). XZ 만 지형 중앙으로.
+        float keepY = ocean.transform.position.y;
+        ocean.transform.position = new Vector3(center.x, keepY, center.z);
 
-        // 맵 전체(+여유 20%)를 덮도록 스케일 자동 보정. 메시 기본 크기를 렌더러 bounds 로 역산.
+        // 맵 전체(+여유 20%)를 덮도록 스케일 자동 보정.
         var rend = ocean.GetComponentInChildren<Renderer>();
         if (rend != null)
         {
             Vector3 s = ocean.transform.localScale;
-            float baseX = rend.bounds.size.x / Mathf.Max(0.0001f, s.x);   // 스케일 1 일 때의 실제 너비
+            float baseX = rend.bounds.size.x / Mathf.Max(0.0001f, s.x);
             float baseZ = rend.bounds.size.z / Mathf.Max(0.0001f, s.z);
             float need = Mathf.Max(tSize.x, tSize.z) * 1.2f;
-            float sx = need / Mathf.Max(1f, baseX);
-            float sz = need / Mathf.Max(1f, baseZ);
-            ocean.transform.localScale = new Vector3(sx, s.y, sz);
-            Debug.Log($"[월드] 물 ON — 해수면 y={seaY:F1}, 중앙 정렬, {need:F0}m 덮도록 스케일 (×{sx:F1},{sz:F1}).");
+            ocean.transform.localScale = new Vector3(need / Mathf.Max(1f, baseX), s.y, need / Mathf.Max(1f, baseZ));
         }
-        else
-        {
-            Debug.Log($"[월드] 물 ON — 해수면 y={seaY:F1} (렌더러 없어 스케일은 그대로).");
-        }
+        Debug.Log($"[월드] 물 ON — 높이 y={keepY:F1}(유지), 중앙정렬·스케일 보정. 높이 바꾸려면 메뉴 'ⓦ 물 높이 자동맞춤'.");
         EditorUtility.SetDirty(ocean);
+    }
+
+    // 물 높이를 지형에서 자동 계산해 '한 번' 맞춘다 (원할 때만 수동 실행 — 다시 짓기와 분리).
+    [MenuItem("Tools/토이라기/ⓦ 물 높이 자동맞춤", priority = 20)]
+    public static void WaterAutoHeight()
+    {
+        var terrain = FindTerrain();
+        if (terrain == null) return;
+        var ocean = FindOcean();
+        if (ocean == null) { Debug.LogWarning("[월드] Ocean 없음."); return; }
+        ocean.SetActive(true);
+        var td = terrain.terrainData;
+        Vector3 tOrigin = terrain.transform.position;
+        const int N = 160;
+        float hMin = float.MaxValue, hMax = float.MinValue;
+        for (int y = 0; y < N; y++)
+        for (int x = 0; x < N; x++)
+        {
+            float h = tOrigin.y + td.GetInterpolatedHeight((float)x / (N - 1), (float)y / (N - 1));
+            if (h < hMin) hMin = h; if (h > hMax) hMax = h;
+        }
+        float seaY = hMin + (hMax - hMin) * 0.04f;      // 최저점 위 4% (0~430 → 약 17m)
+        var p = ocean.transform.position;
+        ocean.transform.position = new Vector3(p.x, seaY, p.z);
+        EditorUtility.SetDirty(ocean);
+        Debug.Log($"[월드] 물 높이 자동맞춤 — 지형 {hMin:F1}~{hMax:F1}m → 물 y={seaY:F1} (바닥위 {seaY - hMin:F1}m). 마음에 안 들면 Ocean 을 직접 위아래로 옮겨도 됨(이제 다시 짓기가 안 덮어씀).");
     }
 
     // ══════════════════════════════════════════════════════════
