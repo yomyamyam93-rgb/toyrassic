@@ -413,13 +413,10 @@ public class PetUnit : MonoBehaviour
     }
 
     void HitFlash()
-    {
-        if (rend == null) return;
-        if (flashT <= 0f && slowT <= 0f) return;
+    {   // 실제 적용은 PetMotion 의 MPB 가 담당 (벤드와 SetPropertyBlock 충돌 방지)
         flashT = Mathf.Max(0f, flashT - Time.deltaTime * 7f);
         slowT = Mathf.Max(0f, slowT - Time.deltaTime);
-        mpb.SetColor("_EmissionColor", Color.white * flashT * 0.85f);
-        rend.SetPropertyBlock(mpb);
+        if (motion != null) motion.flashEmission = flashT * 0.85f;
     }
 
     // ── HP 바 ──

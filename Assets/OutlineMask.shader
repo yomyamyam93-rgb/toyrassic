@@ -22,8 +22,14 @@ Shader "Toyrassic/OutlineMask"
             #pragma vertex vert
             #pragma fragment frag
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
-            struct A { float4 positionOS:POSITION; };
-            float4 vert(A i):SV_POSITION { return TransformObjectToHClip(i.positionOS.xyz); }
+            #include "PetBend.hlsl"
+            struct A { float4 positionOS:POSITION; float3 normalOS:NORMAL; };
+            float4 vert(A i):SV_POSITION
+            {
+                float3 p = i.positionOS.xyz; float3 n = i.normalOS;
+                ApplyPetBend(p, n);
+                return TransformObjectToHClip(p);
+            }
             half4 frag():SV_Target { return 0; }
             ENDHLSL
         }

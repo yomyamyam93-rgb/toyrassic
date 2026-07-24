@@ -36,12 +36,35 @@ public class PetMotion : MonoBehaviour
     float bodyH = 3f;      // 몸 높이(m)
     float sizeK = 1f;      // 크기→템포 보정 (클수록 큼 = 느림)
 
+    // ── 버텍스 벤드 (셰이더 구부리기) ──
+    [HideInInspector] public float flashEmission;  // 피격 흰 번쩍 (PetUnit 이 넣음)
+    Renderer[] bendRends; MaterialPropertyBlock bmpb;
+    float refLen = 1f, axisX;
+
     void Start()
     {
         baseScale = transform.localScale;
         var r = GetComponentInChildren<Renderer>();
         if (r != null) bodyH = Mathf.Max(0.5f, r.bounds.size.y);
         sizeK = Mathf.Sqrt(bodyH / 1.5f);          // 1.5m 몸 = 기준 템포
+
+        // 벤드 준비: 긴축(오브젝트 공간)과 몸·외곽선 렌더러들
+        var mf = GetComponent<MeshFilter>();
+        if (mf != null && mf.sharedMesh != null)
+        {
+            var b = mf.sharedMesh.bounds;
+            axisX = b.extents.x > b.extents.z ? 1f : 0f;
+            refLen = Mathf.Max(0.01f, axisX > 0.5f ? b.extents.x : b.extents.z);
+        }
+        var list = new System.Collections.Generic.List<Renderer>();
+        var own = GetComponent<MeshRenderer>(); if (own != null) list.Add(own);
+        foreach (var nm in new[] { "Outline", "OutlineMask" })
+        {
+            var c = transform.Find(nm);
+            if (c != null) { var cr = c.GetComponent<MeshRenderer>(); if (cr != null) list.Add(cr); }
+        }
+        bendRends = list.ToArray();
+        bmpb = new MaterialPropertyBlock();
     }
 
     // 크기 보정 템포: 작으면 촐랑, 크면 쿵... 쿵...
@@ -85,8 +108,23 @@ public class PetMotion : MonoBehaviour
         float waddle = Mathf.Sin(t * Mathf.PI) * waddleDeg * speed01;
         float nod = Mathf.Sin(t * Mathf.PI * 2f) * 2.5f * speed01;               // 걸음 박자 끄덕임
         // 장전: 뒷다리에 체중 싣듯 코가 들림 → 발사 때 pk 가 앞으로 콱 눌러줌
-        float lean = leanDeg * speed01 + nod + pk * 6f - fl * 4f - Mathf.Clamp01(charge) * 9f;
+        float chg = Mathf.Clamp01(charge);
+        float lean = leanDeg * speed01 + nod + pk * 6f - fl * 4f - chg * 9f;
         var e = transform.localEulerAngles;
         transform.localRotation = Quaternion.Euler(lean, e.y, waddle);
+
+        // ── 버텍스 벤드: 장전 = 활처럼 몸 말기 / 발사 = 활짝 펴짐 / 걸음 = 살짝 비틀비틀 ──
+        if (bendRends != null && bmpb != null)
+        {
+            float bendF = chg * 0.42f - pk * 0.28f;                              // 말았다 폈다
+            float twist = Mathf.Sin(t * Mathf.PI) * 0.07f * speed01;             // 걸음 비틀림
+            bmpb.SetFloat("_BendF", bendF);
+            bmpb.SetFloat("_BendS", 0f);
+            bmpb.SetFloat("_Twist", twist);
+            bmpb.SetFloat("_RefLen", refLen);
+            bmpb.SetFloat("_AxisX", axisX);
+            bmpb.SetColor("_EmissionColor", Color.white * flashEmission);        // 피격 번쩍도 여기서
+            foreach (var r in bendRends) if (r != null) r.SetPropertyBlock(bmpb);
+        }
     }
 }

@@ -23,6 +23,7 @@ Shader "Toyrassic/OutlineHull"
             #pragma vertex vert
             #pragma fragment frag
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
+            #include "PetBend.hlsl"
 
             float4 _OutlineColor;
             float _Width;
@@ -31,8 +32,10 @@ Shader "Toyrassic/OutlineHull"
 
             float4 vert(A i) : SV_POSITION
             {
-                float3 w = TransformObjectToWorld(i.positionOS.xyz);
-                float3 n = normalize(TransformObjectToWorldNormal(i.normalOS));
+                float3 p = i.positionOS.xyz; float3 nn = i.normalOS;
+                ApplyPetBend(p, nn);                            // 몸이 굽으면 외곽선도 같이
+                float3 w = TransformObjectToWorld(p);
+                float3 n = normalize(TransformObjectToWorldNormal(nn));
                 return TransformWorldToHClip(w + n * _Width);   // 월드 단위로 부풀림
             }
 
