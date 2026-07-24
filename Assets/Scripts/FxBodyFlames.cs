@@ -27,6 +27,7 @@ public class FxBodyFlames : MonoBehaviour
         noise = m.GetTexture("_GlowTex") as Texture2D;
         glowScale = m.GetFloat("_GlowScale");
         glowCut = Mathf.Max(0.3f, m.GetFloat("_GlowCut"));
+        glowMode = m.GetFloat("_GlowMode");
         axisX = m.GetFloat("_AxisX");
         bodyH = mr.bounds.size.y;
         MakePS();
@@ -60,7 +61,9 @@ public class FxBodyFlames : MonoBehaviour
         ps.Play();
     }
 
-    // 셰이더 글로우와 동일한 노이즈 값
+    float glowMode = 1f;
+
+    // 셰이더 글로우와 동일한 계산 (모드별)
     float NoiseAt(Vector3 op)
     {
         if (noise == null) return 1f;
@@ -68,6 +71,13 @@ public class FxBodyFlames : MonoBehaviour
         float n1 = noise.GetPixelBilinear(gp.x - Mathf.Floor(gp.x), gp.y - Mathf.Floor(gp.y)).r;
         Vector2 g2 = gp * 1.7f + new Vector2(0.13f, 0f);
         float n2 = noise.GetPixelBilinear(g2.x - Mathf.Floor(g2.x), g2.y - Mathf.Floor(g2.y)).r;
+        if (glowMode >= 2.5f)
+        {   // 마그마 균열 — 셰이더보다 '조금 넓게' 판정 (가는 선 위에 정점이 드물어서)
+            float v1 = Mathf.Abs(n1 - 0.5f) * 2f;
+            float v2 = Mathf.Abs(n2 - 0.5f) * 2f;
+            float crack = Mathf.Max(Mathf.Pow(Mathf.Clamp01(1f - v1), 8f), Mathf.Pow(Mathf.Clamp01(1f - v2), 10f) * 0.35f);
+            return Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0.30f, 0.60f, crack));   // 판정은 넉넉히
+        }
         return Mathf.Clamp01(n1 * n2 * 1.8f);
     }
 
@@ -76,11 +86,12 @@ public class FxBodyFlames : MonoBehaviour
         if (ps == null || verts == null) return;
         acc += Time.deltaTime * rate;
         int guard = 0;
-        while (acc >= 1f && guard < 40)
+        while (acc >= 1f && guard < 150)
         {
             guard++;
             int vi = Random.Range(0, verts.Length);
-            if (NoiseAt(verts[vi]) < glowCut) continue;   // 달궈진 부위만 (acc 유지한 채 재시도)
+            float need = glowMode >= 2.5f ? 0.25f : glowCut;   // 균열 모드는 넉넉한 판정
+            if (NoiseAt(verts[vi]) < need) continue;           // 달궈진 부위만 (acc 유지한 채 재시도)
             acc -= 1f;
             var wp = transform.TransformPoint(verts[vi]);
             var wn = transform.TransformDirection(norms != null && vi < norms.Length ? norms[vi] : Vector3.up);

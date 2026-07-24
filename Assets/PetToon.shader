@@ -28,7 +28,7 @@ Shader "Toyrassic/PetToon"
         _TriScale ("트라이플래너 타일 (반복/유닛)", Float) = 4
         // 원소 글로우 (불=흐르는 화염 / 물=일렁임 / 번개=지지직 맥)
         _GlowTex ("글로우 노이즈", 2D) = "black" {}
-        _GlowMode ("0=끔 1=흐름(불·물) 2=번개", Float) = 0
+        _GlowMode ("0=끔 1=흐름 2=번개 3=마그마균열", Float) = 0
         _GlowColorA ("글로우 밝은색(HDR)", Color) = (1,1,1,1)
         _GlowColorB ("글로우 어두운색", Color) = (0,0,0,1)
         _GlowIntensity ("글로우 세기", Float) = 0
@@ -211,12 +211,20 @@ Shader "Toyrassic/PetToon"
                         if (_GlowCut > 0.01) g = smoothstep(_GlowCut, _GlowCut + 0.18, g);
                         col.rgb += lerp(_GlowColorB.rgb, _GlowColorA.rgb, g) * g * _GlowIntensity;
                     }
-                    else
+                    else if (_GlowMode < 2.5)
                     {   // 번개: 가는 맥이 지지직 + 플리커
                         half v = abs(n1 - 0.5) * 2;
                         half vein = pow(saturate(1 - v), 14);
                         half flick = 0.35 + 0.65 * step(0.4, frac(sin(floor(_Time.y * 13) * 12.9898) * 43758.5453));
                         col.rgb += _GlowColorA.rgb * vein * _GlowIntensity * flick;
+                    }
+                    else
+                    {   // 마그마 균열: 굵직한 갈라짐 몇 줄만 (고정, 쩍쩍)
+                        half v1 = abs(n1 - 0.5) * 2;
+                        half v2 = abs(n2 - 0.5) * 2;
+                        half crack = max(pow(saturate(1 - v1), 8), pow(saturate(1 - v2), 10) * 0.35);
+                        crack = smoothstep(0.45, 0.75, crack);       // 약한 선 쳐냄 → 줄 수 감소
+                        col.rgb += lerp(_GlowColorB.rgb, _GlowColorA.rgb, crack) * crack * _GlowIntensity;
                     }
                 }
 

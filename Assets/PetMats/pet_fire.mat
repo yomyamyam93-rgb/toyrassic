@@ -57,10 +57,10 @@ Material:
     - _BumpScale: 1.2
     - _DstBlend: 0
     - _EnvIntensity: 0.4
-    - _GlowCut: 0.42
-    - _GlowIntensity: 2.8
-    - _GlowMode: 1
-    - _GlowScale: 1
+    - _GlowCut: 0.5
+    - _GlowIntensity: 3
+    - _GlowMode: 3
+    - _GlowScale: 0.45
     - _GlowSpeed: 0
     - _Metallic: 0
     - _OcclusionStrength: 1
