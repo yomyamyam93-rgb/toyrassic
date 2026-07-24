@@ -432,6 +432,19 @@ public class GrassManagerEditor : Editor
 
         const int AMT_MAX = 16;
         long total = 0;
+        // 기대치가 1 미만이면 확률로 드문드문 — 반올림 절벽(꽃이 갑자기 전부/전무) 방지.
+        // 칸 좌표 해시라 슬라이더를 조금 바꿔도 기존 꽃 자리는 유지된다.
+        float H01(int a, int b, int s)
+        {
+            uint h = (uint)(a * 73856093 ^ b * 19349663 ^ s * 83492791);
+            h ^= h >> 13; h *= 0x85ebca6b; h ^= h >> 16;
+            return (h & 0xFFFFFF) / 16777215f;
+        }
+        int FracAmt(float want, int x, int y, int salt)
+        {
+            if (want >= 1f) return Mathf.Min(AMT_MAX, Mathf.RoundToInt(want));
+            return H01(x, y, salt) < want ? 1 : 0;
+        }
         for (int layer = 0; layer < typeCount; layer++)
         {
             var t = gm.types[layer];
@@ -459,16 +472,16 @@ public class GrassManagerEditor : Editor
 
                     if (band >= 1f)
                     {   // 안쪽: 정상 크기·정상 밀도
-                        int amt = Mathf.RoundToInt(dens);
-                        if (amt > 0) { map[y, x] = Mathf.Min(AMT_MAX, amt); total++; }
+                        int amt = FracAmt(dens, x, y, layer * 2 + 1);
+                        if (amt > 0) { map[y, x] = amt; total++; }
                     }
                     else
                     {   // 경계: 개체수 배율 + 바깥으로 갈수록 성기게, 작은 프로토로 심음
-                        int amt = Mathf.RoundToInt(dens * gm.edgeDensity * Mathf.Lerp(0.25f, 1f, band));
+                        int amt = FracAmt(dens * gm.edgeDensity * Mathf.Lerp(0.25f, 1f, band), x, y, layer * 2 + 2);
                         if (amt > 0)
                         {
-                            if (useEdge) emap[y, x] = Mathf.Min(AMT_MAX, amt);
-                            else map[y, x] = Mathf.Min(AMT_MAX, amt);
+                            if (useEdge) emap[y, x] = amt;
+                            else map[y, x] = amt;
                             total++;
                         }
                     }

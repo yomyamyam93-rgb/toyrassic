@@ -75,6 +75,7 @@ Material:
     m_Floats:
     - _BaseDark: 0.923
     - _Cutoff: 0.4
+    - _ShadowDark: 0.35
     - _TipBoost: 1.565
     - _WorldMin: 0
     - _WorldSize: 6000
