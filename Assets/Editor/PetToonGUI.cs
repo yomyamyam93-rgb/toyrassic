@@ -5,7 +5,7 @@ using UnityEngine;
 /// 재질(.mat)을 선택하면 자동으로 이 UI 가 뜬다. 값은 즉시 반영.
 public class PetToonGUI : ShaderGUI
 {
-    static bool fBase = true, fSurf = true, fRefl, fTri, fGlow = true, fCrack = true, fEtc;
+    static bool fBase = true, fSurf = true, fRefl, fTri, fGlow = true, fCrack = true, fWater, fEtc;
 
     public override void OnGUI(MaterialEditor me, MaterialProperty[] props)
     {
@@ -64,6 +64,17 @@ public class PetToonGUI : ShaderGUI
             Draw("스케일", "_GlowScale");
             Draw("속도 (0=고정)", "_GlowSpeed");
             Draw("문턱 (얼룩 컷)", "_GlowCut");
+        }
+        EditorGUILayout.EndFoldoutHeaderGroup();
+
+        fWater = EditorGUILayout.BeginFoldoutHeaderGroup(fWater, "물 (림·굴절·출렁임)");
+        if (fWater)
+        {
+            Draw("림 색 (가장자리 발광, HDR)", "_RimColor");
+            Draw("림 좁기", "_RimPower");
+            Draw("굴절 세기 (배경 일그러짐)", "_Refraction");
+            Draw("출렁임 크기", "_Wobble");
+            Draw("출렁임 빠르기", "_WobbleFreq");
         }
         EditorGUILayout.EndFoldoutHeaderGroup();
 

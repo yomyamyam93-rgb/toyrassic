@@ -35,6 +35,12 @@ Shader "Toyrassic/PetToon"
         _GlowScale ("글로우 스케일", Float) = 1
         _GlowSpeed ("글로우 속도", Float) = 1
         _GlowCut ("글로우 문턱 (0=부드럽게, >0=얼룩 컷)", Range(0,0.95)) = 0
+        // 물 (림·굴절·출렁임)
+        _RimColor ("림 색 (가장자리 발광, HDR)", Color) = (0,0,0,1)
+        _RimPower ("림 좁기", Range(0.5,8)) = 3
+        _Refraction ("굴절 세기 (배경 일그러짐)", Range(0,0.3)) = 0
+        _Wobble ("출렁임 크기", Range(0,0.05)) = 0
+        _WobbleFreq ("출렁임 빠르기", Range(0.1,10)) = 2.5
         // 마그마 균열 (글로우 모드 3)
         _CrackDensity ("균열 밀도 (셀 수)", Range(0.5,8)) = 3
         _CrackWidth ("균열 두께", Range(0.01,0.25)) = 0.07
@@ -69,6 +75,7 @@ Shader "Toyrassic/PetToon"
             #pragma multi_compile _ _ADDITIONAL_LIGHTS
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
+            #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/DeclareOpaqueTexture.hlsl"
             #include "PetBend.hlsl"
 
             TEXTURE2D(_BaseMap); SAMPLER(sampler_BaseMap);
@@ -83,6 +90,7 @@ Shader "Toyrassic/PetToon"
             half _EnvIntensity, _Triplanar; float _TriScale;
             half _GlowMode, _GlowIntensity, _GlowCut; float _GlowScale, _GlowSpeed;
             float _CrackDensity, _CrackWidth, _CrackWarp;
+            half4 _RimColor; half _RimPower, _Refraction; float _Wobble, _WobbleFreq;
 
             // 절차 노이즈 — 텍스처 대신 수식 (해상도 무한 = 확대해도 안 깨짐). C# FxBodyFlames 와 동일 수치
             static const float2 NF[10] = { float2(1,3), float2(2,-1), float2(3,2), float2(-2,4), float2(4,1),
@@ -136,6 +144,9 @@ Shader "Toyrassic/PetToon"
                 V o;
                 float3 p = i.positionOS.xyz; float3 n = i.normalOS;
                 o.opos = p; o.onrm = i.normalOS;                     // 원본 좌표 → 무늬가 몸에 붙음
+                // 물: 표면이 젤리처럼 출렁임
+                if (_Wobble > 0.0001)
+                    p += i.normalOS * sin(_Time.y * _WobbleFreq + dot(i.positionOS.xyz, float3(5.1, 7.3, 6.2))) * _Wobble;
                 ApplyPetBend(p, n);                                  // ★구부리기
                 float3 tn = i.tangentOS.xyz; float3 dummy = tn; ApplyPetBend(dummy, tn);
                 o.wpos = TransformObjectToWorld(p);
@@ -225,6 +236,24 @@ Shader "Toyrassic/PetToon"
                 id.shadowMask = half4(1,1,1,1);
 
                 half4 col = UniversalFragmentPBR(id, sd);
+
+                // ★굴절 — 몸 뒤 배경이 일그러져 비침 (물 몸의 핵심)
+                if (_Refraction > 0.001)
+                {
+                    float2 suv = GetNormalizedScreenSpaceUV(i.positionCS);
+                    half3 nVS = TransformWorldToViewDir(normalWS);
+                    half3 bg = SampleSceneColor(suv + nVS.xy * _Refraction);
+                    half3 tintedBg = bg * lerp(half3(1, 1, 1), albedo * 1.8, 0.55);   // 물색으로 물든 배경
+                    col.rgb = lerp(tintedBg, col.rgb, saturate(alpha * 1.15));
+                    col.a = 1;                                                        // 배경을 직접 그렸으니 불투명 출력
+                }
+
+                // ★프레넬 림 — 스치는 각 가장자리 발광 (물맛의 절반)
+                if (_RimColor.r + _RimColor.g + _RimColor.b > 0.01)
+                {
+                    half fresRim = pow(1 - saturate(dot(normalWS, id.viewDirectionWS)), _RimPower);
+                    col.rgb += _RimColor.rgb * fresRim;
+                }
 
                 // ★전용 반사 큐브맵 — URP 환경반사를 안 거치고 직접 샘플 (금속·유리의 은빛)
                 if (_EnvIntensity > 0.001)
