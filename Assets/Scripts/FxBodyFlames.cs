@@ -222,7 +222,7 @@ public class FxBodyFlames : MonoBehaviour
                     velocity = Vector3.up * bodyH * Random.Range(0.35f, 0.7f),
                     startSize = bodyH * Random.Range(0.012f, 0.028f),
                     startLifetime = Random.Range(0.8f, 1.6f),
-                    startColor = new Color(3f, 1.6f, 0.4f, 1f)     // HDR → 블룸 반짝
+                    startColor = new Color(2.4f, Random.Range(0.6f, 1.1f), 0.12f, 1f)   // 주황~붉은 HDR 불티
                 }, 1);
             }
             if (emberAcc >= 1f) emberAcc = 0f;
