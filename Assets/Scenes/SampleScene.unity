@@ -6711,19 +6711,19 @@ MonoBehaviour:
   - name: GrassProto_0
     active: 1
     weight: 0.99
-    size: 1.685
+    size: 1
   - name: GrassProto_1
     active: 1
     weight: 1
-    size: 1.605
+    size: 1.371
   - name: GrassProto_2
     active: 1
     weight: 1
-    size: 1.371
+    size: 1
   - name: flower_white
     active: 1
     weight: 0.07
-    size: 1.153
+    size: 0.798
   placeLayers:
   - layer: {fileID: 8574412962073106934, guid: ab8fee9c7db9e19478e459ae5a7ab6da, type: 2}
     on: 0
@@ -6827,6 +6827,56 @@ Transform:
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 2135606205}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &964912799
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 964912801}
+  - component: {fileID: 964912800}
+  m_Layer: 0
+  m_Name: Terrain Manager
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &964912800
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 964912799}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 4b69cb66383327d45934a4a995fee9da, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::TerrainManager
+  terrain: {fileID: 1274771777}
+  smoothRadius: 3
+  colorLevels: 6
+  saturation: 1.25
+  brightness: 1.08
+  contrast: 0.85
+--- !u!4 &964912801
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 964912799}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &971771585
 GameObject:
@@ -9157,3 +9207,4 @@ SceneRoots:
   - {fileID: 374053270}
   - {fileID: 1669004923}
   - {fileID: 921064951}
+  - {fileID: 964912801}
