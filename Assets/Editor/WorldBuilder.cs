@@ -279,6 +279,10 @@ public static class WorldBuilder
             Debug.LogWarning("[월드] 바위 지형레이어(L_rock)를 못 찾아 절벽칠 건너뜀.");
             return 0;
         }
+        // 평지 fallback 레이어(rock 을 걷어낸 자리에 채울 기본 땅) — 잔디 우선
+        int grass = FindLayer(td, "grass", "darkgrass");
+        if (grass < 0 || grass == rock) grass = (rock == 0) ? 1 : 0;
+
         int aw = td.alphamapWidth, ah = td.alphamapHeight, al = td.alphamapLayers;
         var a = td.GetAlphamaps(0, 0, aw, ah);
         int painted = 0;
@@ -287,24 +291,26 @@ public static class WorldBuilder
         {
             float fx = (float)x / (aw - 1), fz = (float)y / (ah - 1);
             float slope = Vector3.Angle(td.GetInterpolatedNormal(fx, fz), Vector3.up);
-            // 36° 부터 서서히, 55° 이상 완전 바위 — 완만한 해변 비탈엔 안 칠해져 물가 얼룩이 준다
+            // 36° 부터 서서히, 55° 이상 완전 바위. 평지는 rockW=0 → rock 을 0 으로 '덮어써서' 제거.
             float rockW = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(36f, 55f, slope));
-            if (rockW <= 0.01f) continue;
 
-            // 기존 rock 과 비교해 더 센 값으로. 나머지 레이어는 남은 비중(1-rockW)에 비례 축소.
-            float target = Mathf.Max(a[y, x, rock], rockW);
+            // ★기존 rock 을 무시하고 경사값으로 '교체'(Max 아님) — 평지에 이미 칠해져 있던 rock 이 사라진다.
             float others = 0f;
             for (int l = 0; l < al; l++) if (l != rock) others += a[y, x, l];
             if (others > 1e-5f)
             {
-                float scale = (1f - target) / others;
+                float scale = (1f - rockW) / others;                 // 나머지 레이어로 (1-rockW) 채움
                 for (int l = 0; l < al; l++) if (l != rock) a[y, x, l] *= scale;
             }
-            a[y, x, rock] = target;
-            painted++;
+            else
+            {
+                a[y, x, grass] = 1f - rockW;                          // 원래 100% rock 이던 칸 → 잔디로 복구
+            }
+            a[y, x, rock] = rockW;
+            if (rockW > 0.01f) painted++;
         }
         td.SetAlphamaps(0, 0, a);
-        Debug.Log($"[월드] 절벽 바위칠 완료 — {painted}칸(경사 32°↑). 레이어 idx={rock}");
+        Debug.Log($"[월드] 절벽 바위칠 — 경사 36°↑ 에만 {painted}칸(평지 기존 rock 은 제거·교체). 레이어 idx={rock}");
         return painted;
     }
 
