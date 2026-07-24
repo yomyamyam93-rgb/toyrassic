@@ -216,7 +216,7 @@ public class PetUnit : MonoBehaviour
     void LungeFx()
     {
         if (lungeT <= 0f) return;
-        lungeT -= Time.deltaTime * 4f;
+        lungeT -= Time.deltaTime * 4f / Mathf.Max(1f, Mathf.Sqrt(body / 3f));   // 거수는 천천히 들이받는다
         float t = Mathf.Clamp01(lungeT);
         float arc = Mathf.Sin((1f - t) * Mathf.PI);           // 갔다 돌아오기
         if (!dead) transform.position = Vector3.Lerp(lungeFrom, lungeTo, arc * 0.8f) + Vector3.up * (transform.position.y - lungeFrom.y);
