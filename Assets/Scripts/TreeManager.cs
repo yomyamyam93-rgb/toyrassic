@@ -12,7 +12,7 @@ public class TreeManager : MonoBehaviour
         public string name;                        // 프리팹 이름 (자동)
         public bool active = true;
         [Range(0f, 3f)] public float weight = 1f;  // 뽑힐 확률 가중치
-        [Range(0.5f, 2f)] public float size = 1f;  // 크기 배율
+        [Range(0.5f, 5f)] public float size = 1f;  // 크기 배율
     }
 
     [Serializable]

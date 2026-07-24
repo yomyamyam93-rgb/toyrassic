@@ -13,7 +13,7 @@ public class GrassManager : MonoBehaviour
         public string name;                       // 프로토타입 이름 (자동 채움)
         public bool active = true;                // OFF = 이 종류는 안 심음
         [Range(0f, 2f)] public float weight = 1f; // 출현량 배율
-        [Range(0.5f, 2f)] public float size = 1f; // 크기 배율
+        [Range(0.5f, 5f)] public float size = 1f; // 크기 배율
     }
 
     public Terrain terrain;

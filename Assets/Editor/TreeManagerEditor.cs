@@ -44,7 +44,7 @@ public class TreeManagerEditor : Editor
                 GUI.backgroundColor = Color.white;
                 EditorGUILayout.EndHorizontal();
                 t.weight = EditorGUILayout.Slider("  Weight", t.weight, 0f, 3f);
-                t.size = EditorGUILayout.Slider("  Size", t.size, 0.5f, 2f);
+                t.size = EditorGUILayout.Slider("  Size", t.size, 0.5f, 5f);
             }
             if (rm >= 0) RemoveType(tm, td, rm);
 
