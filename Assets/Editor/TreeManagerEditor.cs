@@ -345,8 +345,9 @@ public class TreeManagerEditor : Editor
             // 뭉침: 노이즈 2옥타브. 강도 높으면 빈 데는 거의 0, 뭉친 코어는 3배까지
             float cl = Mathf.PerlinNoise(wx / tm.clumpSize + 13f, wz / tm.clumpSize + 13f) * 0.65f
                      + Mathf.PerlinNoise(wx / (tm.clumpSize * 0.33f) + 57f, wz / (tm.clumpSize * 0.33f) + 57f) * 0.35f;
+            // 뭉침 배율은 1을 못 넘게(포화 금지) — 밀도 슬라이더가 코어까지 고르게 먹도록
             float g = Mathf.SmoothStep(0f, 1f, cl);
-            p *= Mathf.Lerp(1f, g * g * 3f, tm.clumpStrength);
+            p *= Mathf.Lerp(1f, Mathf.Min(1f, g * g * 1.6f), tm.clumpStrength);
             if (H(i, j, 8) > p) continue;
             if (TooClose(wx, wz, tm.minDistance)) continue;
 
