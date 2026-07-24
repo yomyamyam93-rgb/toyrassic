@@ -33,32 +33,110 @@ public class FxBodyFlames : MonoBehaviour
         MakePS();
     }
 
+    ParticleSystem embers;
+    Light fireLight;
+    float lightBase;
+
+    // 업계 레시피: ①가산 불꽃 ②불티 ③실제 조명(플리커) (+난류)
     void MakePS()
     {
-        var go = new GameObject("fx_bodyflames");
-        go.transform.SetParent(transform, false);
-        ps = go.AddComponent<ParticleSystem>();
-        ps.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+        // ── 절차 불꽃 텍스처 (아래 밝고 위로 갈수록 좁아지는 물방울형) ──
+        var ftex = MakeFlameTex();
+
+        // ── ① 불꽃 본체: 가산 블렌드 = 겹칠수록 밝게 타오름 ──
+        ps = NewPS("fx_flames", ftex, true);
         var main = ps.main;
-        main.loop = true;
-        main.simulationSpace = ParticleSystemSimulationSpace.World;
-        main.startSpeed = 0f;
-        main.maxParticles = 800;
-        var em = ps.emission; em.enabled = false;        // 수동 방출
+        main.startSpeed = 0f; main.maxParticles = 800;
+        var noise = ps.noise; noise.enabled = true;                 // 난류 — 흔들리며 상승
+        noise.strength = new ParticleSystem.MinMaxCurve(bodyH * 0.12f);
+        noise.frequency = 0.6f; noise.scrollSpeed = 0.8f;
         var col = ps.colorOverLifetime; col.enabled = true;
         var grad = new Gradient();
-        grad.SetKeys(new[] { new GradientColorKey(new Color(1f, 0.85f, 0.3f), 0f),
-                             new GradientColorKey(new Color(1f, 0.3f, 0.05f), 0.55f),
-                             new GradientColorKey(new Color(0.25f, 0.05f, 0.02f), 1f) },
-                     new[] { new GradientAlphaKey(0.95f, 0f), new GradientAlphaKey(0.55f, 0.6f), new GradientAlphaKey(0f, 1f) });
+        grad.SetKeys(new[] { new GradientColorKey(new Color(1f, 0.95f, 0.65f), 0f),   // 심지 백황
+                             new GradientColorKey(new Color(1f, 0.55f, 0.10f), 0.45f),
+                             new GradientColorKey(new Color(0.85f, 0.15f, 0.03f), 1f) },
+                     new[] { new GradientAlphaKey(1f, 0f), new GradientAlphaKey(0.7f, 0.55f), new GradientAlphaKey(0f, 1f) });
         col.color = grad;
         var sol = ps.sizeOverLifetime; sol.enabled = true;
         sol.size = new ParticleSystem.MinMaxCurve(1f, new AnimationCurve(
-            new Keyframe(0f, 0.6f), new Keyframe(0.25f, 1f), new Keyframe(1f, 0.1f)));
-        var r = go.GetComponent<ParticleSystemRenderer>();
-        r.material = new Material(Shader.Find("Sprites/Default"));
-        r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            new Keyframe(0f, 0.55f), new Keyframe(0.2f, 1f), new Keyframe(1f, 0.05f)));
         ps.Play();
+
+        // ── ② 불티: 작고 밝은 HDR 점이 높이 흩날림 ──
+        embers = NewPS("fx_embers", null, true);
+        var em2 = embers.main;
+        em2.startSpeed = 0f; em2.maxParticles = 200;
+        var n2 = embers.noise; n2.enabled = true;
+        n2.strength = new ParticleSystem.MinMaxCurve(bodyH * 0.25f);
+        n2.frequency = 1.2f;
+        var col2 = embers.colorOverLifetime; col2.enabled = true;
+        var g2 = new Gradient();
+        g2.SetKeys(new[] { new GradientColorKey(new Color(1f, 0.8f, 0.35f), 0f), new GradientColorKey(new Color(1f, 0.3f, 0.05f), 1f) },
+                   new[] { new GradientAlphaKey(1f, 0f), new GradientAlphaKey(0f, 1f) });
+        col2.color = g2;
+        embers.Play();
+
+        // ── ④ 실제 조명: 몸·바닥을 비추는 주황 포인트 라이트 (Update 에서 플리커) ──
+        var lgo = new GameObject("fx_firelight");
+        lgo.transform.SetParent(transform, false);
+        lgo.transform.localPosition = Vector3.up * (bodyH * 0.4f / Mathf.Max(0.01f, transform.lossyScale.y));
+        fireLight = lgo.AddComponent<Light>();
+        fireLight.type = LightType.Point;
+        fireLight.color = new Color(1f, 0.55f, 0.22f);
+        fireLight.range = bodyH * 2.4f;
+        lightBase = Mathf.Clamp(bodyH * 0.5f, 2f, 14f);
+        fireLight.intensity = lightBase;
+        fireLight.shadows = LightShadows.None;
+    }
+
+    ParticleSystem NewPS(string name, Texture2D tex, bool additive)
+    {
+        var go = new GameObject(name);
+        go.transform.SetParent(transform, false);
+        var p = go.AddComponent<ParticleSystem>();
+        p.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+        var main = p.main;
+        main.loop = true;
+        main.simulationSpace = ParticleSystemSimulationSpace.World;
+        var em = p.emission; em.enabled = false;                   // 수동 방출
+        var r = go.GetComponent<ParticleSystemRenderer>();
+        var m = new Material(Shader.Find("Universal Render Pipeline/Particles/Unlit"));
+        if (tex != null) m.SetTexture("_BaseMap", tex);
+        m.SetColor("_BaseColor", Color.white);
+        m.SetOverrideTag("RenderType", "Transparent");
+        m.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.SrcAlpha);
+        m.SetInt("_DstBlend", additive ? (int)UnityEngine.Rendering.BlendMode.One
+                                       : (int)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
+        m.SetInt("_ZWrite", 0);
+        m.renderQueue = 3000;
+        r.material = m;
+        r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+        return p;
+    }
+
+    // 물방울형 불꽃 스프라이트 절차 생성 (아래 둥글고 위로 뾰족)
+    static Texture2D flameTexCache;
+    static Texture2D MakeFlameTex()
+    {
+        if (flameTexCache != null) return flameTexCache;
+        int S = 64;
+        var t = new Texture2D(S, S, TextureFormat.RGBA32, false);
+        var px = new Color[S * S];
+        for (int y = 0; y < S; y++)
+        for (int x = 0; x < S; x++)
+        {
+            float u = (x + 0.5f) / S * 2f - 1f;
+            float v = (y + 0.5f) / S;                  // 0=아래 1=위
+            float width = Mathf.Lerp(0.75f, 0.12f, Mathf.Pow(v, 1.3f));   // 위로 좁아짐
+            float d = Mathf.Abs(u) / Mathf.Max(0.01f, width);
+            float body = Mathf.Clamp01(1f - d);
+            float capBottom = Mathf.Clamp01(v * 6f);   // 아래 끝 둥글게
+            float a = Mathf.Pow(body, 1.6f) * capBottom * Mathf.Clamp01((1f - v) * 4f + 0.6f);
+            px[y * S + x] = new Color(1f, 1f, 1f, Mathf.Clamp01(a));
+        }
+        t.SetPixels(px); t.Apply();
+        flameTexCache = t;
+        return t;
     }
 
     float glowMode = 1f;
@@ -91,9 +169,38 @@ public class FxBodyFlames : MonoBehaviour
         return Mathf.Clamp01(n1 * n2 * 1.8f);
     }
 
+    float emberAcc;
+
     void Update()
     {
         if (ps == null || verts == null) return;
+
+        // 조명 플리커 — 불빛이 일렁이며 주변을 비춤
+        if (fireLight != null)
+            fireLight.intensity = lightBase * (0.8f + 0.4f * Mathf.PerlinNoise(Time.time * 7f, 0.37f));
+
+        // 불티 — 뜨거운 정점에서 가끔 튀어오름
+        emberAcc += Time.deltaTime * 10f;
+        if (embers != null && emberAcc >= 1f)
+        {
+            for (int tr = 0; tr < 25 && emberAcc >= 1f; tr++)
+            {
+                int vi2 = Random.Range(0, verts.Length);
+                if (NoiseAt(verts[vi2]) < 0.25f) continue;
+                emberAcc -= 1f;
+                var wp2 = transform.TransformPoint(verts[vi2]);
+                embers.Emit(new ParticleSystem.EmitParams
+                {
+                    position = wp2,
+                    velocity = Vector3.up * bodyH * Random.Range(0.35f, 0.7f),
+                    startSize = bodyH * Random.Range(0.012f, 0.028f),
+                    startLifetime = Random.Range(0.8f, 1.6f),
+                    startColor = new Color(3f, 1.6f, 0.4f, 1f)     // HDR → 블룸 반짝
+                }, 1);
+            }
+            if (emberAcc >= 1f) emberAcc = 0f;
+        }
+
         acc += Time.deltaTime * rate;
         int guard = 0;
         while (acc >= 1f && guard < 150)
