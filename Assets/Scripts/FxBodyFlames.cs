@@ -62,8 +62,8 @@ public class FxBodyFlames : MonoBehaviour
             new Keyframe(0f, 0.55f), new Keyframe(0.2f, 1f), new Keyframe(1f, 0.05f)));
         ps.Play();
 
-        // ── ② 불티: 작고 밝은 HDR 점이 높이 흩날림 ──
-        embers = NewPS("fx_embers", null, true);
+        // ── ② 불티: 작고 밝은 HDR 점이 높이 흩날림 (둥근 점 스프라이트) ──
+        embers = NewPS("fx_embers", MakeDotTex(), true);
         var em2 = embers.main;
         em2.startSpeed = 0f; em2.maxParticles = 200;
         var n2 = embers.noise; n2.enabled = true;
@@ -100,18 +100,32 @@ public class FxBodyFlames : MonoBehaviour
         main.simulationSpace = ParticleSystemSimulationSpace.World;
         var em = p.emission; em.enabled = false;                   // 수동 방출
         var r = go.GetComponent<ParticleSystemRenderer>();
-        var m = new Material(Shader.Find("Universal Render Pipeline/Particles/Unlit"));
-        if (tex != null) m.SetTexture("_BaseMap", tex);
-        m.SetColor("_BaseColor", Color.white);
-        m.SetOverrideTag("RenderType", "Transparent");
-        m.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.SrcAlpha);
-        m.SetInt("_DstBlend", additive ? (int)UnityEngine.Rendering.BlendMode.One
-                                       : (int)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
-        m.SetInt("_ZWrite", 0);
-        m.renderQueue = 3000;
+        // Sprites/Default = 알파 항상 동작(검증됨). 가산 효과는 HDR 색+블룸으로 낸다
+        var m = new Material(Shader.Find("Sprites/Default"));
+        if (tex != null) m.mainTexture = tex;
         r.material = m;
         r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
         return p;
+    }
+
+    // 둥근 점 스프라이트 (불티용 — 사각형 방지)
+    static Texture2D dotTexCache;
+    static Texture2D MakeDotTex()
+    {
+        if (dotTexCache != null) return dotTexCache;
+        int S = 32;
+        var t = new Texture2D(S, S, TextureFormat.RGBA32, false);
+        var px = new Color[S * S];
+        for (int y = 0; y < S; y++)
+        for (int x = 0; x < S; x++)
+        {
+            float dx = (x + 0.5f) / S * 2f - 1f, dy = (y + 0.5f) / S * 2f - 1f;
+            float a = Mathf.Clamp01(1f - Mathf.Sqrt(dx * dx + dy * dy));
+            px[y * S + x] = new Color(1f, 1f, 1f, a * a);
+        }
+        t.SetPixels(px); t.Apply();
+        dotTexCache = t;
+        return t;
     }
 
     // 물방울형 불꽃 스프라이트 절차 생성 (아래 둥글고 위로 뾰족)
@@ -153,6 +167,31 @@ public class FxBodyFlames : MonoBehaviour
         return Mathf.Clamp01(n * 0.22f + 0.5f);
     }
 
+    // 셰이더와 동일한 보로노이 (균열 경계 판정)
+    static Vector2 VHash(Vector2 p)
+    {
+        float a = Vector2.Dot(p, new Vector2(127.1f, 311.7f));
+        float b = Vector2.Dot(p, new Vector2(269.5f, 183.3f));
+        return new Vector2(Frac(Mathf.Sin(a) * 43758.5453f), Frac(Mathf.Sin(b) * 43758.5453f));
+    }
+    static float Frac(float v) => v - Mathf.Floor(v);
+    static float VoroEdge(Vector2 p)
+    {
+        Vector2 ip = new Vector2(Mathf.Floor(p.x), Mathf.Floor(p.y));
+        Vector2 fp = p - ip;
+        float f1 = 8f, f2 = 8f;
+        for (int y = -1; y <= 1; y++)
+        for (int x = -1; x <= 1; x++)
+        {
+            var g = new Vector2(x, y);
+            var r = g + VHash(ip + g) - fp;
+            float d = Vector2.Dot(r, r);
+            if (d < f1) { f2 = f1; f1 = d; }
+            else if (d < f2) { f2 = d; }
+        }
+        return Mathf.Sqrt(f2) - Mathf.Sqrt(f1);
+    }
+
     // 셰이더 글로우와 동일한 계산 (모드별)
     float NoiseAt(Vector3 op)
     {
@@ -160,14 +199,11 @@ public class FxBodyFlames : MonoBehaviour
         float n1 = ProcNoise(gp);
         float n2 = ProcNoise(gp * 1.7f + new Vector2(0.13f, 0f));
         if (glowMode >= 2.5f)
-        {   // 마그마 균열 — 셰이더와 동일한 워프, 판정은 '조금 넓게' (가는 선 위 정점이 드묾)
-            Vector2 wgp = gp + new Vector2(ProcNoise(gp * 5.3f) - 0.5f, ProcNoise(gp * 5.3f + new Vector2(7.7f, 7.7f)) - 0.5f) * 0.11f;
-            float m1 = ProcNoise(wgp);
-            float m2 = ProcNoise(wgp * 1.7f + new Vector2(0.13f, 0f));
-            float v1 = Mathf.Abs(m1 - 0.5f) * 2f;
-            float v2 = Mathf.Abs(m2 - 0.5f) * 2f;
-            float crack = Mathf.Max(Mathf.Pow(Mathf.Clamp01(1f - v1), 15f), Mathf.Pow(Mathf.Clamp01(1f - v2), 18f) * 0.35f);
-            return Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0.25f, 0.55f, crack));
+        {   // 마그마 균열 — 셰이더와 동일한 보로노이 경계 (판정은 조금 넓게)
+            Vector2 vp = gp * 3.0f
+                       + new Vector2(ProcNoise(gp * 2.6f) - 0.5f, ProcNoise(gp * 2.6f + new Vector2(7.7f, 7.7f)) - 0.5f) * 0.12f;
+            float e = VoroEdge(vp);
+            return 1f - Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0.01f, 0.08f, e));   // 판정은 셰이더보다 넉넉히
         }
         return Mathf.Clamp01(n1 * n2 * 1.8f);
     }

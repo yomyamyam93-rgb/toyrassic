@@ -90,6 +90,28 @@ Shader "Toyrassic/PetToon"
                 return saturate(n * 0.22 + 0.5);
             }
 
+            // 보로노이 셀 경계 — 마른 진흙처럼 각지게 쩍쩍 갈라진 균열망 (0=경계)
+            float2 VHash(float2 p)
+            {
+                p = float2(dot(p, float2(127.1, 311.7)), dot(p, float2(269.5, 183.3)));
+                return frac(sin(p) * 43758.5453);
+            }
+            float VoroEdge(float2 p)
+            {
+                float2 ip = floor(p), fp = frac(p);
+                float f1 = 8, f2 = 8;
+                [unroll] for (int y = -1; y <= 1; y++)
+                [unroll] for (int x = -1; x <= 1; x++)
+                {
+                    float2 g = float2(x, y);
+                    float2 r = g + VHash(ip + g) - fp;
+                    float d = dot(r, r);
+                    if (d < f1) { f2 = f1; f1 = d; }
+                    else if (d < f2) { f2 = d; }
+                }
+                return sqrt(f2) - sqrt(f1);
+            }
+
             struct A
             {
                 float4 positionOS:POSITION; float3 normalOS:NORMAL;
@@ -231,14 +253,11 @@ Shader "Toyrassic/PetToon"
                         col.rgb += _GlowColorA.rgb * vein * _GlowIntensity * flick;
                     }
                     else
-                    {   // 마그마 균열: 얇고 자글자글한 갈라짐 (도메인 워프로 라인 흔들기)
-                        float2 wgp = gp + float2(ProcNoise(gp * 5.3) - 0.5, ProcNoise(gp * 5.3 + 7.7) - 0.5) * 0.11;
-                        half m1 = ProcNoise(wgp);
-                        half m2 = ProcNoise(wgp * 1.7 + float2(0.13, 0));
-                        half v1 = abs(m1 - 0.5) * 2;
-                        half v2 = abs(m2 - 0.5) * 2;
-                        half crack = max(pow(saturate(1 - v1), 15), pow(saturate(1 - v2), 18) * 0.35);   // 더 얇게
-                        crack = smoothstep(0.42, 0.72, crack);
+                    {   // 마그마 균열: 보로노이 셀 경계 = 각지게 쩍쩍 갈라진 균열망
+                        float2 vp = gp * 3.0
+                                  + float2(ProcNoise(gp * 2.6) - 0.5, ProcNoise(gp * 2.6 + 7.7) - 0.5) * 0.12; // 살짝만 비틈 (직선 유지)
+                        half e = VoroEdge(vp);
+                        half crack = 1 - smoothstep(0.004, 0.042, e);                   // 반절 더 얇게, 쫙쫙
                         col.rgb += lerp(_GlowColorB.rgb, _GlowColorA.rgb, crack) * crack * _GlowIntensity;
                     }
                 }
