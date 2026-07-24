@@ -148,10 +148,8 @@ public static class WorldBuilder
                 for (int x = 0; x < res; x++) bw.Write(h[z, x]);
         }
         AssetDatabase.Refresh();
-        Debug.Log($"[월드] 지형 내보냄 → {outPath}
-" +
-                  $"해상도 {res}×{res} · 크기 {td.size.x:F0}×{td.size.z:F0}m · 최고높이 {td.size.y:F0}m
-" +
+        Debug.Log($"[월드] 지형 내보냄 → {outPath} | 해상도 {res}×{res} · " +
+                  $"크기 {td.size.x:F0}×{td.size.z:F0}m · 최고높이 {td.size.y:F0}m | " +
                   "이 파일을 기준으로 마커·길 계획을 다시 설계한다.");
     }
 
