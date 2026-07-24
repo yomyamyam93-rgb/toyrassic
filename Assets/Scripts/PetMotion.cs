@@ -24,6 +24,10 @@ public class PetMotion : MonoBehaviour
     [HideInInspector] public float speed01;
     /// 지면 위 추가 높이(m) — PetUnit 이 접지 후 더해서 씀
     public float BobY { get; private set; }
+    /// 발걸음 박자 맥동 — 이동속도에 곱하면 '디딜 때 쿵 나가고 들 때 멈칫' (미끄럼 방지)
+    public float MovePulse { get; private set; } = 1f;
+
+    float flinch;   // 피격 움찔
 
     Vector3 baseScale;
     float t, punch;
@@ -45,28 +49,35 @@ public class PetMotion : MonoBehaviour
 
     /// 공격 순간 호출
     public void Punch() { punch = 1f; }
+    /// 맞은 순간 호출 — 움찔 스쿼시
+    public void Flinch() { flinch = 1f; }
 
     void LateUpdate()
     {
         float dt = Time.deltaTime;
         t += dt * Mathf.Lerp(BreathRate, StepRate, speed01);
 
-        // ── 들썩임: 거수는 높이가 아니라 '무게감'만 (몸높이의 1~2%) ──
-        float hop = Mathf.Abs(Mathf.Sin(t * Mathf.PI)) * hopAmp * bodyH * speed01;
-        BobY = hop;
+        // ── 발걸음: '디딜 때 쿵' — 들썩임 + 이동 맥동을 같은 박자로 ──
+        float step = Mathf.Abs(Mathf.Sin(t * Mathf.PI));                // 0(접지)→1(공중)→0
+        BobY = step * hopAmp * bodyH * speed01;
+        // 접지 순간(0 부근)에 확 나가고 공중에서 멈칫 → 미끄럼이 아니라 '걸음'
+        MovePulse = Mathf.Lerp(1f, 1.45f - step * 0.9f, speed01);
 
-        // ── 스쿼시&스트레치 (부피 보존) ──
+        // ── 스쿼시&스트레치 (부피 보존) + 공격 펀치 + 피격 움찔 ──
         punch = Mathf.MoveTowards(punch, 0f, PunchSpeed * dt);
-        float pk = Mathf.Sin(Mathf.Clamp01(punch) * Mathf.PI);          // 0→1→0
+        flinch = Mathf.MoveTowards(flinch, 0f, 5f * dt);
+        float pk = Mathf.Sin(Mathf.Pow(Mathf.Clamp01(punch), 0.7f) * Mathf.PI);   // 콱! 하고 서서히 풀림
+        float fl = Mathf.Sin(Mathf.Clamp01(flinch) * Mathf.PI);
         float walkSquish = Mathf.Sin(t * Mathf.PI * 2f) * 0.03f * speed01;
         float breathe = breathAmp * Mathf.Sin(t * Mathf.PI * 2f) * (1f - speed01);
-        float sy = 1f + walkSquish + breathe + pk * punchScale;
+        float sy = 1f + walkSquish + breathe + pk * punchScale - fl * 0.16f;      // 맞으면 납작
         float sxz = 1f / Mathf.Sqrt(Mathf.Max(0.3f, sy));
         transform.localScale = new Vector3(baseScale.x * sxz, baseScale.y * sy, baseScale.z * sxz);
 
-        // ── 좌우 무게 흔들림 + 전진 기울기 (거수는 느리고 얕게) ──
+        // ── 좌우 무게 흔들림 + 앞뒤 끄덕임 + 전진 기울기 ──
         float waddle = Mathf.Sin(t * Mathf.PI) * waddleDeg * speed01;
-        float lean = leanDeg * speed01 + pk * 5f;
+        float nod = Mathf.Sin(t * Mathf.PI * 2f) * 2.5f * speed01;               // 걸음 박자 끄덕임
+        float lean = leanDeg * speed01 + nod + pk * 6f - fl * 4f;
         var e = transform.localEulerAngles;
         transform.localRotation = Quaternion.Euler(lean, e.y, waddle);
     }

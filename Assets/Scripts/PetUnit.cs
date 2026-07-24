@@ -63,13 +63,15 @@ public class PetUnit : MonoBehaviour
         Ground(true);
     }
 
-    float body = 3f;   // 몸 크기(m, 바운딩 최대변) — 사거리·속도가 여기 비례
+    [HideInInspector] public float body = 3f;   // 몸 크기(m, 바운딩 최대변) — 사거리·속도가 여기 비례
+    float bounceT; Vector3 bounceFrom, bounceTo; // 고무: 팅겨서 뒤로 빠지기
+    float bounceArcY;
 
     // 재질 = 같은 스탯의 '발현'만 다르게 (수치 총량은 비슷하게 유지)
     float AtkPeriod => (mat == Mat.Iron ? 2.4f : 1.7f) / (1f + agi * 0.010f);
     float Damage    => str * (mat == Mat.Iron ? 1.35f : 0.95f);  // 쇠 묵직·느림 / 고무 가볍고 잦음
     float MoveSpd   => ((mat == Mat.Iron ? 3.0f : 4.6f) + agi * 0.08f) * (0.5f + body * 0.10f);
-    float AtkRange  => body * 0.55f + 1f;
+    float AtkRange  => body * 0.95f + 1f;   // 몸길이만큼 떨어져서 침 (비비적 방지)
 
     void Update()
     {
@@ -86,6 +88,7 @@ public class PetUnit : MonoBehaviour
         curSpeed = Mathf.MoveTowards(curSpeed, 0f, MoveSpd * 2.5f * Time.deltaTime);
         if (motion != null) motion.speed01 = Mathf.Clamp01(curSpeed / MoveSpd);
 
+        Separate();
         Ground(false);
         LungeFx();
         Bar();
@@ -124,12 +127,24 @@ public class PetUnit : MonoBehaviour
 
     void Combat()
     {
+        // 고무: 공격 직후 '팅~' 하고 포물선으로 뒤로 날아간다 (걷기 아님)
+        if (bounceT > 0f)
+        {
+            bounceT -= Time.deltaTime * 2.0f;                 // ~0.5초
+            float bt = 1f - Mathf.Clamp01(bounceT);
+            var p = Vector3.Lerp(bounceFrom, bounceTo, Mathf.SmoothStep(0f, 1f, bt));
+            transform.position = new Vector3(p.x, transform.position.y, p.z);
+            bounceArcY = Mathf.Sin(bt * Mathf.PI) * body * 0.22f;   // 공중 포물선
+            if (target != null) Face(target.transform.position - transform.position);
+            return;
+        }
+        bounceArcY = 0f;
+
         float d = Dist(target.transform.position);
 
         if (mat == Mat.Rubber && retreatT > 0f)
-        {   // 고무: 때리고 빠지는 중
+        {   // 착지 후 잠깐 거리 유지
             retreatT -= Time.deltaTime;
-            Step(transform.position - target.transform.position, MoveSpd * 1.15f);
             return;
         }
 
@@ -140,15 +155,20 @@ public class PetUnit : MonoBehaviour
     void Attack()
     {
         atkCd = AtkPeriod;
+        var dir = (target.transform.position - transform.position); dir.y = 0;
         // 민첩 = 회피 (방어력 자리, 3-5)
         bool dodged = Random.value < Mathf.Min(0.35f, target.agi * 0.008f);
-        if (!dodged) target.TakeDamage(Damage);
-        // 런지 연출 (위치는 여기서, 스케일 펀치는 PetMotion 이)
+        if (!dodged) { target.TakeDamage(Damage); target.OnHit(dir); }   // 임팩트: 밀려나며 움찔
+        // 잽 런지 (빠르고 큼 — 임팩트)
         lungeT = 1f; lungeFrom = transform.position;
-        var dir = (target.transform.position - transform.position); dir.y = 0;
-        lungeTo = transform.position + dir.normalized * (body * 0.22f);
+        lungeTo = transform.position + dir.normalized * (body * 0.38f);
         if (motion != null) motion.Punch();
-        if (mat == Mat.Rubber) retreatT = 1.1f;      // 고무: 치면 빠진다
+        if (mat == Mat.Rubber)
+        {   // 고무: 팅겨서 뒤로 쭉 (몸길이 1.2배)
+            bounceT = 1f; bounceFrom = transform.position;
+            bounceTo = transform.position - dir.normalized * (body * 1.2f);
+            retreatT = 0.5f;
+        }
         Face(dir);
     }
 
@@ -157,6 +177,30 @@ public class PetUnit : MonoBehaviour
         if (dead) return;
         hp -= dmg;                                    // 감산 없음 — 표기 그대로(3-5)
         if (hp <= 0f) { hp = 0f; Die(); }
+    }
+
+    /// 피격 리액션 — 밀려나며 움찔 (임팩트)
+    public void OnHit(Vector3 fromDir)
+    {
+        if (dead) return;
+        fromDir.y = 0;
+        if (fromDir.sqrMagnitude > 1e-4f)
+            transform.position += fromDir.normalized * body * 0.06f;
+        if (motion != null) motion.Flinch();
+    }
+
+    /// 유닛끼리 겹침 방지 — 몸 반경만큼 서로 밀어냄 (비비적 방지)
+    void Separate()
+    {
+        foreach (var u in All)
+        {
+            if (u == this || !u.Alive) continue;
+            float need = (body + u.body) * 0.42f;
+            var d = transform.position - u.transform.position; d.y = 0;
+            float dist = d.magnitude;
+            if (dist < need && dist > 0.01f)
+                transform.position += d / dist * (need - dist) * 2.2f * Time.deltaTime;
+        }
     }
 
     void Die()
@@ -190,7 +234,8 @@ public class PetUnit : MonoBehaviour
         dir.y = 0;
         if (dir.sqrMagnitude < 1e-4f) return;
         dir.Normalize();
-        transform.position += dir * spd * Time.deltaTime;
+        float pulse = motion != null ? motion.MovePulse : 1f;   // 발걸음 박자 맥동 (미끄럼 방지)
+        transform.position += dir * spd * pulse * Time.deltaTime;
         curSpeed = spd;
         Face(dir);
     }
@@ -210,13 +255,14 @@ public class PetUnit : MonoBehaviour
         float g = terrain.SampleHeight(p) + terrain.transform.position.y + footOff;
         p.y = dead ? p.y : g;
         if (!dead && motion != null) p.y += motion.BobY;   // 통통은 PetMotion 담당
+        if (!dead) p.y += bounceArcY;                       // 고무 팅김 포물선
         transform.position = p;
     }
 
     void LungeFx()
     {
         if (lungeT <= 0f) return;
-        lungeT -= Time.deltaTime * 4f / Mathf.Max(1f, Mathf.Sqrt(body / 3f));   // 거수는 천천히 들이받는다
+        lungeT -= Time.deltaTime * 5.5f;   // 잽처럼 빠르게 콱 — 임팩트
         float t = Mathf.Clamp01(lungeT);
         float arc = Mathf.Sin((1f - t) * Mathf.PI);           // 갔다 돌아오기
         if (!dead) transform.position = Vector3.Lerp(lungeFrom, lungeTo, arc * 0.8f) + Vector3.up * (transform.position.y - lungeFrom.y);
