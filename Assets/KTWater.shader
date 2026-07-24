@@ -5,6 +5,7 @@ Shader "Toyrassic/KTWater"
     Properties
     {
         _WaterTex ("수면 텍스처", 2D) = "white" {}
+        _Tint ("물색", Color) = (0.16, 0.42, 0.62, 1)
         _Scale ("크기 (m)", Float) = 13.82
         _Hue ("색상", Range(-180,180)) = 3
         _Sat ("채도", Range(0,2)) = 0.9
@@ -44,6 +45,7 @@ Shader "Toyrassic/KTWater"
             float _DepthFade,_EdgeAlpha,_CenterDark;
             float _FoamWidth,_FoamEdge,_FoamSoft,_FoamWobble,_FoamSpeed,_FoamLines;
             float _FoamNoise,_FoamWarp,_FoamStr,_Noise;
+            float4 _Tint;
 
             struct A { float4 positionOS:POSITION; };
             struct V { float4 positionHCS:SV_POSITION; float3 wpos:TEXCOORD0; float4 spos:TEXCOORD1; };
@@ -82,6 +84,7 @@ Shader "Toyrassic/KTWater"
                 col = hsv2rgb(hsv);
                 col = (col-0.5)*_Contrast + 0.5;
                 col *= _Bright;
+                col *= _Tint.rgb;                    // ★물색 강제 틴트(흰 텍스처에 파랑 입힘)
                 col *= 1.0 - _CenterDark*dfade;
                 col *= 1.0 + (vnoise(wp*0.30 + float2(_Time.y*0.018,0))-0.5)*_Noise*2.0
                            + (vnoise(wp*1.15 - float2(0,_Time.y*0.026))-0.5)*_Noise;
