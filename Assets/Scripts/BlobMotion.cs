@@ -48,11 +48,19 @@ public class BlobMotion : MonoBehaviour
     void Awake()
     {
         baseScale = transform.localScale;
+        // ※꽃잎(ParticleSystemRenderer)은 시작 프레임에 원점까지 걸친 엉뚱한
+        //   바운즈를 내놓는다 — 포함하면 발높이가 수십 m 로 튀어 블롭이 공중에 뜬다.
+        //   몸통 메시 렌더러만으로 발높이를 잰다.
         var rs = GetComponentsInChildren<Renderer>();
-        if (rs.Length > 0)
+        bool has = false; Bounds b = default;
+        foreach (var r in rs)
         {
-            var b = rs[0].bounds;
-            foreach (var r in rs) b.Encapsulate(r.bounds);
+            if (r is ParticleSystemRenderer) continue;
+            if (!has) { b = r.bounds; has = true; }
+            else b.Encapsulate(r.bounds);
+        }
+        if (has)
+        {
             bodyHeight = Mathf.Max(0.2f, b.size.y);
             footOffset = Mathf.Max(0f, transform.position.y - b.min.y);
         }
