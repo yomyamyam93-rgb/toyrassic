@@ -6,7 +6,7 @@ using UnityEngine;
 [CustomEditor(typeof(TerrainManager))]
 public class TerrainManagerEditor : Editor
 {
-    static bool fLayers = true, fToon = true;
+    static bool fLayers = true, fToon = true, fPaint = true;
 
     public override void OnInspectorGUI()
     {
@@ -57,6 +57,23 @@ public class TerrainManagerEditor : Editor
         }
         EditorGUILayout.EndFoldoutHeaderGroup();
 
+        // ── 페인트 ──────────────────────────────────────
+        fPaint = EditorGUILayout.BeginFoldoutHeaderGroup(fPaint, "페인트 / 씬에서 재질 칠하기");
+        if (fPaint)
+        {
+            tm.paintMode = EditorGUILayout.ToggleLeft("페인트 모드 ON (씬 뷰에서 좌클릭 드래그)", tm.paintMode);
+            var lnames = new string[td.terrainLayers.Length];
+            for (int i = 0; i < lnames.Length; i++)
+                lnames[i] = td.terrainLayers[i] != null ? td.terrainLayers[i].name : $"(빈 {i})";
+            tm.paintLayer = EditorGUILayout.Popup("칠할 재질", Mathf.Clamp(tm.paintLayer, 0, lnames.Length - 1), lnames);
+            tm.brushRadius = EditorGUILayout.Slider("붓 크기(m)", tm.brushRadius, 1f, 60f);
+            tm.brushStrength = EditorGUILayout.Slider("붓 세기", tm.brushStrength, 0.05f, 1f);
+            if (tm.paintMode)
+                EditorGUILayout.HelpBox("씬 뷰에서 좌클릭 드래그 = 칠하기, Shift+드래그 = 지우기.\n" +
+                    "잔디색은 즉시 따라 바뀜. 잔디 나고 빠지는 것까지 바꾸려면 잔디 '적용'.", MessageType.Info);
+        }
+        EditorGUILayout.EndFoldoutHeaderGroup();
+
         // ── 실사 → 툰 변환기 ────────────────────────────
         fToon = EditorGUILayout.BeginFoldoutHeaderGroup(fToon, "실사 → 툰 변환기");
         if (fToon)
@@ -82,6 +99,77 @@ public class TerrainManagerEditor : Editor
     }
 
     static Texture2D srcTex;
+
+    // ── 씬 뷰 페인트 ────────────────────────────────────
+    void OnSceneGUI()
+    {
+        var tm = (TerrainManager)target;
+        if (!tm.paintMode || tm.terrain == null) return;
+        var e = Event.current;
+        HandleUtility.AddDefaultControl(GUIUtility.GetControlID(FocusType.Passive));   // 클릭이 다른 오브젝트 선택으로 안 새게
+
+        var ray = HandleUtility.GUIPointToWorldRay(e.mousePosition);
+        var tc = tm.terrain.GetComponent<TerrainCollider>();
+        if (tc == null || !tc.Raycast(ray, out var hit, 1000000f)) return;
+
+        Handles.color = e.shift ? new Color(1f, 0.4f, 0.3f, 0.9f) : new Color(0.3f, 1f, 0.4f, 0.9f);
+        Handles.DrawWireDisc(hit.point, Vector3.up, tm.brushRadius);
+        SceneView.RepaintAll();
+
+        if ((e.type == EventType.MouseDown || e.type == EventType.MouseDrag) && e.button == 0 && !e.alt)
+        {
+            if (e.type == EventType.MouseDown)
+            {   // ※알파맵 텍스처까지 같이 등록해야 Ctrl+Z 가 실제로 돌아온다
+                var td2 = tm.terrain.terrainData;
+                var objs = new System.Collections.Generic.List<Object> { td2 };
+                objs.AddRange(td2.alphamapTextures);
+                Undo.RegisterCompleteObjectUndo(objs.ToArray(), "지형 페인트");
+            }
+            PaintAt(tm, hit.point, e.shift);
+            e.Use();
+        }
+    }
+
+    static void PaintAt(TerrainManager tm, Vector3 wpos, bool erase)
+    {
+        var t = tm.terrain; var td = t.terrainData;
+        int aw = td.alphamapWidth, ah = td.alphamapHeight, al = td.alphamapLayers;
+        int L = Mathf.Clamp(tm.paintLayer, 0, al - 1);
+        var org = t.transform.position;
+        float nx = (wpos.x - org.x) / td.size.x, nz = (wpos.z - org.z) / td.size.z;
+        int cx = Mathf.RoundToInt(nx * (aw - 1)), cz = Mathf.RoundToInt(nz * (ah - 1));
+        int rad = Mathf.Max(1, Mathf.RoundToInt(tm.brushRadius / td.size.x * (aw - 1)));
+        int x0 = Mathf.Clamp(cx - rad, 0, aw - 1), x1 = Mathf.Clamp(cx + rad, 0, aw - 1);
+        int z0 = Mathf.Clamp(cz - rad, 0, ah - 1), z1 = Mathf.Clamp(cz + rad, 0, ah - 1);
+        int w = x1 - x0 + 1, h = z1 - z0 + 1;
+        if (w <= 0 || h <= 0) return;
+
+        var a = td.GetAlphamaps(x0, z0, w, h);
+        for (int z = 0; z < h; z++)
+        for (int x = 0; x < w; x++)
+        {
+            float dx = (x0 + x) - cx, dz = (z0 + z) - cz;
+            float d = Mathf.Sqrt(dx * dx + dz * dz) / rad;
+            if (d > 1f) continue;
+            float fall = Mathf.SmoothStep(1f, 0f, d);          // 가장자리로 갈수록 약하게
+            float s = tm.brushStrength * fall * 0.35f;
+            float cur = a[z, x, L];
+            float next = Mathf.Clamp01(erase ? cur - s : cur + s);
+
+            // 나머지 레이어를 비례 축소/확대해 합=1 유지
+            float others = 0f;
+            for (int l = 0; l < al; l++) if (l != L) others += a[z, x, l];
+            float rem = 1f - next;
+            if (others > 1e-5f)
+            {
+                float scale = rem / others;
+                for (int l = 0; l < al; l++) if (l != L) a[z, x, l] *= scale;
+            }
+            else if (rem > 0f) a[z, x, L == 0 ? 1 : 0] = rem;   // 전부 이 레이어였으면 기본 레이어로 되돌림
+            a[z, x, L] = next;
+        }
+        td.SetAlphamaps(x0, z0, a);
+    }
 
     // ── 실사 → 툰: 쿠와하라(유화 뭉갬) → 채도·밝기 → 색 단계 포스터라이즈 ──
     static Texture2D Stylize(Texture2D src, TerrainManager tm)

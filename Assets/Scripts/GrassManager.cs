@@ -44,7 +44,7 @@ public class GrassManager : MonoBehaviour
 
     // ── 경계 다듬기: 잔디가 길·모래와 만나는 가장자리 ──
     [Range(0f, 1f)] public float blockStrength = 1f;       // 체크 안 한 레이어가 잔디를 밀어내는 강도
-    [Range(0.02f, 0.5f)] public float edgeBand = 0.25f;    // 경계 페이드 폭
+    [Range(0.5f, 8f)] public float edgeBand = 3f;          // 경계 페이드 폭 (미터)
     [Range(0f, 1f)] public float edgeDensity = 0.6f;       // 경계 개체수 배율
     [Range(0.5f, 1f)] public float edgeSize = 0.8f;        // 경계 잔디 크기 배율
     [Range(0f, 0.3f)] public float edgeJitter = 0.08f;     // 경계선 들쭉날쭉

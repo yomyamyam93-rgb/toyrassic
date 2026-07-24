@@ -130,7 +130,7 @@ public class GrassManagerEditor : Editor
         {
             gm.layerThreshold = EditorGUILayout.Slider("경계 문턱 (어디부터 잔디인가)", gm.layerThreshold, 0.05f, 0.9f);
             gm.blockStrength = EditorGUILayout.Slider("밀어내기 강도 (체크 안 한 재질)", gm.blockStrength, 0f, 1f);
-            gm.edgeBand = EditorGUILayout.Slider("경계 폭 (넓을수록 서서히)", gm.edgeBand, 0.02f, 0.5f);
+            gm.edgeBand = EditorGUILayout.Slider("경계 폭 (m) — 가장자리 취급 거리", gm.edgeBand, 0.5f, 8f);
             gm.edgeDensity = EditorGUILayout.Slider("경계 개체수 배율", gm.edgeDensity, 0f, 1f);
             gm.edgeSize = EditorGUILayout.Slider("경계 크기 배율 (작은 잔디)", gm.edgeSize, 0.5f, 1f);
             gm.edgeJitter = EditorGUILayout.Slider("들쭉날쭉 (경계선 흔들기)", gm.edgeJitter, 0f, 0.3f);
@@ -398,7 +398,11 @@ public class GrassManagerEditor : Editor
         //    최솟값 기준 → 칸 일부라도 길·soil 이면 안 심는다 = 길 위로 안 삐져나감
         var cellMin = new float[res * res];
         var cellAvg = new float[res * res];
+        var cellBand = new float[res * res];       // 0 = 경계 바로 옆 ~ 1 = 안쪽
         float inv = 1f / (res - 1);
+        float stepM = Mathf.Max(td.size.x / res, 1f);   // 한 칸 크기(m)
+        float invSizeM = 1f / td.size.x;
+        float thB = gm.layerThreshold;
         for (int y = 0; y < res; y++)
         for (int x = 0; x < res; x++)
         {
@@ -412,6 +416,18 @@ public class GrassManagerEditor : Editor
             float m01 = MaskAt(fx, fz + inv), m11 = MaskAt(fx + inv, fz + inv);
             cellMin[ci] = Mathf.Min(Mathf.Min(m00, m10), Mathf.Min(m01, m11));
             cellAvg[ci] = (m00 + m10 + m01 + m11) * 0.25f;
+
+            // 경계까지 실제 거리(m)를 재서 밴드로 — 사방으로 edgeBand(m) 안에
+            // 잔디 아닌 땅이 있으면 그 거리 비율만큼 가장자리 취급
+            float dist = gm.edgeBand;
+            for (float r = stepM; r <= gm.edgeBand; r += stepM)
+            {
+                float rn = r * invSizeM;
+                if (MaskAt(fx + rn, fz) < thB || MaskAt(fx - rn, fz) < thB ||
+                    MaskAt(fx, fz + rn) < thB || MaskAt(fx, fz - rn) < thB)
+                { dist = r - stepM; break; }
+            }
+            cellBand[ci] = Mathf.Clamp01(dist / gm.edgeBand);
         }
 
         const int AMT_MAX = 16;
@@ -434,8 +450,7 @@ public class GrassManagerEditor : Editor
                     float th = gm.layerThreshold
                              + (Mathf.PerlinNoise(fx * 220f, fz * 220f) - 0.5f) * 2f * gm.edgeJitter;
                     if (mn < th) continue;
-                    // 0 = 경계 바로 위, 1 = 완전 안쪽
-                    float band = Mathf.InverseLerp(th, th + Mathf.Max(0.01f, gm.edgeBand), mn);
+                    float band = cellBand[y * res + x];   // 경계까지 실거리 기반 (0=가장자리, 1=안쪽)
 
                     float d = Mathf.PerlinNoise(fx * 90f + layer * 37.7f, fz * 90f + layer * 37.7f);
                     if (d < 0.05f) continue;

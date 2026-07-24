@@ -7,6 +7,12 @@ public class TerrainManager : MonoBehaviour
 {
     public Terrain terrain;
 
+    [Header("페인트 (씬에서 칠하기)")]
+    public bool paintMode = false;                 // ON = 씬 뷰 클릭·드래그로 칠하기
+    public int paintLayer = 0;                     // 칠할 레이어 인덱스
+    [Range(1f, 60f)] public float brushRadius = 10f;
+    [Range(0.05f, 1f)] public float brushStrength = 0.5f;
+
     [Header("실사 → 툰 변환 강도")]
     [Tooltip("뭉갬 반경 — 클수록 유화처럼 실사 디테일이 사라진다")]
     [Range(1, 6)] public int smoothRadius = 3;

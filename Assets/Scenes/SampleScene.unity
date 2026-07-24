@@ -6122,15 +6122,15 @@ MonoBehaviour:
     on: 0
   - layer: {fileID: 8574412962073106934, guid: 734244157d9e7d445b51cf0c3e0a0c17, type: 2}
     on: 0
-  layerThreshold: 0.233
+  layerThreshold: 0.319
   density: 0.85
   drawDistance: 250
   cellSize: 1.5
   blockStrength: 1
-  edgeBand: 0.5
+  edgeBand: 3
   edgeDensity: 0.126
   edgeSize: 0.557
-  edgeJitter: 0.246
+  edgeJitter: 0.258
   edgeProtoCount: 4
   maxSlope: 34
   minHeight: 2
