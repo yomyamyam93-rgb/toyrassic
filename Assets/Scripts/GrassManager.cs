@@ -25,7 +25,14 @@ public class GrassManager : MonoBehaviour
     public GrassType[] types = new GrassType[0];
 
     // ── 배치 레이어: 어떤 스플랫 재질 위에 심을지 ──
-    public bool[] allowedLayers = new bool[0];    // 지형 레이어와 1:1
+    // 재질(TerrainLayer)을 끌어다 놓으면 리스트에 올라가고, 체크로 켜고 끈다.
+    [Serializable]
+    public class PlaceLayer
+    {
+        public TerrainLayer layer;
+        public bool on = true;
+    }
+    public System.Collections.Generic.List<PlaceLayer> placeLayers = new System.Collections.Generic.List<PlaceLayer>();
     [Tooltip("허용 레이어 비중이 이 값보다 낮은 칸엔 안 심는다 (높이면 경계가 칼같이, 낮추면 부드럽게 번짐)")]
     [Range(0.05f, 0.9f)] public float layerThreshold = 0.12f;
 

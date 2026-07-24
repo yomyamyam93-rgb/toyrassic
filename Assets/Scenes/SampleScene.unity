@@ -6706,33 +6706,51 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::GrassManager
   terrain: {fileID: 1274771777}
+  autoApply: 1
   types:
   - name: GrassProto_0
     active: 1
-    weight: 1
-    size: 1
+    weight: 0.99
+    size: 1.685
   - name: GrassProto_1
     active: 1
     weight: 1
-    size: 1
+    size: 1.605
   - name: GrassProto_2
     active: 1
     weight: 1
-    size: 1
+    size: 1.371
   - name: flower_white
     active: 1
-    weight: 0.1
-    size: 1
-  allowedLayers: 0001010100000000
-  layerThreshold: 0.12
+    weight: 0.07
+    size: 1.153
+  placeLayers:
+  - layer: {fileID: 8574412962073106934, guid: ab8fee9c7db9e19478e459ae5a7ab6da, type: 2}
+    on: 0
+  - layer: {fileID: 8574412962073106934, guid: f8da8618b1b6ac8479ef6800b5d8d8a1, type: 2}
+    on: 1
+  - layer: {fileID: 8574412962073106934, guid: 8ea4f713b896a824fbb4c249bc377cf4, type: 2}
+    on: 1
+  - layer: {fileID: 8574412962073106934, guid: 8a1d0f58444fb7048a325554d29e75dc, type: 2}
+    on: 1
+  - layer: {fileID: 8574412962073106934, guid: 70102ca576d77f04596f26cb4077c9b0, type: 2}
+    on: 0
+  - layer: {fileID: 8574412962073106934, guid: e5c15e517299a3f4ba56a6ac441016c2, type: 2}
+    on: 0
+  - layer: {fileID: 8574412962073106934, guid: 865f3a4dc702a004aa5494fe6a3f9829, type: 2}
+    on: 0
+  - layer: {fileID: 8574412962073106934, guid: 734244157d9e7d445b51cf0c3e0a0c17, type: 2}
+    on: 0
+  layerThreshold: 0.274
   density: 0.85
   drawDistance: 250
   maxSlope: 34
   minHeight: 2
   maxHeight: 267
   tint: {r: 1, g: 1, b: 1, a: 1}
-  rootDark: 0.72
-  tipBoost: 1.22
+  brightness: 1
+  rootDark: 0.923
+  tipBoost: 1.565
 --- !u!4 &921064951
 Transform:
   m_ObjectHideFlags: 0

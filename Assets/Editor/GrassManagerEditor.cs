@@ -82,11 +82,26 @@ public class GrassManagerEditor : Editor
         fLayers = EditorGUILayout.BeginFoldoutHeaderGroup(fLayers, "배치 레이어 / 어떤 재질 위에 심을지");
         if (fLayers)
         {
-            var layers = td.terrainLayers;
-            if (gm.allowedLayers.Length != layers.Length) SyncLayers(gm, td);
-            for (int i = 0; i < layers.Length; i++)
-                gm.allowedLayers[i] = EditorGUILayout.ToggleLeft(
-                    layers[i] != null ? layers[i].name : $"(빈 레이어 {i})", gm.allowedLayers[i]);
+            EditorGUILayout.HelpBox("재질(TerrainLayer)을 아래 칸에 끌어다 놓으면 리스트에 올라간다.\n체크 ON = 그 재질 위에 심음.", MessageType.None);
+            if (gm.placeLayers.Count == 0) SyncLayers(gm, td);
+            int rm = -1;
+            for (int i = 0; i < gm.placeLayers.Count; i++)
+            {
+                var pl = gm.placeLayers[i];
+                EditorGUILayout.BeginHorizontal();
+                pl.on = EditorGUILayout.Toggle(pl.on, GUILayout.Width(18));
+                pl.layer = (TerrainLayer)EditorGUILayout.ObjectField(pl.layer, typeof(TerrainLayer), false);
+                if (GUILayout.Button("X", GUILayout.Width(22))) rm = i;
+                EditorGUILayout.EndHorizontal();
+            }
+            if (rm >= 0) gm.placeLayers.RemoveAt(rm);
+
+            // 드래그해서 추가
+            var add = (TerrainLayer)EditorGUILayout.ObjectField("재질 끌어다 추가", null, typeof(TerrainLayer), false);
+            if (add != null && !gm.placeLayers.Exists(x => x.layer == add))
+                gm.placeLayers.Add(new GrassManager.PlaceLayer { layer = add, on = true });
+
+            if (GUILayout.Button("지형 레이어 전부 불러오기")) SyncLayers(gm, td);
             gm.layerThreshold = EditorGUILayout.Slider("경계 문턱", gm.layerThreshold, 0.05f, 0.9f);
         }
         EditorGUILayout.EndFoldoutHeaderGroup();
@@ -248,18 +263,13 @@ public class GrassManagerEditor : Editor
 
     static void SyncLayers(GrassManager gm, TerrainData td)
     {
-        var layers = td.terrainLayers;
-        var arr = new bool[layers.Length];
-        for (int i = 0; i < layers.Length; i++)
+        // 지형의 레이어를 전부 리스트에 올린다 (이미 있는 항목의 체크 상태는 유지)
+        foreach (var l in td.terrainLayers)
         {
-            if (i < gm.allowedLayers.Length) arr[i] = gm.allowedLayers[i];
-            else
-            {   // 기본: 잔디 계열 + 마른흙만 허용 (모래·바위·도로흙 제외)
-                string n = layers[i] != null ? layers[i].name.ToLower() : "";
-                arr[i] = n.Contains("grass") || n.Contains("drysoil");
-            }
+            if (l == null || gm.placeLayers.Exists(x => x.layer == l)) continue;
+            string n = l.name.ToLower();   // 기본: 잔디 계열 + 마른흙만 ON
+            gm.placeLayers.Add(new GrassManager.PlaceLayer { layer = l, on = n.Contains("grass") || n.Contains("drysoil") });
         }
-        gm.allowedLayers = arr;
         EditorUtility.SetDirty(gm);
     }
 
@@ -268,7 +278,16 @@ public class GrassManagerEditor : Editor
     {
         var td = gm.terrain.terrainData;
         if (gm.types.Length != td.detailPrototypes.Length) SyncTypes(gm, td);
-        if (gm.allowedLayers.Length != td.terrainLayers.Length) SyncLayers(gm, td);
+        if (gm.placeLayers.Count == 0) SyncLayers(gm, td);
+
+        // 리스트(재질+체크) → 지형 레이어 인덱스별 허용 여부
+        var tls = td.terrainLayers;
+        var allowIdx = new bool[tls.Length];
+        for (int i = 0; i < tls.Length; i++)
+        {
+            var found = gm.placeLayers.Find(x => x.layer == tls[i]);
+            allowIdx[i] = found != null && found.on;
+        }
 
         // 크기 배율을 프로토타입에 반영 (기준 0.85~1.2 에 size 곱)
         var protos = td.detailPrototypes;
@@ -304,7 +323,7 @@ public class GrassManagerEditor : Editor
                     int ax = Mathf.Clamp((int)(fx * (aw - 1)), 0, aw - 1);
                     int az = Mathf.Clamp((int)(fz * (ah - 1)), 0, ah - 1);
                     float allow = 0f;
-                    for (int l = 0; l < al; l++) if (gm.allowedLayers[l]) allow += splat[az, ax, l];
+                    for (int l = 0; l < al; l++) if (l < allowIdx.Length && allowIdx[l]) allow += splat[az, ax, l];
                     if (allow < gm.layerThreshold) continue;
 
                     float d = Mathf.PerlinNoise(fx * 90f + layer * 37.7f, fz * 90f + layer * 37.7f);
