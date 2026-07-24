@@ -36,6 +36,12 @@ public class TreeManager : MonoBehaviour
     [Range(0f, 1f)] public float forestDensity = 0.75f; // 숲 안에서 심을 확률
     [Range(0f, 0.3f)] public float plainsDensity = 0.02f; // 평야 홑나무 확률
     [Range(0f, 0.3f)] public float palmDensity = 0.05f;   // 해안 야자수 확률
+    [Tooltip("경계(체크 안 한 재질·길)에서 이만큼(m) 띄우고 심는다")]
+    [Range(0f, 12f)] public float edgeMargin = 2f;
+    [Tooltip("뭉침 강도 — 높을수록 나무가 무리지어 모였다 흩어졌다 한다")]
+    [Range(0f, 1f)] public float clumpStrength = 0.5f;
+    [Tooltip("뭉침 덩어리 크기(m)")]
+    [Range(20f, 300f)] public float clumpSize = 80f;
 
     [Header("제거 조건")]
     [Range(0f, 60f)] public float maxSlope = 28f;

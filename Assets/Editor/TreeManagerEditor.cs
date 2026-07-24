@@ -86,12 +86,20 @@ public class TreeManagerEditor : Editor
         fPlace = EditorGUILayout.BeginFoldoutHeaderGroup(fPlace, "배치 / 간격·숲 뭉침");
         if (fPlace)
         {
+            EditorGUILayout.HelpBox(
+                "나무 양 조절 = ①후보 간격(작게=전체 많이) ②숲 밀도(숲 빽빽함)\n" +
+                "숲덩어리 모양 = ③숲/평야 대비(숲·벌판 구분 세기) ④뭉침(작은 무리)\n" +
+                "정리 = ⑤최소 간격(겹침 방지) ⑥경계 여백(길에서 띄우기)", MessageType.None);
             tm.spacing = EditorGUILayout.Slider("후보 간격(m)", tm.spacing, 4f, 30f);
             tm.minDistance = EditorGUILayout.Slider("나무 최소 간격(m)", tm.minDistance, 1f, 10f);
             tm.forestContrast = EditorGUILayout.Slider("숲/평야 대비", tm.forestContrast, 0f, 1f);
             tm.forestDensity = EditorGUILayout.Slider("숲 밀도", tm.forestDensity, 0f, 1f);
             tm.plainsDensity = EditorGUILayout.Slider("평야 홑나무", tm.plainsDensity, 0f, 0.3f);
             tm.palmDensity = EditorGUILayout.Slider("해안 야자수", tm.palmDensity, 0f, 0.3f);
+            EditorGUILayout.Space(2);
+            tm.edgeMargin = EditorGUILayout.Slider("경계 여백(m) — 길·경계에서 띄우기", tm.edgeMargin, 0f, 12f);
+            tm.clumpStrength = EditorGUILayout.Slider("뭉침 강도 — 모였다 흩어졌다", tm.clumpStrength, 0f, 1f);
+            tm.clumpSize = EditorGUILayout.Slider("뭉침 크기(m)", tm.clumpSize, 20f, 300f);
         }
         EditorGUILayout.EndFoldoutHeaderGroup();
 
@@ -304,12 +312,26 @@ public class TreeManagerEditor : Editor
             // 육지: 배치 레이어 마스크 + 숲/평야 대비
             if (land.Count == 0) continue;
             if (GridAt(maskG, fx, fz) < tm.layerThreshold) continue;
+            // 경계 여백: 사방 edgeMargin(m) 안에 비허용 재질(길 등)이 있으면 안 심음
+            if (tm.edgeMargin > 0.01f)
+            {
+                float rn = tm.edgeMargin / size.x;
+                if (GridAt(maskG, fx + rn, fz) < tm.layerThreshold || GridAt(maskG, fx - rn, fz) < tm.layerThreshold ||
+                    GridAt(maskG, fx, fz + rn) < tm.layerThreshold || GridAt(maskG, fx, fz - rn) < tm.layerThreshold ||
+                    GridAt(maskG, fx + rn * 0.7f, fz + rn * 0.7f) < tm.layerThreshold ||
+                    GridAt(maskG, fx - rn * 0.7f, fz - rn * 0.7f) < tm.layerThreshold)
+                    continue;
+            }
             if (CliffNear(fx, fz)) continue;
 
             float biome = Mathf.PerlinNoise(wx * 0.0006f + 40f, wz * 0.0006f + 40f);
             float forest = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0.42f, 0.60f, biome));
             forest = Mathf.Lerp(0.5f, forest, tm.forestContrast);   // 대비 0 = 균일
             float p = Mathf.Lerp(tm.plainsDensity, tm.forestDensity, forest);
+            // 뭉침: 중간 크기 노이즈 2옥타브로 확률을 출렁이게 → 무리지었다 성겼다
+            float cl = Mathf.PerlinNoise(wx / tm.clumpSize + 13f, wz / tm.clumpSize + 13f) * 0.65f
+                     + Mathf.PerlinNoise(wx / (tm.clumpSize * 0.33f) + 57f, wz / (tm.clumpSize * 0.33f) + 57f) * 0.35f;
+            p *= Mathf.Lerp(1f, Mathf.SmoothStep(0f, 1f, cl) * 1.7f, tm.clumpStrength);
             if (rnd.NextDouble() > p) continue;
             if (TooClose(wx, wz, tm.minDistance)) continue;
 
