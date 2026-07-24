@@ -10,9 +10,9 @@ using UnityEngine.InputSystem;
 public class PlayerMove : MonoBehaviour
 {
     [Header("속도 (m/s)")]
-    public float walkSpeed = 4.5f;
-    public float runSpeed = 8.5f;
-    public float accel = 14f;
+    public float walkSpeed = 8.5f;
+    public float runSpeed = 17f;
+    public float accel = 20f;   // 속도가 빨라진 만큼 가속도 같이 올림 (반응 유지)
 
     [Header("물")]
     public float waterY = 40f;

@@ -56,7 +56,7 @@ Material:
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
     - _L6:
-        m_Texture: {fileID: 2800000, guid: 6218c807ae2b33945b4bab2abd0ae863, type: 3}
+        m_Texture: {fileID: 2800000, guid: d470ae878e39bcb46908c967dc743f4a, type: 3}
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
     - _L7:
@@ -71,6 +71,6 @@ Material:
     - _WorldSize: 6000
     m_Colors:
     - _TileA: {r: 20, g: 20, b: 20, a: 20}
-    - _TileB: {r: 24, g: 20, b: 50, a: 20}
+    - _TileB: {r: 24, g: 20, b: 84.7, a: 20}
   m_BuildTextureStacks: []
   m_AllowLocking: 1
