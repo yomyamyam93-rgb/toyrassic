@@ -46,6 +46,9 @@ public class PetUnit : MonoBehaviour
     void OnEnable() { All.Add(this); }
     void OnDisable() { All.Remove(this); }
 
+    PetMotion motion;
+    float curSpeed;                          // 실제 이동 속도 (모션용)
+
     void Start()
     {
         terrain = Terrain.activeTerrain;
@@ -53,6 +56,8 @@ public class PetUnit : MonoBehaviour
         baseScale = transform.localScale;
         var r = GetComponentInChildren<Renderer>();
         footOff = r != null ? transform.position.y - r.bounds.min.y : 0f;
+        motion = GetComponent<PetMotion>();
+        if (motion == null) motion = gameObject.AddComponent<PetMotion>();
         MakeBar(r);
         Ground(true);
     }
@@ -73,6 +78,10 @@ public class PetUnit : MonoBehaviour
 
         if (target != null) Combat();
         else Peace();
+
+        // 모션 상태 전달 (이동 속도 → 통통 강도)
+        curSpeed = Mathf.MoveTowards(curSpeed, 0f, MoveSpd * 2.5f * Time.deltaTime);
+        if (motion != null) motion.speed01 = Mathf.Clamp01(curSpeed / MoveSpd);
 
         Ground(false);
         LungeFx();
@@ -131,10 +140,11 @@ public class PetUnit : MonoBehaviour
         // 민첩 = 회피 (방어력 자리, 3-5)
         bool dodged = Random.value < Mathf.Min(0.35f, target.agi * 0.008f);
         if (!dodged) target.TakeDamage(Damage);
-        // 런지 연출 (절차 모션 — 리깅 없음)
+        // 런지 연출 (위치는 여기서, 스케일 펀치는 PetMotion 이)
         lungeT = 1f; lungeFrom = transform.position;
         var dir = (target.transform.position - transform.position); dir.y = 0;
         lungeTo = transform.position + dir.normalized * 0.9f;
+        if (motion != null) motion.Punch();
         if (mat == Mat.Rubber) retreatT = 1.1f;      // 고무: 치면 빠진다
         Face(dir);
     }
@@ -149,6 +159,7 @@ public class PetUnit : MonoBehaviour
     void Die()
     {
         dead = true;
+        if (motion != null) { motion.enabled = false; transform.localScale = baseScale; }
         // 쓰러짐(toppled) — 옆으로 눕고 반쯤 잠김
         transform.rotation = Quaternion.Euler(0f, transform.eulerAngles.y, 82f);
         var p = transform.position; p.y -= footOff * 0.35f; transform.position = p;
@@ -177,6 +188,7 @@ public class PetUnit : MonoBehaviour
         if (dir.sqrMagnitude < 1e-4f) return;
         dir.Normalize();
         transform.position += dir * spd * Time.deltaTime;
+        curSpeed = spd;
         Face(dir);
     }
 
@@ -194,12 +206,7 @@ public class PetUnit : MonoBehaviour
         var p = transform.position;
         float g = terrain.SampleHeight(p) + terrain.transform.position.y + footOff;
         p.y = dead ? p.y : g;
-        // 걷기 통통 (절차 모션)
-        if (!dead && !force)
-        {
-            float bob = Mathf.Abs(Mathf.Sin(Time.time * 6f + GetInstanceID() * 0.7f)) * 0.10f;
-            p.y += bob;
-        }
+        if (!dead && motion != null) p.y += motion.BobY;   // 통통은 PetMotion 담당
         transform.position = p;
     }
 
@@ -210,8 +217,6 @@ public class PetUnit : MonoBehaviour
         float t = Mathf.Clamp01(lungeT);
         float arc = Mathf.Sin((1f - t) * Mathf.PI);           // 갔다 돌아오기
         if (!dead) transform.position = Vector3.Lerp(lungeFrom, lungeTo, arc * 0.8f) + Vector3.up * (transform.position.y - lungeFrom.y);
-        transform.localScale = baseScale * (1f + arc * 0.12f); // 살짝 부풀며 들이받기
-        if (lungeT <= 0f) transform.localScale = baseScale;
     }
 
     // ── HP 바 (월드 스페이스 쿼드) ──
