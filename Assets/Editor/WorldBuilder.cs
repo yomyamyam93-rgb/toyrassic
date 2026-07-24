@@ -121,6 +121,41 @@ public static class WorldBuilder
     }
 
     // ══════════════════════════════════════════════════════════
+    //  ④ 지형 내보내기 — 계획(마커·길)을 실제 지형에 맞춰 다시 짜기 위한 것
+    // ══════════════════════════════════════════════════════════
+    /// ★왜 필요한가: 계획 지도(대륙 생성기)의 섬과 Meshy 로 뽑은 실제 지형이
+    ///   **애초에 다른 모양**이라, 좌표를 아무리 정렬해도 안 맞는다(일치도 0.72 벽).
+    ///   그래서 실제 지형의 높이를 그대로 뽑아, 그 지형에 맞는 마커·길을 새로 설계한다.
+    ///   스크린샷이 아니라 원본 높이값을 쓰므로 좌표가 어긋날 여지가 없다.
+    [MenuItem("Tools/토이라기/④ 지형 내보내기 (계획 재설계용)", priority = 3)]
+    public static void ExportTerrain()
+    {
+        var terrain = FindTerrain();
+        if (terrain == null) return;
+        var td = terrain.terrainData;
+        int res = td.heightmapResolution;
+        var h = td.GetHeights(0, 0, res, res);   // [z, x], 0~1 정규화
+
+        const string outPath = "Assets/World/terrain_export.bytes";
+        using (var fs = new FileStream(outPath, FileMode.Create))
+        using (var bw = new BinaryWriter(fs))
+        {
+            bw.Write(res);
+            bw.Write(td.size.x); bw.Write(td.size.y); bw.Write(td.size.z);
+            var pos = terrain.transform.position;
+            bw.Write(pos.x); bw.Write(pos.y); bw.Write(pos.z);
+            for (int z = 0; z < res; z++)
+                for (int x = 0; x < res; x++) bw.Write(h[z, x]);
+        }
+        AssetDatabase.Refresh();
+        Debug.Log($"[월드] 지형 내보냄 → {outPath}
+" +
+                  $"해상도 {res}×{res} · 크기 {td.size.x:F0}×{td.size.z:F0}m · 최고높이 {td.size.y:F0}m
+" +
+                  "이 파일을 기준으로 마커·길 계획을 다시 설계한다.");
+    }
+
+    // ══════════════════════════════════════════════════════════
     //  ③ MCP 카테고리 최소화 (토큰 절약)
     // ══════════════════════════════════════════════════════════
     static readonly string[] KeepCats = {
