@@ -26,6 +26,14 @@ Shader "Toyrassic/PetToon"
         // 트라이플래너 (UV 무시, 오브젝트 좌표 투영 — UV 불균일 모델용)
         _Triplanar ("트라이플래너 사용", Float) = 0
         _TriScale ("트라이플래너 타일 (반복/유닛)", Float) = 4
+        // 원소 글로우 (불=흐르는 화염 / 물=일렁임 / 번개=지지직 맥)
+        _GlowTex ("글로우 노이즈", 2D) = "black" {}
+        _GlowMode ("0=끔 1=흐름(불·물) 2=번개", Float) = 0
+        _GlowColorA ("글로우 밝은색(HDR)", Color) = (1,1,1,1)
+        _GlowColorB ("글로우 어두운색", Color) = (0,0,0,1)
+        _GlowIntensity ("글로우 세기", Float) = 0
+        _GlowScale ("글로우 스케일", Float) = 1
+        _GlowSpeed ("글로우 속도", Float) = 1
         // 투명(유리)용
         _SrcBlend ("Src", Float) = 1
         _DstBlend ("Dst", Float) = 0
@@ -62,10 +70,12 @@ Shader "Toyrassic/PetToon"
             TEXTURE2D(_MetallicGlossMap); SAMPLER(sampler_MetallicGlossMap);
             TEXTURE2D(_OcclusionMap); SAMPLER(sampler_OcclusionMap);
             TEXTURECUBE(_EnvCube); SAMPLER(sampler_EnvCube);
+            TEXTURE2D(_GlowTex); SAMPLER(sampler_GlowTex);
             float4 _BaseMap_ST;
-            half4 _BaseColor, _EmissionColor;
+            half4 _BaseColor, _EmissionColor, _GlowColorA, _GlowColorB;
             half _BumpScale, _Metallic, _Smoothness, _OcclusionStrength;
             half _EnvIntensity, _Triplanar; float _TriScale;
+            half _GlowMode, _GlowIntensity; float _GlowScale, _GlowSpeed;
 
             struct A
             {
@@ -185,6 +195,27 @@ Shader "Toyrassic/PetToon"
                     half3 tint = lerp(half3(1,1,1), albedo, metallic);   // 금속은 몸색으로 착색
                     half amt = lerp(fres * 0.10, 1, metallic) * smooth * _EnvIntensity;
                     col.rgb += env * tint * amt * occ;
+                }
+
+                // ★원소 글로우 — 몸 표면에 흐르는 발광 (불꽃·물결·번개맥)
+                if (_GlowMode > 0.5)
+                {
+                    float2 gp = (_AxisX > 0.5 ? i.opos.xy : i.opos.zy) * _GlowScale;
+                    float tt = _Time.y * _GlowSpeed;
+                    half n1 = SAMPLE_TEXTURE2D(_GlowTex, sampler_GlowTex, gp + float2(0, -tt * 0.35)).r;
+                    half n2 = SAMPLE_TEXTURE2D(_GlowTex, sampler_GlowTex, gp * 1.7 + float2(0.13, -tt * 0.61)).r;
+                    if (_GlowMode < 1.5)
+                    {   // 불·물: 두 겹 노이즈가 흐르며 이글이글
+                        half g = saturate(n1 * n2 * 1.8);
+                        col.rgb += lerp(_GlowColorB.rgb, _GlowColorA.rgb, g) * g * _GlowIntensity;
+                    }
+                    else
+                    {   // 번개: 가는 맥이 지지직 + 플리커
+                        half v = abs(n1 - 0.5) * 2;
+                        half vein = pow(saturate(1 - v), 14);
+                        half flick = 0.35 + 0.65 * step(0.4, frac(sin(floor(_Time.y * 13) * 12.9898) * 43758.5453));
+                        col.rgb += _GlowColorA.rgb * vein * _GlowIntensity * flick;
+                    }
                 }
 
                 col.rgb = MixFog(col.rgb, i.fog);
