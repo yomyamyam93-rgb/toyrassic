@@ -90,7 +90,7 @@ Shader "Toyrassic/PetToon"
             half _EnvIntensity, _Triplanar; float _TriScale;
             half _GlowMode, _GlowIntensity, _GlowCut; float _GlowScale, _GlowSpeed;
             float _CrackDensity, _CrackWidth, _CrackWarp;
-            half4 _RimColor; half _RimPower, _Refraction; float _Wobble, _WobbleFreq;
+            half4 _RimColor; half _RimPower, _Refraction;   // (_Wobble 은 PetBend.hlsl 공용)
 
             // 절차 노이즈 — 텍스처 대신 수식 (해상도 무한 = 확대해도 안 깨짐). C# FxBodyFlames 와 동일 수치
             static const float2 NF[10] = { float2(1,3), float2(2,-1), float2(3,2), float2(-2,4), float2(4,1),
@@ -144,9 +144,7 @@ Shader "Toyrassic/PetToon"
                 V o;
                 float3 p = i.positionOS.xyz; float3 n = i.normalOS;
                 o.opos = p; o.onrm = i.normalOS;                     // 원본 좌표 → 무늬가 몸에 붙음
-                // 물: 표면이 젤리처럼 출렁임
-                if (_Wobble > 0.0001)
-                    p += i.normalOS * sin(_Time.y * _WobbleFreq + dot(i.positionOS.xyz, float3(5.1, 7.3, 6.2))) * _Wobble;
+                ApplyPetWobble(p, i.normalOS, i.positionOS.xyz);     // 물 출렁임 (공용)
                 ApplyPetBend(p, n);                                  // ★구부리기
                 float3 tn = i.tangentOS.xyz; float3 dummy = tn; ApplyPetBend(dummy, tn);
                 o.wpos = TransformObjectToWorld(p);

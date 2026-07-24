@@ -33,6 +33,7 @@ Shader "Toyrassic/OutlineHull"
             float4 vert(A i) : SV_POSITION
             {
                 float3 p = i.positionOS.xyz; float3 nn = i.normalOS;
+                ApplyPetWobble(p, i.normalOS, i.positionOS.xyz); // 물 출렁임도 같이 (선이 형태에 붙게)
                 ApplyPetBend(p, nn);                            // 몸이 굽으면 외곽선도 같이
                 float3 w = TransformObjectToWorld(p);
                 float3 n = normalize(TransformObjectToWorldNormal(nn));

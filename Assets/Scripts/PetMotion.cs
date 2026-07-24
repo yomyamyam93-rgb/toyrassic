@@ -39,7 +39,7 @@ public class PetMotion : MonoBehaviour
     // ── 버텍스 벤드 (셰이더 구부리기) ──
     [HideInInspector] public float flashEmission;  // 피격 흰 번쩍 (PetUnit 이 넣음)
     Renderer[] bendRends; MaterialPropertyBlock bmpb;
-    float refLen = 1f, axisX;
+    float refLen = 1f, axisX, wobble, wobbleFreq = 2.5f;
 
     void Start()
     {
@@ -65,6 +65,12 @@ public class PetMotion : MonoBehaviour
         }
         bendRends = list.ToArray();
         bmpb = new MaterialPropertyBlock();
+        // 본체 재질의 출렁임 값을 외곽선에도 전달 (선이 형태를 따라오게)
+        if (own != null && own.sharedMaterial != null && own.sharedMaterial.HasProperty("_Wobble"))
+        {
+            wobble = own.sharedMaterial.GetFloat("_Wobble");
+            wobbleFreq = own.sharedMaterial.GetFloat("_WobbleFreq");
+        }
     }
 
     // 크기 보정 템포: 작으면 촐랑, 크면 쿵... 쿵...
@@ -123,6 +129,8 @@ public class PetMotion : MonoBehaviour
             bmpb.SetFloat("_Twist", twist);
             bmpb.SetFloat("_RefLen", refLen);
             bmpb.SetFloat("_AxisX", axisX);
+            bmpb.SetFloat("_Wobble", wobble);
+            bmpb.SetFloat("_WobbleFreq", wobbleFreq);
             bmpb.SetColor("_EmissionColor", Color.white * flashEmission);        // 피격 번쩍도 여기서
             foreach (var r in bendRends) if (r != null) r.SetPropertyBlock(bmpb);
         }

@@ -8,6 +8,14 @@ float _BendS;    // 좌우 휨 (rad)
 float _Twist;    // 비틀림 (rad)
 float _RefLen;   // 긴축 반길이 (오브젝트 공간)
 float _AxisX;    // 모델 긴축이 X면 1, Z면 0
+float _Wobble;      // 물 출렁임 크기 (본체·외곽선이 같이 출렁여야 선이 맞음)
+float _WobbleFreq;  // 출렁임 빠르기
+
+void ApplyPetWobble(inout float3 p, float3 nrm, float3 origPos)
+{
+    if (_Wobble > 0.0001)
+        p += nrm * sin(_Time.y * _WobbleFreq + dot(origPos, float3(5.1, 7.3, 6.2))) * _Wobble;
+}
 
 void ApplyPetBend(inout float3 p, inout float3 n)
 {

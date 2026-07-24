@@ -60,9 +60,9 @@ Material:
     - _DstBlend: 10
     - _EnvIntensity: 0.9
     - _GlowCut: 0
-    - _GlowIntensity: 0.45
+    - _GlowIntensity: 0.7
     - _GlowMode: 1
-    - _GlowScale: 1.6
+    - _GlowScale: 2.2
     - _GlowSpeed: 0.4
     - _Metallic: 0.05
     - _OcclusionStrength: 1

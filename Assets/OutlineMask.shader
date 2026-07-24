@@ -27,6 +27,7 @@ Shader "Toyrassic/OutlineMask"
             float4 vert(A i):SV_POSITION
             {
                 float3 p = i.positionOS.xyz; float3 n = i.normalOS;
+                ApplyPetWobble(p, i.normalOS, i.positionOS.xyz);
                 ApplyPetBend(p, n);
                 return TransformObjectToHClip(p);
             }
