@@ -7,8 +7,10 @@ using UnityEngine;
 
 /// 지도 계획(mapplan.txt)을 지형에 옮긴다 — 마커 심기 + 길 칠하기.
 ///
-/// 원본은 대륙 계획 지도 아티팩트에서 뽑아낸 것. 격자(81×81, 칸 104m) 좌표라
-/// 월드 좌표 = 격자 × 104m 로 그대로 대응한다(지도 도구의 표시와 일치).
+/// 원본은 대륙 계획 지도 아티팩트에서 뽑아낸 것(격자 81×81).
+/// ★칸 104m 를 곱하면 안 된다 — 계획서는 8424m 대륙 기준인데 실제 지형은 6km 로
+///   재건됐다. 그래서 **지형 실측 크기에 비례**시킨다(GridToWorld). 폭·사행도 같은
+///   축척으로 환산하므로, 지형을 또 바꿔도 자동으로 맞는다.
 ///
 /// ★길은 반드시 "불규칙하게" 구불거려야 한다 (사용자 확정 규칙).
 ///   규칙적인 물결(사인파)은 인공적으로 보인다. 그래서 세 가지를 겹친다:
@@ -37,11 +39,23 @@ public static class MapPlanImporter
     const float EdgeFade   = 0.5f;   // 가장자리 흐림
     const float StepM      = 6f;     // 경로 재표본 간격(m)
 
+    /// ★격자 → 월드 변환.
+    ///   칸 크기(104m)를 곱하면 안 된다 — 지도 계획은 81×81×104m = 8424m 기준인데
+    ///   실제 유니티 지형은 그 크기가 아닐 수 있다(6km 섬으로 재건됨).
+    ///   그래서 **지형 실제 크기에 비례**시킨다. 지형을 다시 만들어도 자동으로 맞는다.
+    static Vector3 GridToWorld(float gx, float gy, Vector3 origin, Vector3 size, int grid)
+    {
+        return new Vector3(origin.x + gx / grid * size.x, 0f, origin.z + gy / grid * size.z);
+    }
+
     [MenuItem("Tools/토이라기/지도 ① 마커 심기")]
     public static void ImportMarkers()
     {
-        if (!TryRead(out var lines, out var terrain, out int cell)) return;
+        if (!TryRead(out var lines, out var terrain, out int cell, out int grid)) return;
         var origin = terrain.transform.position;
+        var tsize = terrain.terrainData.size;
+        Debug.Log($"[지도] 지형 실측 {tsize.x:F0}×{tsize.z:F0}m · 격자 {grid} → 칸 {tsize.x / grid:F1}m " +
+                  $"(계획서 기준 {cell}m). 비례 변환으로 자동 정렬한다.");
 
         var root = GameObject.Find("Markers");
         if (root == null) root = new GameObject("Markers");
@@ -57,7 +71,7 @@ public static class MapPlanImporter
             int gx = int.Parse(t[1]), gy = int.Parse(t[2]);
             string type = t[3];
 
-            var p = new Vector3(origin.x + gx * cell, 0f, origin.z + gy * cell);
+            var p = GridToWorld(gx, gy, origin, tsize, grid);
             p.y = terrain.SampleHeight(p) + origin.y;
 
             var go = new GameObject($"{type}_{gx}_{gy}");
@@ -72,10 +86,11 @@ public static class MapPlanImporter
     [MenuItem("Tools/토이라기/지도 ② 길 칠하기 (불규칙 사행)")]
     public static void PaintRoads()
     {
-        if (!TryRead(out var lines, out var terrain, out int cell)) return;
+        if (!TryRead(out var lines, out var terrain, out int cell, out int grid)) return;
         var td = terrain.terrainData;
         var origin = terrain.transform.position;
         var size = td.size;
+        Debug.Log($"[지도] 지형 실측 {size.x:F0}×{size.z:F0}m · 격자 {grid} → 칸 {size.x / grid:F1}m");
 
         int dirt = FindLayer(td, "dirt", "drysoil");
         if (dirt < 0)
@@ -96,20 +111,22 @@ public static class MapPlanImporter
             var t = ln.Split(' ');
             string tier = t[1];
             // t[2] = kind(들길/산길…) — 지금은 폭에만 tier 를 쓰고 kind 는 나중에 소품·표면용
-            var grid = new List<Vector3>();
+            var path = new List<Vector3>();
             for (int i = 3; i < t.Length; i++)
             {
                 var xy = t[i].Split(',');
                 float gx = float.Parse(xy[0], CultureInfo.InvariantCulture);
                 float gy = float.Parse(xy[1], CultureInfo.InvariantCulture);
-                grid.Add(new Vector3(origin.x + gx * cell, 0f, origin.z + gy * cell));
+                path.Add(GridToWorld(gx, gy, origin, size, grid));
             }
-            if (grid.Count < 2) continue;
+            if (path.Count < 2) continue;
 
-            float width = TierWidth.TryGetValue(tier, out var w) ? w : 3f;
-            float amp = TierMeander.TryGetValue(tier, out var a) ? a : 26f;
+            // 계획서의 폭·사행은 8424m 대륙 기준 미터값 → 실제 지형 축척으로 환산
+            float scale = size.x / (grid * (float)cell);
+            float width = (TierWidth.TryGetValue(tier, out var w) ? w : 3f) * scale;
+            float amp = (TierMeander.TryGetValue(tier, out var a) ? a : 26f) * scale;
 
-            var dense = Resample(grid, StepM);
+            var dense = Resample(path, StepM);
             var wavy = IrregularMeander(dense, amp, seed++);
             var smooth = Smooth(wavy, 4);
             painted += Paint(alpha, aw, ah, al, dirt, smooth, origin, size, width, seed);
@@ -262,15 +279,18 @@ public static class MapPlanImporter
         return -1;
     }
 
-    static bool TryRead(out string[] lines, out Terrain terrain, out int cell)
+    static bool TryRead(out string[] lines, out Terrain terrain, out int cell, out int grid)
     {
-        lines = null; cell = 104;
+        lines = null; cell = 104; grid = 81;
         terrain = Object.FindObjectsByType<Terrain>(FindObjectsSortMode.None).FirstOrDefault();
         if (terrain == null) { Debug.LogError("[지도] Terrain 을 못 찾았다. SampleScene 을 열 것."); return false; }
         if (!File.Exists(PlanPath)) { Debug.LogError($"[지도] {PlanPath} 가 없다."); return false; }
         lines = File.ReadAllLines(PlanPath);
         foreach (var ln in lines)
+        {
             if (ln.StartsWith("CELL ")) cell = int.Parse(ln.Substring(5).Trim());
+            if (ln.StartsWith("SIZE ")) grid = int.Parse(ln.Substring(5).Trim());
+        }
         return true;
     }
 }
