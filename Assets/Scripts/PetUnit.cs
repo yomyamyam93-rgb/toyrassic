@@ -214,6 +214,9 @@ public class PetUnit : MonoBehaviour
     void WoodAoE()
     {
         float aoe = body * 1.15f;
+        FX.Slash(transform.position, transform.eulerAngles.y, aoe,
+                 215f, new Color(1f, 0.93f, 0.55f, 0.55f));          // 참격 호
+        FollowCam.Shake(body * 0.012f);
         foreach (var u in All)
         {
             if (u == this || !u.Alive || u.team == team) continue;
@@ -233,6 +236,8 @@ public class PetUnit : MonoBehaviour
         if (Random.value < Mathf.Min(0.35f, victim.agi * 0.008f)) return false;   // 민첩=회피
         victim.TakeDamage(dmg);
         victim.OnHit();
+        FX.Burst(victim.transform.position + Vector3.up * victim.body * 0.30f,
+                 Color.white, 9, victim.body * 0.07f, victim.body * 0.45f);       // 타격 뽁
         return true;
     }
 
@@ -328,7 +333,12 @@ public class PetUnit : MonoBehaviour
                 hopArcY = Mathf.Sin(k * Mathf.PI) * body * 0.20f;
                 curSpeed = MoveSpd;
                 if (hopPhaseT <= 0f)
-                { hopPhase = 3; hopPhaseT = HopRest; hopArcY = 0f; if (motion != null) motion.Punch(); }  // 착지 쿵
+                {   // 착지 쿵 + 먼지
+                    hopPhase = 3; hopPhaseT = HopRest; hopArcY = 0f;
+                    if (motion != null) motion.Punch();
+                    FX.Burst(transform.position - Vector3.up * (footOff * 0.8f),
+                             new Color(0.82f, 0.76f, 0.62f, 0.85f), 7, body * 0.06f, body * 0.22f);
+                }
                 break;
             case 3:   // 착지 후 멈춰 서 있기
                 hopPhaseT -= Time.deltaTime;
@@ -462,7 +472,11 @@ public class PetProjectile : MonoBehaviour
         {
             // 회피 판정 (민첩)
             if (Random.value >= Mathf.Min(0.35f, target.agi * 0.008f))
-            { target.TakeDamage(dmg); target.OnHit(); }
+            {
+                target.TakeDamage(dmg); target.OnHit();
+                FX.Burst(transform.position, GetComponent<MeshRenderer>().material.color,
+                         8, target.body * 0.06f, target.body * 0.4f);   // 착탄 뽁
+            }
             Destroy(gameObject);
         }
     }

@@ -29,6 +29,10 @@ public class FollowCam : MonoBehaviour
     public float rotSmoothTime = 0.06f, zoomSmoothTime = 0.10f;
     public float followXZ = 8f, followY = 4f;
 
+    // 타격감용 미세 흔들림 — FX 쪽에서 FollowCam.Shake(0.3f) 처럼 호출
+    static float shakeAmp;
+    public static void Shake(float amp) { shakeAmp = Mathf.Max(shakeAmp, amp); }
+
     Terrain[] terrains;
     Vector3 look;                 // 카메라가 바라보는 지점 (부드럽게 따라감)
     float yawT, pitchT, distT;    // 목표값
@@ -106,6 +110,11 @@ public class FollowCam : MonoBehaviour
         float g = GroundAt(pos) + 2f;
         if (pos.y < g) pos.y = g;
 
+        if (shakeAmp > 0.005f)
+        {   // 타격 흔들림 — 빠르게 감쇠
+            pos += Random.insideUnitSphere * shakeAmp;
+            shakeAmp *= Mathf.Pow(0.0005f, Time.deltaTime);
+        }
         transform.position = pos;
         transform.LookAt(look + Vector3.up * lookUp);
     }
