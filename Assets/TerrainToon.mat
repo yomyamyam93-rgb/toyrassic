@@ -1,0 +1,76 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!21 &2100000
+Material:
+  serializedVersion: 8
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_Name: TerrainToon
+  m_Shader: {fileID: 4800000, guid: 4cbbf4d74d8734c40ac530f191e08ec4, type: 3}
+  m_Parent: {fileID: 0}
+  m_ModifiedSerializedProperties: 0
+  m_ValidKeywords: []
+  m_InvalidKeywords: []
+  m_LightmapFlags: 4
+  m_EnableInstancingVariants: 0
+  m_DoubleSidedGI: 0
+  m_CustomRenderQueue: -1
+  stringTagMap: {}
+  disabledShaderPasses: []
+  m_LockedProperties: 
+  m_SavedProperties:
+    serializedVersion: 3
+    m_TexEnvs:
+    - _Control0:
+        m_Texture: {fileID: 5815485061253323789, guid: 8afaec49be18b3d4dac1a36d8bcd4d7d, type: 2}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _Control1:
+        m_Texture: {fileID: -1511269670569006006, guid: 8afaec49be18b3d4dac1a36d8bcd4d7d, type: 2}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _L0:
+        m_Texture: {fileID: 2800000, guid: 7c2327b9324f5354581f7f83cd16b2c9, type: 2}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _L1:
+        m_Texture: {fileID: 2800000, guid: e6cb17bc1b75a3046a2cb045fdd57e3e, type: 2}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _L2:
+        m_Texture: {fileID: 2800000, guid: e81df979cef2a7346b89fd38cdd9ecff, type: 3}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _L3:
+        m_Texture: {fileID: 2800000, guid: 93f95b004b327204fa2ec161e4c1b06e, type: 3}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _L4:
+        m_Texture: {fileID: 2800000, guid: 18f6b21d79ed04043b47f4ed7a588811, type: 3}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _L5:
+        m_Texture: {fileID: 2800000, guid: 7704afef323f0ce42b51199b6eeb46d1, type: 2}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _L6:
+        m_Texture: {fileID: 2800000, guid: 6218c807ae2b33945b4bab2abd0ae863, type: 3}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _L7:
+        m_Texture: {fileID: 2800000, guid: b94808129f5a2b9479e848c019dc9b20, type: 2}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    m_Ints: []
+    m_Floats:
+    - _CliffDark: 0.25
+    - _CliffTile: 18
+    - _WorldMin: 0
+    - _WorldSize: 6000
+    m_Colors:
+    - _TileA: {r: 20, g: 20, b: 20, a: 20}
+    - _TileB: {r: 24, g: 20, b: 50, a: 20}
+  m_BuildTextureStacks: []
+  m_AllowLocking: 1

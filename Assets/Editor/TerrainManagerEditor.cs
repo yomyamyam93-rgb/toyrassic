@@ -253,9 +253,33 @@ public class TerrainManagerEditor : Editor
         return dst;
     }
 
+    /// 툰 지형 재질(트라이플래너 절벽)에 스플랫·타일 연결
+    public static void WireTerrainToon(TerrainManager tm)
+    {
+        var t = tm.terrain; var td = t.terrainData;
+        var mat = t.materialTemplate;
+        if (mat == null || mat.shader == null || mat.shader.name != "Toyrassic/TerrainToon") return;
+        var ctrl = td.alphamapTextures; var layers = td.terrainLayers;
+        Vector4 ta = Vector4.one * 30f, tb = Vector4.one * 30f;
+        for (int i = 0; i < 8 && i < layers.Length; i++)
+        {
+            float tv = layers[i] != null ? Mathf.Max(0.01f, layers[i].tileSize.x) : 30f;
+            if (i < 4) ta[i] = tv; else tb[i - 4] = tv;
+        }
+        mat.SetTexture("_Control0", ctrl.Length > 0 ? ctrl[0] : null);
+        mat.SetTexture("_Control1", ctrl.Length > 1 ? ctrl[1] : null);
+        for (int i = 0; i < 8; i++)
+            mat.SetTexture("_L" + i, i < layers.Length && layers[i] != null ? layers[i].diffuseTexture : null);
+        mat.SetVector("_TileA", ta); mat.SetVector("_TileB", tb);
+        mat.SetFloat("_WorldMin", t.transform.position.x);
+        mat.SetFloat("_WorldSize", td.size.x);
+        EditorUtility.SetDirty(mat);
+    }
+
     // 잔디 재질 연결 갱신 (잔디 매니저의 것을 재사용)
     static void WireGrass(TerrainManager tm)
     {
+        WireTerrainToon(tm);   // 지형 툰 재질도 같이 갱신
         var gm = Object.FindFirstObjectByType<GrassManager>();
         if (gm == null || gm.terrain == null) return;
         var mi = typeof(GrassManagerEditor).GetMethod("WireTerrainSplat",
