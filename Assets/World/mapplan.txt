@@ -1,6 +1,6 @@
 CELL 104
 SIZE 81
-LANDBB 6 6 71 74
+ALIGN 0 -2 81
 M 47 23 start
 M 61 57 village
 M 30 30 village
