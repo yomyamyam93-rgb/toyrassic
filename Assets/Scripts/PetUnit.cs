@@ -41,6 +41,7 @@ public class PetUnit : MonoBehaviour
     float flashT;
     [HideInInspector] public float slowT;            // ⚡번개 전용 슬로우
     float airT, airDur, airHeight, airY;             // 금속 광역의 에어본
+    float strikeT;                                   // 타격 지연 — 모션 절정에 데미지
     float jumpT; Vector3 jumpFrom, jumpTo;           // 돌 점프 내려찍기
     int burstLeft; float burstT;                     // 나무 3연타
     PetMotion motion;
@@ -73,9 +74,9 @@ public class PetUnit : MonoBehaviour
     float AtkPeriod => (mat == Mat.Metal ? 3.2f : mat == Mat.Stone ? 3.4f : mat == Mat.Wood ? 2.3f
                       : mat == Mat.Fire ? 3.0f : mat == Mat.Water ? 2.6f : 1.7f)
                        / (1f + agi * 0.010f);
-    float Damage => str * (mat == Mat.Metal ? 0.95f : mat == Mat.Stone ? 1.05f : mat == Mat.Wood ? 0.45f
-                         : mat == Mat.Fire ? 1.8f : mat == Mat.Lightning ? 0.8f : 0f);
-    float HealAmt => intel * 2.2f;                   // 물 회복량 = 지력
+    float Damage => mat == Mat.Water ? intel * 1.4f   // 💧물 = 지력 마법딜 (물대포)
+                  : str * (mat == Mat.Metal ? 0.95f : mat == Mat.Stone ? 1.05f : mat == Mat.Wood ? 0.45f
+                         : mat == Mat.Fire ? 1.8f : 0.8f);
     float MoveSpd => (3.2f + agi * 0.05f) * (0.5f + body * 0.10f) * (slowT > 0f ? 0.55f : 1f);
     float AtkRange => mat == Mat.Metal ? body * 0.95f + 1f
                     : mat == Mat.Stone ? body * 2.2f
@@ -128,6 +129,13 @@ public class PetUnit : MonoBehaviour
             return;
         }
 
+        // 타격 지연 — 모션이 앞으로 콱 굽는 절정 순간에 데미지 (치고 나서 굽는 버그 수정)
+        if (strikeT > 0f)
+        {
+            strikeT -= Time.deltaTime;
+            if (strikeT <= 0f) DoStrike();
+        }
+
         // 주기적 재타겟 (탱커 어그로 갈아타기 포함)
         retargetT -= Time.deltaTime;
         if (retargetT <= 0f) { retargetT = 0.8f; var nt = FindTarget(); if (nt != null) target = nt; }
@@ -164,18 +172,6 @@ public class PetUnit : MonoBehaviour
 
     PetUnit FindTarget()
     {
-        if (mat == Mat.Water)
-        {   // 💧물: 제일 다친 아군 (자신 제외)
-            PetUnit best = null; float worst = 0.999f;
-            foreach (var u in All)
-            {
-                if (u == this || !u.Alive || u.team != team) continue;
-                if (Dist(u.transform.position) > AggroRange * 1.6f) continue;
-                float frac = u.hp / u.maxHp;
-                if (frac < worst) { worst = frac; best = u; }
-            }
-            return best;
-        }
         PetUnit near = null; float bd = AggroRange;
         PetUnit taunt = null; float td = TauntRange;
         foreach (var u in All)
@@ -220,19 +216,14 @@ public class PetUnit : MonoBehaviour
 
         switch (mat)
         {
-            case Mat.Metal:   // 우우우웅.. 쾅! — 광역, 넉백 없음, 살짝 에어본
-            {
-                float aoe = body * 1.15f;
-                FX.Burst(transform.position, new Color(0.9f, 0.92f, 1f, 0.9f), 18, body * 0.09f, body * 0.5f);
-                FollowCam.Shake(body * 0.02f);
-                foreach (var u in EnemiesWithin(aoe))
-                    if (TryHit(u, Damage)) u.Airborne(0.4f, u.body * 0.12f);   // 붕 떴다 쿵
+            case Mat.Metal:   // 우우우웅.. 쾅! — 타격은 모션 절정(0.09초 뒤)에
+                strikeT = 0.09f;
                 break;
-            }
             case Mat.Stone:   // 점프 → 내려찍기 (착지 때 광역+넉백)
                 jumpT = 1f;
                 jumpFrom = transform.position;
-                jumpTo = target.transform.position;
+                // ★적 몸 위가 아니라 '앞'에 착지 — 겹침 밀림 방지 (밀치기는 넉백 한 번만)
+                jumpTo = target.transform.position - dir.normalized * (body * 0.55f + target.body * 0.35f);
                 break;
 
             case Mat.Wood:    // 잎사귀 3연타 타타탁 (회전하며)
@@ -246,19 +237,38 @@ public class PetUnit : MonoBehaviour
                          new Color(2.0f, 1.1f, 0.3f, 0.9f), 10, body * 0.06f, body * 0.3f);
                 break;
 
-            case Mat.Water:   // 아군에게 물방울 = 회복
-                PetProjectile.Throw(this, target, HealAmt, true,
-                    new Color(0.4f, 0.75f, 1.6f), body * 0.10f, 0.5f, body * 0.3f);
+            case Mat.Water:   // 물대포 — 지력 마법딜 + 물살로 밀어냄
+                PetProjectile.Throw(this, target, Damage, false,
+                    new Color(0.4f, 0.75f, 1.6f), body * 0.12f, 0.45f, body * 0.2f,
+                    target.body * 0.18f);                         // ★넉백
                 break;
 
-            case Mat.Lightning: // 단일 평타 + 슬로우 (전용)
-                if (TryHit(target, Damage)) target.slowT = 1.6f;
-                FX.Bolt(transform.position + Vector3.up * body * 0.35f,
-                        target.transform.position + Vector3.up * target.body * 0.3f,
-                        new Color(1.8f, 2.3f, 3.2f), body * 0.02f);
+            case Mat.Lightning: // 단일 평타 + 슬로우 — 타격은 모션 절정에
+                strikeT = 0.08f;
                 lungeT = 1f; lungeFrom = transform.position;
                 lungeTo = transform.position + dir.normalized * (body * 0.15f);
                 break;
+        }
+    }
+
+    // 지연 타격 실행 — 금속 쾅 / 번개 지짓 (모션 절정과 동기)
+    void DoStrike()
+    {
+        if (dead) return;
+        if (mat == Mat.Metal)
+        {
+            float aoe = body * 1.15f;
+            FX.Burst(transform.position, new Color(0.9f, 0.92f, 1f, 0.9f), 18, body * 0.09f, body * 0.5f);
+            FollowCam.Shake(body * 0.02f);
+            foreach (var u in EnemiesWithin(aoe))
+                if (TryHit(u, Damage)) u.Airborne(0.4f, u.body * 0.12f);
+        }
+        else if (mat == Mat.Lightning && target != null && target.Alive)
+        {
+            if (TryHit(target, Damage)) target.slowT = 1.6f;
+            FX.Bolt(transform.position + Vector3.up * body * 0.35f,
+                    target.transform.position + Vector3.up * target.body * 0.3f,
+                    new Color(1.8f, 2.3f, 3.2f), body * 0.02f);
         }
     }
 
@@ -276,9 +286,10 @@ public class PetUnit : MonoBehaviour
     {
         jumpT -= Time.deltaTime / 0.45f;
         float k = 1f - Mathf.Clamp01(jumpT);
-        var p = Vector3.Lerp(jumpFrom, jumpTo, k);
+        float kh = k * k * (3f - 2f * k);                               // 수평: 가속-감속 S곡선
+        var p = Vector3.Lerp(jumpFrom, jumpTo, kh);
         transform.position = new Vector3(p.x, transform.position.y, p.z);
-        airY = Mathf.Sin(k * Mathf.PI) * body * 0.45f;
+        airY = Mathf.Sin(Mathf.Pow(k, 1.6f) * Mathf.PI) * body * 0.45f; // 수직: 붕 떠서 마지막에 콰앙 내리꽂힘
         var d2 = jumpTo - jumpFrom; d2.y = 0; Face(d2);
         if (jumpT <= 0f)
         {
@@ -478,10 +489,10 @@ public class PetUnit : MonoBehaviour
 /// 투사체 — 잎/불덩이/힐 물방울 공용. heal=true 면 아군 회복
 public class PetProjectile : MonoBehaviour
 {
-    PetUnit target; float amt, dur, arc, t; Vector3 from; bool heal;
+    PetUnit target; float amt, dur, arc, t, push; Vector3 from; bool heal;
     PetUnit owner;
 
-    public static void Throw(PetUnit owner, PetUnit target, float amt, bool heal, Color c, float size, float dur, float arc)
+    public static void Throw(PetUnit owner, PetUnit target, float amt, bool heal, Color c, float size, float dur, float arc, float push = 0f)
     {
         var g = GameObject.CreatePrimitive(PrimitiveType.Sphere);
         g.name = heal ? "proj_heal" : "proj";
@@ -492,7 +503,7 @@ public class PetProjectile : MonoBehaviour
         mr.material = new Material(Shader.Find("Universal Render Pipeline/Lit"));
         mr.material.color = c;
         var p = g.AddComponent<PetProjectile>();
-        p.owner = owner; p.target = target; p.amt = amt; p.dur = dur; p.arc = arc; p.heal = heal;
+        p.owner = owner; p.target = target; p.amt = amt; p.dur = dur; p.arc = arc; p.heal = heal; p.push = push;
         p.from = g.transform.position;
     }
 
@@ -510,6 +521,11 @@ public class PetProjectile : MonoBehaviour
             else if (Random.value >= Mathf.Min(0.35f, target.agi * 0.008f))
             {
                 target.TakeDamage(amt); target.OnHit();
+                if (push > 0f)
+                {   // 💧물살 밀치기 — 날아온 방향으로
+                    var pd = (target.transform.position - from); pd.y = 0;
+                    if (pd.sqrMagnitude > 1e-4f) target.transform.position += pd.normalized * push;
+                }
                 FX.Burst(transform.position, GetComponent<MeshRenderer>().material.color,
                          8, target.body * 0.06f, target.body * 0.4f);
             }

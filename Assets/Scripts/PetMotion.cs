@@ -76,7 +76,7 @@ public class PetMotion : MonoBehaviour
     // 크기 보정 템포: 작으면 촐랑, 크면 쿵... 쿵...
     float BreathRate => 1.8f / sizeK * tempo;      // 10m 몸 ≈ 0.7Hz
     float StepRate   => 5.5f / sizeK * tempo;      // 10m 몸 ≈ 2.1Hz (묵직한 발걸음)
-    float PunchSpeed => 3.5f / sizeK * tempo;      // 거수는 천천히 조였다 콱
+    float PunchSpeed => 6.0f / Mathf.Sqrt(sizeK) * tempo;   // 펀치는 큰 몸도 빠르게 (타격 순간 절정)
 
     /// 공격 순간 호출
     public void Punch() { punch = 1f; }
@@ -100,7 +100,9 @@ public class PetMotion : MonoBehaviour
         // ── 스쿼시&스트레치 (부피 보존) + 공격 펀치 + 피격 움찔 ──
         punch = Mathf.MoveTowards(punch, 0f, PunchSpeed * dt);
         flinch = Mathf.MoveTowards(flinch, 0f, 5f * dt);
-        float pk = Mathf.Sin(Mathf.Pow(Mathf.Clamp01(punch), 0.7f) * Mathf.PI);   // 콱! 하고 서서히 풀림
+        // 가속 곡선: 발동 직후(~0.07초)에 절정 팍! → 천천히 복귀. 타격 순간과 동기
+        float ppr = 1f - Mathf.Clamp01(punch);
+        float pk = Mathf.Sin(Mathf.Pow(ppr, 0.45f) * Mathf.PI);
         float fl = Mathf.Sin(Mathf.Clamp01(flinch) * Mathf.PI);
         float walkSquish = Mathf.Sin(t * Mathf.PI * 2f) * 0.03f * speed01;
         float breathe = breathAmp * Mathf.Sin(t * Mathf.PI * 2f) * (1f - speed01);
