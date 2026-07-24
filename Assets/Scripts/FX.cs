@@ -16,6 +16,7 @@ public static class FX
         var go = new GameObject("fx_burst");
         go.transform.position = pos;
         var ps = go.AddComponent<ParticleSystem>();
+        ps.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);   // 설정 전 정지 (재생 중 설정 에러 방지)
         var main = ps.main;
         main.duration = 0.2f; main.loop = false;
         main.startLifetime = life;
@@ -89,6 +90,7 @@ public class FxSwingTrail : MonoBehaviour
         var go = new GameObject("fx_swingtrail");
         go.transform.position = center;
         var ps = go.AddComponent<ParticleSystem>();
+        ps.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);   // 설정 전 정지
         var main = ps.main;
         main.loop = false; main.playOnAwake = false;
         main.simulationSpace = ParticleSystemSimulationSpace.World;
