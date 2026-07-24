@@ -32,7 +32,7 @@ Material:
     - _Bright: 1.32
     - _CenterDark: 0.66
     - _Contrast: 0.94
-    - _DepthFade: 5.77
+    - _DepthFade: 2
     - _EdgeAlpha: 0.09
     - _Flow: 0.13
     - _FoamEdge: 0.98

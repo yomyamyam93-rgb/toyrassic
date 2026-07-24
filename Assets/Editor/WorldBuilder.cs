@@ -67,6 +67,13 @@ public static class WorldBuilder
         DoWater(terrain);
 
         var td = terrain.terrainData;
+
+        // ★뭉개짐 해결 — 유니티 지형은 'Base Map Distance' 밖은 저해상 흐린 합성본으로 그린다.
+        //   기본 1000m 라 6km 지형은 대부분 흐리게 나왔다 → 지형 전체 크기로 올려 끝까지 선명하게.
+        terrain.basemapDistance = Mathf.Max(td.size.x, td.size.z) * 1.2f;
+        terrain.heightmapPixelError = 1f;               // 낮을수록 지형 실루엣 선명(기본 1~5)
+        if (td.baseMapResolution < 2048) td.baseMapResolution = 2048;
+
         terrain.Flush();
         EditorUtility.SetDirty(td);
         EditorUtility.SetDirty(terrain);
