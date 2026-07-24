@@ -652,9 +652,32 @@ public static class WorldBuilder
         Vector3 tSize = td.size;
         Vector3 center = tOrigin + new Vector3(tSize.x * 0.5f, 0f, tSize.z * 0.5f);
 
-        // 해수면 높이: 기존에 작가가 잡아둔 y 를 존중(그대로 둔다). XZ 만 지형 중앙으로.
-        float seaY = ocean.transform.position.y;
+        // ★해수면 높이를 지형에서 직접 측정한다 (작가값 y 는 못 믿음 — 그래서 물이 땅밑에 깔렸었다).
+        //  해변(모래) 높이가 곧 물가. 모래 셀들의 높이 중앙값에 물을 맞추면 해안선에 자연스럽게 찰랑인다.
+        const int N = 160;
+        float hMin = float.MaxValue, hMax = float.MinValue;
+        var beach = new List<float>();
+        for (int y = 0; y < N; y++)
+        for (int x = 0; x < N; x++)
+        {
+            float fx = (float)x / (N - 1), fz = (float)y / (N - 1);
+            float h = tOrigin.y + td.GetInterpolatedHeight(fx, fz);
+            if (h < hMin) hMin = h;
+            if (h > hMax) hMax = h;
+            if (SandAmount(td, fx, fz) > 0.35f) beach.Add(h);
+        }
+        float seaY;
+        if (beach.Count > 20)
+        {
+            beach.Sort();
+            seaY = beach[beach.Count * 40 / 100];        // 해변 높이 하위 40% = 물가 라인
+        }
+        else
+        {
+            seaY = hMin + (hMax - hMin) * 0.06f;          // 모래가 거의 없으면 최저점 살짝 위
+        }
         ocean.transform.position = new Vector3(center.x, seaY, center.z);
+        Debug.Log($"[월드] 해수면 측정 — 지형높이 {hMin:F1}~{hMax:F1}m, 모래셀 {beach.Count}개 → 물 y={seaY:F1}");
 
         // 맵 전체(+여유 20%)를 덮도록 스케일 자동 보정. 메시 기본 크기를 렌더러 bounds 로 역산.
         var rend = ocean.GetComponentInChildren<Renderer>();
