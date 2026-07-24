@@ -5,9 +5,27 @@ using UnityEngine;
 [DisallowMultipleComponent]
 public class FxBodyFlames : MonoBehaviour
 {
-    public float rate = 110f;         // 초당 불꽃 수 (업계식: 겹겹이 많이)
-    public float flameSize = 0.15f;   // 몸높이 대비 불꽃 크기
-    public float riseSpeed = 0.35f;   // 몸높이 대비 상승 속도
+    [Header("불꽃 양·크기")]
+    [Range(10f, 5000f)] public float rate = 800f;          // 초당 불꽃 수
+    [Range(0.01f, 0.4f)] public float flameSize = 0.055f;  // 몸높이 대비 크기
+    [Range(0f, 1f)] public float sizeJitter = 0.55f;       // 크기 들쭉날쭉
+
+    [Header("불꽃 움직임 (불규칙)")]
+    [Range(0.05f, 1.5f)] public float riseSpeed = 0.35f;   // 상승 속도 (몸높이 비)
+    [Range(0f, 1f)] public float riseJitter = 0.6f;        // 상승 불규칙 (0=균일)
+    [Range(0f, 0.5f)] public float sway = 0.12f;           // 좌우 흔들림(난류) 세기
+    [Range(0.1f, 3f)] public float swayFreq = 0.7f;        // 난류 빠르기
+
+    [Header("불꽃 수명 (사라짐 불규칙)")]
+    [Range(0.05f, 1.5f)] public float lifeMin = 0.2f;
+    [Range(0.1f, 2.5f)] public float lifeMax = 0.65f;
+
+    [Header("불티")]
+    [Range(0f, 200f)] public float emberRate = 12f;
+    [Range(0.005f, 0.1f)] public float emberSize = 0.02f;
+
+    [Header("재질 (불꽃 색·세기는 이 재질 탭에서)")]
+    public Material flameMat;                               // 비우면 자동 생성
 
     ParticleSystem ps;
     Vector3[] verts; Vector3[] norms;
@@ -47,12 +65,13 @@ public class FxBodyFlames : MonoBehaviour
         // ── ① 불꽃 본체: 침식 불꽃 셰이더(FlameCard) — 노이즈가 알파를 갉아 날름거림 ──
         ps = NewPS("fx_flames", null, true);
         var pr2 = ps.GetComponent<ParticleSystemRenderer>();
-        pr2.material = new Material(Shader.Find("Toyrassic/FlameCard"));
+        pr2.material = flameMat != null ? flameMat : new Material(Shader.Find("Toyrassic/FlameCard"));
         var main = ps.main;
-        main.startSpeed = 0f; main.maxParticles = 1500;
+        main.startSpeed = 0f;
+        main.maxParticles = Mathf.Clamp(Mathf.CeilToInt(rate * lifeMax * 1.6f), 500, 12000);
         var noise = ps.noise; noise.enabled = true;                 // 난류 — 흔들리며 상승
-        noise.strength = new ParticleSystem.MinMaxCurve(bodyH * 0.10f);
-        noise.frequency = 0.6f; noise.scrollSpeed = 0.8f;
+        noise.strength = new ParticleSystem.MinMaxCurve(bodyH * sway);
+        noise.frequency = swayFreq; noise.scrollSpeed = 0.8f;
         var col = ps.colorOverLifetime; col.enabled = true;         // 알파 = 침식 구동 (색은 셰이더가)
         var grad = new Gradient();
         grad.SetKeys(new[] { new GradientColorKey(Color.white, 0f), new GradientColorKey(Color.white, 1f) },
@@ -202,12 +221,22 @@ public class FxBodyFlames : MonoBehaviour
 
     float emberAcc;
 
+    void OnValidate()
+    {   // 슬라이더 움직이면 플레이 중에도 즉시 반영
+        if (ps == null) return;
+        var n = ps.noise;
+        n.strength = new ParticleSystem.MinMaxCurve(bodyH * sway);
+        n.frequency = swayFreq;
+        var mn = ps.main;
+        mn.maxParticles = Mathf.Clamp(Mathf.CeilToInt(rate * lifeMax * 1.6f), 500, 12000);
+    }
+
     void Update()
     {
         if (ps == null || verts == null) return;
 
         // 불티 — 뜨거운 정점에서 가끔 튀어오름
-        emberAcc += Time.deltaTime * 10f;
+        emberAcc += Time.deltaTime * emberRate;
         if (embers != null && emberAcc >= 1f)
         {
             for (int tr = 0; tr < 25 && emberAcc >= 1f; tr++)
@@ -220,7 +249,7 @@ public class FxBodyFlames : MonoBehaviour
                 {
                     position = wp2,
                     velocity = Vector3.up * bodyH * Random.Range(0.35f, 0.7f),
-                    startSize = bodyH * Random.Range(0.012f, 0.028f),
+                    startSize = bodyH * emberSize * Random.Range(0.6f, 1.4f),
                     startLifetime = Random.Range(0.8f, 1.6f),
                     startColor = new Color(2.4f, Random.Range(0.6f, 1.1f), 0.12f, 1f)   // 주황~붉은 HDR 불티
                 }, 1);
@@ -239,14 +268,16 @@ public class FxBodyFlames : MonoBehaviour
             acc -= 1f;
             var wp = transform.TransformPoint(verts[vi]);
             var wn = transform.TransformDirection(norms != null && vi < norms.Length ? norms[vi] : Vector3.up);
+            float jr = Mathf.Max(0.02f, 1f - riseJitter);
             var ep = new ParticleSystem.EmitParams
             {
                 position = wp + wn.normalized * bodyH * 0.01f,
-                velocity = Vector3.up * bodyH * riseSpeed * Random.Range(0.7f, 1.3f)
-                         + wn.normalized * bodyH * 0.05f,
-                startSize = bodyH * flameSize * Random.Range(0.6f, 1.3f),
-                startLifetime = Random.Range(0.35f, 0.7f),
-                startColor = new Color(2.0f, 1.2f, 0.25f, 0.95f),
+                velocity = Vector3.up * bodyH * riseSpeed * Random.Range(jr, 1f + riseJitter)   // 불규칙 상승
+                         + new Vector3(Random.Range(-1f, 1f), 0, Random.Range(-1f, 1f)) * bodyH * 0.03f
+                         + wn.normalized * bodyH * 0.04f,
+                startSize = bodyH * flameSize * Random.Range(1f - sizeJitter, 1f + sizeJitter),
+                startLifetime = Random.Range(lifeMin, lifeMax),                                  // 불규칙 소멸
+                startColor = Color.white,
                 rotation = Random.Range(0f, 360f)
             };
             ps.Emit(ep, 1);

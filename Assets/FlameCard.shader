@@ -6,6 +6,9 @@ Shader "Toyrassic/FlameCard"
     Properties
     {
         _Intensity ("HDR 세기", Float) = 1.6
+        _ColCore ("심지 색 (아래, HDR)", Color) = (1.7, 1.45, 0.75, 1)
+        _ColMid ("중간 색", Color) = (1.5, 0.5, 0.08, 1)
+        _ColTip ("끝 색 (위)", Color) = (0.9, 0.12, 0.02, 1)
     }
     SubShader
     {
@@ -21,6 +24,7 @@ Shader "Toyrassic/FlameCard"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
 
             float _Intensity;
+            half4 _ColCore, _ColMid, _ColTip;
 
             struct A { float4 positionOS:POSITION; float2 uv:TEXCOORD0; half4 color:COLOR; };
             struct V { float4 positionCS:SV_POSITION; float2 uv:TEXCOORD0; half4 color:COLOR; };
@@ -58,9 +62,9 @@ Shader "Toyrassic/FlameCard"
                 float erode = (1 - i.color.a) * 0.5 + 0.18;
                 float a = smoothstep(erode, erode + 0.22, mask * (0.35 + 0.75 * n));
 
-                // 색: 아래 백황 심지 → 주황 → 위 검붉음 (HDR)
-                half3 c = lerp(half3(1.7, 1.45, 0.75), half3(1.5, 0.5, 0.08), saturate(v * 1.3));
-                c = lerp(c, half3(0.9, 0.12, 0.02), saturate((v - 0.55) * 2.2));
+                // 색: 아래 심지 → 중간 → 위 (재질 탭에서 조절)
+                half3 c = lerp(_ColCore.rgb, _ColMid.rgb, saturate(v * 1.3));
+                c = lerp(c, _ColTip.rgb, saturate((v - 0.55) * 2.2));
                 return half4(c * _Intensity * i.color.rgb, a * i.color.a);
             }
             ENDHLSL

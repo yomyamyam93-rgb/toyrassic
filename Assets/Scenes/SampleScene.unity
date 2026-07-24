@@ -11915,9 +11915,18 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: c860a466c27627343b938c017b036779, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::FxBodyFlames
-  rate: 110
-  flameSize: 0.15
+  rate: 800
+  flameSize: 0.055
+  sizeJitter: 0.55
   riseSpeed: 0.35
+  riseJitter: 0.6
+  sway: 0.12
+  swayFreq: 0.7
+  lifeMin: 0.2
+  lifeMax: 0.65
+  emberRate: 12
+  emberSize: 0.02
+  flameMat: {fileID: 2100000, guid: a6b0b5f0047abd94d83bf977d98852f9, type: 2}
 --- !u!1 &642329116
 GameObject:
   m_ObjectHideFlags: 0
