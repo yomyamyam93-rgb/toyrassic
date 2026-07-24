@@ -269,21 +269,28 @@ public static class WorldBuilder
             return 0;
         }
 
+        // 야자수 프로토타입 확보(없으면 palmtree 프리팹 추가) → 육지 나무 / 해안 야자수 분리
+        EnsurePalms(td);
+        protos = td.treePrototypes;
+        var palmIdx = new List<int>(); var landIdx = new List<int>();
+        for (int i = 0; i < protos.Length; i++)
+        {
+            string nm = protos[i].prefab != null ? protos[i].prefab.name.ToLower() : "";
+            if (nm.Contains("palm")) palmIdx.Add(i); else landIdx.Add(i);
+        }
+
         var size = td.size;
         var origin = terrain.transform.position;
         float maxH = size.y * MaxHeightFrac;
         var rnd = new System.Random(20260724);
         var list = new List<TreeInstance>();
 
-        // ★마인크래프트/스타듀식 함수 배치 — 세 층을 합친다:
-        //   ① 넓은 저주파 노이즈 = 숲/들판의 큰 구분 (어디가 숲이 될 땅인가)
-        //   ② 군집 중심 = 빽빽한 숲 덩어리 (가우시안 봉우리 여러 개)
-        //   ③ 어디서나 낮은 확률 = 홑나무 흩뿌림 (허전한 벌판 방지)
-        const int NCLUST = 16;
-        var cx = new float[NCLUST]; var cz = new float[NCLUST]; var cr = new float[NCLUST];
-        for (int c = 0; c < NCLUST; c++) { cx[c] = (float)rnd.NextDouble(); cz[c] = (float)rnd.NextDouble(); cr[c] = 0.035f + (float)rnd.NextDouble() * 0.06f; }
+        // ★숲/평야 강한 대비 — 저주파 '바이옴' 노이즈로 큰 덩어리를 나누고, 그 위에 군집.
+        //   plains = 거의 빈 벌판(홑나무 1~2%), forest = 빽빽, 사이는 그라데이션.
+        const int NCLUST = 18;
+        var ccx = new float[NCLUST]; var ccz = new float[NCLUST]; var ccr = new float[NCLUST];
+        for (int c = 0; c < NCLUST; c++) { ccx[c] = (float)rnd.NextDouble(); ccz[c] = (float)rnd.NextDouble(); ccr[c] = 0.03f + (float)rnd.NextDouble() * 0.05f; }
 
-        // 군집 안은 촘촘히 뿌릴 수 있게 격자를 조금 곱게
         float spacing = TreeSpacing * 0.7f;
         int cols = Mathf.Max(1, (int)(size.x / spacing)), rows = Mathf.Max(1, (int)(size.z / spacing));
 
@@ -294,39 +301,71 @@ public static class WorldBuilder
             float fz = (j + 0.5f + ((float)rnd.NextDouble() - 0.5f) * TreeJitter) / rows;
             if (fx <= 0f || fx >= 1f || fz <= 0f || fz >= 1f) continue;
 
-            float wx = origin.x + fx * size.x, wz = origin.z + fz * size.z;
-            // ① 넓은 숲/들판 (0.3~0.7 에 몰리는 Perlin 을 펴서)
-            float broad = Mathf.InverseLerp(0.40f, 0.66f, Mathf.PerlinNoise(wx * ForestScale + 1000f, wz * ForestScale + 1000f));
-            // ② 군집 봉우리 (가장 가까운 중심의 가우시안)
-            float clust = 0f;
-            for (int c = 0; c < NCLUST; c++)
-            {
-                float dx = fx - cx[c], dz = fz - cz[c];
-                clust = Mathf.Max(clust, Mathf.Exp(-(dx * dx + dz * dz) / (cr[c] * cr[c])));
-            }
-            // 밀도 = 숲(약) 이거나 군집(강) 중 큰 쪽, + 홑나무 바닥확률
-            float dens = Mathf.Max(broad * 0.55f, clust);
-            float p = dens * 0.85f + 0.05f;
-            if ((float)rnd.NextDouble() > p) continue;
-
             float h = td.GetInterpolatedHeight(fx, fz);
             if (h < MinHeight || h > maxH) continue;
             if (Vector3.Angle(td.GetInterpolatedNormal(fx, fz), Vector3.up) > TreeMaxSlope) continue;
             if (OnRoad(td, fx, fz)) continue;
 
-            list.Add(new TreeInstance {
-                position = new Vector3(fx, h / size.y, fz),
-                prototypeIndex = rnd.Next(protos.Length),
-                widthScale = 0.8f + (float)rnd.NextDouble() * 0.55f,
-                heightScale = 0.8f + (float)rnd.NextDouble() * 0.6f,
-                rotation = (float)rnd.NextDouble() * Mathf.PI * 2f,
-                color = Color.white, lightmapColor = Color.white,
-            });
+            float wx = origin.x + fx * size.x, wz = origin.z + fz * size.z;
+            float sand = SandAmount(td, fx, fz);
+
+            // ── 해안(모래): 일반 나무 금지, 야자수만 드문드문 ──
+            if (sand > 0.3f)
+            {
+                if (palmIdx.Count == 0) continue;
+                if ((float)rnd.NextDouble() > 0.05f) continue;         // 해안선에 야자수 성기게
+                list.Add(MakeTree(palmIdx[rnd.Next(palmIdx.Count)], fx, h / size.y, fz, rnd, 0.9f, 0.35f));
+                continue;
+            }
+
+            // ── 내륙: 숲/평야 대비 ──
+            if (landIdx.Count == 0) continue;
+            // ① 바이옴(저주파) — 어디가 숲/평야인가. smoothstep 으로 대비를 세게.
+            float biomeN = Mathf.PerlinNoise(wx * 0.0006f + 40f, wz * 0.0006f + 40f);
+            float forest = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0.44f, 0.60f, biomeN));
+            // ② 숲 안 밀도 변화(중주파)
+            float med = Mathf.PerlinNoise(wx * 0.004f + 7f, wz * 0.004f + 7f);
+            // ③ 빽빽한 군집
+            float clust = 0f;
+            for (int c = 0; c < NCLUST; c++)
+            {
+                float dx = fx - ccx[c], dz = fz - ccz[c];
+                clust = Mathf.Max(clust, Mathf.Exp(-(dx * dx + dz * dz) / (ccr[c] * ccr[c])));
+            }
+            float dens = forest * (0.45f + 0.55f * med) + clust * 0.7f;
+            float p = dens * 0.9f + 0.012f;      // 평야도 1.2% 홑나무는 있음
+            if ((float)rnd.NextDouble() > p) continue;
+
+            list.Add(MakeTree(landIdx[rnd.Next(landIdx.Count)], fx, h / size.y, fz, rnd, 0.55f, 0.6f));
         }
         td.SetTreeInstances(list.ToArray(), true);
         terrain.treeDistance = Mathf.Max(terrain.treeDistance, 3000f);
         terrain.treeBillboardDistance = Mathf.Max(terrain.treeBillboardDistance, 200f);
         return list.Count;
+    }
+
+    static TreeInstance MakeTree(int proto, float fx, float fy, float fz, System.Random rnd, float wVar, float hVar)
+        => new TreeInstance {
+            position = new Vector3(fx, fy, fz), prototypeIndex = proto,
+            widthScale = 0.85f + (float)rnd.NextDouble() * wVar,
+            heightScale = 0.85f + (float)rnd.NextDouble() * hVar,
+            rotation = (float)rnd.NextDouble() * Mathf.PI * 2f,
+            color = Color.white, lightmapColor = Color.white,
+        };
+
+    /// 야자수 프로토타입이 없으면 palmtree 프리팹을 트리 프로토타입으로 추가한다.
+    static void EnsurePalms(TerrainData td)
+    {
+        var protos = new List<TreePrototype>(td.treePrototypes);
+        foreach (var p in protos) if (p.prefab != null && p.prefab.name.ToLower().Contains("palm")) return;
+        int added = 0;
+        for (int k = 1; k <= 4; k++)
+        {
+            var pf = AssetDatabase.LoadAssetAtPath<GameObject>($"Assets/Models/Prepared/palmtree_{k}.prefab")
+                  ?? AssetDatabase.LoadAssetAtPath<GameObject>($"Assets/Models/Nature/palmtree_{k}.glb");
+            if (pf != null) { protos.Add(new TreePrototype { prefab = pf }); added++; }
+        }
+        if (added > 0) { td.treePrototypes = protos.ToArray(); Debug.Log($"[월드] 야자수 프로토타입 {added}종 추가(해안용)."); }
     }
 
     /// ★잔디 색 매칭의 진짜 열쇠 — 지형 표면색을 구워서(bake) GrassGround 재질에 연결.
@@ -449,10 +488,10 @@ public static class WorldBuilder
                 float roadFade = Mathf.SmoothStep(1f, 0f, Mathf.InverseLerp(0.12f, 0.5f, dirt));
                 if (roadFade <= 0.02f) continue;
 
-                // 커버리지 넓힘(문턱 0.42→0.2) + 상한 상향 = 약 4배 빽빽
+                // 커버리지 거의 전면 + 상한 = 2배 더 빽빽 (문턱 0.20→0.05, 최소 8)
                 float d = Mathf.PerlinNoise(fx * 90f + layer * 37.7f, fz * 90f + layer * 37.7f);
-                if (d < 0.20f) continue;
-                float dens = Mathf.Lerp(4f, AMT_MAX, (d - 0.20f) / 0.80f) * GrassDensityMax;
+                if (d < 0.05f) continue;
+                float dens = Mathf.Lerp(8f, AMT_MAX, (d - 0.05f) / 0.95f) * GrassDensityMax;
                 int amt = Mathf.RoundToInt(dens * roadFade);   // 도로 근처는 성기게
                 if (amt <= 0) continue;
                 map[y, x] = Mathf.Min(AMT_MAX, amt);
@@ -678,10 +717,21 @@ public static class WorldBuilder
     static float DirtAmount(TerrainData td, float fx, float fz)
     {
         if (_dirtCache == -2) _dirtCache = FindLayer(td, "dirt", "drysoil");
-        if (_dirtCache < 0) return 0f;
+        return LayerAmount(td, _dirtCache, fx, fz);
+    }
+    static int _sandCache = -2;
+    /// 그 자리 모래(해안) 레이어 비중 0~1. 해안엔 일반 나무 대신 야자수.
+    static float SandAmount(TerrainData td, float fx, float fz)
+    {
+        if (_sandCache == -2) _sandCache = FindLayer(td, "sand", "beach");
+        return LayerAmount(td, _sandCache, fx, fz);
+    }
+    static float LayerAmount(TerrainData td, int layer, float fx, float fz)
+    {
+        if (layer < 0) return 0f;
         int x = Mathf.Clamp(Mathf.RoundToInt(fx * (td.alphamapWidth - 1)), 0, td.alphamapWidth - 1);
         int z = Mathf.Clamp(Mathf.RoundToInt(fz * (td.alphamapHeight - 1)), 0, td.alphamapHeight - 1);
-        return td.GetAlphamaps(x, z, 1, 1)[0, 0, _dirtCache];
+        return td.GetAlphamaps(x, z, 1, 1)[0, 0, layer];
     }
 
     static int FindLayer(TerrainData td, params string[] keys)
@@ -759,7 +809,7 @@ public static class WorldBuilder
             }
         }
         Debug.Log($"[월드] 격자 정렬 보정 {_align.x:+0;-0;0},{_align.y:+0;-0;0}칸 (하이트맵 실측, 일치도 0.72)");
-        _dirtCache = -2;
+        _dirtCache = -2; _sandCache = -2;
         return true;
     }
 }
