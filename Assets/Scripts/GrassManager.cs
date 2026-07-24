@@ -40,6 +40,13 @@ public class GrassManager : MonoBehaviour
     [Range(0f, 1.5f)] public float density = 0.85f;
     [Range(50f, 400f)] public float drawDistance = 250f;
 
+    // ── 경계 다듬기: 잔디가 길·모래와 만나는 가장자리 ──
+    [Range(0.02f, 0.5f)] public float edgeBand = 0.25f;    // 경계 페이드 폭
+    [Range(0f, 1f)] public float edgeDensity = 0.6f;       // 경계 개체수 배율
+    [Range(0.5f, 1f)] public float edgeSize = 0.8f;        // 경계 잔디 크기 배율
+    [Range(0f, 0.3f)] public float edgeJitter = 0.08f;     // 경계선 들쭉날쭉
+    [HideInInspector] public int edgeProtoCount = 0;       // 내부용: 자동 생성된 경계 프로토 수
+
     // ── 경사·높이로 지우기 ──
     [Range(0f, 60f)] public float maxSlope = 34f;
     public float minHeight = 2f;

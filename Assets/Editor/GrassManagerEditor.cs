@@ -7,7 +7,7 @@ using UnityEngine;
 [InitializeOnLoad]
 public class GrassManagerEditor : Editor
 {
-    static bool fTypes = true, fLayers = true, fDensity, fRemove, fColor;
+    static bool fTypes = true, fLayers = true, fDensity, fEdge, fRemove, fColor;
 
     // ── 자동 적용: 슬라이더에서 손을 뗀 뒤 0.5초 지나면 한 번만 다시 심는다 ──
     static GrassManager pending;
@@ -48,7 +48,7 @@ public class GrassManagerEditor : Editor
         if (fTypes)
         {
             EditorGUILayout.HelpBox("Active OFF = 적용 시 그 종류는 안 심음. Weight = 출현량, Size = 크기.", MessageType.None);
-            if (gm.types.Length != td.detailPrototypes.Length)
+            if (gm.types.Length != td.detailPrototypes.Length - Mathf.Max(0, gm.edgeProtoCount))
                 EditorGUILayout.HelpBox("지형 종류 수와 안 맞음 — 아래 '종류 불러오기'를 누를 것.", MessageType.Warning);
             int removeIdx = -1;
             for (int i = 0; i < gm.types.Length; i++)
@@ -112,6 +112,17 @@ public class GrassManagerEditor : Editor
         {
             gm.density = EditorGUILayout.Slider("전체 밀도", gm.density, 0f, 1.5f);
             gm.drawDistance = EditorGUILayout.Slider("그리기 거리(m)", gm.drawDistance, 50f, 400f);
+        }
+        EditorGUILayout.EndFoldoutHeaderGroup();
+
+        // ── 경계 다듬기 ─────────────────────────────────
+        fEdge = EditorGUILayout.BeginFoldoutHeaderGroup(fEdge, "경계 다듬기 / 길·모래와 만나는 가장자리");
+        if (fEdge)
+        {
+            gm.edgeBand = EditorGUILayout.Slider("경계 폭 (넓을수록 서서히)", gm.edgeBand, 0.02f, 0.5f);
+            gm.edgeDensity = EditorGUILayout.Slider("경계 개체수 배율", gm.edgeDensity, 0f, 1f);
+            gm.edgeSize = EditorGUILayout.Slider("경계 크기 배율 (작은 잔디)", gm.edgeSize, 0.5f, 1f);
+            gm.edgeJitter = EditorGUILayout.Slider("들쭉날쭉 (경계선 흔들기)", gm.edgeJitter, 0f, 0.3f);
         }
         EditorGUILayout.EndFoldoutHeaderGroup();
 
@@ -204,6 +215,7 @@ public class GrassManagerEditor : Editor
     // ── 종류 추가/삭제 ──────────────────────────────────
     static void AddType(GrassManager gm, TerrainData td, Object obj)
     {
+        StripEdgeProtos(gm, td);   // 경계용 프로토는 걷어내고 작업 (다음 적용 때 재생성)
         var protos = new System.Collections.Generic.List<DetailPrototype>(td.detailPrototypes);
         var p = new DetailPrototype
         {
@@ -230,6 +242,7 @@ public class GrassManagerEditor : Editor
 
     static void RemoveType(GrassManager gm, TerrainData td, int idx)
     {
+        StripEdgeProtos(gm, td);   // 경계용 프로토는 걷어내고 작업
         int res = td.detailResolution;
         var protos = new System.Collections.Generic.List<DetailPrototype>(td.detailPrototypes);
         var maps = new System.Collections.Generic.List<int[,]>();
@@ -246,8 +259,9 @@ public class GrassManagerEditor : Editor
     static void SyncTypes(GrassManager gm, TerrainData td)
     {
         var protos = td.detailPrototypes;
+        int userCount = Mathf.Max(0, protos.Length - Mathf.Max(0, gm.edgeProtoCount));   // 끝의 경계용 프로토는 목록에서 제외
         var list = new System.Collections.Generic.List<GrassManager.GrassType>();
-        for (int i = 0; i < protos.Length; i++)
+        for (int i = 0; i < userCount; i++)
         {
             var old = i < gm.types.Length ? gm.types[i] : null;
             string n = protos[i].prototype != null ? protos[i].prototype.name
@@ -274,9 +288,21 @@ public class GrassManagerEditor : Editor
     }
 
     // ── 적용: 디테일맵 다시 굽기 ─────────────────────────
+    /// 이전 적용 때 자동 생성한 '경계용 작은 프로토'를 걷어낸다 (항상 목록 끝에 붙어 있음)
+    static void StripEdgeProtos(GrassManager gm, TerrainData td)
+    {
+        if (gm.edgeProtoCount <= 0) return;
+        var list = new System.Collections.Generic.List<DetailPrototype>(td.detailPrototypes);
+        int n = Mathf.Min(gm.edgeProtoCount, list.Count);
+        list.RemoveRange(list.Count - n, n);
+        td.detailPrototypes = list.ToArray();
+        gm.edgeProtoCount = 0;
+    }
+
     static void Rebuild(GrassManager gm)
     {
         var td = gm.terrain.terrainData;
+        StripEdgeProtos(gm, td);
         if (gm.types.Length != td.detailPrototypes.Length) SyncTypes(gm, td);
         if (gm.placeLayers.Count == 0) SyncLayers(gm, td);
 
@@ -290,14 +316,36 @@ public class GrassManagerEditor : Editor
         }
 
         // 크기 배율을 프로토타입에 반영 (기준 0.85~1.2 에 size 곱)
-        var protos = td.detailPrototypes;
-        for (int i = 0; i < protos.Length; i++)
+        var protoList = new System.Collections.Generic.List<DetailPrototype>(td.detailPrototypes);
+        int typeCount = protoList.Count;
+        for (int i = 0; i < typeCount; i++)
         {
             float s = gm.types[i].size;
-            protos[i].minWidth = 0.85f * s; protos[i].maxWidth = 1.15f * s;
-            protos[i].minHeight = 0.85f * s; protos[i].maxHeight = 1.2f * s;
+            protoList[i].minWidth = 0.85f * s; protoList[i].maxWidth = 1.15f * s;
+            protoList[i].minHeight = 0.85f * s; protoList[i].maxHeight = 1.2f * s;
         }
-        td.detailPrototypes = protos;
+        // 경계 크기<1 이면 종류마다 '작은 경계용 프로토'를 하나씩 뒤에 추가
+        bool useEdge = gm.edgeSize < 0.995f;
+        var edgeIdx = new int[typeCount];
+        if (useEdge)
+        {
+            for (int i = 0; i < typeCount; i++)
+            {
+                var s = protoList[i];
+                edgeIdx[i] = protoList.Count;
+                protoList.Add(new DetailPrototype
+                {
+                    renderMode = s.renderMode, usePrototypeMesh = s.usePrototypeMesh,
+                    useInstancing = s.useInstancing, prototype = s.prototype,
+                    prototypeTexture = s.prototypeTexture, noiseSpread = s.noiseSpread,
+                    healthyColor = s.healthyColor, dryColor = s.dryColor,
+                    minWidth = s.minWidth * gm.edgeSize, maxWidth = s.maxWidth * gm.edgeSize,
+                    minHeight = s.minHeight * gm.edgeSize, maxHeight = s.maxHeight * gm.edgeSize
+                });
+            }
+            gm.edgeProtoCount = typeCount;
+        }
+        td.detailPrototypes = protoList.ToArray();
 
         int res = td.detailResolution;
         int aw = td.alphamapWidth, ah = td.alphamapHeight, al = td.alphamapLayers;
@@ -305,10 +353,11 @@ public class GrassManagerEditor : Editor
         const int AMT_MAX = 16;
         long total = 0;
 
-        for (int layer = 0; layer < protos.Length; layer++)
+        for (int layer = 0; layer < typeCount; layer++)
         {
             var t = gm.types[layer];
             var map = new int[res, res];
+            var emap = useEdge ? new int[res, res] : null;
             if (t.active && t.weight > 0.001f && gm.density > 0.001f)
             {
                 for (int y = 0; y < res; y++)
@@ -319,24 +368,43 @@ public class GrassManagerEditor : Editor
                     if (h < gm.minHeight || h > gm.maxHeight) continue;
                     if (Vector3.Angle(td.GetInterpolatedNormal(fx, fz), Vector3.up) > gm.maxSlope) continue;
 
-                    // 허용 레이어 비중 합 = 심기 마스크 (경계는 비중 따라 자연 페이드)
+                    // 허용 레이어 비중 합 = 심기 마스크
                     int ax = Mathf.Clamp((int)(fx * (aw - 1)), 0, aw - 1);
                     int az = Mathf.Clamp((int)(fz * (ah - 1)), 0, ah - 1);
                     float allow = 0f;
                     for (int l = 0; l < al; l++) if (l < allowIdx.Length && allowIdx[l]) allow += splat[az, ax, l];
-                    if (allow < gm.layerThreshold) continue;
+
+                    // 들쭉날쭉: 문턱을 노이즈로 흔들어 경계선이 직선으로 안 보이게
+                    float th = gm.layerThreshold
+                             + (Mathf.PerlinNoise(fx * 220f, fz * 220f) - 0.5f) * 2f * gm.edgeJitter;
+                    if (allow < th) continue;
+                    // 0 = 경계 바로 위, 1 = 완전 안쪽
+                    float band = Mathf.InverseLerp(th, th + Mathf.Max(0.01f, gm.edgeBand), allow);
 
                     float d = Mathf.PerlinNoise(fx * 90f + layer * 37.7f, fz * 90f + layer * 37.7f);
                     if (d < 0.05f) continue;
                     float dens = Mathf.Lerp(8f, AMT_MAX, (d - 0.05f) / 0.95f)
                                * gm.density * t.weight * Mathf.Clamp01(allow);
-                    int amt = Mathf.RoundToInt(dens);
-                    if (amt <= 0) continue;
-                    map[y, x] = Mathf.Min(AMT_MAX, amt);
-                    total++;
+
+                    if (band >= 1f)
+                    {   // 안쪽: 정상 크기·정상 밀도
+                        int amt = Mathf.RoundToInt(dens);
+                        if (amt > 0) { map[y, x] = Mathf.Min(AMT_MAX, amt); total++; }
+                    }
+                    else
+                    {   // 경계: 개체수 배율 + 바깥으로 갈수록 성기게, 작은 프로토로 심음
+                        int amt = Mathf.RoundToInt(dens * gm.edgeDensity * Mathf.Lerp(0.25f, 1f, band));
+                        if (amt > 0)
+                        {
+                            if (useEdge) emap[y, x] = Mathf.Min(AMT_MAX, amt);
+                            else map[y, x] = Mathf.Min(AMT_MAX, amt);
+                            total++;
+                        }
+                    }
                 }
             }
             td.SetDetailLayer(0, 0, layer, map);   // OFF 종류는 빈 맵 = 지움
+            if (useEdge) td.SetDetailLayer(0, 0, edgeIdx[layer], emap);
         }
         gm.terrain.detailObjectDistance = gm.drawDistance;
         gm.terrain.detailObjectDensity = 1f;

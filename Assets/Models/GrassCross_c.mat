@@ -44,7 +44,7 @@ Material:
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
     - _L2:
-        m_Texture: {fileID: 2800000, guid: cf5f4aa4f664e464fabfe3ca83897439, type: 3}
+        m_Texture: {fileID: 2800000, guid: 93f95b004b327204fa2ec161e4c1b06e, type: 3}
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
     - _L3:
@@ -52,7 +52,7 @@ Material:
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
     - _L4:
-        m_Texture: {fileID: 2800000, guid: 18f6b21d79ed04043b47f4ed7a588811, type: 3}
+        m_Texture: {fileID: 2800000, guid: a3a2b57d790aad14c9207b9d61bc13e8, type: 3}
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
     - _L5:
@@ -80,7 +80,7 @@ Material:
     - _WorldSize: 6000
     m_Colors:
     - _TileA: {r: 20, g: 20, b: 20, a: 20}
-    - _TileB: {r: 5, g: 20, b: 120, a: 20}
+    - _TileB: {r: 24, g: 20, b: 120, a: 20}
     - _Tint: {r: 1, g: 1, b: 1, a: 1}
   m_BuildTextureStacks: []
   m_AllowLocking: 1
