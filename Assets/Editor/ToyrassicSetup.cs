@@ -63,10 +63,19 @@ public static class ToyrassicSetup
                   "지형·UI 작업이 필요해지면 MCP Dashboard 에서 해당 카테고리만 다시 켜면 된다.");
     }
 
-    [MenuItem("Tools/토이라기/② 샌드박스 씬 만들기")]
+    [MenuItem("Tools/토이라기/② 샌드박스 씬 만들기 (⚠현재 씬에서 나감)")]
     public static void CreateSandboxScene()
     {
         if (!EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo()) return;
+
+        // 씬이 통째로 바뀌므로 확인을 받는다. 본 씬 작업물이 사라진 걸로 오해하기 쉽다.
+        bool ok = EditorUtility.DisplayDialog(
+            "샌드박스 씬으로 이동",
+            "빈 테스트 씬(Sandbox)을 만들고 그리로 이동한다.\n\n" +
+            "지금 열린 씬은 닫히지만 파일은 그대로 남는다.\n" +
+            "본 작업물로 돌아가려면 Assets/Scenes/SampleScene.unity 를 열면 된다.",
+            "샌드박스로 이동", "취소");
+        if (!ok) return;
 
         var scene = EditorSceneManager.NewScene(NewSceneSetup.DefaultGameObjects, NewSceneMode.Single);
 
