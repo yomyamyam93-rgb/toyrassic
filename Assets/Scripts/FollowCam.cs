@@ -16,6 +16,12 @@ public class FollowCam : MonoBehaviour
     [Tooltip("pitch 범위 (넓게 = 위에서도 볼 수 있음)")]
     public float minPitch = 2f, maxPitch = 85f;
 
+    [Header("줌아웃 시 시야 들기")]
+    [Tooltip("최대 줌아웃에서 pitch 를 이만큼 깎아 시선을 수평선 쪽으로 든다 (바닥만 보이는 답답함 해소)")]
+    public float farPitchDrop = 16f;
+    [Tooltip("줌아웃할수록 바라보는 지점을 이만큼 위로 올린다 (m)")]
+    public float farLookUp = 6f;
+
     [Header("입력 감도")]
     public float rotSpeed = 0.16f, zoomSpeed = 0.10f;
     [Header("부드러움 (작을수록 빠르게 멈춤)")]
@@ -88,13 +94,19 @@ public class FollowCam : MonoBehaviour
         look.z = Mathf.Lerp(look.z, flat.z, followXZ * Time.deltaTime);
         look.y = Mathf.Lerp(look.y, groundY, followY * Time.deltaTime);
 
-        var rot = Quaternion.Euler(pitch, yaw, 0f);
+        // 줌아웃할수록(거리↑) 시선을 수평선 쪽으로 들어 바닥 대신 먼 풍경이 보이게.
+        // 렌더 시점에만 깎으므로 드래그로 잡은 pitch 목표값은 오염되지 않는다.
+        float zoom01 = Mathf.InverseLerp(minDist, maxDist, distance);
+        float viewPitch = Mathf.Max(minPitch, pitch - farPitchDrop * zoom01);
+        float lookUp = height * 0.4f + farLookUp * zoom01;
+
+        var rot = Quaternion.Euler(viewPitch, yaw, 0f);
         var pos = look + Vector3.up * height + rot * Vector3.back * distance;
 
         float g = GroundAt(pos) + 2f;
         if (pos.y < g) pos.y = g;
 
         transform.position = pos;
-        transform.LookAt(look + Vector3.up * height * 0.4f);
+        transform.LookAt(look + Vector3.up * lookUp);
     }
 }
