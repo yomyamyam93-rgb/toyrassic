@@ -50,16 +50,30 @@ public class GrassManagerEditor : Editor
             EditorGUILayout.HelpBox("Active OFF = 적용 시 그 종류는 안 심음. Weight = 출현량, Size = 크기.", MessageType.None);
             if (gm.types.Length != td.detailPrototypes.Length)
                 EditorGUILayout.HelpBox("지형 종류 수와 안 맞음 — 아래 '종류 불러오기'를 누를 것.", MessageType.Warning);
+            int removeIdx = -1;
             for (int i = 0; i < gm.types.Length; i++)
             {
                 var t = gm.types[i];
                 EditorGUILayout.BeginHorizontal();
                 EditorGUILayout.LabelField($"{i}: {t.name}", EditorStyles.boldLabel);
                 t.active = EditorGUILayout.ToggleLeft("Active", t.active, GUILayout.Width(70));
+                GUI.backgroundColor = new Color(1f, 0.6f, 0.6f);
+                if (GUILayout.Button("삭제", GUILayout.Width(44)) &&
+                    EditorUtility.DisplayDialog("종류 삭제", $"'{t.name}' 종류와 심어진 것 전부를 지형에서 지운다.", "삭제", "취소"))
+                    removeIdx = i;
+                GUI.backgroundColor = Color.white;
                 EditorGUILayout.EndHorizontal();
                 t.weight = EditorGUILayout.Slider("  Weight", t.weight, 0f, 2f);
                 t.size = EditorGUILayout.Slider("  Size", t.size, 0.5f, 2f);
             }
+            if (removeIdx >= 0) RemoveType(gm, td, removeIdx);
+
+            EditorGUILayout.BeginHorizontal();
+            newProto = EditorGUILayout.ObjectField("추가 (프리팹/텍스처)", newProto, typeof(Object), false);
+            GUI.enabled = newProto is GameObject || newProto is Texture2D;
+            if (GUILayout.Button("추가", GUILayout.Width(50))) { AddType(gm, td, newProto); newProto = null; }
+            GUI.enabled = true;
+            EditorGUILayout.EndHorizontal();
             if (GUILayout.Button("종류 불러오기 (지형과 동기화)")) SyncTypes(gm, td);
         }
         EditorGUILayout.EndFoldoutHeaderGroup();
@@ -110,12 +124,9 @@ public class GrassManagerEditor : Editor
             colorChanged = EditorGUI.EndChangeCheck();
 
             EditorGUILayout.Space(4);
-            EditorGUILayout.HelpBox("잔디색은 '구운 바닥색 맵'을 따라간다. 지형을 새로 칠했거나\n" +
-                "절벽·길 재질을 바꿔서 색이 어긋나면 아래 버튼으로 다시 굽는다.", MessageType.Info);
-            gm.bakeResolution = EditorGUILayout.IntPopup("굽기 해상도", gm.bakeResolution,
-                new[] { "512 (거침)", "1024", "2048 (권장)", "4096 (정밀)" }, new[] { 512, 1024, 2048, 4096 });
-            if (GUILayout.Button("바닥색 다시 굽기 — 잔디색을 지금 바닥에 일치"))
-            { WorldBuilder.BakeGroundColorForGrass(gm.terrain, gm.bakeResolution); ApplyColors(gm); }
+            EditorGUILayout.HelpBox("잔디색은 지형 스플랫×타일 텍스처를 직접 섞는다(지형과 같은 계산 = 항상 일치).\n" +
+                "지형 레이어 텍스처를 교체했을 때만 아래 버튼으로 다시 연결.", MessageType.Info);
+            if (GUILayout.Button("지형 재질 다시 연결")) { WireTerrainSplat(gm); ApplyColors(gm); }
         }
         EditorGUILayout.EndFoldoutHeaderGroup();
         if (colorChanged) ApplyColors(gm);
@@ -142,6 +153,78 @@ public class GrassManagerEditor : Editor
             EditorUtility.DisplayDialog("잔디 전체 삭제", "지형의 잔디를 전부 지운다. '적용'으로 되살릴 수 있다.", "삭제", "취소"))
             ClearAll(td);
         GUI.backgroundColor = Color.white;
+    }
+
+    static Object newProto;   // '종류 추가' 후보
+
+    // ── 지형 스플랫×타일 텍스처를 잔디 재질에 연결 (지형과 같은 계산 = 항상 일치) ──
+    static void WireTerrainSplat(GrassManager gm)
+    {
+        var td = gm.terrain.terrainData;
+        var ctrl = td.alphamapTextures;
+        var layers = td.terrainLayers;
+        var o = gm.terrain.transform.position;
+        Vector4 ta = Vector4.one * 30f, tb = Vector4.one * 30f;
+        for (int i = 0; i < 8 && i < layers.Length; i++)
+        {
+            float t = layers[i] != null ? Mathf.Max(0.01f, layers[i].tileSize.x) : 30f;
+            if (i < 4) ta[i] = t; else tb[i - 4] = t;
+        }
+        foreach (var p in GrassMats)
+        {
+            var m = AssetDatabase.LoadAssetAtPath<Material>(p);
+            if (m == null) continue;
+            m.SetTexture("_Control0", ctrl.Length > 0 ? ctrl[0] : null);
+            m.SetTexture("_Control1", ctrl.Length > 1 ? ctrl[1] : null);
+            for (int i = 0; i < 8; i++)
+                m.SetTexture("_L" + i, i < layers.Length && layers[i] != null ? layers[i].diffuseTexture : null);
+            m.SetVector("_TileA", ta); m.SetVector("_TileB", tb);
+            m.SetFloat("_WorldMin", o.x); m.SetFloat("_WorldSize", td.size.x);
+            EditorUtility.SetDirty(m);
+        }
+        AssetDatabase.SaveAssets();
+        Debug.Log("[잔디] 지형 재질 연결 완료 — 잔디색이 지형과 같은 계산으로 나온다.");
+    }
+
+    // ── 종류 추가/삭제 ──────────────────────────────────
+    static void AddType(GrassManager gm, TerrainData td, Object obj)
+    {
+        var protos = new System.Collections.Generic.List<DetailPrototype>(td.detailPrototypes);
+        var p = new DetailPrototype
+        {
+            minWidth = 0.85f, maxWidth = 1.15f, minHeight = 0.85f, maxHeight = 1.2f,
+            noiseSpread = 0.3f, healthyColor = Color.white, dryColor = Color.white
+        };
+        if (obj is GameObject go)
+        {
+            var src = protos.Find(x => x.usePrototypeMesh);   // 기존 메시 종류 설정을 이어받음
+            if (src != null) { p.renderMode = src.renderMode; p.useInstancing = src.useInstancing; }
+            else { p.renderMode = DetailRenderMode.VertexLit; p.useInstancing = true; }
+            p.usePrototypeMesh = true; p.prototype = go;
+        }
+        else if (obj is Texture2D tex)
+        {
+            p.renderMode = DetailRenderMode.Grass; p.prototypeTexture = tex;
+        }
+        else return;
+        protos.Add(p);
+        td.detailPrototypes = protos.ToArray();
+        SyncTypes(gm, td);
+        Debug.Log($"[잔디] 종류 추가: {obj.name} — Weight·Size 잡고 '적용'하면 심어진다.");
+    }
+
+    static void RemoveType(GrassManager gm, TerrainData td, int idx)
+    {
+        int res = td.detailResolution;
+        var protos = new System.Collections.Generic.List<DetailPrototype>(td.detailPrototypes);
+        var maps = new System.Collections.Generic.List<int[,]>();
+        for (int l = 0; l < protos.Count; l++) maps.Add(td.GetDetailLayer(0, 0, res, res, l));
+        string name = idx < gm.types.Length ? gm.types[idx].name : "?";
+        protos.RemoveAt(idx); maps.RemoveAt(idx);
+        td.detailPrototypes = protos.ToArray();
+        for (int l = 0; l < protos.Count; l++) td.SetDetailLayer(0, 0, l, maps[l]);   // 인덱스 밀림 보정
+        SyncTypes(gm, td);
+        Debug.Log($"[잔디] 종류 삭제: {name}");
     }
 
     // ── 동기화 ──────────────────────────────────────────
