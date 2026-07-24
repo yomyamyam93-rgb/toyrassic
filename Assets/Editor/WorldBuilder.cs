@@ -280,8 +280,8 @@ public static class WorldBuilder
         {
             float fx = (float)x / (aw - 1), fz = (float)y / (ah - 1);
             float slope = Vector3.Angle(td.GetInterpolatedNormal(fx, fz), Vector3.up);
-            // 32° 부터 서서히, 50° 이상 완전 바위 — 경계가 딱 떨어지지 않게 그라데이션
-            float rockW = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(32f, 50f, slope));
+            // 36° 부터 서서히, 55° 이상 완전 바위 — 완만한 해변 비탈엔 안 칠해져 물가 얼룩이 준다
+            float rockW = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(36f, 55f, slope));
             if (rockW <= 0.01f) continue;
 
             // 기존 rock 과 비교해 더 센 값으로. 나머지 레이어는 남은 비중(1-rockW)에 비례 축소.
