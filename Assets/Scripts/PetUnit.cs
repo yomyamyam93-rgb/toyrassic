@@ -72,9 +72,9 @@ public class PetUnit : MonoBehaviour
 
     // ── 원소별 발현 ──
     float AtkPeriod => (mat == Mat.Metal ? 3.2f : mat == Mat.Stone ? 3.4f : mat == Mat.Wood ? 2.3f
-                      : mat == Mat.Fire ? 3.0f : mat == Mat.Water ? 2.6f : 1.7f)
+                      : mat == Mat.Fire ? 3.0f : mat == Mat.Water ? 0.38f : 1.7f)   // 💧물총 속사
                        / (1f + agi * 0.010f);
-    float Damage => mat == Mat.Water ? intel * 1.4f   // 💧물 = 지력 마법딜 (물대포)
+    float Damage => mat == Mat.Water ? intel * 0.22f  // 💧물총 속사 — 발당 약하게 (DPS 는 비슷)
                   : str * (mat == Mat.Metal ? 0.95f : mat == Mat.Stone ? 1.05f : mat == Mat.Wood ? 0.45f
                          : mat == Mat.Fire ? 1.8f : 0.8f);
     float MoveSpd => (3.2f + agi * 0.05f) * (0.5f + body * 0.10f) * (slowT > 0f ? 0.55f : 1f);
@@ -88,7 +88,7 @@ public class PetUnit : MonoBehaviour
                      : mat == Mat.Fire ? 0.85f       // 기 모으기
                      : mat == Mat.Stone ? 0.45f
                      : mat == Mat.Wood ? 0.35f
-                     : mat == Mat.Water ? 0.5f
+                     : mat == Mat.Water ? 0.12f    // 물총은 조준만 살짝
                      : 0.3f;
 
     void Update()
@@ -123,7 +123,7 @@ public class PetUnit : MonoBehaviour
                 if (motion != null) motion.Punch();
                 if (target != null && target.Alive)
                     PetProjectile.Throw(this, target, Damage, false,
-                        new Color(0.45f, 0.85f, 0.3f), body * 0.05f, 0.35f, body * 0.12f);
+                        new Color(0.45f, 0.85f, 0.3f), body * 0.05f, 0.3f, body * 0.07f);
             }
             Ground(false); Bar(); HitFlash();
             return;
@@ -230,17 +230,17 @@ public class PetUnit : MonoBehaviour
                 burstLeft = 3; burstT = 0f;
                 break;
 
-            case Mat.Fire:    // 기 모아서.. 팡! 큰 불덩이
+            case Mat.Fire:    // 기 모아서.. 팡! 큰 불덩이 (낮은 탄도)
                 PetProjectile.Throw(this, target, Damage, false,
-                    new Color(2.2f, 1.0f, 0.2f), body * 0.16f, 0.6f, body * 0.4f);
+                    new Color(2.2f, 1.0f, 0.2f), body * 0.16f, 0.5f, body * 0.18f);
                 FX.Burst(transform.position + transform.forward * body * 0.4f + Vector3.up * body * 0.3f,
                          new Color(2.0f, 1.1f, 0.3f, 0.9f), 10, body * 0.06f, body * 0.3f);
                 break;
 
-            case Mat.Water:   // 물대포 — 지력 마법딜 + 물살로 밀어냄
+            case Mat.Water:   // 물총 속사 — 푝푝푝 빠른 직선탄 + 아주 살짝 밀림
                 PetProjectile.Throw(this, target, Damage, false,
-                    new Color(0.4f, 0.75f, 1.6f), body * 0.12f, 0.45f, body * 0.2f,
-                    target.body * 0.18f);                         // ★넉백
+                    new Color(0.4f, 0.75f, 1.6f), body * 0.055f, 0.18f, body * 0.03f,
+                    target.body * 0.03f);                         // 근소 넉백
                 break;
 
             case Mat.Lightning: // 단일 평타 + 슬로우 — 타격은 모션 절정에
