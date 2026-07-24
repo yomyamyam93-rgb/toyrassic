@@ -34,6 +34,7 @@ Shader "Toyrassic/PetToon"
         _GlowIntensity ("글로우 세기", Float) = 0
         _GlowScale ("글로우 스케일", Float) = 1
         _GlowSpeed ("글로우 속도", Float) = 1
+        _GlowCut ("글로우 문턱 (0=부드럽게, >0=얼룩 컷)", Range(0,0.95)) = 0
         // 투명(유리)용
         _SrcBlend ("Src", Float) = 1
         _DstBlend ("Dst", Float) = 0
@@ -75,7 +76,7 @@ Shader "Toyrassic/PetToon"
             half4 _BaseColor, _EmissionColor, _GlowColorA, _GlowColorB;
             half _BumpScale, _Metallic, _Smoothness, _OcclusionStrength;
             half _EnvIntensity, _Triplanar; float _TriScale;
-            half _GlowMode, _GlowIntensity; float _GlowScale, _GlowSpeed;
+            half _GlowMode, _GlowIntensity, _GlowCut; float _GlowScale, _GlowSpeed;
 
             struct A
             {
@@ -205,8 +206,9 @@ Shader "Toyrassic/PetToon"
                     half n1 = SAMPLE_TEXTURE2D(_GlowTex, sampler_GlowTex, gp + float2(0, -tt * 0.35)).r;
                     half n2 = SAMPLE_TEXTURE2D(_GlowTex, sampler_GlowTex, gp * 1.7 + float2(0.13, -tt * 0.61)).r;
                     if (_GlowMode < 1.5)
-                    {   // 불·물: 두 겹 노이즈가 흐르며 이글이글
+                    {   // 불·물: 두 겹 노이즈 발광. _GlowCut>0 이면 '달궈진 얼룩' 컷 (마그마)
                         half g = saturate(n1 * n2 * 1.8);
+                        if (_GlowCut > 0.01) g = smoothstep(_GlowCut, _GlowCut + 0.18, g);
                         col.rgb += lerp(_GlowColorB.rgb, _GlowColorA.rgb, g) * g * _GlowIntensity;
                     }
                     else
