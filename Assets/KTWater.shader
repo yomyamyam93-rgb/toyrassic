@@ -15,6 +15,13 @@ Shader "Toyrassic/KTWater"
         _DepthFade ("수심 거리 (m)", Float) = 6.23
         _EdgeAlpha ("가장자리 투명", Range(0,1)) = 0.42
         _CenterDark ("중심 어둡게", Range(0,1)) = 0.329
+        [Toggle] _GlintOn ("키라키라 켜기", Float) = 1
+        [Enum(Star,0,Dot,1)] _GlintShape ("반짝 모양", Float) = 0
+        _GlintSpacing ("반짝 간격 (m)", Float) = 0.52
+        _GlintAmount ("반짝 양", Range(0,1)) = 0.2
+        _GlintSpeed ("반짝 속도", Float) = 3
+        _GlintBright ("반짝 밝기", Float) = 34
+        _FoamColor ("포말 색", Color) = (1,1,1,1)
         _FoamWidth ("포말 폭 (m)", Float) = 1.03
         _FoamEdge ("포말 굵기", Range(0,1)) = 0.80
         _FoamSoft ("포말 부드럽게", Range(0,0.5)) = 0.05
@@ -45,7 +52,8 @@ Shader "Toyrassic/KTWater"
             float _DepthFade,_EdgeAlpha,_CenterDark;
             float _FoamWidth,_FoamEdge,_FoamSoft,_FoamWobble,_FoamSpeed,_FoamLines;
             float _FoamNoise,_FoamWarp,_FoamStr,_Noise;
-            float4 _Tint;
+            float _GlintOn,_GlintShape,_GlintSpacing,_GlintAmount,_GlintSpeed,_GlintBright;
+            float4 _Tint,_FoamColor;
 
             struct A { float4 positionOS:POSITION; };
             struct V { float4 positionHCS:SV_POSITION; float3 wpos:TEXCOORD0; float4 spos:TEXCOORD1; };
@@ -104,9 +112,29 @@ Shader "Toyrassic/KTWater"
                 foam = saturate(foam) * _FoamStr;
 
                 float a = lerp(_EdgeAlpha, 1.0, dfade);
-                col = lerp(col, 1.0.xxx, foam);
+                col = lerp(col, _FoamColor.rgb, foam);
                 a = max(a, foam*0.95);
                 a *= smoothstep(0.0, 0.04, sd);        // 맨 끝단은 모래로 스밈
+
+                // 키라키라 — 셀마다 랜덤 별/점이 시간 따라 깜빡인다
+                if (_GlintOn > 0.5)
+                {
+                    float2 gp = wp / max(_GlintSpacing, 0.05);
+                    float2 ci = floor(gp); float2 cf = frac(gp) - 0.5;
+                    float rnd = h21(ci);
+                    float sel = step(rnd, _GlintAmount);           // 일부 셀만 반짝임
+                    cf -= (float2(h21(ci+11.1), h21(ci+27.7)) - 0.5) * 0.5;   // 셀 안 위치 랜덤
+                    float tw = 0.5 + 0.5*sin(_Time.y*_GlintSpeed + rnd*43.0);
+                    tw = tw*tw*tw;                                  // 반짝 하고 꺼지게
+                    float armX = saturate(1.0 - abs(cf.y)*26.0) * saturate(1.0 - abs(cf.x)*5.0);
+                    float armY = saturate(1.0 - abs(cf.x)*26.0) * saturate(1.0 - abs(cf.y)*5.0);
+                    float star = max(armX, armY);                   // + 십자 별
+                    float dotS = saturate(1.0 - length(cf)*7.0);    // 동그란 점
+                    float shape = lerp(star, dotS, saturate(_GlintShape));
+                    float g = sel * shape*shape * tw * dfade;       // 얕은 물가엔 덜
+                    col += g * _GlintBright * 0.02;
+                    a = max(a, saturate(g * _GlintBright * 0.02));
+                }
                 return half4(col, saturate(a));
             }
             ENDHLSL
