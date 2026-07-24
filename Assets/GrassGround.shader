@@ -9,6 +9,7 @@ Shader "Toyrassic/GrassGround"
         _GroundTex ("바닥 색맵", 2D) = "green" {}
         _WorldMin ("월드 최소 XZ", Float) = 0
         _WorldSize ("월드 크기", Float) = 1500
+        _Tint ("전체 색조", Color) = (1,1,1,1)
         _Cutoff ("알파 컷", Range(0,1)) = 0.4
         _BaseDark ("잎 밑동 어둠", Range(0.4,1)) = 0.62
         _TipBoost ("잎끝 밝기", Range(1,1.6)) = 1.22
@@ -35,6 +36,7 @@ Shader "Toyrassic/GrassGround"
             TEXTURE2D(_MainTex); SAMPLER(sampler_MainTex);
             TEXTURE2D(_GroundTex); SAMPLER(sampler_GroundTex);
             float _WorldMin, _WorldSize, _Cutoff, _BaseDark, _TipBoost;
+            half4 _Tint;
 
             Varyings vert (Attributes v)
             {
@@ -62,7 +64,7 @@ Shader "Toyrassic/GrassGround"
                 half3 lit = amb + ml.color.rgb * ndl;
                 // 밑동 어둡고 끝 밝게 → 바닥과 같은 색이어도 잎이 보인다
                 half shade = lerp(_BaseDark, _TipBoost, saturate(i.uvY));
-                return half4(ground * lit * shade, 1);
+                return half4(ground * lit * shade * _Tint.rgb, 1);
             }
             ENDHLSL
         }

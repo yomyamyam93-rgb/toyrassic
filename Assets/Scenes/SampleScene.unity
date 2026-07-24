@@ -6676,6 +6676,78 @@ Transform:
   m_Children: []
   m_Father: {fileID: 2135606205}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &921064949
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 921064951}
+  - component: {fileID: 921064950}
+  m_Layer: 0
+  m_Name: Grass Manager
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &921064950
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 921064949}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 95771b5d2a4b8ee47ac6ac8294d99175, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::GrassManager
+  terrain: {fileID: 1274771777}
+  types:
+  - name: GrassProto_0
+    active: 1
+    weight: 1
+    size: 1
+  - name: GrassProto_1
+    active: 1
+    weight: 1
+    size: 1
+  - name: GrassProto_2
+    active: 1
+    weight: 1
+    size: 1
+  - name: flower_white
+    active: 1
+    weight: 0.1
+    size: 1
+  allowedLayers: 0001010100000000
+  layerThreshold: 0.12
+  density: 0.85
+  drawDistance: 250
+  maxSlope: 34
+  minHeight: 2
+  maxHeight: 267
+  tint: {r: 1, g: 1, b: 1, a: 1}
+  rootDark: 0.72
+  tipBoost: 1.22
+--- !u!4 &921064951
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 921064949}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &940094361
 GameObject:
   m_ObjectHideFlags: 0
@@ -9066,3 +9138,4 @@ SceneRoots:
   - {fileID: 2135606205}
   - {fileID: 374053270}
   - {fileID: 1669004923}
+  - {fileID: 921064951}
