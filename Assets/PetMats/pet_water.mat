@@ -58,27 +58,27 @@ Material:
     - _CrackWarp: 0.12
     - _CrackWidth: 0.07
     - _DstBlend: 10
-    - _EnvIntensity: 0.9
+    - _EnvIntensity: 1.18
     - _GlowCut: 0
-    - _GlowIntensity: 0.7
+    - _GlowIntensity: 0.26
     - _GlowMode: 1
-    - _GlowScale: 2.2
-    - _GlowSpeed: 0.4
+    - _GlowScale: 0.61
+    - _GlowSpeed: 0.5
     - _Metallic: 0.05
     - _OcclusionStrength: 1
     - _RefLen: 1
     - _Refraction: 0.09
-    - _RimPower: 3.2
-    - _Smoothness: 0.97
+    - _RimPower: 1.14
+    - _Smoothness: 1
     - _SrcBlend: 5
     - _TriScale: 4
     - _Triplanar: 0
     - _Twist: 0
-    - _Wobble: 0.012
+    - _Wobble: 0.0106
     - _WobbleFreq: 2.8
     - _ZWrite: 0
     m_Colors:
-    - _BaseColor: {r: 0.2, g: 0.5, b: 0.9, a: 0.45}
+    - _BaseColor: {r: 0.19983837, g: 0.5, b: 0.9, a: 0.45}
     - _EmissionColor: {r: 0, g: 0, b: 0, a: 1}
     - _GlowColorA: {r: 0.5, g: 0.9, b: 1, a: 1}
     - _GlowColorB: {r: 0.05, g: 0.2, b: 0.5, a: 1}

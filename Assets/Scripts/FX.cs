@@ -42,6 +42,30 @@ public static class FX
         Object.Destroy(go, life + 0.4f);
     }
 
+    /// 한 방짜리 번개 볼트 — 두 점 사이 지그재그 (⚡번개 평타용). 잠깐 번쩍하고 사라짐
+    public static void Bolt(Vector3 a, Vector3 b, Color c, float width, float dur = 0.14f)
+    {
+        var go = new GameObject("fx_bolt");
+        var lr = go.AddComponent<LineRenderer>();
+        lr.material = PMat();
+        lr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+        lr.useWorldSpace = true;
+        int n = 8;
+        lr.positionCount = n + 1;
+        float len = Vector3.Distance(a, b);
+        for (int i = 0; i <= n; i++)
+        {
+            float t = (float)i / n;
+            var p = Vector3.Lerp(a, b, t);
+            if (i != 0 && i != n)
+                p += Random.insideUnitSphere * len * 0.10f * Mathf.Sin(t * Mathf.PI);
+            lr.SetPosition(i, p);
+        }
+        lr.startWidth = width; lr.endWidth = width * 0.4f;
+        lr.startColor = c; lr.endColor = new Color(c.r, c.g, c.b, 0.5f);
+        Object.Destroy(go, dur);
+    }
+
     /// 참격 스윕 — 칼 휘두르듯 스윙 방향 따라 호가 쫙 그려지고, 지나간 자리는 꼬리처럼 사라짐.
     /// startYaw 에서 sweepDeg 만큼(부호=방향) sweepDur 동안 진행.
     public static void Sweep(Vector3 center, float startYaw, float sweepDeg, float radius, Color c,
