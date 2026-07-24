@@ -111,7 +111,6 @@ public class GrassManagerEditor : Editor
                 gm.placeLayers.Add(new GrassManager.PlaceLayer { layer = add, on = true });
 
             if (GUILayout.Button("지형 레이어 전부 불러오기")) SyncLayers(gm, td);
-            gm.layerThreshold = EditorGUILayout.Slider("경계 문턱", gm.layerThreshold, 0.05f, 0.9f);
         }
         EditorGUILayout.EndFoldoutHeaderGroup();
 
@@ -128,6 +127,7 @@ public class GrassManagerEditor : Editor
         fEdge = EditorGUILayout.BeginFoldoutHeaderGroup(fEdge, "경계 다듬기 / 길·모래와 만나는 가장자리");
         if (fEdge)
         {
+            gm.layerThreshold = EditorGUILayout.Slider("경계 문턱 (어디부터 잔디인가)", gm.layerThreshold, 0.05f, 0.9f);
             gm.edgeBand = EditorGUILayout.Slider("경계 폭 (넓을수록 서서히)", gm.edgeBand, 0.02f, 0.5f);
             gm.edgeDensity = EditorGUILayout.Slider("경계 개체수 배율", gm.edgeDensity, 0f, 1f);
             gm.edgeSize = EditorGUILayout.Slider("경계 크기 배율 (작은 잔디)", gm.edgeSize, 0.5f, 1f);
