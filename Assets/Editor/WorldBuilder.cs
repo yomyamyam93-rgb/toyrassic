@@ -277,6 +277,7 @@ public static class WorldBuilder
         for (int i = 0; i < protos.Length; i++)
         {
             string nm = protos[i].prefab != null ? protos[i].prefab.name.ToLower() : "";
+            if (nm.Contains("pine")) continue;             // ★소나무 제외(사용자 요청, 나중에 다시 추가 예정)
             if (nm.Contains("palm")) palmIdx.Add(i); else landIdx.Add(i);
         }
 
