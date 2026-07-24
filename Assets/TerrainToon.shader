@@ -22,6 +22,7 @@ Shader "Toyrassic/TerrainToon"
         _WorldSize ("월드 크기", Float) = 6000
         _CliffTile ("절벽 타일 (m)", Float) = 18
         _CliffDark ("절벽 아래 어둡게", Range(0,1)) = 0.25
+        _ShadowDark ("그림자 진하기", Range(0,1)) = 0.35
     }
     SubShader
     {
@@ -34,6 +35,7 @@ Shader "Toyrassic/TerrainToon"
             #pragma vertex vert
             #pragma fragment frag
             #pragma multi_compile _ _MAIN_LIGHT_SHADOWS _MAIN_LIGHT_SHADOWS_CASCADE
+            #pragma multi_compile_fragment _ _SHADOWS_SOFT
             #pragma multi_compile_fog
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
@@ -47,7 +49,7 @@ Shader "Toyrassic/TerrainToon"
             TEXTURE2D(_L1); TEXTURE2D(_L2); TEXTURE2D(_L3);
             TEXTURE2D(_L4); TEXTURE2D(_L5); TEXTURE2D(_L6); TEXTURE2D(_L7);
             float4 _TileA, _TileB;
-            float _WorldMin, _WorldSize, _CliffTile, _CliffDark;
+            float _WorldMin, _WorldSize, _CliffTile, _CliffDark, _ShadowDark;
 
             V vert(A i)
             {
@@ -96,8 +98,10 @@ Shader "Toyrassic/TerrainToon"
                 float4 shadowCoord = TransformWorldToShadowCoord(i.wpos);
                 Light ml = GetMainLight(shadowCoord);
                 half ndl = saturate(dot(n, ml.direction));
-                half3 lit = SampleSH(n) + ml.color.rgb * ndl * ml.shadowAttenuation;
+                half3 lit = SampleSH(n) + ml.color.rgb * ndl;
                 half3 col = g * lit;
+                // 앰비언트가 세도 그림자가 보이게 최종색에 직접 곱한다 (스타일라이즈드)
+                col *= lerp(1.0 - _ShadowDark, 1.0, ml.shadowAttenuation);
                 col = MixFog(col, i.fog);
                 return half4(col, 1);
             }

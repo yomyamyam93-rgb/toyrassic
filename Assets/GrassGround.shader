@@ -12,6 +12,7 @@ Shader "Toyrassic/GrassGround"
         _Cutoff ("알파 컷", Range(0,1)) = 0.4
         _BaseDark ("잎 밑동 어둠", Range(0.4,1)) = 0.62
         _TipBoost ("잎끝 밝기", Range(1,1.6)) = 1.22
+        _ShadowDark ("그림자 진하기", Range(0,1)) = 0.35
 
         // 지형 스플랫 (잔디 매니저가 자동 연결)
         _Control0 ("스플랫 0-3", 2D) = "red" {}
@@ -40,6 +41,7 @@ Shader "Toyrassic/GrassGround"
             #pragma fragment frag
             #pragma multi_compile_instancing
             #pragma multi_compile _ _MAIN_LIGHT_SHADOWS _MAIN_LIGHT_SHADOWS_CASCADE
+            #pragma multi_compile_fragment _ _SHADOWS_SOFT
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
 
@@ -52,7 +54,7 @@ Shader "Toyrassic/GrassGround"
             TEXTURE2D(_L0); SAMPLER(sampler_L0);               // repeat — 레이어 8장 공용
             TEXTURE2D(_L1); TEXTURE2D(_L2); TEXTURE2D(_L3);
             TEXTURE2D(_L4); TEXTURE2D(_L5); TEXTURE2D(_L6); TEXTURE2D(_L7);
-            float _WorldMin, _WorldSize, _Cutoff, _BaseDark, _TipBoost;
+            float _WorldMin, _WorldSize, _Cutoff, _BaseDark, _TipBoost, _ShadowDark;
             half4 _Tint;
             float4 _TileA, _TileB;
 
@@ -89,14 +91,18 @@ Shader "Toyrassic/GrassGround"
                 half wsum = c0.r + c0.g + c0.b + c0.a + c1.r + c1.g + c1.b + c1.a;
                 g /= max(wsum, 0.001);
 
-                // 지면과 같은 조명 (위 방향 노멀)
-                Light ml = GetMainLight();
+                // 지면과 같은 조명 (위 방향 노멀) + 그림자 수신 (나무 그늘이 잔디에도 진다)
+                float4 shadowCoord = TransformWorldToShadowCoord(i.wpos);
+                Light ml = GetMainLight(shadowCoord);
                 half ndl = saturate(dot(float3(0,1,0), ml.direction));
                 half3 amb = SampleSH(float3(0,1,0));
                 half3 lit = amb + ml.color.rgb * ndl;
                 // 밑동 어둡고 끝 밝게 → 바닥과 같은 색이어도 잎이 보인다
                 half shade = lerp(_BaseDark, _TipBoost, saturate(i.uvY));
-                return half4(g * lit * shade * _Tint.rgb, 1);
+                half3 col = g * lit * shade * _Tint.rgb;
+                // 그림자는 최종색에 직접 곱해 앰비언트가 세도 또렷하게 (지형과 동일 방식)
+                col *= lerp(1.0 - _ShadowDark, 1.0, ml.shadowAttenuation);
+                return half4(col, 1);
             }
             ENDHLSL
         }

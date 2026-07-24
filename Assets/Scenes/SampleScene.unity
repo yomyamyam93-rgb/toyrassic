@@ -18,8 +18,8 @@ RenderSettings:
   m_FogColor: {r: 0.82, g: 0.9, b: 0.96, a: 1}
   m_FogMode: 1
   m_FogDensity: 0.01
-  m_LinearFogStart: 70
-  m_LinearFogEnd: 520
+  m_LinearFogStart: 220
+  m_LinearFogEnd: 1600
   m_AmbientSkyColor: {r: 0.9, g: 0.93, b: 0.88, a: 1}
   m_AmbientEquatorColor: {r: 0.88, g: 0.92, b: 0.84, a: 1}
   m_AmbientGroundColor: {r: 0.7, g: 0.7, b: 0.62, a: 1}
@@ -901,7 +901,7 @@ Light:
     m_Type: 2
     m_Resolution: -1
     m_CustomResolution: -1
-    m_Strength: 0.25
+    m_Strength: 1
     m_Bias: 0.04
     m_NormalBias: 0.5
     m_NearPlane: 0.2
@@ -6108,8 +6108,8 @@ MonoBehaviour:
     size: 1
   - name: flower_white
     active: 1
-    weight: 0.07
-    size: 0.798
+    weight: 0.027
+    size: 1.47
   placeLayers:
   - layer: {fileID: 8574412962073106934, guid: 8ea4f713b896a824fbb4c249bc377cf4, type: 2}
     on: 1
@@ -6127,14 +6127,14 @@ MonoBehaviour:
     on: 0
   - layer: {fileID: 8574412962073106934, guid: 734244157d9e7d445b51cf0c3e0a0c17, type: 2}
     on: 0
-  layerThreshold: 0.546
+  layerThreshold: 0.744
   density: 0.85
-  drawDistance: 250
+  drawDistance: 300
   cellSize: 1.5
-  blockStrength: 0.131
+  blockStrength: 0.105
   edgeBand: 7.34
-  edgeDensity: 0.274
-  edgeSize: 0.757
+  edgeDensity: 0.46
+  edgeSize: 0.914
   edgeJitter: 0.209
   edgeProtoCount: 4
   maxSlope: 34
@@ -6471,7 +6471,7 @@ Transform:
   m_GameObject: {fileID: 768300575}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 1074.0741, y: 3.4383202, z: 3000}
+  m_LocalPosition: {x: 1334.02, y: 65.5, z: 4902.98}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -7639,15 +7639,15 @@ Terrain:
   m_TerrainData: {fileID: 15600000, guid: 8afaec49be18b3d4dac1a36d8bcd4d7d, type: 2}
   m_TreeDistance: 3000
   m_TreeBillboardDistance: 600
-  m_TreeCrossFadeLength: 0
-  m_TreeMaximumFullLODCount: 2000
-  m_DetailObjectDistance: 250
+  m_TreeCrossFadeLength: 40
+  m_TreeMaximumFullLODCount: 4000
+  m_DetailObjectDistance: 300
   m_DetailObjectDensity: 1
-  m_HeightmapPixelError: 1
+  m_HeightmapPixelError: 5
   m_SplatMapDistance: 20000
   m_HeightmapMinimumLODSimplification: 0
   m_HeightmapMaximumLOD: 0
-  m_ShadowCastingMode: 0
+  m_ShadowCastingMode: 1
   m_DrawHeightmap: 1
   m_DrawInstanced: 0
   m_DrawTreesAndFoliage: 1
@@ -7709,15 +7709,15 @@ PrefabInstance:
     m_Modifications:
     - target: {fileID: -7254855884874844228, guid: a9f97bdace247ed49a6a0d1b04c63f3e, type: 3}
       propertyPath: m_LocalPosition.x
-      value: 4185.185
+      value: 1338
       objectReference: {fileID: 0}
     - target: {fileID: -7254855884874844228, guid: a9f97bdace247ed49a6a0d1b04c63f3e, type: 3}
       propertyPath: m_LocalPosition.y
-      value: 51.073685
+      value: 67.56
       objectReference: {fileID: 0}
     - target: {fileID: -7254855884874844228, guid: a9f97bdace247ed49a6a0d1b04c63f3e, type: 3}
       propertyPath: m_LocalPosition.z
-      value: 4703.7036
+      value: 4907.81
       objectReference: {fileID: 0}
     - target: {fileID: -7254855884874844228, guid: a9f97bdace247ed49a6a0d1b04c63f3e, type: 3}
       propertyPath: m_LocalRotation.w
