@@ -120,17 +120,22 @@ public class FxSwingTrail : MonoBehaviour
         // ★몸 스윙과 같은 곡선(슈우웅..팍!) — 잔상이 채찍 타이밍에 정확히 맞춰 쏟아짐
         float ang = PetUnit.SwingAngle(Mathf.Clamp01(t / dur));
         float sign = Mathf.Sign(sweepDeg);
-        while (emitted < ang)
+        while (emitted < ang && emitted < 335f)
         {
-            emitted += 0.14f;                                             // 0.14° 간격 = 초고밀도 (사각 없음)
+            emitted += 0.14f;                                             // 0.14° 간격 = 초고밀도
+            // ★초승달형: 호의 시작(90°)·끝(335°)은 얇고 중앙이 가장 두껍게 (검격 모양)
+            float norm = Mathf.InverseLerp(90f, 335f, emitted);
+            float w = Mathf.Sin(norm * Mathf.PI);
+            float width = 0.25f + 0.75f * w;                              // 두께 배율 0.25~1
             var dir = Quaternion.Euler(0f, startYaw + sign * emitted, 0f) * Vector3.forward;
-            var pos = center + dir * radius * Random.Range(0.74f, 1.0f);
+            float band = 0.13f * width;                                   // 반경 방향 띠 폭
+            var pos = center + dir * radius * Random.Range(1.0f - band, 1.0f);
             var ep = new ParticleSystem.EmitParams
             {
-                position = pos + Vector3.up * Random.Range(-0.03f, 0.06f) * radius,
+                position = pos + Vector3.up * Random.Range(-0.02f, 0.05f) * radius * width,
                 velocity = dir * radius * Random.Range(0.02f, 0.08f),
-                startSize = radius * Random.Range(0.022f, 0.04f),         // 알맹이 축소
-                startLifetime = Random.Range(0.28f, 0.38f),
+                startSize = radius * Random.Range(0.020f, 0.038f) * (0.5f + 0.5f * width),
+                startLifetime = Random.Range(0.26f, 0.36f),
                 startColor = c * 1.9f,                                    // HDR → 블룸 발광
                 rotation = Random.Range(0f, 360f)
             };

@@ -88,15 +88,15 @@ public class PetUnit : MonoBehaviour
         if (dead) { LungeFx(); return; }
         atkCd -= Time.deltaTime;
 
-        // 나무 휘두르기 — "슈우우웅(반대로 감기).. 팍!(폭발 채찍) → 복귀"
+        // 나무 휘두르기 — "슈우웅.. 팍! 치고 감속하며 한 바퀴"
         if (spinT > 0f)
         {
-            spinT -= Time.deltaTime / 0.75f;
+            spinT -= Time.deltaTime / 0.9f;
             float pr = 1f - Mathf.Clamp01(spinT);
             float off = SwingAngle(pr);
             transform.Rotate(0f, off - prevSwing, 0f);
             prevSwing = spinT <= 0f ? 0f : off;
-            if (!swingHit && pr >= 0.58f) { swingHit = true; WoodAoE(); }   // 채찍 한복판에서 타격
+            if (!swingHit && off >= 110f) { swingHit = true; WoodAoE(); }   // 채찍이 정면쯤 왔을 때 타격
         }
 
         // 고무 점프 진행 (이동 명령 없어도 장전/공중이면 마저 진행)
@@ -206,7 +206,7 @@ public class PetUnit : MonoBehaviour
                 spinT = 1f; prevSwing = 0f; swingHit = false;
                 FxSwingTrail.Spawn(transform.position + Vector3.up * body * 0.15f,
                                    transform.eulerAngles.y + 180f, 215f, body * 1.05f,   // ★꼬리에서 시작
-                                   new Color(1f, 0.93f, 0.55f, 0.9f), 0.75f);            // 스윙 전체와 동기
+                                   new Color(1f, 0.93f, 0.55f, 0.9f), 0.9f);             // 스윙 전체와 동기
                 break;
 
             case Mat.Rubber: // 고무공 투척 (물리 원거리)
@@ -221,13 +221,13 @@ public class PetUnit : MonoBehaviour
         }
     }
 
-    /// 스윙 각도 곡선 — 슈우우웅(0~0.5: -28° 반대 감기) 팍!(0.5~0.75: 폭발 가속) 복귀(0.75~1)
-    /// FX 잔상도 같은 곡선을 써서 몸과 이펙트가 정확히 동기화된다.
+    /// 스윙 각도 곡선 — 슈우웅(-28° 감기) → 팍! 치고 → 감속하며 그대로 한 바퀴(360°) 돌아 제자리.
+    /// 급되감기 없음 = 물리적으로 자연스러움. FX 잔상도 같은 곡선으로 동기.
     public static float SwingAngle(float pr)
     {
-        if (pr < 0.5f) { float s = pr / 0.5f; return -28f * Mathf.Sin(s * Mathf.PI * 0.5f); }
-        if (pr < 0.75f) { float s = (pr - 0.5f) / 0.25f; return Mathf.Lerp(-28f, 215f, Mathf.Pow(s, 1.7f)); }
-        { float s = (pr - 0.75f) / 0.25f; return Mathf.Lerp(215f, 0f, s * s * (3f - 2f * s)); }
+        if (pr < 0.35f) { float s = pr / 0.35f; return -28f * Mathf.Sin(s * Mathf.PI * 0.5f); }
+        float u = (pr - 0.35f) / 0.65f;
+        return -28f + 388f * (1f - Mathf.Pow(1f - u, 2.4f));   // 순간 가속 후 쭉 감속 (이즈아웃)
     }
 
     // 나무 광역 — 스윙이 실제로 도는 순간 주변 타격 + 약한 넉백
