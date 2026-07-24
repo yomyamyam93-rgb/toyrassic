@@ -33,21 +33,22 @@ Material:
     - _CenterDark: 0.66
     - _Contrast: 0.94
     - _DepthFade: 2
-    - _EdgeAlpha: 0.09
+    - _EdgeAlpha: 0.703
     - _Flow: 0.13
-    - _FoamEdge: 0.98
+    - _FoamEdge: 0.931
     - _FoamLines: 3.95
-    - _FoamNoise: 0.09
-    - _FoamSoft: 0.027
+    - _FoamNoise: 0.084
+    - _FoamSoft: 0.141
     - _FoamSpeed: 1.4
-    - _FoamStr: 0.8
-    - _FoamWarp: 0.02
+    - _FoamStr: 1
+    - _FoamWarp: 0.014
     - _FoamWidth: 1.03
-    - _FoamWobble: 0.02
+    - _FoamWobble: 0.057
     - _Hue: -14
-    - _Noise: 0.055
+    - _Noise: 0.177
     - _Sat: 0.9
-    - _Scale: 13.82
-    m_Colors: []
+    - _Scale: 22.2
+    m_Colors:
+    - _Tint: {r: 0.4542987, g: 0.6397306, b: 0.7830189, a: 1}
   m_BuildTextureStacks: []
   m_AllowLocking: 1

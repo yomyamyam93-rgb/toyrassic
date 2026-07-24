@@ -24,7 +24,7 @@ Material:
     serializedVersion: 3
     m_TexEnvs:
     - _GroundTex:
-        m_Texture: {fileID: 2800000, guid: ece6554ec4779274daf232ae0f5302a1, type: 3}
+        m_Texture: {fileID: 2800000, guid: 272cd43ea91eb77429ee9b9cbd898438, type: 3}
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
     - _MainTex:
@@ -37,7 +37,7 @@ Material:
     - _Cutoff: 0.4
     - _TipBoost: 1.3
     - _WorldMin: 0
-    - _WorldSize: 1500
+    - _WorldSize: 6000
     m_Colors: []
   m_BuildTextureStacks: []
   m_AllowLocking: 1

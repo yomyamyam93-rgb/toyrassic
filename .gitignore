@@ -38,3 +38,9 @@ sysinfo.txt
 # OS
 .DS_Store
 Thumbs.db
+
+# 대용량 생성 파일 — 집↔회사 동기화 불필요(코드가 없으면 자동 재생성)
+Assets/World/splat_backup.bytes
+Assets/World/splat_backup.bytes.meta
+Assets/World/terrain_export.bytes
+Assets/World/terrain_export.bytes.meta
