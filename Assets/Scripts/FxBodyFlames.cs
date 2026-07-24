@@ -63,14 +63,24 @@ public class FxBodyFlames : MonoBehaviour
 
     float glowMode = 1f;
 
+    // 셰이더와 동일한 절차 노이즈 (텍스처 불필요 — 수치 완전 일치)
+    static readonly Vector2[] NF = { new Vector2(1,3), new Vector2(2,-1), new Vector2(3,2), new Vector2(-2,4), new Vector2(4,1),
+                                     new Vector2(5,-3), new Vector2(-1,5), new Vector2(2,2), new Vector2(6,-2), new Vector2(-3,3) };
+    static readonly float[] NP = { 0.3f, 1.7f, 2.9f, 4.1f, 0.9f, 5.2f, 3.6f, 1.2f, 2.2f, 0.5f };
+    static float ProcNoise(Vector2 p)
+    {
+        float n = 0f;
+        for (int k = 0; k < 10; k++)
+            n += Mathf.Sin(2f * Mathf.PI * Vector2.Dot(NF[k], p) + NP[k]) / (1f + k * 0.25f);
+        return Mathf.Clamp01(n * 0.22f + 0.5f);
+    }
+
     // 셰이더 글로우와 동일한 계산 (모드별)
     float NoiseAt(Vector3 op)
     {
-        if (noise == null) return 1f;
         Vector2 gp = (axisX > 0.5f ? new Vector2(op.x, op.y) : new Vector2(op.z, op.y)) * glowScale;
-        float n1 = noise.GetPixelBilinear(gp.x - Mathf.Floor(gp.x), gp.y - Mathf.Floor(gp.y)).r;
-        Vector2 g2 = gp * 1.7f + new Vector2(0.13f, 0f);
-        float n2 = noise.GetPixelBilinear(g2.x - Mathf.Floor(g2.x), g2.y - Mathf.Floor(g2.y)).r;
+        float n1 = ProcNoise(gp);
+        float n2 = ProcNoise(gp * 1.7f + new Vector2(0.13f, 0f));
         if (glowMode >= 2.5f)
         {   // 마그마 균열 — 셰이더보다 '조금 넓게' 판정 (가는 선 위에 정점이 드물어서)
             float v1 = Mathf.Abs(n1 - 0.5f) * 2f;

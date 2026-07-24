@@ -78,6 +78,18 @@ Shader "Toyrassic/PetToon"
             half _EnvIntensity, _Triplanar; float _TriScale;
             half _GlowMode, _GlowIntensity, _GlowCut; float _GlowScale, _GlowSpeed;
 
+            // 절차 노이즈 — 텍스처 대신 수식 (해상도 무한 = 확대해도 안 깨짐). C# FxBodyFlames 와 동일 수치
+            static const float2 NF[10] = { float2(1,3), float2(2,-1), float2(3,2), float2(-2,4), float2(4,1),
+                                           float2(5,-3), float2(-1,5), float2(2,2), float2(6,-2), float2(-3,3) };
+            static const float NP[10] = { 0.3, 1.7, 2.9, 4.1, 0.9, 5.2, 3.6, 1.2, 2.2, 0.5 };
+            half ProcNoise(float2 p)
+            {
+                float n = 0;
+                [unroll] for (int k = 0; k < 10; k++)
+                    n += sin(6.2831853 * dot(NF[k], p) + NP[k]) / (1.0 + k * 0.25);
+                return saturate(n * 0.22 + 0.5);
+            }
+
             struct A
             {
                 float4 positionOS:POSITION; float3 normalOS:NORMAL;
@@ -203,8 +215,8 @@ Shader "Toyrassic/PetToon"
                 {
                     float2 gp = (_AxisX > 0.5 ? i.opos.xy : i.opos.zy) * _GlowScale;
                     float tt = _Time.y * _GlowSpeed;
-                    half n1 = SAMPLE_TEXTURE2D(_GlowTex, sampler_GlowTex, gp + float2(0, -tt * 0.35)).r;
-                    half n2 = SAMPLE_TEXTURE2D(_GlowTex, sampler_GlowTex, gp * 1.7 + float2(0.13, -tt * 0.61)).r;
+                    half n1 = ProcNoise(gp + float2(0, -tt * 0.35));
+                    half n2 = ProcNoise(gp * 1.7 + float2(0.13, -tt * 0.61));
                     if (_GlowMode < 1.5)
                     {   // 불·물: 두 겹 노이즈 발광. _GlowCut>0 이면 '달궈진 얼룩' 컷 (마그마)
                         half g = saturate(n1 * n2 * 1.8);
