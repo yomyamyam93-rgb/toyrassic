@@ -77,6 +77,64 @@ public static class FX
     }
 }
 
+/// 참격 파티클 잔상 — 스윙 궤적을 따라 촙촙한 조각이 촥 뿌려지고 짧게 흩어져 사라짐
+public class FxSwingTrail : MonoBehaviour
+{
+    ParticleSystem ps; Vector3 center; float startYaw, sweepDeg, radius, dur, t, emitted;
+    Color c;
+
+    public static void Spawn(Vector3 center, float startYaw, float sweepDeg, float radius, Color c, float dur)
+    {
+        var go = new GameObject("fx_swingtrail");
+        go.transform.position = center;
+        var ps = go.AddComponent<ParticleSystem>();
+        var main = ps.main;
+        main.loop = false; main.playOnAwake = false;
+        main.simulationSpace = ParticleSystemSimulationSpace.World;
+        main.startSpeed = 0f; main.gravityModifier = 0f;
+        main.maxParticles = 300;
+        var em = ps.emission; em.enabled = false;               // 수동 방출만
+        var col = ps.colorOverLifetime; col.enabled = true;
+        var grad = new Gradient();
+        grad.SetKeys(new[] { new GradientColorKey(Color.white, 0f), new GradientColorKey(Color.white, 1f) },
+                     new[] { new GradientAlphaKey(1f, 0f), new GradientAlphaKey(0.7f, 0.4f), new GradientAlphaKey(0f, 1f) });
+        col.color = grad;
+        var sol = ps.sizeOverLifetime; sol.enabled = true;
+        sol.size = new ParticleSystem.MinMaxCurve(1f, AnimationCurve.EaseInOut(0f, 1f, 1f, 0.25f));
+        var r = go.GetComponent<ParticleSystemRenderer>();
+        r.material = new Material(Shader.Find("Sprites/Default"));
+        r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+        var drv = go.AddComponent<FxSwingTrail>();
+        drv.ps = ps; drv.center = center; drv.startYaw = startYaw;
+        drv.sweepDeg = sweepDeg; drv.radius = radius; drv.c = c; drv.dur = dur;
+        Destroy(go, dur + 0.6f);
+    }
+
+    void Update()
+    {
+        t += Time.deltaTime;
+        float targetAng = Mathf.Abs(sweepDeg) * Mathf.Clamp01(t / dur);   // 스윙 진행 각도
+        float sign = Mathf.Sign(sweepDeg);
+        while (emitted < targetAng)
+        {
+            emitted += 3.2f;                                              // 3.2° 마다 조각 하나 = 촙촙
+            var dir = Quaternion.Euler(0f, startYaw + sign * emitted, 0f) * Vector3.forward;
+            var pos = center + dir * radius * Random.Range(0.78f, 1.02f);
+            var ep = new ParticleSystem.EmitParams
+            {
+                position = pos + Vector3.up * Random.Range(-0.06f, 0.10f) * radius,
+                velocity = dir * radius * Random.Range(0.15f, 0.45f)      // 바깥으로 살짝 흩어짐
+                         + Vector3.up * radius * 0.05f,
+                startSize = radius * Random.Range(0.045f, 0.10f),
+                startLifetime = Random.Range(0.18f, 0.32f),
+                startColor = c,
+                rotation = Random.Range(0f, 360f)
+            };
+            ps.Emit(ep, 1);
+        }
+    }
+}
+
 /// 참격 스윕 애니 — 진행선까지 그려지고, 지나간 자리는 꼬리처럼 옅어짐. 끝나면 전체 페이드
 public class FxSweep : MonoBehaviour
 {

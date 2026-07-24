@@ -194,10 +194,11 @@ public class PetUnit : MonoBehaviour
                 lungeTo = transform.position + dir.normalized * (body * 0.38f);
                 break;
 
-            case Mat.Wood:   // 휘두르기 시작 — 참격 호가 스윙과 같은 방향·타이밍으로 쫙
+            case Mat.Wood:   // 휘두르기 시작 — 파티클 잔상이 스윙 따라 촥 뿌려짐
                 spinT = 1f; prevSwing = 0f; swingHit = false;
-                FX.Sweep(transform.position, transform.eulerAngles.y, 215f, body * 1.15f,
-                         new Color(1f, 0.93f, 0.55f, 0.7f), 0.275f, 0.22f);
+                FxSwingTrail.Spawn(transform.position + Vector3.up * body * 0.15f,
+                                   transform.eulerAngles.y, 215f, body * 1.05f,
+                                   new Color(1f, 0.93f, 0.55f, 0.9f), 0.275f);
                 break;
 
             case Mat.Rubber: // 고무공 투척 (물리 원거리)
