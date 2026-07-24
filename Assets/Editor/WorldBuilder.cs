@@ -62,6 +62,7 @@ public static class WorldBuilder
         var (roads, cells) = DoRoads(terrain, lines, cell, grid);
         int trees = DoTrees(terrain);
         int grass = DoGrass(terrain);
+        int flowers = DoFlowers(terrain);
 
         var td = terrain.terrainData;
         terrain.Flush();
@@ -69,7 +70,7 @@ public static class WorldBuilder
         EditorUtility.SetDirty(terrain);
         AssetDatabase.SaveAssets();
 
-        Debug.Log($"[월드] 완성 — 마커 {markers} · 길 {roads}구간({cells}칸) · 나무 {trees} · 풀 {grass}칸\n" +
+        Debug.Log($"[월드] 완성 — 마커 {markers} · 길 {roads}구간({cells}칸) · 나무 {trees} · 풀 {grass}칸 · 꽃 {flowers}\n" +
                   $"지형 실측 {td.size.x:F0}×{td.size.z:F0}m · 격자 {grid} → 칸 {td.size.x / grid:F1}m " +
                   $"(계획서 {cell}m 기준, 비례 환산)");
     }
@@ -328,9 +329,82 @@ public static class WorldBuilder
         return list.Count;
     }
 
+    /// ★잔디 색 매칭의 진짜 열쇠 — 지형 표면색을 구워서(bake) GrassGround 재질에 연결.
+    ///   GrassCross 재질은 이미 GrassGround 셰이더(땅색맵을 월드XZ로 샘플)를 쓰는데,
+    ///   _WorldSize 가 1500 으로 박혀 있어 6000m 지형에선 색이 어긋났다. 여기서 바로잡는다.
+    static void BakeGroundColorForGrass(Terrain terrain)
+    {
+        var td = terrain.terrainData;
+        var layers = td.terrainLayers;
+        if (layers == null || layers.Length == 0) return;
+
+        // ① 각 터레인 레이어의 대표색(디퓨즈 평균) — 읽기 켜서 뽑고 되돌린다
+        var lcol = new Color[layers.Length];
+        for (int l = 0; l < layers.Length; l++)
+        {
+            lcol[l] = new Color(0.5f, 0.5f, 0.5f);
+            var tex = layers[l] != null ? layers[l].diffuseTexture : null;
+            if (tex == null) continue;
+            string path = AssetDatabase.GetAssetPath(tex);
+            var imp = AssetImporter.GetAtPath(path) as TextureImporter;
+            bool wasR = imp != null && imp.isReadable;
+            if (imp != null && !wasR) { imp.isReadable = true; imp.SaveAndReimport(); }
+            try
+            {
+                int mip = Mathf.Max(0, tex.mipmapCount - 4);
+                var px = tex.GetPixels(mip);
+                if (px.Length > 0)
+                {
+                    Color s = Color.black;
+                    foreach (var c in px) s += c;
+                    lcol[l] = s / px.Length;
+                }
+            }
+            catch { }
+            if (imp != null && !wasR) { imp.isReadable = false; imp.SaveAndReimport(); }
+        }
+
+        // ② 스플랫맵 × 레이어색 = 땅 표면색 맵 굽기
+        int aw = td.alphamapWidth, ah = td.alphamapHeight, al = td.alphamapLayers;
+        var splat = td.GetAlphamaps(0, 0, aw, ah);
+        const int R = 512;
+        var tex2 = new Texture2D(R, R, TextureFormat.RGBA32, false);
+        var pix2 = new Color[R * R];
+        for (int py = 0; py < R; py++)
+        for (int px2 = 0; px2 < R; px2++)
+        {
+            int ax = Mathf.Clamp(px2 * (aw - 1) / (R - 1), 0, aw - 1);
+            int az = Mathf.Clamp(py * (ah - 1) / (R - 1), 0, ah - 1);
+            Color c = Color.black;
+            for (int l = 0; l < al && l < lcol.Length; l++) c += splat[az, ax, l] * lcol[l];
+            c.a = 1f;
+            pix2[py * R + px2] = c;
+        }
+        tex2.SetPixels(pix2); tex2.Apply();
+        System.IO.File.WriteAllBytes("Assets/World/ground_baked.png", tex2.EncodeToPNG());
+        AssetDatabase.ImportAsset("Assets/World/ground_baked.png");
+        var baked = AssetDatabase.LoadAssetAtPath<Texture2D>("Assets/World/ground_baked.png");
+
+        // ③ GrassCross 재질에 연결 + 월드 크기 바로잡기
+        var origin = terrain.transform.position;
+        int wired = 0;
+        foreach (var mp in new[] { "Assets/Models/GrassCross_a.mat", "Assets/Models/GrassCross_b.mat", "Assets/Models/GrassCross_c.mat" })
+        {
+            var mat = AssetDatabase.LoadAssetAtPath<Material>(mp);
+            if (mat == null) continue;
+            if (mat.HasProperty("_GroundTex")) mat.SetTexture("_GroundTex", baked);
+            if (mat.HasProperty("_WorldMin")) mat.SetFloat("_WorldMin", origin.x);
+            if (mat.HasProperty("_WorldSize")) mat.SetFloat("_WorldSize", td.size.x);
+            EditorUtility.SetDirty(mat);
+            wired++;
+        }
+        Debug.Log($"[월드] 땅색 bake 완료 → GrassCross 재질 {wired}개 연결 (WorldSize {td.size.x:F0}m). 이제 잔디가 발밑 땅색과 일치.");
+    }
+
     static int DoGrass(Terrain terrain)
     {
         var td = terrain.terrainData;
+        BakeGroundColorForGrass(terrain);      // ★색 매칭 먼저
         var protos = td.detailPrototypes;
         if (protos == null || protos.Length == 0)
         {
@@ -339,27 +413,28 @@ public static class WorldBuilder
             return 0;
         }
 
-        // ★프로토타입 조정 — 크기 아주 조금 랜덤 + 초록 땅색 톤(애니 밝은 녹색)
-        //   (터레인 빌보드 잔디는 위치별 정확한 땅색 매칭은 안 되므로 '초록 톤'으로 맞춘다.
-        //    위치별 완전 매칭이 필요하면 GrassGround 셰이더를 디테일 메시로 연결하는 별도 작업)
-        var healthy = new Color(0.53f, 0.78f, 0.36f); // 밝은 애니 녹색
-        var dry = new Color(0.62f, 0.80f, 0.40f);
+        // ★크기 아주 조금 랜덤. 색은 GrassGround 셰이더(_GroundTex)가 정하므로 틴트는 흰색.
         for (int l = 0; l < protos.Length; l++)
         {
-            protos[l].minWidth = 0.85f; protos[l].maxWidth = 1.15f;   // 크기 아주 조금 랜덤
+            protos[l].minWidth = 0.85f; protos[l].maxWidth = 1.15f;
             protos[l].minHeight = 0.85f; protos[l].maxHeight = 1.2f;
-            protos[l].healthyColor = healthy; protos[l].dryColor = dry;
+            protos[l].healthyColor = Color.white; protos[l].dryColor = Color.white;
             protos[l].noiseSpread = 0.3f;
         }
         td.detailPrototypes = protos;
 
+        // ★2배 더 빽빽 — 디테일 해상도를 넉넉히 올린다(셀당 상한 16을 넘는 밀도는 해상도로).
+        int wantRes = Mathf.Clamp(Mathf.CeilToInt(td.size.x / 3f), 512, 2048);   // 3m당 1셀 목표
+        if (td.detailResolution < wantRes)
+            td.SetDetailResolution(wantRes, Mathf.Min(td.detailResolutionPerPatch, 32));
         int res = td.detailResolution;
         float maxH = td.size.y * MaxHeightFrac;
         int total = 0;
-        const int AMT_MAX = 16;                 // ★유니티 셀당 상한(밀도 4배의 핵심)
+        const int AMT_MAX = 16;                 // 유니티 셀당 상한
 
         for (int layer = 0; layer < protos.Length; layer++)
         {
+            if (IsFlowerProto(protos[layer])) continue;   // 꽃은 DoFlowers 가 따로 채운다
             var map = new int[res, res];
             for (int y = 0; y < res; y++)
             for (int x = 0; x < res; x++)
@@ -388,6 +463,72 @@ public static class WorldBuilder
         // ★유니티 잔디는 기본 그리기 거리가 80m 라 멀리서 보면 깔아도 안 보인다
         terrain.detailObjectDistance = 250f;
         terrain.detailObjectDensity = 1f;
+        return total;
+    }
+
+    static bool IsFlowerProto(DetailPrototype p)
+    {
+        string n = p.prototypeTexture != null ? p.prototypeTexture.name
+                 : (p.prototype != null ? p.prototype.name : "");
+        return !string.IsNullOrEmpty(n) && n.ToLower().Contains("flower");
+    }
+
+    /// ★꽃 — 아주 뜨문뜨문. 함수로 '드문 홑개' + '가끔 작은 군집'.
+    static int DoFlowers(Terrain terrain)
+    {
+        var td = terrain.terrainData;
+        // 꽃 프로토타입 확보(없으면 flower 텍스처로 하나 추가)
+        var protos = new List<DetailPrototype>(td.detailPrototypes);
+        int idx = protos.FindIndex(IsFlowerProto);
+        if (idx < 0)
+        {
+            var tex = AssetDatabase.LoadAssetAtPath<Texture2D>("Assets/Textures/solid/flower_white.asset");
+            if (tex == null)
+            {
+                Debug.LogWarning("[월드] 꽃 텍스처(flower_white)를 못 찾아 꽃 건너뜀.\n" +
+                    "Terrain > Paint Details 에 꽃 텍스처를 하나 추가하면 함수로 채운다.");
+                return 0;
+            }
+            protos.Add(new DetailPrototype {
+                prototypeTexture = tex, usePrototypeMesh = false,
+                renderMode = DetailRenderMode.GrassBillboard,
+                healthyColor = Color.white, dryColor = Color.white,
+                minWidth = 0.6f, maxWidth = 1.0f, minHeight = 0.6f, maxHeight = 1.0f, noiseSpread = 0.6f,
+            });
+            td.detailPrototypes = protos.ToArray();
+            idx = protos.Count - 1;
+        }
+
+        int res = td.detailResolution;
+        float maxH = td.size.y * MaxHeightFrac;
+        var rnd = new System.Random(555);
+        // 꽃밭 군집 중심 (드물게)
+        const int NC = 22;
+        var cx = new float[NC]; var cz = new float[NC]; var cr = new float[NC];
+        for (int c = 0; c < NC; c++) { cx[c] = (float)rnd.NextDouble(); cz[c] = (float)rnd.NextDouble(); cr[c] = 0.012f + (float)rnd.NextDouble() * 0.02f; }
+
+        var map = new int[res, res];
+        int total = 0;
+        for (int y = 0; y < res; y++)
+        for (int x = 0; x < res; x++)
+        {
+            float fx = (float)x / (res - 1), fz = (float)y / (res - 1);
+            float h = td.GetInterpolatedHeight(fx, fz);
+            if (h < MinHeight || h > maxH) continue;
+            if (Vector3.Angle(td.GetInterpolatedNormal(fx, fz), Vector3.up) > GrassMaxSlope) continue;
+            if (OnRoad(td, fx, fz)) continue;
+
+            float clust = 0f;
+            for (int c = 0; c < NC; c++)
+            {
+                float dx = fx - cx[c], dz = fz - cz[c];
+                clust = Mathf.Max(clust, Mathf.Exp(-(dx * dx + dz * dz) / (cr[c] * cr[c])));
+            }
+            // 확률: 어디서나 아주 낮게(홑개) + 군집 안에서만 조금 올림
+            float p = 0.0012f + clust * 0.18f;
+            if ((float)rnd.NextDouble() < p) { map[y, x] = 1; total++; }
+        }
+        td.SetDetailLayer(0, 0, idx, map);
         return total;
     }
 
