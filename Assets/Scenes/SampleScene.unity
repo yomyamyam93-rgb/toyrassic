@@ -6049,6 +6049,7 @@ GameObject:
   - component: {fileID: 653440020}
   - component: {fileID: 653440019}
   - component: {fileID: 653440018}
+  - component: {fileID: 653440021}
   m_Layer: 0
   m_Name: World Manager
   m_TagString: Untagged
@@ -6158,6 +6159,104 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &653440021
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 653440017}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 306ff876c187f0d4e8ac50f351eb28d8, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::TreeManager
+  terrain: {fileID: 1274771777}
+  types:
+  - name: BirchTree_Dead_1
+    active: 1
+    weight: 1
+    size: 1
+  - name: BirchTree_Dead_2
+    active: 1
+    weight: 1
+    size: 1
+  - name: BirchTree_Dead_3
+    active: 1
+    weight: 1
+    size: 1
+  - name: BirchTree_Dead_4
+    active: 1
+    weight: 1
+    size: 1
+  - name: Willow_Dead_1
+    active: 1
+    weight: 1
+    size: 1
+  - name: Willow_Dead_2
+    active: 1
+    weight: 1
+    size: 1
+  - name: Willow_Dead_4
+    active: 1
+    weight: 1
+    size: 1
+  - name: palmtree_1
+    active: 1
+    weight: 1
+    size: 1
+  - name: palmtree_2
+    active: 1
+    weight: 1
+    size: 1
+  - name: palmtree_3
+    active: 1
+    weight: 1
+    size: 1
+  - name: palmtree_4
+    active: 1
+    weight: 1
+    size: 1
+  - name: Rock_Medium_1
+    active: 1
+    weight: 1
+    size: 1
+  - name: Rock_Medium_2
+    active: 1
+    weight: 1
+    size: 1
+  - name: Rock_Medium_3
+    active: 1
+    weight: 1
+    size: 1
+  placeLayers:
+  - layer: {fileID: 8574412962073106934, guid: ab8fee9c7db9e19478e459ae5a7ab6da, type: 2}
+    on: 0
+  - layer: {fileID: 8574412962073106934, guid: f8da8618b1b6ac8479ef6800b5d8d8a1, type: 2}
+    on: 1
+  - layer: {fileID: 8574412962073106934, guid: 8ea4f713b896a824fbb4c249bc377cf4, type: 2}
+    on: 1
+  - layer: {fileID: 8574412962073106934, guid: 8a1d0f58444fb7048a325554d29e75dc, type: 2}
+    on: 1
+  - layer: {fileID: 8574412962073106934, guid: 70102ca576d77f04596f26cb4077c9b0, type: 2}
+    on: 0
+  - layer: {fileID: 8574412962073106934, guid: e5c15e517299a3f4ba56a6ac441016c2, type: 2}
+    on: 0
+  - layer: {fileID: 8574412962073106934, guid: 865f3a4dc702a004aa5494fe6a3f9829, type: 2}
+    on: 0
+  - layer: {fileID: 8574412962073106934, guid: 734244157d9e7d445b51cf0c3e0a0c17, type: 2}
+    on: 0
+  layerThreshold: 0.2
+  spacing: 10
+  minDistance: 3.5
+  forestContrast: 0.8
+  forestDensity: 0.75
+  plainsDensity: 0.02
+  palmDensity: 0.05
+  maxSlope: 28
+  minHeight: 2
+  maxHeight: 267
+  avoidCliffEdge: 1
 --- !u!1 &659583562
 GameObject:
   m_ObjectHideFlags: 0
