@@ -10,9 +10,9 @@ using UnityEngine.InputSystem;
 public class PlayerMove : MonoBehaviour
 {
     [Header("속도 (m/s)")]
-    public float walkSpeed = 8.5f;
-    public float runSpeed = 17f;
-    public float accel = 20f;   // 속도가 빨라진 만큼 가속도 같이 올림 (반응 유지)
+    [Tooltip("단일 이속 — 달리기 개념 없음 (기존 달리기 17의 1.5배)")]
+    public float moveSpeed = 25.5f;
+    public float accel = 34f;   // 속도가 빨라진 만큼 가속도 같이 올림 (반응 유지)
 
     [Header("물")]
     public float waterY = 40f;
@@ -46,9 +46,9 @@ public class PlayerMove : MonoBehaviour
         return best == float.MinValue ? transform.position.y : best;
     }
 
-    void ReadInput(out float ix, out float iz, out bool run)
+    void ReadInput(out float ix, out float iz)
     {
-        ix = 0f; iz = 0f; run = false;
+        ix = 0f; iz = 0f;
 #if ENABLE_INPUT_SYSTEM
         var k = Keyboard.current;
         if (k == null) return;
@@ -56,20 +56,18 @@ public class PlayerMove : MonoBehaviour
         if (k.dKey.isPressed || k.rightArrowKey.isPressed) ix += 1f;
         if (k.wKey.isPressed || k.upArrowKey.isPressed) iz += 1f;
         if (k.sKey.isPressed || k.downArrowKey.isPressed) iz -= 1f;
-        run = k.leftShiftKey.isPressed || k.rightShiftKey.isPressed;
 #else
         if (Input.GetKey(KeyCode.A)) ix -= 1f;
         if (Input.GetKey(KeyCode.D)) ix += 1f;
         if (Input.GetKey(KeyCode.W)) iz += 1f;
         if (Input.GetKey(KeyCode.S)) iz -= 1f;
-        run = Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift);
 #endif
     }
 
     void Update()
     {
-        float ix, iz; bool running;
-        ReadInput(out ix, out iz, out running);
+        float ix, iz;
+        ReadInput(out ix, out iz);
 
         var input = new Vector3(ix, 0f, iz);
         if (input.sqrMagnitude > 1f) input.Normalize();
@@ -83,7 +81,7 @@ public class PlayerMove : MonoBehaviour
             if (dir.sqrMagnitude > 1f) dir.Normalize();
         }
 
-        float top = running ? runSpeed : walkSpeed;
+        float top = moveSpeed;
         float gy = GroundAt(transform.position);
         bool wet = gy < waterY;
         if (wet) top *= wetFactor;
@@ -101,10 +99,10 @@ public class PlayerMove : MonoBehaviour
 
         float sp = vel.magnitude;
         var m = BlobMotion.Mode.Idle;
-        if (sp > runSpeed * 0.55f) m = BlobMotion.Mode.Run;
+        if (sp > moveSpeed * 0.55f) m = BlobMotion.Mode.Run;
         else if (sp > 0.35f) m = BlobMotion.Mode.Walk;
         motion.GroundY = np.y;
-        motion.SetMotion(m, Mathf.Clamp01(sp / runSpeed), wet);
+        motion.SetMotion(m, Mathf.Clamp01(sp / moveSpeed), wet);
         if (hasInput) motion.FaceTowards(dir);          // 입력 방향을 바로 바라봄
         else if (sp > 0.2f) motion.FaceTowards(vel);
     }

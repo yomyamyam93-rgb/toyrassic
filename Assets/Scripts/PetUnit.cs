@@ -198,8 +198,8 @@ public class PetUnit : MonoBehaviour
         {
             float d = Dist(followTarget.position);
             if (d > body * 0.9f + 3f)
-            {   // ★따라잡기 부스트: 주인 달리기(17)보다 빠르게 + 멀수록 가속 → 군단이 안 늘어짐
-                float chase = Mathf.Max(MoveSpd, 19f + Mathf.Max(0f, d - 25f) * 0.3f);
+            {   // ★따라잡기 부스트: 주인 이속(25.5)보다 빠르게 + 멀수록 가속 → 군단이 안 늘어짐
+                float chase = Mathf.Max(MoveSpd, 28f + Mathf.Max(0f, d - 25f) * 0.35f);
                 Step(followTarget.position - transform.position, chase);
             }
         }
