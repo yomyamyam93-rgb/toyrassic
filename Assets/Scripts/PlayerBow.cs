@@ -37,7 +37,19 @@ public class PlayerBow : MonoBehaviour
     [Header("도구 3D 모델 (비우면 절차 생성)")]
     public GameObject toolAxeModel;
     public GameObject toolPickModel;
-    [Tooltip("손에 들리는 도구 길이 (m)")] public float toolLength = 2.1f;
+    [Tooltip("정규화 기준 길이 (m)")] public float toolLength = 2.1f;
+
+    [Header("도구 잡기 — 공통 (손 기준)")]
+    [Tooltip("손에서의 위치 오프셋")] public Vector3 gripPosOffset = Vector3.zero;
+    [Tooltip("손에 쥔 회전")] public Vector3 gripEuler = Vector3.zero;
+    [Tooltip("추가 크기 배율")] public float toolScale = 1f;
+
+    [Header("스윙 자세 — 공통 (캐릭터 기준: x=옆, y=높이, z=앞)")]
+    [Tooltip("시작(들어올린) 손 위치")] public Vector3 swingStartPos = new Vector3(0.9f, 3.5f, 0.7f);
+    [Tooltip("시작 손 회전")] public Vector3 swingStartEuler = new Vector3(-55f, 0f, 0f);
+    [Tooltip("끝(내려찍은) 손 위치")] public Vector3 swingEndPos = new Vector3(0.1f, 0.9f, 2.5f);
+    [Tooltip("끝 손 회전")] public Vector3 swingEndEuler = new Vector3(80f, 0f, 0f);
+    [Tooltip("백스윙 — 시작 자세 너머로 더 들어올리는 비율")] public float backswingExtra = 0.22f;
 
     [Header("마우스 커서")]
     public Texture2D cursorNormal;   // 평소 화살표
@@ -471,23 +483,30 @@ public class PlayerBow : MonoBehaviour
             var toolHeld = gearV == GearKind.Axe ? toolAxe : gearV == GearKind.Pick ? toolPick : null;
             if (toolHeld != null)
             {
+                // 잡기 — 인스펙터 값 그대로 (손 기준)
+                toolHeld.localPosition = gripPosOffset;
+                toolHeld.localRotation = Quaternion.Euler(gripEuler);
+                toolHeld.localScale = Vector3.one * toolScale;
+
                 var trail = gearV == GearKind.Axe ? trailAxe : trailPick;
                 bool chopping = gather != null && gather.SwingT > 0f;
                 if (chopping)
-                {   // 패기 스윙 — 백스윙(예열) → 슈웅! 가속 내려찍기
+                {   // 스윙: 시작·끝 자세는 인스펙터, 사이는 가속·감속 곡선
                     var cp = gather.ChopPos;
                     var cdir = cp - transform.position; cdir.y = 0f;
                     cdir = cdir.sqrMagnitude > 0.01f ? cdir.normalized : fwd;
+                    var frame = Quaternion.LookRotation(cdir, Vector3.up);
+
                     float sk = 1f - gather.SwingT;                      // 0→1
                     float p;
-                    if (sk < 0.30f) p = -0.22f * Mathf.Sin(sk / 0.30f * Mathf.PI * 0.5f);  // 백스윙: 더 들어올림
-                    else { float u = (sk - 0.30f) / 0.70f; p = Mathf.Sin(Mathf.Pow(u, 1.9f) * Mathf.PI * 0.5f); }  // 가속 후 도달 감속
-                    var raisedP = transform.position + cdir * 1.0f + Vector3.up * 3.7f;
-                    var hitP = Vector3.Lerp(transform.position, cp, 0.62f) + Vector3.up * 0.9f;
-                    handR.position = Vector3.LerpUnclamped(raisedP, hitP, p);
-                    var toolAim = (hitP + cdir * 0.6f + Vector3.down * 0.3f) - handR.position;
-                    if (toolAim.sqrMagnitude > 0.01f) toolHeld.rotation = Quaternion.LookRotation(toolAim.normalized, Vector3.up);
-                    // 궤적 트레일 — 새 스윙 시작 시 초기화, 내려찍는 구간만 발광
+                    if (sk < 0.30f) p = -backswingExtra * Mathf.Sin(sk / 0.30f * Mathf.PI * 0.5f);   // 백스윙
+                    else { float u = (sk - 0.30f) / 0.70f; p = Mathf.Sin(Mathf.Pow(u, 1.9f) * Mathf.PI * 0.5f); }  // 슈웅! 가속→도달 감속
+
+                    handR.position = transform.position +
+                        frame * Vector3.LerpUnclamped(swingStartPos, swingEndPos, p);
+                    handR.rotation = frame * Quaternion.Slerp(
+                        Quaternion.Euler(swingStartEuler), Quaternion.Euler(swingEndEuler), Mathf.Clamp01(p));
+
                     if (trail != null)
                     {
                         if (gather.SwingT > prevSwingT) trail.Clear();
@@ -495,13 +514,14 @@ public class PlayerBow : MonoBehaviour
                     }
                 }
                 else
-                {   // 휴대 자세 — 비스듬히 들고 있음
-                    var rest = Quaternion.LookRotation(fwd, Vector3.up) * Quaternion.Euler(52f, 12f, 0f);
-                    toolHeld.rotation = Quaternion.Slerp(toolHeld.rotation, rest, 8f * Time.deltaTime);
+                {   // 휴대 — 손 방향만 전방으로 (도구 자세는 gripEuler 가 결정)
+                    handR.rotation = Quaternion.Slerp(handR.rotation,
+                        Quaternion.LookRotation(fwd, Vector3.up), 10f * Time.deltaTime);
                     if (trail != null) trail.emitting = false;
                 }
                 prevSwingT = gather != null ? gather.SwingT : 0f;
             }
+            else handR.rotation = Quaternion.identity;
         }
     }
 }
