@@ -735,8 +735,8 @@ public class PetUnit : MonoBehaviour
     {
         ghostHp = hp;
         float top = r != null ? (r.bounds.max.y - transform.position.y) : 2f;
-        barY = top + body * (isAvatar ? 0.30f : 0.12f);   // 캐릭터는 머리 위 여유 있게
-        barBaseScale = body * 0.16f;
+        barY = top + body * (isAvatar ? 0.35f : 0.14f);   // 캐릭터는 머리 위 여유 있게
+        barBaseScale = body * (isAvatar ? 0.26f : 0.16f); // 캐릭터 바는 작아서 보정
         barRoot = new GameObject(name + "_hpbar").transform;
         barRoot.localScale = Vector3.one * barBaseScale;
         barSmoothY = transform.position.y + barY;
@@ -747,7 +747,7 @@ public class PetUnit : MonoBehaviour
             q.name = n; q.SetParent(barRoot, false);
             q.localPosition = new Vector3(0, 0, z);
             var mm = q.GetComponent<MeshRenderer>();
-            mm.material = new Material(Shader.Find("Sprites/Default"));   // 알파 지원 — 둥근 모서리
+            mm.material = new Material(Shader.Find("Toyrassic/GroundDecal"));   // ZTest Always — 몸·나무에 절대 안 가림
             mm.material.mainTexture = FX.RoundedTex();
             mm.material.color = c;
             mm.sortingOrder = order;   // ★그리기 순서 고정 — 투명 정렬 뒤섞임(색 이상해짐) 방지
@@ -770,10 +770,10 @@ public class PetUnit : MonoBehaviour
         barSmoothY = Mathf.Lerp(barSmoothY, p.y + barY, 7f * Time.deltaTime);
         barRoot.position = new Vector3(p.x, barSmoothY, p.z);
         var camT = Camera.main.transform;
-        barRoot.rotation = Quaternion.LookRotation(barRoot.position - camT.position);
+        barRoot.rotation = camT.rotation;   // 카메라 회전 그대로 = 항상 화면과 수평 (기울어짐 방지)
         // ★줌 무관 화면 크기 고정 — 카메라 거리에 비례해 월드 크기를 키움
         float dist = Vector3.Distance(camT.position, barRoot.position);
-        barRoot.localScale = Vector3.one * barBaseScale * Mathf.Clamp(dist / 45f, 0.55f, 6f);
+        barRoot.localScale = Vector3.one * barBaseScale * Mathf.Clamp(dist / 42f, 0.85f, 6f);
         // 롤식: 실체력은 즉시, 잔상 바는 잠깐 머물다 스르륵 따라 내려옴
         ghostHp = hp > ghostHp ? hp : Mathf.MoveTowards(ghostHp, hp, maxHp * 0.45f * Time.deltaTime);
         float f = maxHp > 0 ? hp / maxHp : 0f;

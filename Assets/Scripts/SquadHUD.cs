@@ -155,7 +155,7 @@ public class SquadHUD : MonoBehaviour
         hintRT.sizeDelta = new Vector2(700, 24);
         var hint = MakeText("HintText", hintRT, FontCap, TxtSub);
         Stretch(hint.rectTransform);
-        hint.text = "WASD 이동   ·   좌클릭(꾹) 조준 → 놓아서 발사   ·   E 채집(나무·바위)   ·   B 부화기 건설";
+        hint.text = "WASD 이동   ·   좌클릭(꾹) 조준 → 놓아서 발사   ·   근처 나무·바위 클릭 = 채집   ·   B 부화기 건설";
     }
 
     void Stretch(RectTransform rt)
@@ -176,22 +176,17 @@ public class SquadHUD : MonoBehaviour
             myHpLabel.text = $"나  {Mathf.CeilToInt(me.hp)} / {Mathf.CeilToInt(me.maxHp)}";
         }
 
-        // 펫
+        // 펫 (없으면 블록 자체를 숨김 — 안내 문구 없음)
         var pet = BlueprintPickup.MyPet();
         petBars.SetActive(pet != null);
+        petTitle.gameObject.SetActive(pet != null);
         if (pet != null)
         {
             petTitle.text = $"{pet.name}   Lv.{pet.level}";
-            petTitle.color = TxtMain;
             petHpFill.fillAmount = pet.maxHp > 0 ? pet.hp / pet.maxHp : 0f;
             petHpLabel.text = $"{Mathf.CeilToInt(pet.hp)} / {Mathf.CeilToInt(pet.maxHp)}";
             float need = 25f + 20f * (pet.level - 1);
             petXpFill.fillAmount = Mathf.Clamp01(pet.xp / need);
-        }
-        else
-        {
-            petTitle.text = "펫 없음 — 알을 부화시키자";
-            petTitle.color = TxtSub;
         }
 
         // 자원 (우상단, 항상)
