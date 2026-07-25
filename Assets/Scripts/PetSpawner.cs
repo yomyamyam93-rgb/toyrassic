@@ -130,9 +130,10 @@ public class PetSpawner : MonoBehaviour
         return entries[entries.Count - 1];
     }
 
-    void Spawn(Entry e, Vector3 pos)
+    /// 배율 스폰 — 둥지 쫄병 등 (크기·체력·공격 배율)
+    public GameObject Spawn(Entry e, Vector3 pos, float sizeMul = 1f, float hpMul = 1f, float dmgMul = 1f)
     {
-        if (e.prefab == null) return;
+        if (e.prefab == null) return null;
         var inst = Instantiate(e.prefab);
         var mr0 = inst.GetComponentInChildren<MeshRenderer>();
         GameObject unit;
@@ -160,6 +161,7 @@ public class PetSpawner : MonoBehaviour
             float cur = Mathf.Max(b.size.x, Mathf.Max(b.size.y, b.size.z));
             if (cur > 0.01f) unit.transform.localScale *= wantSize / cur;
         }
+        unit.transform.localScale *= sizeMul;
 
         // 접지
         unit.transform.position = pos;
@@ -190,6 +192,9 @@ public class PetSpawner : MonoBehaviour
         else if (e.tier == PetScale.Tier.M) { pu.str = 9; pu.agi = 12; pu.vit = 24; }
         else if (e.tier == PetScale.Tier.L) { pu.str = 11; pu.agi = 8; pu.vit = 34; }
         else { pu.str = 15; pu.agi = 5; pu.vit = 48; }
+        pu.str *= dmgMul;
+        pu.vit *= hpMul;
         pu.intel = 8;
+        return unit;
     }
 }

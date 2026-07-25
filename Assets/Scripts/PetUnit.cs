@@ -330,6 +330,14 @@ public class PetUnit : MonoBehaviour
         else if (mat == Mat.Basic && target != null && target.Alive)
         {
             TryHit(target, Damage);
+            // 소범위 스플래시 — 물량전에서 뭉친 적을 같이 후려침 (절반 데미지)
+            var center = target.transform.position;
+            foreach (var u in All)
+            {
+                if (u == this || u == target || !u.Alive || u.team == team) continue;
+                var d2 = u.transform.position - center; d2.y = 0;
+                if (d2.magnitude < body * 0.7f) TryHit(u, Damage * 0.5f);
+            }
         }
     }
 

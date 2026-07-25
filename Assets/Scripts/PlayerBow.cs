@@ -12,6 +12,7 @@ public class PlayerBow : MonoBehaviour
     public float arrowDamage = 14f;
     public float arrowSpeed = 60f;
     [Tooltip("사거리 (m)")] public float arrowRange = 70f;
+    [Tooltip("관통 수 — 화살 하나가 몇 마리까지 꿰뚫나")] public int arrowPierce = 3;
     [Tooltip("완전히 당겨지는 시간 (연출용)")] public float drawTime = 0.22f;
 
     [Header("손 (동그라미)")]
@@ -216,7 +217,7 @@ public class PlayerBow : MonoBehaviour
     void Fire()
     {
         var from = bowRoot.position + Vector3.up * arrowUp;   // 발사 높이만 올림 (손·활은 그대로)
-        ArrowProj.Throw(from, aimDir, arrowSpeed, arrowDamage, arrowRange);
+        ArrowProj.Throw(from, aimDir, arrowSpeed, arrowDamage, arrowRange, arrowPierce);
         FX.Burst(from, new Color(1f, 0.95f, 0.7f, 0.8f), 6, 0.10f, 0.8f);
     }
 
@@ -259,12 +260,14 @@ public class PlayerBow : MonoBehaviour
     }
 }
 
-/// 화살 투사체 — 직선 비행, 야생 명중 시 데미지
+/// 화살 투사체 — 직선 비행, 관통(여러 마리 꿰뚫기) 지원
 public class ArrowProj : MonoBehaviour
 {
     Vector3 dir; float speed, dmg, range, traveled;
+    int pierceLeft;
+    readonly System.Collections.Generic.HashSet<PetUnit> hitSet = new System.Collections.Generic.HashSet<PetUnit>();
 
-    public static void Throw(Vector3 from, Vector3 dir, float speed, float dmg, float range)
+    public static void Throw(Vector3 from, Vector3 dir, float speed, float dmg, float range, int pierce = 1)
     {
         var g = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
         Object.Destroy(g.GetComponent<Collider>());
@@ -286,7 +289,7 @@ public class ArrowProj : MonoBehaviour
         tr.endColor = new Color(1f, 0.7f, 0.3f, 0f);
 
         var p = g.AddComponent<ArrowProj>();
-        p.dir = dir.normalized; p.speed = speed; p.dmg = dmg; p.range = range;
+        p.dir = dir.normalized; p.speed = speed; p.dmg = dmg; p.range = range; p.pierceLeft = Mathf.Max(1, pierce);
     }
 
     void Update()
@@ -298,15 +301,16 @@ public class ArrowProj : MonoBehaviour
 
         foreach (var u in PetUnit.All)
         {
-            if (u == null || !u.Alive || u.team != PetUnit.Team.Wild) continue;
+            if (u == null || !u.Alive || u.team != PetUnit.Team.Wild || hitSet.Contains(u)) continue;
             var d = u.transform.position - transform.position; d.y = 0f;
             if (d.magnitude < u.body * 0.45f)
             {
+                hitSet.Add(u);           // 같은 놈 중복 타격 방지 — 관통해 지나감
                 u.TakeDamage(dmg);
                 u.OnHit();
                 FX.Burst(transform.position, Color.white, 8, u.body * 0.05f, u.body * 0.35f);
-                Destroy(gameObject);
-                return;
+                pierceLeft--;
+                if (pierceLeft <= 0) { Destroy(gameObject); return; }
             }
         }
     }

@@ -37,6 +37,9 @@ public class SquadHUD : MonoBehaviour
                 new Color(1f, 0.85f, 0.25f), null);
         }
 
+        if (NestSite.EggCount > 0)
+            Shadowed(new Rect(14, 102, 300, 24), $"🥚 알 ×{NestSite.EggCount}", sub, new Color(1f, 0.92f, 0.6f));
+
         if (toastT > 0f && !string.IsNullOrEmpty(toast))
         {
             var big = new GUIStyle(GUI.skin.label) { fontSize = 27, fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleCenter };
