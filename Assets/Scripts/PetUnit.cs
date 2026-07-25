@@ -77,7 +77,8 @@ public class PetUnit : MonoBehaviour
     float Damage => mat == Mat.Water ? intel * 0.22f  // 💧물총 속사 — 발당 약하게 (DPS 는 비슷)
                   : str * (mat == Mat.Metal ? 0.95f : mat == Mat.Stone ? 1.05f : mat == Mat.Wood ? 0.45f
                          : mat == Mat.Fire ? 1.8f : 0.8f);
-    float MoveSpd => (3.2f + agi * 0.05f) * (0.5f + body * 0.10f) * (slowT > 0f ? 0.55f : 1f);
+    // 크기 배율 완만하게 (7m ×1.05 ~ 60m ×2.9) — 작은 애들이 안 뒤처지게
+    float MoveSpd => (3.2f + agi * 0.05f) * (0.8f + body * 0.035f) * (slowT > 0f ? 0.55f : 1f);
     float AtkRange => mat == Mat.Metal ? body * 0.95f + 1f
                     : mat == Mat.Stone ? body * 2.2f
                     : mat == Mat.Wood ? body * 2.6f
@@ -189,7 +190,11 @@ public class PetUnit : MonoBehaviour
         if (team == Team.Player && followTarget != null)
         {
             float d = Dist(followTarget.position);
-            if (d > body * 0.9f + 3f) Step(followTarget.position - transform.position, MoveSpd);
+            if (d > body * 0.9f + 3f)
+            {   // ★따라잡기 부스트: 주인 달리기(17)보다 빠르게 + 멀수록 가속 → 군단이 안 늘어짐
+                float chase = Mathf.Max(MoveSpd, 19f + Mathf.Max(0f, d - 25f) * 0.3f);
+                Step(followTarget.position - transform.position, chase);
+            }
         }
         else
         {
