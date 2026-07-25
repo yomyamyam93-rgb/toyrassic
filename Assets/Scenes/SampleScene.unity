@@ -1006,6 +1006,11 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 0d5b130ae169b1541a55fc733e4f8d1d, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::MenuUI
+  icoWood: {fileID: 21300000, guid: f42e567255269a04981efb25d3f1900b, type: 3}
+  icoStone: {fileID: 21300000, guid: 275295c281ca41e49859de65a0bec5d8, type: 3}
+  icoEgg: {fileID: 21300000, guid: b9dc3cfb40263c148b3c76370dbb72bf, type: 3}
+  icoAxe: {fileID: 21300000, guid: d27fe7ebf2536d8458573c4bd81c8782, type: 3}
+  icoPick: {fileID: 21300000, guid: 0fda42c378491b641b954df8a9a06a7f, type: 3}
 --- !u!114 &107336124
 MonoBehaviour:
   m_ObjectHideFlags: 0

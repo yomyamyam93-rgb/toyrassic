@@ -23,13 +23,21 @@ public class MenuUI : MonoBehaviour
     static readonly Color Gold = new Color(1f, 0.84f, 0.28f);
     static readonly Color Danger = new Color(1f, 0.35f, 0.30f);
 
+    [Header("아이템 아이콘")]
+    public Sprite icoWood;
+    public Sprite icoStone;
+    public Sprite icoEgg;
+    public Sprite icoAxe;
+    public Sprite icoPick;
+
     Font font;
     Sprite round;
     GameObject win;
     GameObject pageInv, pageStat, pageCraft;
     Button[] tabBtns; Image[] tabImgs;
     Text statText;
-    Text[] slotIcons, slotCounts;
+    Image[] slotIcons;
+    Text[] slotCounts;
     Text[] craftInfo; Button[] craftBtn; Text[] craftBtnLabel;
     PlayerBow bow;
 
@@ -181,14 +189,19 @@ public class MenuUI : MonoBehaviour
         grid.spacing = new Vector2(Gap, Gap);
         grid.padding = new RectOffset(8, 8, 8, 8);
         int slots = 24;
-        slotIcons = new Text[slots]; slotCounts = new Text[slots];
+        slotIcons = new Image[slots]; slotCounts = new Text[slots];
         for (int i = 0; i < slots; i++)
         {
             var srt = RT("slot" + i, inv);
             var simg = srt.gameObject.AddComponent<Image>();
             simg.sprite = round; simg.type = Image.Type.Sliced; simg.color = SlotBg;
-            slotIcons[i] = MakeText("icon", srt, 30, TxtMain, false, TextAnchor.MiddleCenter);
-            Stretch(slotIcons[i].rectTransform);
+            // 아이콘 이미지 — 슬롯 안쪽 8px 여백
+            var irt = RT("icon", srt);
+            irt.anchorMin = Vector2.zero; irt.anchorMax = Vector2.one;
+            irt.offsetMin = new Vector2(6, 6); irt.offsetMax = new Vector2(-6, -6);
+            slotIcons[i] = irt.gameObject.AddComponent<Image>();
+            slotIcons[i].preserveAspect = true;
+            slotIcons[i].enabled = false;
             slotCounts[i] = MakeText("count", srt, FontCap, TxtMain, true, TextAnchor.LowerRight);
             Stretch(slotCounts[i].rectTransform);
             slotCounts[i].rectTransform.offsetMax = new Vector2(-5, 0);
@@ -248,14 +261,15 @@ public class MenuUI : MonoBehaviour
     void RefreshInv()
     {
         if (!pageInv.activeSelf) return;
-        var items = new (string icon, int count)[]
+        var items = new (Sprite icon, int count)[]
         {
-            ("🌲", Stock.Wood), ("🪨", Stock.Stone), ("🥚", NestSite.EggCount),
+            (icoWood, Stock.Wood), (icoStone, Stock.Stone), (icoEgg, NestSite.EggCount),
         };
         for (int i = 0; i < slotIcons.Length; i++)
         {
-            bool has = i < items.Length && items[i].count > 0;
-            slotIcons[i].text = has ? items[i].icon : "";
+            bool has = i < items.Length && items[i].count > 0 && items[i].icon != null;
+            slotIcons[i].enabled = has;
+            if (has) slotIcons[i].sprite = items[i].icon;
             slotCounts[i].text = has ? items[i].count.ToString() : "";
         }
     }
