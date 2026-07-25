@@ -9,19 +9,20 @@ public static class PetScale
 
     public static float Target(Tier t)
     {
-        switch (t)   // 2026-07-24 사용자 확정: "7m = 스몰". 기획 비율(1:2:3.5:6) 유지하고 ×7
+        switch (t)   // 2026-07-25 사용자 확정: 티어 격차 크게 (7/16/30/60)
         {
-            case Tier.S: return 7f;    // 콤피·다람쥐
-            case Tier.M: return 14f;   // 랩터·늑대
-            case Tier.L: return 24f;   // 트리케·사슴·스테고
-            default: return 42f;       // 티라노·브론토
+            case Tier.S: return 7f;    // 콤피·다람쥐·새
+            case Tier.M: return 16f;   // 랩터·늑대·플라이어
+            case Tier.L: return 30f;   // 트리케·사슴·스테고
+            default: return 60f;       // 티라노·브론토
         }
     }
 
     /// 바운딩박스 실측 → 티어 목표 크기로 스케일 조정
     public static float Normalize(GameObject go, Tier tier, float fine = 1f)
     {
-        var rs = go.GetComponentsInChildren<Renderer>();
+        // 파티클·라인(이펙트) 렌더러는 바운즈가 엉뚱해 측정에서 제외 (0.1m 붕괴 사고 방지)
+        var rs = go.GetComponentsInChildren<MeshRenderer>();
         if (rs.Length == 0) return 1f;
         var b = rs[0].bounds;
         foreach (var r in rs) b.Encapsulate(r.bounds);
