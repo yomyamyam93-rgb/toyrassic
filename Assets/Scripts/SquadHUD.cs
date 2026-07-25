@@ -48,7 +48,7 @@ public class SquadHUD : MonoBehaviour
 
     void Start()
     {
-        font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+        font = (UIStyle.I != null && UIStyle.I.font != null) ? UIStyle.I.font : Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
         round = Sprite.Create(FX.RoundedTex(),
             new Rect(0, 0, 64, 24), new Vector2(0.5f, 0.5f), 100f, 0,
             SpriteMeshType.FullRect, new Vector4(11, 11, 11, 11));   // 9-슬라이스 라운드 12px

@@ -65,6 +65,11 @@ public static class FX
         go.transform.SetParent(SceneBuckets.Fx);
         go.transform.position = pos + new Vector3(Random.Range(-0.4f, 0.4f), 0f, Random.Range(-0.2f, 0.2f));
         var tm = go.AddComponent<TextMesh>();
+        if (UIStyle.I != null && UIStyle.I.font != null)
+        {   // 월드 팝업도 게임 폰트(프리텐다드)로
+            tm.font = UIStyle.I.font;
+            go.GetComponent<MeshRenderer>().material = UIStyle.I.font.material;
+        }
         tm.text = text;
         tm.fontSize = 48;
         tm.characterSize = 0.09f * scale;

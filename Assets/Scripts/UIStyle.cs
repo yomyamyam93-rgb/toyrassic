@@ -8,6 +8,9 @@ public class UIStyle : MonoBehaviour
 {
     public static UIStyle I;
 
+    [Header("⓪ 폰트")]
+    [Tooltip("전체 UI 폰트 (비우면 기본)")] public Font font;
+
     [Header("① 팔레트 — 공통 색")]
     public Color panelBg = new Color(0.945f, 0.914f, 0.859f);        // 크림
     public Color panelBorder = new Color(0.627f, 0.553f, 0.455f);    // 갈색 테두리

@@ -49,7 +49,7 @@ public class MenuUI : MonoBehaviour
 
     void Start()
     {
-        font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+        font = (UIStyle.I != null && UIStyle.I.font != null) ? UIStyle.I.font : Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
         bow = GetComponent<PlayerBow>();
         Build();
         SetOpen(false);

@@ -22,6 +22,7 @@ public class Hotbar : MonoBehaviour
     Font font;
     GameObject canvasRoot;
     Image[] frameImgs; Image[] iconImgs; Text[] fallbacks; Text[] numLabels;
+    GearDrag[] slotDrags;
     MenuUI menu;
 
     UIStyle St => UIStyle.I;
@@ -31,7 +32,7 @@ public class Hotbar : MonoBehaviour
     {
         I = this;
         menu = GetComponent<MenuUI>();
-        font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+        font = (UIStyle.I != null && UIStyle.I.font != null) ? UIStyle.I.font : Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
         slots[0] = GearKind.Bow;   // 활은 기본 1번
         Build();
         RefreshAll();
@@ -74,6 +75,31 @@ public class Hotbar : MonoBehaviour
         RefreshAll();
     }
 
+    /// 핫바 안 이동 — 목적지에 다른 장비가 있으면 서로 자리 교환
+    public void Move(int from, int to, GearKind kind)
+    {
+        if (to < 0 || to > 9) return;
+        if (from == to) return;
+        if (from >= 0)
+        {
+            var other = slots[to];
+            slots[to] = kind;
+            slots[from] = other;
+        }
+        else Assign(to, kind);   // 인벤토리에서 온 것
+        RefreshAll();
+    }
+
+    /// 장착 해제 (칸 비움) — 장비는 인벤토리에 그대로 있음
+    public void Clear(int i)
+    {
+        if (i < 0 || i > 9) return;
+        slots[i] = GearKind.None;
+        RefreshAll();
+    }
+
+    public GearKind SlotKind(int i) => i >= 0 && i < 10 ? slots[i] : GearKind.None;
+
     /// 제작 직후 빈 칸에 자동 장착
     public void AutoAssign(GearKind kind)
     {
@@ -113,8 +139,10 @@ public class Hotbar : MonoBehaviour
 
         frameImgs = new Image[10]; iconImgs = new Image[10];
         fallbacks = new Text[10]; numLabels = new Text[10];
+        slotDrags = new GearDrag[10];
         for (int i = 0; i < 10; i++)
         {
+            int idx = i;
             var srt = new GameObject("hslot" + i, typeof(RectTransform)).GetComponent<RectTransform>();
             srt.SetParent(panel, false);
             srt.anchorMin = srt.anchorMax = srt.pivot = new Vector2(0, 0.5f);
@@ -123,6 +151,14 @@ public class Hotbar : MonoBehaviour
             frameImgs[i] = srt.gameObject.AddComponent<Image>();
             frameImgs[i].sprite = Round; frameImgs[i].type = Image.Type.Sliced;
             srt.gameObject.AddComponent<HotbarSlot>().index = i;
+            // 클릭 = 그 칸 선택
+            var btn = srt.gameObject.AddComponent<Button>();
+            btn.transition = Selectable.Transition.None;
+            btn.onClick.AddListener(() => Select(idx));
+            // 핫바 → 핫바 이동 / 밖으로 끌면 해제
+            slotDrags[i] = srt.gameObject.AddComponent<GearDrag>();
+            slotDrags[i].fromHotbar = i;
+            slotDrags[i].enabled = false;
 
             var inner = new GameObject("inner", typeof(RectTransform)).GetComponent<RectTransform>();
             inner.SetParent(srt, false);
@@ -180,6 +216,13 @@ public class Hotbar : MonoBehaviour
             iconImgs[i].enabled = sp != null;
             if (sp != null) iconImgs[i].sprite = sp;
             fallbacks[i].text = sp == null ? KindFallback(slots[i]) : "";
+            if (slotDrags != null && slotDrags[i] != null)
+            {   // 칸에 장비가 있으면 끌 수 있음
+                slotDrags[i].enabled = slots[i] != GearKind.None;
+                slotDrags[i].kind = slots[i];
+                slotDrags[i].sprite = sp;
+                slotDrags[i].fallback = KindFallback(slots[i]);
+            }
         }
         RefreshSel();
     }
@@ -200,12 +243,14 @@ public class HotbarSlot : MonoBehaviour
     public int index;
 }
 
-/// 인벤토리 장비 아이콘 드래그 — 핫바 칸에 놓으면 장착
+/// 장비 드래그 — 인벤토리→핫바 장착, 핫바→핫바 이동(교환), 핫바→밖 해제
 public class GearDrag : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndDragHandler
 {
     public GearKind kind;
     public Sprite sprite;
     public string fallback;
+    [Tooltip("핫바 칸에서 시작한 드래그면 그 칸 번호, 인벤토리면 -1")]
+    public int fromHotbar = -1;
     Image ghost; Text ghostText;
 
     public void OnBeginDrag(PointerEventData e)
@@ -225,7 +270,7 @@ public class GearDrag : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndDrag
             ghost.color = new Color(1, 1, 1, 0.01f);
             ghostText = new GameObject("t", typeof(RectTransform)).AddComponent<Text>();
             ghostText.transform.SetParent(g.transform, false);
-            ghostText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            ghostText.font = (UIStyle.I != null && UIStyle.I.font != null) ? UIStyle.I.font : Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
             ghostText.fontSize = 26; ghostText.fontStyle = FontStyle.Bold;
             ghostText.alignment = TextAnchor.MiddleCenter;
             ghostText.color = UIStyle.I != null ? UIStyle.I.textMain : Color.black;
@@ -246,14 +291,18 @@ public class GearDrag : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndDrag
     public void OnEndDrag(PointerEventData e)
     {
         if (ghost != null) Destroy(ghost.gameObject);
-        if (kind == GearKind.None) return;
+        if (kind == GearKind.None || Hotbar.I == null) return;
         var hit = e.pointerCurrentRaycast.gameObject;
-        if (hit == null) return;
-        var slot = hit.GetComponentInParent<HotbarSlot>();
-        if (slot != null && Hotbar.I != null)
-        {
-            Hotbar.I.Assign(slot.index, kind);
-            SquadHUD.Toast($"슬롯 {(slot.index == 9 ? 0 : slot.index + 1)}번에 장착!  숫자키로 바꿔 들 수 있다");
+        var slot = hit != null ? hit.GetComponentInParent<HotbarSlot>() : null;
+        if (slot != null)
+        {   // 핫바 칸에 놓음 — 장착 or 이동(교환)
+            Hotbar.I.Move(fromHotbar, slot.index, kind);
+            SquadHUD.Toast($"슬롯 {(slot.index == 9 ? 0 : slot.index + 1)}번에 장착!");
+        }
+        else if (fromHotbar >= 0)
+        {   // 핫바 밖에 놓음 — 장착 해제 (장비는 인벤토리에 그대로)
+            Hotbar.I.Clear(fromHotbar);
+            SquadHUD.Toast("장착 해제 — 인벤토리에서 다시 끌어올 수 있다");
         }
     }
 }
