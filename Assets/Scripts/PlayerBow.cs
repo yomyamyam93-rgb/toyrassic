@@ -34,6 +34,10 @@ public class PlayerBow : MonoBehaviour
     public Material outlineHull;
     public Material outlineMask;
 
+    [Header("마우스 커서")]
+    public Texture2D cursorNormal;   // 평소 화살표
+    public Texture2D cursorAim;      // 조준 중 원형 타겟
+
     Transform handL, handR, bowRoot;
     LineRenderer bowString, aimLine;
     Transform nockArrow;
@@ -43,6 +47,7 @@ public class PlayerBow : MonoBehaviour
     /// 얼마나 당겼나 0~1 — 많이 당길수록 이속 감소용
     public float Draw01 => drawing ? Mathf.Clamp01(aimLen / Mathf.Max(1f, arrowRange)) : 0f;
     float stableY;   // 통통 바운스를 걸러낸 발사·에임 기준 높이
+    bool cursorIsAim, cursorSet;
     Vector3 aimDir = Vector3.forward;
     BlobMotion motion;
     Camera cam;
@@ -217,13 +222,27 @@ public class PlayerBow : MonoBehaviour
         bool pressed, released; Vector2 mp;
         if (!ReadMouse(out pressed, out released, out mp)) return;
 
-        // 마우스 → 캐릭터 높이 평면 교점 → 조준 방향
+        // 마우스 → '에임 라인과 같은 높이' 평면 교점 → 조준 방향
+        // (캐릭터 발 높이로 계산하면 시차 때문에 라인이 포인터와 어긋난다)
         var ray = cam.ScreenPointToRay(mp);
-        var plane = new Plane(Vector3.up, transform.position);
+        float aimH = (stableY == 0f ? transform.position.y : stableY) + arrowUp;
+        var plane = new Plane(Vector3.up, new Vector3(0f, aimH, 0f));
         if (plane.Raycast(ray, out float enter))
         {
-            var d = ray.GetPoint(enter) - transform.position; d.y = 0f;
+            var hit = ray.GetPoint(enter);
+            var d = hit - transform.position; d.y = 0f;
             if (d.sqrMagnitude > 0.04f) aimDir = d.normalized;
+        }
+
+        // 커서 교체 — 조준 중엔 원형 타겟(중앙 핫스팟), 평소엔 화살표
+        bool wantAim = pressed;
+        if (wantAim != cursorIsAim || !cursorSet)
+        {
+            cursorIsAim = wantAim; cursorSet = true;
+            var tex = wantAim ? cursorAim : cursorNormal;
+            if (tex != null)
+                Cursor.SetCursor(tex, wantAim ? new Vector2(tex.width * 0.5f, tex.height * 0.5f) : new Vector2(6f, 4f),
+                                 CursorMode.Auto);
         }
 
         if (pressed)
@@ -370,7 +389,12 @@ public class ArrowProj : MonoBehaviour
                 hitSet.Add(u);           // 같은 놈 중복 타격 방지 — 관통해 지나감
                 u.TakeDamage(dmg, PetUnit.Avatar);   // 어그로: 쏜 사람(캐릭터)을 쫓아온다
                 u.OnHit();
-                FX.Burst(transform.position, Color.white, 8, u.body * 0.05f, u.body * 0.35f);
+                // 피격 지점 = 화살이 실제로 닿은 몸체 표면 (바운즈 최근접점)
+                var rend = u.GetComponentInChildren<Renderer>();
+                var hitP = rend != null ? rend.bounds.ClosestPoint(transform.position) : transform.position;
+                float s = Mathf.Clamp(u.body, 3f, 14f);
+                FX.Burst(hitP, new Color(2.4f, 2.1f, 1.1f, 1f), 14, s * 0.045f, s * 0.55f, 0.22f);   // 번쩍! 스파크
+                FX.Burst(hitP, new Color(0.95f, 0.92f, 0.86f, 0.85f), 9, s * 0.09f, s * 0.22f, 0.55f); // 연기 퍼프
                 pierceLeft--;
                 if (pierceLeft <= 0) { Destroy(gameObject); return; }
             }

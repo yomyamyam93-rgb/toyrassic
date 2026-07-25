@@ -838,6 +838,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::PlayerMove
   moveSpeed: 25.5
   accel: 34
+  fullDrawSpeed: 0.35
   waterY: 40
   wetFactor: 0.55
   cam: {fileID: 330585546}
@@ -895,24 +896,26 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PlayerBow
   fireCooldown: 0.45
-  arrowDamage: 25
-  arrowSpeed: 130
+  arrowDamage: 50
+  arrowSpeed: 500
   arrowRange: 70
-  aimFillTime: 0.7
-  drawTime: 0.22
-  handRadius: 0.3
-  handSide: 3
-  handUp: 0.5
-  drawReach: 3.6
-  drawUp: 1.5
-  arrowUp: 1.5
-  handColor: {r: 0, g: 0, b: 0, a: 0}
+  aimFillTime: 1.4
+  drawTime: 0.9
+  handRadius: 0.18
+  handSide: 2
+  handUp: -0.28
+  drawReach: 4
+  drawUp: 0.3
+  arrowUp: 0.3
+  handColor: {r: 0.99607843, g: 1, b: 0.99607843, a: 1}
   bowSize: 1.15
   bowThick: 0.16
   bowColor: {r: 0.46, g: 0.28, b: 0.13, a: 1}
   stringColor: {r: 0.95, g: 0.93, b: 0.85, a: 1}
   outlineHull: {fileID: 2100000, guid: c93d547576109994dac3bdc472bfb370, type: 2}
   outlineMask: {fileID: 2100000, guid: bd02a43a3e2def0469de205466a32e80, type: 2}
+  cursorNormal: {fileID: 2800000, guid: 4bf08ee8d05021444b2ad7ca4a3f65dc, type: 3}
+  cursorAim: {fileID: 2800000, guid: 4631aeae621d94042be7f7fe1077c650, type: 3}
 --- !u!114 &107336118
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -2396,18 +2399,18 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::FollowCam
   target: {fileID: 107336113}
-  distance: 70
-  minDist: 6
-  maxDist: 105
+  distance: 120
+  minDist: 30
+  maxDist: 120
   height: 4
-  yaw: 35
-  pitch: 22
-  nearPitch: 16
-  farPitch: 52
-  farLookUp: 4
-  rotSpeed: 0.08
-  zoomSpeed: 6
-  rotSmoothTime: 0.06
+  yaw: 449.74863
+  pitch: 42.3
+  nearPitch: 4.65
+  farPitch: 42.3
+  farLookUp: 7.19
+  rotSpeed: 0.4
+  zoomSpeed: 1.5
+  rotSmoothTime: 0.03
   zoomSmoothTime: 0.1
   followXZ: 8
   followY: 4
