@@ -16,6 +16,9 @@ public class ItemDrop : MonoBehaviour
     float baseY;
     readonly List<GameObject> outlines = new List<GameObject>();
     bool highlighted;
+    bool collecting; float flySpd;
+    /// 줍는 중 (빨려가는 중) — 중복 줍기 방지
+    public bool Collecting => collecting;
     static Transform player;
     static Material sHullWhite, sMask; static bool matsInit;
     Transform beam;   // 빛기둥 비콘 — 멀리서도 아이템이 확 보이게
@@ -155,6 +158,18 @@ public class ItemDrop : MonoBehaviour
 
     void Update()
     {
+        // 줍기 연출 — 쓔웅 하고 플레이어 몸쪽으로 가속하며 빨려 들어감
+        if (collecting)
+        {
+            if (player == null) { Award(); return; }
+            flySpd += 85f * Time.deltaTime;                          // 가속
+            var target = player.position + Vector3.up * 2.0f;
+            transform.position = Vector3.MoveTowards(transform.position, target, flySpd * Time.deltaTime);
+            transform.localScale = Vector3.MoveTowards(transform.localScale, transform.localScale * 0.3f, 3.5f * Time.deltaTime);
+            if (Vector3.Distance(transform.position, target) < 1.2f) Award();
+            return;
+        }
+
         var set = DropDisplayManager.I;
         float amp = set != null ? set.bobAmp : 0.18f;
         float spd = set != null ? set.bobSpeed : 2.4f;
@@ -182,18 +197,30 @@ public class ItemDrop : MonoBehaviour
         }
     }
 
+    /// 줍기 시작 — 빨려가는 연출 후 도착 시 획득
     public void Collect()
+    {
+        if (collecting) return;
+        collecting = true;
+        flySpd = 6f;
+        foreach (var o in outlines) if (o != null) o.SetActive(false);
+        if (beam != null) beam.gameObject.SetActive(false);
+    }
+
+    /// 도착 — 실제 획득 + "+n 이름" 팝업
+    void Award()
     {
         string label;
         Color c;
         switch (kind)
         {
-            case Kind.Wood: Stock.Wood += amount; label = $"+{amount} 나무"; c = new Color(0.55f, 0.95f, 0.4f); break;
-            case Kind.Stone: Stock.Stone += amount; label = $"+{amount} 돌"; c = new Color(0.87f, 0.87f, 0.87f); break;
-            default: NestSite.EggCount += amount; label = "알 획득!"; c = new Color(1f, 0.9f, 0.5f); break;
+            case Kind.Wood: Stock.Wood += amount; label = $"+{amount} 나뭇가지"; c = new Color(0.55f, 0.95f, 0.4f); break;
+            case Kind.Stone: Stock.Stone += amount; label = $"+{amount} 돌"; c = new Color(0.9f, 0.9f, 0.9f); break;
+            default: NestSite.EggCount += amount; label = $"+{amount} 알"; c = new Color(1f, 0.9f, 0.5f); break;
         }
-        FX.PopText(transform.position + Vector3.up * 1.2f, label, c, 1.6f);
-        FX.Burst(transform.position, new Color(1.6f, 1.4f, 0.7f, 0.9f), 10, 0.2f, 2f);
+        var pos = player != null ? player.position + Vector3.up * 3.5f : transform.position;
+        FX.PopText(pos, label, c, 1.7f);
+        FX.Burst(transform.position, new Color(1.6f, 1.4f, 0.7f, 0.9f), 8, 0.18f, 1.8f);
         Destroy(gameObject);
     }
 }

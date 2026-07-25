@@ -25,7 +25,7 @@ public class PlayerPickup : MonoBehaviour
         ItemDrop best = null; float bd = reach;
         foreach (var d in ItemDrop.All)
         {
-            if (d == null) continue;
+            if (d == null || d.Collecting) continue;   // 이미 빨려가는 중이면 스킵
             float dist = Vector3.Distance(
                 new Vector3(d.transform.position.x, 0, d.transform.position.z),
                 new Vector3(transform.position.x, 0, transform.position.z));
