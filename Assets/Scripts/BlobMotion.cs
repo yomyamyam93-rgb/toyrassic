@@ -26,7 +26,7 @@ public class BlobMotion : MonoBehaviour
     public float wetSlow = 0.5f, wetAmp = 0.55f;
 
     [Header("회전")]
-    public float turnSpeed = 10f;
+    public float turnSpeed = 22f;   // 즉답형 방향 전환
     [Tooltip("달릴 때 앞으로 기우는 각도")]
     public float leanMax = 8f;
 

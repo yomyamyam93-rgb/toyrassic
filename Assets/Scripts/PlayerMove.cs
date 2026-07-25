@@ -88,7 +88,12 @@ public class PlayerMove : MonoBehaviour
         bool wet = gy < waterY;
         if (wet) top *= wetFactor;
 
-        vel = Vector3.MoveTowards(vel, dir * top, accel * Time.deltaTime);
+        // ★방향은 즉시 전환, 속도 '크기'만 관성 — 꺾자마자 착착 도는 조작감
+        bool hasInput = dir.sqrMagnitude > 1e-4f;
+        float curSpd = vel.magnitude;
+        curSpd = Mathf.MoveTowards(curSpd, hasInput ? top : 0f, accel * Time.deltaTime);
+        vel = hasInput ? dir.normalized * curSpd
+                       : (curSpd > 0.01f && vel.sqrMagnitude > 1e-6f ? vel.normalized * curSpd : Vector3.zero);
 
         var np = transform.position + vel * Time.deltaTime;
         np.y = GroundAt(np);
@@ -100,6 +105,7 @@ public class PlayerMove : MonoBehaviour
         else if (sp > 0.35f) m = BlobMotion.Mode.Walk;
         motion.GroundY = np.y;
         motion.SetMotion(m, Mathf.Clamp01(sp / runSpeed), wet);
-        if (sp > 0.2f) motion.FaceTowards(vel);
+        if (hasInput) motion.FaceTowards(dir);          // 입력 방향을 바로 바라봄
+        else if (sp > 0.2f) motion.FaceTowards(vel);
     }
 }

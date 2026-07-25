@@ -10,7 +10,7 @@ using UnityEngine.InputSystem;
 public class FollowCam : MonoBehaviour
 {
     public Transform target;
-    public float distance = 22f, minDist = 6f, maxDist = 70f;
+    public float distance = 22f, minDist = 6f, maxDist = 105f;
     public float height = 4.5f;
     public float yaw = 35f, pitch = 28f;
     [Tooltip("pitch 범위 (넓게 = 위에서도 볼 수 있음)")]
