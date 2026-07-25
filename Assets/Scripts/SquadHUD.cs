@@ -67,12 +67,21 @@ public class SquadHUD : MonoBehaviour
         var le = bg.gameObject.AddComponent<LayoutElement>();
         le.minHeight = h; le.preferredHeight = h; le.flexibleWidth = 1;
         fill = RT("fill", bg.transform).gameObject.AddComponent<Image>();
-        fill.sprite = round; fill.type = Image.Type.Filled;
-        fill.fillMethod = Image.FillMethod.Horizontal; fill.color = fillColor;
+        fill.sprite = round; fill.type = Image.Type.Sliced;   // 9슬라이스 — 늘여도 모서리 안 깨짐
+        fill.color = fillColor;
         var fr = fill.rectTransform;
         fr.anchorMin = Vector2.zero; fr.anchorMax = Vector2.one;
         fr.offsetMin = new Vector2(2, 2); fr.offsetMax = new Vector2(-2, -2);
         return bg;
+    }
+
+    /// 게이지 채움 — anchorMax.x 로 (9슬라이스 유지, 라운드 캡 보존)
+    static void SetFill(Image fill, float pct)
+    {
+        pct = Mathf.Clamp01(pct);
+        if (pct > 0f) pct = Mathf.Max(pct, 0.05f);   // 너무 얇으면 슬라이스 뭉개짐
+        fill.rectTransform.anchorMax = new Vector2(pct, 1f);
+        fill.enabled = pct > 0f;
     }
 
     RectTransform MakePanel(string n, Transform parent, Vector2 anchor, Vector2 pos, float width)
@@ -154,7 +163,7 @@ public class SquadHUD : MonoBehaviour
         var me = PetUnit.Avatar;
         if (me != null)
         {
-            myHpFill.fillAmount = me.maxHp > 0 ? me.hp / me.maxHp : 0f;
+            SetFill(myHpFill, me.maxHp > 0 ? me.hp / me.maxHp : 0f);
             myHpLabel.text = $"나  {Mathf.CeilToInt(me.hp)} / {Mathf.CeilToInt(me.maxHp)}";
         }
 
@@ -165,10 +174,10 @@ public class SquadHUD : MonoBehaviour
         if (pet != null)
         {
             petTitle.text = $"{pet.name}   Lv.{pet.level}";
-            petHpFill.fillAmount = pet.maxHp > 0 ? pet.hp / pet.maxHp : 0f;
+            SetFill(petHpFill, pet.maxHp > 0 ? pet.hp / pet.maxHp : 0f);
             petHpLabel.text = $"{Mathf.CeilToInt(pet.hp)} / {Mathf.CeilToInt(pet.maxHp)}";
             float need = 25f + 20f * (pet.level - 1);
-            petXpFill.fillAmount = Mathf.Clamp01(pet.xp / need);
+            SetFill(petXpFill, pet.xp / need);
         }
 
         // 자원 (우상단, 항상)
