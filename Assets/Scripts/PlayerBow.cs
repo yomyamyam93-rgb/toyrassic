@@ -188,20 +188,22 @@ public class PlayerBow : MonoBehaviour
             return root;
         }
 
-        Transform MakeTool(string n, Color headC, Vector3 headScale)
+        Transform MakeTool(string n, Color headC, Vector3 headScale, out Transform body)
         {
             var root = new GameObject(n).transform;
             root.SetParent(handR, false);
+            body = new GameObject("body").transform;   // 보정 적용 대상 (모델과 동일 구조)
+            body.SetParent(root, false);
             var h = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
             Destroy(h.GetComponent<Collider>());
-            h.transform.SetParent(root, false);
+            h.transform.SetParent(body, false);
             h.transform.localScale = new Vector3(0.14f, 0.85f, 0.14f);
             h.transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
             h.transform.localPosition = new Vector3(0f, 0f, 0.85f);
             h.GetComponent<MeshRenderer>().material = Unlit(new Color(0.5f, 0.34f, 0.18f));
             var head = GameObject.CreatePrimitive(PrimitiveType.Cube);
             Destroy(head.GetComponent<Collider>());
-            head.transform.SetParent(root, false);
+            head.transform.SetParent(body, false);
             head.transform.localPosition = new Vector3(0f, 0f, 1.7f);
             head.transform.localScale = headScale;
             head.GetComponent<MeshRenderer>().material = Unlit(headC);
@@ -217,8 +219,8 @@ public class PlayerBow : MonoBehaviour
                 rig.root = MountModel(w.id, w.model, out rig.inst, out rig.autoRot, out rig.autoScale);
             else
                 rig.root = w.id == "곡갱이"
-                    ? MakeTool(w.id, new Color(0.46f, 0.45f, 0.43f), new Vector3(0.9f, 0.16f, 0.22f))
-                    : MakeTool(w.id, new Color(0.78f, 0.80f, 0.85f), new Vector3(0.12f, 0.55f, 0.45f));
+                    ? MakeTool(w.id, new Color(0.46f, 0.45f, 0.43f), new Vector3(0.9f, 0.16f, 0.22f), out rig.inst)
+                    : MakeTool(w.id, new Color(0.78f, 0.80f, 0.85f), new Vector3(0.12f, 0.55f, 0.45f), out rig.inst);
             rig.trail = MakeTrail(rig.root);
             rigs[w.id] = rig;
         }
