@@ -435,10 +435,10 @@ public class PetUnit : MonoBehaviour
         q.transform.rotation = Quaternion.Euler(90f, 0f, 0f);
         q.transform.localScale = Vector3.one * radius * 0.8f;
         var mm = q.GetComponent<MeshRenderer>();
-        mm.material = new Material(Shader.Find("Sprites/Default"));
+        mm.material = new Material(Shader.Find("Toyrassic/GroundDecal"));   // 잔디가 못 가림 (ZTest Always)
         mm.material.mainTexture = FX.CircleTex();
-        mm.material.color = new Color(1f, 0.15f, 0.10f, 0.9f);
-        mm.sortingOrder = 5;
+        mm.material.color = new Color(1f, 0.15f, 0.10f, 0.85f);
+        mm.sortingOrder = -10;   // 투명체 중에선 제일 먼저 — 몸·이펙트가 원 위에 그려짐
         mm.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
         tele = q.transform;
     }
