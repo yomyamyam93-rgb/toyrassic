@@ -130,6 +130,7 @@ public class PlayerMove : MonoBehaviour
             float pulse = mountMotion != null ? mountMotion.MovePulse : 1f;
             var mp = mount.transform.position + vel * pulse * Time.deltaTime;
             mp.y = mount.transform.position.y;              // 높이는 PetUnit.Ground 가 처리
+            mp = TreeBlocker.Resolve(mp, mount.body * 0.32f);   // 나무·바위 못 뚫음
             mount.transform.position = mp;
             if (hasInput)
             {
@@ -144,6 +145,7 @@ public class PlayerMove : MonoBehaviour
         }
 
         var np = transform.position + vel * Time.deltaTime;
+        np = TreeBlocker.Resolve(np, 1.5f);   // 나무·바위 못 뚫음
         np.y = GroundAt(np);
         transform.position = np;
 

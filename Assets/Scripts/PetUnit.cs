@@ -690,6 +690,8 @@ public class PetUnit : MonoBehaviour
     {
         if (terrain == null) return;
         var p = transform.position;
+        if (!dead && !isStructure && !isAvatar)
+            p = TreeBlocker.Resolve(p, Mathf.Min(body * 0.3f, 2.4f));   // 나무·바위 못 뚫음
         float footNow = footOff * (baseScale.y > 1e-4f ? transform.localScale.y / baseScale.y : 1f);
         float g = terrain.SampleHeight(p) + terrain.transform.position.y + footNow;
         p.y = dead ? p.y : g;

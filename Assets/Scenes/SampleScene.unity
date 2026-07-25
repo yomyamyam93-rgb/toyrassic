@@ -976,9 +976,6 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PlayerGather
   hitRadius: 2.4
-  treeHits: 3
-  rockHits: 4
-  dropPieces: 3
 --- !u!114 &107336123
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -8390,6 +8387,60 @@ MeshFilter:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 565010305}
   m_Mesh: {fileID: 10208, guid: 0000000000000000e000000000000000, type: 0}
+--- !u!1 &575511255
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 575511257}
+  - component: {fileID: 575511256}
+  m_Layer: 0
+  m_Name: ScatterSpawner
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &575511256
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 575511255}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d13a3f4fe4a9d7e45b1f1a3f10c95f58, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::ScatterSpawner
+  player: {fileID: 107336113}
+  cap: 14
+  minDist: 14
+  maxDist: 90
+  despawnDist: 160
+  respawnDelay: 4
+  stickRatio: 0.55
+  minHeight: 42
+  maxHeight: 130
+  maxSlope: 22
+--- !u!4 &575511257
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 575511255}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!21 &579017192
 Material:
   serializedVersion: 8
@@ -21218,3 +21269,4 @@ SceneRoots:
   - {fileID: 1772158852}
   - {fileID: 1834216758}
   - {fileID: 123082803}
+  - {fileID: 575511257}

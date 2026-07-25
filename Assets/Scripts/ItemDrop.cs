@@ -22,17 +22,26 @@ public class ItemDrop : MonoBehaviour
     {
         GameObject g;
         if (visual != null) g = visual;
-        else
-        {
-            g = kind == Kind.Stone ? GameObject.CreatePrimitive(PrimitiveType.Sphere)
-                                   : GameObject.CreatePrimitive(PrimitiveType.Cube);
+        else if (kind == Kind.Wood)
+        {   // 잔가지 — 길쭉하고 비스듬히
+            g = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
             Object.Destroy(g.GetComponent<Collider>());
             var m = new Material(Shader.Find("Universal Render Pipeline/Lit"));
-            m.color = kind == Kind.Wood ? new Color(0.55f, 0.38f, 0.20f)
-                    : kind == Kind.Stone ? new Color(0.62f, 0.60f, 0.55f)
-                    : new Color(0.98f, 0.93f, 0.80f);
+            m.color = new Color(0.5f, 0.34f, 0.18f);
             g.GetComponent<MeshRenderer>().material = m;
-            g.transform.localScale = kind == Kind.Wood ? new Vector3(1.0f, 0.5f, 0.5f) : Vector3.one * 0.8f;
+            g.transform.localScale = new Vector3(0.22f, 0.85f, 0.22f);
+            g.transform.rotation = Quaternion.Euler(80f, Random.Range(0f, 360f), 0f);
+        }
+        else
+        {
+            g = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+            Object.Destroy(g.GetComponent<Collider>());
+            var m = new Material(Shader.Find("Universal Render Pipeline/Lit"));
+            m.color = kind == Kind.Stone ? new Color(0.62f, 0.60f, 0.55f) : new Color(0.98f, 0.93f, 0.80f);
+            g.GetComponent<MeshRenderer>().material = m;
+            g.transform.localScale = kind == Kind.Stone
+                ? new Vector3(0.75f, 0.55f, 0.7f)      // 조약돌 — 납작 둥글
+                : Vector3.one * 0.8f;
         }
         g.name = "드랍_" + kind;
         var terr = Terrain.activeTerrain;
