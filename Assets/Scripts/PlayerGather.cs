@@ -25,6 +25,10 @@ public class PlayerGather : MonoBehaviour
     [Tooltip("곡괭이 휘두르는 간격 (묵직하게)")] public float pickCooldown = 0.72f;
     [Tooltip("스윙 시작 → 실제 타격까지 (모션 절정 동기)")] public float impactDelay = 0.24f;
 
+    [Header("테스트")]
+    [Tooltip("시작할 때 도끼·곡괭이 지급 (제작 없이 바로 확인용)")]
+    public bool startWithTools = true;
+
     [Header("사거리")]
     [Tooltip("노드(나무·바위) 스윙 사거리 (m)")] public float reach = 12f;
     [Tooltip("몹 근접 타격 사거리 (m)")] public float meleeRange = 6f;
@@ -59,7 +63,15 @@ public class PlayerGather : MonoBehaviour
     public Vector3 ChopPos => chopPos;
     public bool ChopIsRock => chopIsRock;
 
-    void Awake() { I = this; }
+    void Awake()
+    {
+        I = this;
+        if (startWithTools)
+        {   // 테스트 지급 — 핫바 배치는 Hotbar.Start 가 보유 장비를 자동 복원
+            if (Inv.Count("도끼") == 0) Inv.Add("도끼", 1);
+            if (Inv.Count("곡갱이") == 0) Inv.Add("곡갱이", 1);
+        }
+    }
 
     void Start()
     {

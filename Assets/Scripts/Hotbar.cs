@@ -34,6 +34,10 @@ public class Hotbar : MonoBehaviour
         menu = GetComponent<MenuUI>();
         font = (UIStyle.I != null && UIStyle.I.font != null) ? UIStyle.I.font : Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
         slots[0] = GearKind.Bow;   // 활은 기본 1번
+        // 보유 장비 자동 배치 (테스트 지급·재시작 복원)
+        if (Stock.HasAxe) AutoAssign(GearKind.Axe);
+        if (Stock.HasPick) AutoAssign(GearKind.Pick);
+        if (Stock.HasIncubator) AutoAssign(GearKind.Incubator);
         Build();
         RefreshAll();
     }
