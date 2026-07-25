@@ -39,13 +39,27 @@ public class PlayerBow : MonoBehaviour
     public GameObject toolPickModel;
     [Tooltip("정규화 기준 길이 (m)")] public float toolLength = 2.1f;
 
-    [Header("모델별 정렬 보정 — 자루를 같은 기준 자세로 (그 다음 공통 그립 적용)")]
-    public Vector3 axeModelEuler = Vector3.zero;
-    public Vector3 axeModelPos = Vector3.zero;
-    public float axeModelScale = 1f;
-    public Vector3 pickModelEuler = Vector3.zero;
-    public Vector3 pickModelPos = Vector3.zero;
-    public float pickModelScale = 1f;
+    // ── 무기별 설정 (커스텀 인스펙터의 '무기 선택 탭'에서 편집) ──
+    public enum SwingStyle { Vertical, Horizontal }
+
+    [System.Serializable]
+    public class ToolSetup
+    {
+        public Vector3 modelEuler = Vector3.zero;   // 모델 정렬 보정
+        public Vector3 modelPos = Vector3.zero;
+        public float modelScale = 1f;
+        public SwingStyle style = SwingStyle.Vertical;   // 공격 동작 (세로/가로)
+    }
+    [HideInInspector] public ToolSetup axeSetup = new ToolSetup();
+    [HideInInspector] public ToolSetup pickSetup = new ToolSetup();
+
+    // (구버전 필드 — 마이그레이션용)
+    [HideInInspector] public Vector3 axeModelEuler = Vector3.zero;
+    [HideInInspector] public Vector3 axeModelPos = Vector3.zero;
+    [HideInInspector] public float axeModelScale = 1f;
+    [HideInInspector] public Vector3 pickModelEuler = Vector3.zero;
+    [HideInInspector] public Vector3 pickModelPos = Vector3.zero;
+    [HideInInspector] public float pickModelScale = 1f;
 
     [Header("도구 잡기 — 공통 (손 기준)")]
     [Tooltip("손에서의 위치 오프셋")] public Vector3 gripPosOffset = Vector3.zero;
@@ -58,6 +72,18 @@ public class PlayerBow : MonoBehaviour
     [Tooltip("끝(내려찍은) 손 위치")] public Vector3 swingEndPos = new Vector3(0.1f, 0.9f, 2.5f);
     [Tooltip("끝 손 회전")] public Vector3 swingEndEuler = new Vector3(80f, 0f, 0f);
     [Tooltip("백스윙 — 시작 자세 너머로 더 들어올리는 비율")] public float backswingExtra = 0.22f;
+
+    [Header("스윙 자세 — 가로 긁기 (무기 탭에서 '가로' 체크 시)")]
+    public Vector3 hSwingStartPos = new Vector3(-2.4f, 1.6f, 0.5f);
+    public Vector3 hSwingStartEuler = new Vector3(0f, -75f, 90f);
+    public Vector3 hSwingEndPos = new Vector3(2.4f, 1.4f, 1.0f);
+    public Vector3 hSwingEndEuler = new Vector3(0f, 75f, 90f);
+
+    [Header("스윙 잔상 (트레일) — 세부설정")]
+    [Tooltip("색 (밝게 = 블룸 반짝)")] public Color trailColor = new Color(1.8f, 1.7f, 1.2f);
+    [Range(0f, 1f)] [Tooltip("진하기")] public float trailAlpha = 0.95f;
+    [Tooltip("굵기")] public float trailWidth = 0.9f;
+    [Tooltip("잔상이 남는 시간 (초)")] public float trailTime = 0.24f;
 
     [Header("마우스 커서")]
     public Texture2D cursorNormal;   // 평소 화살표
@@ -94,6 +120,11 @@ public class PlayerBow : MonoBehaviour
         // 도구 모델 자동 로드 (씬 연결 없어도 동작)
         if (toolAxeModel == null) toolAxeModel = Resources.Load<GameObject>("Tools/tool_axe");
         if (toolPickModel == null) toolPickModel = Resources.Load<GameObject>("Tools/tool_pick");
+        // 구버전 보정값 마이그레이션
+        if (axeSetup.modelEuler == Vector3.zero && axeSetup.modelPos == Vector3.zero && Mathf.Approximately(axeSetup.modelScale, 1f))
+        { axeSetup.modelEuler = axeModelEuler; axeSetup.modelPos = axeModelPos; axeSetup.modelScale = axeModelScale; }
+        if (pickSetup.modelEuler == Vector3.zero && pickSetup.modelPos == Vector3.zero && Mathf.Approximately(pickSetup.modelScale, 1f))
+        { pickSetup.modelEuler = pickModelEuler; pickSetup.modelPos = pickModelPos; pickSetup.modelScale = pickModelScale; }
         Build();
         BuildTools();
     }
@@ -504,18 +535,19 @@ public class PlayerBow : MonoBehaviour
                 toolHeld.localRotation = Quaternion.Euler(gripEuler);
                 toolHeld.localScale = Vector3.one * toolScale;
 
-                // 모델별 정렬 보정 — 자루를 같은 기준 자세로 (실시간 반영)
+                // 모델별 정렬 보정 — 무기 탭에서 조절한 값 (실시간 반영)
+                var setup = gearV == GearKind.Axe ? axeSetup : pickSetup;
                 if (gearV == GearKind.Axe && axeInst != null)
                 {
-                    axeInst.localRotation = axeAutoRot * Quaternion.Euler(axeModelEuler);
-                    axeInst.localPosition = axeModelPos;
-                    axeInst.localScale = Vector3.one * (axeAutoScale * axeModelScale);
+                    axeInst.localRotation = axeAutoRot * Quaternion.Euler(setup.modelEuler);
+                    axeInst.localPosition = setup.modelPos;
+                    axeInst.localScale = Vector3.one * (axeAutoScale * setup.modelScale);
                 }
                 else if (gearV == GearKind.Pick && pickInst != null)
                 {
-                    pickInst.localRotation = pickAutoRot * Quaternion.Euler(pickModelEuler);
-                    pickInst.localPosition = pickModelPos;
-                    pickInst.localScale = Vector3.one * (pickAutoScale * pickModelScale);
+                    pickInst.localRotation = pickAutoRot * Quaternion.Euler(setup.modelEuler);
+                    pickInst.localPosition = setup.modelPos;
+                    pickInst.localScale = Vector3.one * (pickAutoScale * setup.modelScale);
                 }
 
                 var trail = gearV == GearKind.Axe ? trailAxe : trailPick;
@@ -530,13 +562,25 @@ public class PlayerBow : MonoBehaviour
                     if (sk < 0.30f) p = -backswingExtra * Mathf.Sin(sk / 0.30f * Mathf.PI * 0.5f);   // 백스윙
                     else { float u = (sk - 0.30f) / 0.70f; p = Mathf.Sin(Mathf.Pow(u, 1.9f) * Mathf.PI * 0.5f); }  // 슈웅! 가속→도달 감속
 
+                    // 동작 선택 — 세로 내려찍기 / 가로 긁기 (무기 탭에서 체크)
+                    bool horiz = setup.style == SwingStyle.Horizontal;
+                    var sPos = horiz ? hSwingStartPos : swingStartPos;
+                    var ePos = horiz ? hSwingEndPos : swingEndPos;
+                    var sEul = horiz ? hSwingStartEuler : swingStartEuler;
+                    var eEul = horiz ? hSwingEndEuler : swingEndEuler;
+
                     handR.position = transform.position +
-                        frame * Vector3.LerpUnclamped(swingStartPos, swingEndPos, p);
+                        frame * Vector3.LerpUnclamped(sPos, ePos, p);
                     handR.rotation = frame * Quaternion.Slerp(
-                        Quaternion.Euler(swingStartEuler), Quaternion.Euler(swingEndEuler), Mathf.Clamp01(p));
+                        Quaternion.Euler(sEul), Quaternion.Euler(eEul), Mathf.Clamp01(p));
 
                     if (trail != null)
                     {
+                        // 잔상 세부설정 실시간 반영
+                        trail.time = trailTime;
+                        trail.startWidth = trailWidth; trail.endWidth = trailWidth * 0.06f;
+                        trail.startColor = new Color(trailColor.r, trailColor.g, trailColor.b, trailAlpha);
+                        trail.endColor = new Color(trailColor.r, trailColor.g, trailColor.b, 0f);
                         if (gather.SwingT > prevSwingT) trail.Clear();
                         trail.emitting = sk >= 0.30f && sk <= 0.92f;
                     }
