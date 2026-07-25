@@ -39,6 +39,14 @@ public class PlayerBow : MonoBehaviour
     public GameObject toolPickModel;
     [Tooltip("정규화 기준 길이 (m)")] public float toolLength = 2.1f;
 
+    [Header("모델별 정렬 보정 — 자루를 같은 기준 자세로 (그 다음 공통 그립 적용)")]
+    public Vector3 axeModelEuler = Vector3.zero;
+    public Vector3 axeModelPos = Vector3.zero;
+    public float axeModelScale = 1f;
+    public Vector3 pickModelEuler = Vector3.zero;
+    public Vector3 pickModelPos = Vector3.zero;
+    public float pickModelScale = 1f;
+
     [Header("도구 잡기 — 공통 (손 기준)")]
     [Tooltip("손에서의 위치 오프셋")] public Vector3 gripPosOffset = Vector3.zero;
     [Tooltip("손에 쥔 회전")] public Vector3 gripEuler = Vector3.zero;
@@ -68,6 +76,9 @@ public class PlayerBow : MonoBehaviour
     bool prevPressed, chopMode;      // 패기(도구) / 활 자동 분기
     PlayerGather gather;
     Transform toolAxe, toolPick;
+    Transform axeInst, pickInst;                 // 모델 본체 (보정 대상)
+    Quaternion axeAutoRot, pickAutoRot;          // 자동 정렬 회전
+    float axeAutoScale = 1f, pickAutoScale = 1f; // 자동 정렬 크기
     TrailRenderer trailAxe, trailPick;   // 스윙 궤적
     float prevSwingT;
     Vector3 aimDir = Vector3.forward;
@@ -91,22 +102,27 @@ public class PlayerBow : MonoBehaviour
     void BuildTools()
     {
         // 3D 모델 마운트 — 제일 긴 축을 자루(+Z)로 자동 정렬, 그립(원점)=자루 끝
-        Transform MountModel(string n, GameObject model)
+        // 자동 정렬 결과는 저장해 두고, 모델별 보정값을 매 프레임 곱해서 적용 (실시간 튜닝)
+        Transform MountModel(string n, GameObject model, out Transform instOut, out Quaternion autoRot, out float autoScale)
         {
             var root = new GameObject(n).transform;
             root.SetParent(handR, false);
             var inst = Instantiate(model, root);
             inst.transform.localPosition = Vector3.zero;
+            autoRot = Quaternion.identity; autoScale = 1f;
             var mf = inst.GetComponentInChildren<MeshFilter>();
             if (mf != null && mf.sharedMesh != null)
             {
                 var size = mf.sharedMesh.bounds.size;
                 // 파이프라인 원점=바닥 중앙 → 긴 축을 +Z 로 눕힘
-                if (size.y >= size.x && size.y >= size.z) inst.transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
-                else if (size.x >= size.z) inst.transform.localRotation = Quaternion.Euler(0f, -90f, 0f);
+                if (size.y >= size.x && size.y >= size.z) autoRot = Quaternion.Euler(90f, 0f, 0f);
+                else if (size.x >= size.z) autoRot = Quaternion.Euler(0f, -90f, 0f);
                 float len = Mathf.Max(size.x, Mathf.Max(size.y, size.z));
-                inst.transform.localScale = Vector3.one * (toolLength / Mathf.Max(0.01f, len));
+                autoScale = toolLength / Mathf.Max(0.01f, len);
+                inst.transform.localRotation = autoRot;
+                inst.transform.localScale = Vector3.one * autoScale;
             }
+            instOut = inst.transform;
             root.gameObject.SetActive(false);
             return root;
         }
@@ -131,9 +147,9 @@ public class PlayerBow : MonoBehaviour
             root.gameObject.SetActive(false);
             return root;
         }
-        toolAxe = toolAxeModel != null ? MountModel("Axe", toolAxeModel)
+        toolAxe = toolAxeModel != null ? MountModel("Axe", toolAxeModel, out axeInst, out axeAutoRot, out axeAutoScale)
                                        : MakeTool("Axe", new Color(0.78f, 0.80f, 0.85f), new Vector3(0.12f, 0.55f, 0.45f));
-        toolPick = toolPickModel != null ? MountModel("Pickaxe", toolPickModel)
+        toolPick = toolPickModel != null ? MountModel("Pickaxe", toolPickModel, out pickInst, out pickAutoRot, out pickAutoScale)
                                          : MakeTool("Pickaxe", new Color(0.46f, 0.45f, 0.43f), new Vector3(0.9f, 0.16f, 0.22f));
         trailAxe = MakeTrail(toolAxe);
         trailPick = MakeTrail(toolPick);
@@ -487,6 +503,20 @@ public class PlayerBow : MonoBehaviour
                 toolHeld.localPosition = gripPosOffset;
                 toolHeld.localRotation = Quaternion.Euler(gripEuler);
                 toolHeld.localScale = Vector3.one * toolScale;
+
+                // 모델별 정렬 보정 — 자루를 같은 기준 자세로 (실시간 반영)
+                if (gearV == GearKind.Axe && axeInst != null)
+                {
+                    axeInst.localRotation = axeAutoRot * Quaternion.Euler(axeModelEuler);
+                    axeInst.localPosition = axeModelPos;
+                    axeInst.localScale = Vector3.one * (axeAutoScale * axeModelScale);
+                }
+                else if (gearV == GearKind.Pick && pickInst != null)
+                {
+                    pickInst.localRotation = pickAutoRot * Quaternion.Euler(pickModelEuler);
+                    pickInst.localPosition = pickModelPos;
+                    pickInst.localScale = Vector3.one * (pickAutoScale * pickModelScale);
+                }
 
                 var trail = gearV == GearKind.Axe ? trailAxe : trailPick;
                 bool chopping = gather != null && gather.SwingT > 0f;
