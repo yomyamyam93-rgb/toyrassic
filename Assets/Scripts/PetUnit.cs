@@ -79,6 +79,9 @@ public class PetUnit : MonoBehaviour
     // ── 내부 ──
     public static readonly List<PetUnit> All = new List<PetUnit>();
     PetUnit target;
+    // 위협(어그로) 테이블 — 받은 피해량 누적. 업계 정공법: 때린 놈은 거리와 무관하게 쫓는다
+    readonly Dictionary<PetUnit, float> threat = new Dictionary<PetUnit, float>();
+    float LeashRange => Mathf.Max(AggroRange * 4f, 110f);   // 이 밖까지 도망가면 포기
     float atkCd, wanderT, retargetT;
     Vector3 wanderDir;
     Terrain terrain;
@@ -235,20 +238,47 @@ public class PetUnit : MonoBehaviour
 
     float Dist(Vector3 p) { p.y = 0; var q = transform.position; q.y = 0; return Vector3.Distance(p, q); }
 
+    /// 위협 추가 — 맞거나(전액) 무리가 맞는 걸 보거나(일부)
+    public void AddThreat(PetUnit attacker, float amount)
+    {
+        if (dead || isAvatar || isStructure || attacker == null || attacker.team == team) return;
+        threat.TryGetValue(attacker, out float t);
+        threat[attacker] = t + amount;
+        if (target == null || !target.Alive) target = attacker;   // 즉시 보복
+    }
+
     PetUnit FindTarget()
     {
-        PetUnit near = null; float bd = AggroRange;
+        // ① 도발(금속 탱커) 최우선
         PetUnit taunt = null; float td = TauntRange;
+        PetUnit near = null; float bd = AggroRange;
         foreach (var u in All)
         {
             if (u == this || !u.Alive || u.team == team) continue;
             float d = Dist(u.transform.position);
             if (d < bd) { bd = d; near = u; }
-            if (u.mat == Mat.Metal && d < td) { td = d; taunt = u; }   // 금속 = 어그로 우선
+            if (u.mat == Mat.Metal && d < td) { td = d; taunt = u; }
         }
         if (taunt != null) return taunt;
+
+        // ② 위협 테이블 1순위 — 때린 놈은 멀어도 쫓는다 (리쉬 안이면)
+        PetUnit best = null; float bt = 0f;
+        List<PetUnit> stale = null;
+        foreach (var kv in threat)
+        {
+            var u = kv.Key;
+            if (u == null || !u.Alive || u.team == team || Dist(u.transform.position) > LeashRange)
+            {
+                (stale ??= new List<PetUnit>()).Add(u);
+                continue;
+            }
+            if (kv.Value > bt) { bt = kv.Value; best = u; }
+        }
+        if (stale != null) foreach (var s in stale) threat.Remove(s);   // 리쉬 밖·사망 = 어그로 초기화
+        if (best != null) return best;
+
+        // ③ 근접 감지 → ④ 강제 목표(부화기 습격)
         if (near != null) return near;
-        // 주변에 적이 없으면 강제 목표(부화기 등)로 진군 — 거리 무제한
         if (forceTarget != null && forceTarget.Alive && forceTarget.team != team) return forceTarget;
         return null;
     }
@@ -420,14 +450,14 @@ public class PetUnit : MonoBehaviour
     bool TryHit(PetUnit victim, float dmg)
     {
         if (Random.value < Mathf.Min(0.35f, victim.agi * 0.008f)) return false;
-        victim.TakeDamage(dmg);
+        victim.TakeDamage(dmg, this);
         victim.OnHit();
         FX.Burst(victim.transform.position + Vector3.up * victim.body * 0.30f,
                  Color.white, 9, victim.body * 0.07f, victim.body * 0.45f);
         return true;
     }
 
-    public void TakeDamage(float dmg)
+    public void TakeDamage(float dmg, PetUnit attacker = null)
     {
         if (dead) return;
         hp -= dmg;
@@ -435,6 +465,17 @@ public class PetUnit : MonoBehaviour
         FX.DamageNum(transform.position + Vector3.up * body * 0.8f, dmg,
                      team == Team.Player ? new Color(1f, 0.35f, 0.3f) : new Color(1f, 0.95f, 0.6f),
                      Mathf.Clamp(body * 0.22f, 0.9f, 3.5f));
+        // 어그로: 때린 놈에게 위협 전액 + 근처 무리에게도 일부 (무리 어그로 — 업계 정공법)
+        if (attacker != null && attacker.team != team)
+        {
+            AddThreat(attacker, dmg);
+            foreach (var u in All)
+            {
+                if (u == this || u == attacker || !u.Alive || u.team != team) continue;
+                if (u.isAvatar || u.isStructure || u.mounted) continue;
+                if (Dist(u.transform.position) < 22f + body) u.AddThreat(attacker, dmg * 0.4f);
+            }
+        }
         if (hp <= 0f)
         {
             if (isAvatar)
@@ -678,7 +719,7 @@ public class PetProjectile : MonoBehaviour
             if (heal) target.Heal(amt);
             else if (Random.value >= Mathf.Min(0.35f, target.agi * 0.008f))
             {
-                target.TakeDamage(amt); target.OnHit();
+                target.TakeDamage(amt, owner); target.OnHit();
                 if (push > 0f)
                 {   // 💧물살 밀치기 — 날아온 방향으로
                     var pd = (target.transform.position - from); pd.y = 0;

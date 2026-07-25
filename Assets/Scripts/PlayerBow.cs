@@ -334,7 +334,7 @@ public class ArrowProj : MonoBehaviour
             if (d.magnitude < u.body * 0.45f)
             {
                 hitSet.Add(u);           // 같은 놈 중복 타격 방지 — 관통해 지나감
-                u.TakeDamage(dmg);
+                u.TakeDamage(dmg, PetUnit.Avatar);   // 어그로: 쏜 사람(캐릭터)을 쫓아온다
                 u.OnHit();
                 FX.Burst(transform.position, Color.white, 8, u.body * 0.05f, u.body * 0.35f);
                 pierceLeft--;
