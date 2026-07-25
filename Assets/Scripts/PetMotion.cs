@@ -12,9 +12,9 @@ public class PetMotion : MonoBehaviour
     [Header("숨쉬기 (idle)")]
     [Range(0f, 0.06f)] public float breathAmp = 0.018f;
 
-    [Header("걷기 — 무게 이동")]
-    [Range(0f, 0.05f)] public float hopAmp = 0.012f;    // 들썩임 (몸높이 비율 — 거수는 낮게)
-    [Range(0f, 10f)] public float waddleDeg = 3.5f;     // 좌우 무게 흔들림
+    [Header("이동 — 통통 튀는 홉")]
+    [Range(0f, 0.35f)] public float hopAmp = 0.14f;     // 도약 높이 (몸높이 비율) — 통통!
+    [Range(0f, 10f)] public float waddleDeg = 2.5f;     // 좌우 무게 흔들림
     [Range(0f, 10f)] public float leanDeg = 3f;         // 전진 기울기
 
     [Header("공격 — 조였다 콱")]
@@ -75,7 +75,7 @@ public class PetMotion : MonoBehaviour
 
     // 크기 보정 템포: 작으면 촐랑, 크면 쿵... 쿵...
     float BreathRate => 1.8f / sizeK * tempo;      // 10m 몸 ≈ 0.7Hz
-    float StepRate   => 5.5f / sizeK * tempo;      // 10m 몸 ≈ 2.1Hz (묵직한 발걸음)
+    float StepRate   => 7.0f / Mathf.Pow(sizeK, 0.7f) * tempo;   // 홉 박자 — 큰 몸도 경쾌하게
     float PunchSpeed => 6.0f / Mathf.Sqrt(sizeK) * tempo;   // 펀치는 큰 몸도 빠르게 (타격 순간 절정)
 
     /// 공격 순간 호출
@@ -88,13 +88,12 @@ public class PetMotion : MonoBehaviour
         float dt = Time.deltaTime;
         t += dt * Mathf.Lerp(BreathRate, StepRate, speed01);
 
-        // ── 발걸음: '디딜 때 쿵' — 들썩임 + 이동 맥동을 같은 박자로 ──
+        // ── 통통 홉: 공중에서 쭉 나아가고 착지 순간 멈칫 — 미끄럼이 아니라 '깡총' ──
         float step = Mathf.Abs(Mathf.Sin(t * Mathf.PI));                // 0(접지)→1(공중)→0
         BobY = step * hopAmp * bodyH * speed01;
-        // 접지 순간(0 부근)에 확 나가고 공중에서 멈칫 → 미끄럼이 아니라 '걸음'
-        // ★평균이 정확히 1이 되게 정규화 (raw 평균 = 1.45-0.9×(2/π) = 0.8771)
-        //   → 걷기 실효 속도 = MoveSpd 그대로 = 고무 점프 사이클과 수학적으로 동일
-        float raw = (1.45f - step * 0.9f) / 0.8771f;
+        // ★평균이 정확히 1이 되게 정규화 (raw 평균 = 0.25+1.5×(2/π) = 1.2049)
+        //   → 실효 속도 = MoveSpd 그대로 유지하면서 박자만 통통
+        float raw = (0.25f + step * 1.5f) / 1.2049f;
         MovePulse = Mathf.Lerp(1f, raw, speed01);
 
         // ── 스쿼시&스트레치 (부피 보존) + 공격 펀치 + 피격 움찔 ──
@@ -104,7 +103,7 @@ public class PetMotion : MonoBehaviour
         float ppr = 1f - Mathf.Clamp01(punch);
         float pk = Mathf.Sin(Mathf.Pow(ppr, 0.45f) * Mathf.PI);
         float fl = Mathf.Sin(Mathf.Clamp01(flinch) * Mathf.PI);
-        float walkSquish = Mathf.Sin(t * Mathf.PI * 2f) * 0.03f * speed01;
+        float walkSquish = (step - 0.5f) * 0.16f * speed01;   // 공중=쭉 늘고 착지=콩 눌림 (홉 동기)
         float breathe = breathAmp * Mathf.Sin(t * Mathf.PI * 2f) * (1f - speed01);
         float sy = 1f + walkSquish + breathe + pk * punchScale - fl * 0.16f
                  - Mathf.Clamp01(charge) * 0.22f;                                 // 장전: 쭈우욱 눌림

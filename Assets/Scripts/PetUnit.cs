@@ -21,6 +21,9 @@ public class PetUnit : MonoBehaviour
     public bool collectible = false;
     [Tooltip("종 ID — 인스펙터 크기 조절이 같은 종 전체에 적용되는 기준")]
     public string species = "";
+    [Tooltip("캐릭터 본인 — AI 없이 체력·피격·어그로 대상만 됨")]
+    public bool isAvatar = false;
+    public static PetUnit Avatar;
     [Tooltip("목표 크기(최대 변, m). 0 = 티어 기본값 사용. 인스펙터 슬라이더가 조절")]
     public float sizeM = 0f;
     public int level = 1;
@@ -104,6 +107,7 @@ public class PetUnit : MonoBehaviour
         var r = GetComponentInChildren<Renderer>();
         footOff = r != null ? transform.position.y - r.bounds.min.y : 0f;
         if (r != null) body = Mathf.Max(1f, Mathf.Max(r.bounds.size.x, Mathf.Max(r.bounds.size.y, r.bounds.size.z)));
+        if (isAvatar) { Avatar = this; MakeBar(r); return; }   // 캐릭터: 모션·AI 없음
         motion = GetComponent<PetMotion>();
         if (motion == null) motion = gameObject.AddComponent<PetMotion>();
         MakeBar(r);
@@ -136,6 +140,7 @@ public class PetUnit : MonoBehaviour
     void Update()
     {
         if (dead) { LungeFx(); return; }
+        if (isAvatar) { HitFlash(); Bar(); return; }   // 캐릭터: 피격·바만
         atkCd -= Time.deltaTime;
         slowT = Mathf.Max(0f, slowT - Time.deltaTime);
 
@@ -380,7 +385,16 @@ public class PetUnit : MonoBehaviour
     {
         if (dead) return;
         hp -= dmg;
-        if (hp <= 0f) { hp = 0f; Die(); }
+        if (hp <= 0f)
+        {
+            if (isAvatar)
+            {   // 캐릭터는 죽지 않고 기력 회복 (임시 — 사망 페널티는 추후)
+                hp = maxHp;
+                SquadHUD.Toast("쓰러질 뻔했다! 기력 회복");
+                return;
+            }
+            hp = 0f; Die();
+        }
     }
 
     public void Heal(float amt)
@@ -413,9 +427,9 @@ public class PetUnit : MonoBehaviour
         var p = transform.position; p.y -= footOff * 0.35f; transform.position = p;
         if (barRoot != null) barRoot.gameObject.SetActive(false);
         if (team == Team.Wild)
-        {   // 격파 경험치 → 내 펫 (한 마리 키우기)
+        {   // 격파 경험치 → 내 펫 (한 마리 키우기, 캐릭터 제외)
             foreach (var u in All)
-                if (u.Alive && u.team == Team.Player) { u.GainXP(supply * 18f); break; }
+                if (u.Alive && u.team == Team.Player && !u.isAvatar) { u.GainXP(supply * 18f); break; }
         }
         if (team == Team.Wild && collectible) BlueprintPickup.Spawn(this);   // 격파 → 설계도
         else { SpawnDrop(); Destroy(gameObject, 8f); }
@@ -618,11 +632,11 @@ public class BlueprintPickup : MonoBehaviour
     float bobT, hideT = 3f;
     static Transform player;
 
-    /// 현재 데리고 다니는 펫 (한 마리)
+    /// 현재 데리고 다니는 펫 (한 마리, 캐릭터 제외)
     public static PetUnit MyPet()
     {
         foreach (var u in PetUnit.All)
-            if (u.Alive && u.team == PetUnit.Team.Player) return u;
+            if (u.Alive && u.team == PetUnit.Team.Player && !u.isAvatar) return u;
         return null;
     }
 

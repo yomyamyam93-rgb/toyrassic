@@ -12,18 +12,28 @@ public class SquadHUD : MonoBehaviour
     {
         var pet = BlueprintPickup.MyPet();
         var head = new GUIStyle(GUI.skin.label) { fontSize = 22, fontStyle = FontStyle.Bold };
+        var sub = new GUIStyle(GUI.skin.label) { fontSize = 15, fontStyle = FontStyle.Bold };
+
+        // 캐릭터 체력
+        var me = PetUnit.Avatar;
+        if (me != null)
+        {
+            Shadowed(new Rect(14, 8, 300, 24), "나", sub, Color.white);
+            Bar(new Rect(44, 12, 210, 14), me.maxHp > 0 ? me.hp / me.maxHp : 0f,
+                new Color(0.95f, 0.45f, 0.4f), $"{Mathf.CeilToInt(me.hp)}/{Mathf.CeilToInt(me.maxHp)}");
+        }
 
         if (pet == null)
-            Shadowed(new Rect(14, 10, 900, 32), "펫 없음 — 야생을 격파하고 설계도를 주워보자!", head, new Color(1f, 0.75f, 0.6f));
+            Shadowed(new Rect(14, 34, 900, 32), "펫 없음 — 야생을 격파하고 설계도를 주워보자!", head, new Color(1f, 0.75f, 0.6f));
         else
         {
-            Shadowed(new Rect(14, 10, 900, 32), $"{pet.name}   Lv.{pet.level}", head, Color.white);
+            Shadowed(new Rect(14, 34, 900, 32), $"{pet.name}   Lv.{pet.level}", head, Color.white);
             // 체력 바
-            Bar(new Rect(16, 44, 240, 14), pet.maxHp > 0 ? pet.hp / pet.maxHp : 0f,
+            Bar(new Rect(16, 68, 240, 14), pet.maxHp > 0 ? pet.hp / pet.maxHp : 0f,
                 new Color(0.35f, 0.9f, 0.4f), $"{Mathf.CeilToInt(pet.hp)}/{Mathf.CeilToInt(pet.maxHp)}");
             // 경험치 바
             float need = 25f + 20f * (pet.level - 1);
-            Bar(new Rect(16, 62, 240, 10), Mathf.Clamp01(pet.xp / need),
+            Bar(new Rect(16, 86, 240, 10), Mathf.Clamp01(pet.xp / need),
                 new Color(1f, 0.85f, 0.25f), null);
         }
 
