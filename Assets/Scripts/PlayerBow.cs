@@ -492,10 +492,8 @@ public class PlayerBow : MonoBehaviour
                 bool chopping = gather != null && gather.SwingT > 0f;
                 if (chopping)
                 {   // 스윙: 시작·끝 자세는 인스펙터, 사이는 가속·감속 곡선
-                    var cp = gather.ChopPos;
-                    var cdir = cp - transform.position; cdir.y = 0f;
-                    cdir = cdir.sqrMagnitude > 0.01f ? cdir.normalized : fwd;
-                    var frame = Quaternion.LookRotation(cdir, Vector3.up);
+                    // ★스윙 방향 = 항상 마우스 방향 (몸이 보는 곳으로 휘두름)
+                    var frame = Quaternion.LookRotation(aimDir, Vector3.up);
 
                     float sk = 1f - gather.SwingT;                      // 0→1
                     float p;
