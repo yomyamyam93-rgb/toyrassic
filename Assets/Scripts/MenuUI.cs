@@ -260,20 +260,33 @@ public class MenuUI : MonoBehaviour
         cv.padding = new RectOffset(8, 8, 8, 8);
         cv.childControlWidth = true; cv.childControlHeight = false;
         cv.childForceExpandWidth = true; cv.childForceExpandHeight = false;
-        craftInfo = new Text[3]; craftBtn = new Button[3]; craftBtnLabel = new Text[3];
-        string[] btnLabels = { "설치", "강화", "강화" };
+        int recipes = 5;
+        craftInfo = new Text[recipes]; craftBtn = new Button[recipes]; craftBtnLabel = new Text[recipes];
+        string[] btnLabels = { "제작", "제작", "설치", "강화", "강화" };
+        Sprite[] rowIcons = { icoAxe, icoPick, icoEgg, null, null };
         float bh = St != null ? St.buttonHeight : 44f;
-        for (int i = 0; i < 3; i++)
+        for (int i = 0; i < recipes; i++)
         {
             int idx = i;
             var row = RT("recipe" + i, cr);
             row.sizeDelta = new Vector2(0, bh + 16f);
             row.gameObject.AddComponent<LayoutElement>().minHeight = bh + 16f;
             var innerRow = Framed("frame", row, SlotBg, SlotBorder);
+            float textLeft = 16f;
+            if (rowIcons[i] != null)
+            {   // 레시피 아이콘 (사용자 제작)
+                var irt = RT("icon", innerRow);
+                irt.anchorMin = irt.anchorMax = irt.pivot = new Vector2(0, 0.5f);
+                irt.anchoredPosition = new Vector2(10, 0);
+                irt.sizeDelta = new Vector2(bh, bh);
+                var iimg = irt.gameObject.AddComponent<Image>();
+                iimg.sprite = rowIcons[i]; iimg.preserveAspect = true;
+                textLeft = bh + 20f;
+            }
             craftInfo[i] = MakeText("info", innerRow, FontBody, TxtMain);
             craftInfo[i].rectTransform.anchorMin = new Vector2(0, 0);
             craftInfo[i].rectTransform.anchorMax = new Vector2(1, 1);
-            craftInfo[i].rectTransform.offsetMin = new Vector2(16, 0);
+            craftInfo[i].rectTransform.offsetMin = new Vector2(textLeft, 0);
             craftInfo[i].rectTransform.offsetMax = new Vector2(-200, 0);
             craftBtn[i] = MakeButton(innerRow, btnLabels[i], new Vector2(170, bh - 4f), out craftBtnLabel[i]);
             var brt = (RectTransform)craftBtn[i].transform;
@@ -340,12 +353,15 @@ public class MenuUI : MonoBehaviour
         statText.text = sb.ToString();
     }
 
+    // 레시피: [0]도끼 [1]곡괭이 [2]부화기 [3]화살촉 강화 [4]활 개량
     (int wood, int stone) Cost(int idx)
     {
         switch (idx)
         {
-            case 0: return (20, 12);
-            case 1: return (10 * Stock.ArrowLv, 8 * Stock.ArrowLv);
+            case 0: return (8, 0);
+            case 1: return (6, 4);
+            case 2: return (20, 12);
+            case 3: return (10 * Stock.ArrowLv, 8 * Stock.ArrowLv);
             default: return (14 * Stock.BowLv, 0);
         }
     }
@@ -355,16 +371,26 @@ public class MenuUI : MonoBehaviour
         if (!pageCraft.activeSelf) return;
         string badHex = ColorUtility.ToHtmlStringRGB(St != null ? St.bad : Color.red);
         string C(int need, int have) => have >= need ? need.ToString() : $"<color=#{badHex}>{need}</color>";
-        var c0 = Cost(0); var c1 = Cost(1); var c2 = Cost(2);
-        craftInfo[0].text = $"부화기  —  나뭇가지 {C(c0.wood, Stock.Wood)} · 돌 {C(c0.stone, Stock.Stone)}" +
+        var c0 = Cost(0); var c1 = Cost(1); var c2 = Cost(2); var c3 = Cost(3); var c4 = Cost(4);
+        craftInfo[0].text = Stock.HasAxe
+            ? "도끼  (보유)  —  나무를 클릭해 팰 수 있다"
+            : $"도끼  —  나뭇가지 {C(c0.wood, Stock.Wood)}   (해금: 나무 패기)";
+        craftInfo[1].text = Stock.HasPick
+            ? "곡괭이  (보유)  —  바위를 클릭해 캘 수 있다"
+            : $"곡괭이  —  나뭇가지 {C(c1.wood, Stock.Wood)} · 돌 {C(c1.stone, Stock.Stone)}   (해금: 바위 캐기)";
+        craftInfo[2].text = $"부화기  —  나뭇가지 {C(c2.wood, Stock.Wood)} · 돌 {C(c2.stone, Stock.Stone)}" +
                             (Incubator.Active != null ? "   (설치됨)" : "");
-        craftInfo[1].text = $"화살촉 강화 Lv.{Stock.ArrowLv}→{Stock.ArrowLv + 1}  (+6 피해)  —  나뭇가지 {C(c1.wood, Stock.Wood)} · 돌 {C(c1.stone, Stock.Stone)}";
-        craftInfo[2].text = $"활 개량 Lv.{Stock.BowLv}→{Stock.BowLv + 1}  (공속↑)  —  나뭇가지 {C(c2.wood, Stock.Wood)}";
-        craftBtn[0].interactable = Incubator.Active == null && Stock.Wood >= c0.wood && Stock.Stone >= c0.stone;
-        craftBtn[1].interactable = Stock.ArrowLv < 4 && Stock.Wood >= c1.wood && Stock.Stone >= c1.stone;
-        craftBtn[2].interactable = Stock.BowLv < 4 && Stock.Wood >= c2.wood;
-        craftBtnLabel[1].text = Stock.ArrowLv >= 4 ? "최대" : "강화";
-        craftBtnLabel[2].text = Stock.BowLv >= 4 ? "최대" : "강화";
+        craftInfo[3].text = $"화살촉 강화 Lv.{Stock.ArrowLv}→{Stock.ArrowLv + 1}  (+6 피해)  —  나뭇가지 {C(c3.wood, Stock.Wood)} · 돌 {C(c3.stone, Stock.Stone)}";
+        craftInfo[4].text = $"활 개량 Lv.{Stock.BowLv}→{Stock.BowLv + 1}  (공속↑)  —  나뭇가지 {C(c4.wood, Stock.Wood)}";
+        craftBtn[0].interactable = !Stock.HasAxe && Stock.Wood >= c0.wood;
+        craftBtn[1].interactable = !Stock.HasPick && Stock.Wood >= c1.wood && Stock.Stone >= c1.stone;
+        craftBtn[2].interactable = Incubator.Active == null && Stock.Wood >= c2.wood && Stock.Stone >= c2.stone;
+        craftBtn[3].interactable = Stock.ArrowLv < 4 && Stock.Wood >= c3.wood && Stock.Stone >= c3.stone;
+        craftBtn[4].interactable = Stock.BowLv < 4 && Stock.Wood >= c4.wood;
+        craftBtnLabel[0].text = Stock.HasAxe ? "보유" : "제작";
+        craftBtnLabel[1].text = Stock.HasPick ? "보유" : "제작";
+        craftBtnLabel[3].text = Stock.ArrowLv >= 4 ? "최대" : "강화";
+        craftBtnLabel[4].text = Stock.BowLv >= 4 ? "최대" : "강화";
     }
 
     void DoCraft(int idx)
@@ -374,19 +400,31 @@ public class MenuUI : MonoBehaviour
         switch (idx)
         {
             case 0:
+                if (Stock.HasAxe) return;
+                Stock.Wood -= c.wood;
+                Stock.HasAxe = true;
+                SquadHUD.Toast("도끼 제작!  이제 나무를 클릭해 패면 나뭇가지가 우수수");
+                break;
+            case 1:
+                if (Stock.HasPick) return;
+                Stock.Wood -= c.wood; Stock.Stone -= c.stone;
+                Stock.HasPick = true;
+                SquadHUD.Toast("곡괭이 제작!  이제 바위를 클릭해 캐면 돌이 와르르");
+                break;
+            case 2:
                 if (Incubator.Active != null) return;
                 Stock.Wood -= c.wood; Stock.Stone -= c.stone;
                 PlayerBuild.Place(transform);
                 SetOpen(false);
                 break;
-            case 1:
+            case 3:
                 if (Stock.ArrowLv >= 4) return;
                 Stock.Wood -= c.wood; Stock.Stone -= c.stone;
                 Stock.ArrowLv++;
                 if (bow != null) bow.arrowDamage += 6f;
                 SquadHUD.Toast($"화살촉 강화!  피해 +6 (Lv.{Stock.ArrowLv})");
                 break;
-            case 2:
+            case 4:
                 if (Stock.BowLv >= 4) return;
                 Stock.Wood -= c.wood;
                 Stock.BowLv++;
