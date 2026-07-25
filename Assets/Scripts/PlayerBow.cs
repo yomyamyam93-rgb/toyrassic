@@ -53,6 +53,7 @@ public class PlayerBow : MonoBehaviour
     }
     [HideInInspector] public System.Collections.Generic.List<WeaponDef> weapons
         = new System.Collections.Generic.List<WeaponDef>();
+    [HideInInspector] public bool weaponsMigrated;   // 구버전 값 이전 1회 완료 플래그
 
     // ── 무기별 설정 (커스텀 인스펙터의 '무기 선택 탭'에서 편집) ──
     public enum SwingStyle { Vertical, Horizontal }
@@ -150,12 +151,16 @@ public class PlayerBow : MonoBehaviour
         }
         var ax = Ensure("도끼");
         if (ax.model == null) ax.model = toolAxeModel != null ? toolAxeModel : Resources.Load<GameObject>("Tools/tool_axe");
-        if (ax.modelEuler == Vector3.zero && ax.modelPos == Vector3.zero && Mathf.Approximately(ax.modelScale, 1f))
-        { ax.modelEuler = axeSetup.modelEuler; ax.modelPos = axeSetup.modelPos; ax.modelScale = axeSetup.modelScale; ax.style = axeSetup.style; }
         var pk = Ensure("곡갱이");
         if (pk.model == null) pk.model = toolPickModel != null ? toolPickModel : Resources.Load<GameObject>("Tools/tool_pick");
-        if (pk.modelEuler == Vector3.zero && pk.modelPos == Vector3.zero && Mathf.Approximately(pk.modelScale, 1f))
-        { pk.modelEuler = pickSetup.modelEuler; pk.modelPos = pickSetup.modelPos; pk.modelScale = pickSetup.modelScale; pk.style = pickSetup.style; }
+        if (!weaponsMigrated)
+        {   // 구버전 정렬값 1회만 이전 — 동작(style)은 절대 안 건드림 (덮어쓰기 버그 방지)
+            weaponsMigrated = true;
+            if (ax.modelEuler == Vector3.zero && ax.modelPos == Vector3.zero && Mathf.Approximately(ax.modelScale, 1f))
+            { ax.modelEuler = axeSetup.modelEuler; ax.modelPos = axeSetup.modelPos; ax.modelScale = axeSetup.modelScale; }
+            if (pk.modelEuler == Vector3.zero && pk.modelPos == Vector3.zero && Mathf.Approximately(pk.modelScale, 1f))
+            { pk.modelEuler = pickSetup.modelEuler; pk.modelPos = pickSetup.modelPos; pk.modelScale = pickSetup.modelScale; }
+        }
         Build();
         BuildTools();
     }
