@@ -177,6 +177,7 @@ public class PlayerGather : MonoBehaviour
         td.SetTreeInstances(list.ToArray(), true);
         var ct = go.AddComponent<ChoppableTree>();
         ct.Init(isRock, isRock ? rockHp : treeHp, dropPieces);
+        ct.src = inst; ct.hasSrc = true;   // 리스폰용 원본 기록
         return ct;
     }
 

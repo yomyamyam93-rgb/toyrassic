@@ -8,6 +8,9 @@ public class ChoppableTree : MonoBehaviour
     public static readonly List<ChoppableTree> All = new List<ChoppableTree>();
 
     bool isRock; float hp; int pieces;
+    /// 원본 지형 인스턴스 — 리스폰용
+    [HideInInspector] public TreeInstance src;
+    [HideInInspector] public bool hasSrc;
     Vector3 baseScale;
     float bounceT;
     readonly List<Material> mats = new List<Material>();
@@ -89,6 +92,7 @@ public class ChoppableTree : MonoBehaviour
             FX.Burst(wp + Vector3.up * 4.5f, new Color(0.45f, 0.72f, 0.30f, 1f), 26, 0.55f, 6.5f);
         FollowCam.Shake(0.22f);
         TreeBlocker.Rebuild();
+        if (hasSrc) NodeRespawn.Register(src);   // 시간 지나면 다시 자람 (설정 가능)
         Destroy(gameObject);
     }
 }

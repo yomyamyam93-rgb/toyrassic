@@ -70,6 +70,9 @@ public class RockManagerEditor : Editor
                 rm.placeLayers.Add(new RockManager.PlaceLayer { layer = add, on = true });
             if (GUILayout.Button("지형 레이어 전부 불러오기")) SyncLayers(rm, td);
             rm.layerThreshold = EditorGUILayout.Slider("경계 문턱", rm.layerThreshold, 0.05f, 0.9f);
+            rm.footprint = EditorGUILayout.Slider("발자국 반경 (m/크기1)", rm.footprint, 0.5f, 3f);
+            rm.edgeMargin = EditorGUILayout.Slider("추가 경계 여백 (m)", rm.edgeMargin, 0f, 6f);
+            rm.treeGap = EditorGUILayout.Slider("나무와 최소 간격 (m)", rm.treeGap, 0f, 12f);
         }
         EditorGUILayout.EndFoldoutHeaderGroup();
 
@@ -179,6 +182,29 @@ public class RockManagerEditor : Editor
         var list = new List<TreeInstance>();
         foreach (var t in td.treeInstances) if (!rocks.Contains(t.prototypeIndex)) list.Add(t);
 
+        // 나무 위치 그리드 — 바위가 나무에 겹치지 않게 (빠른 근접 검사)
+        const float cell = 16f;
+        var treeGrid = new Dictionary<Vector2Int, List<Vector2>>();
+        foreach (var t in list)
+        {
+            var wp = Vector3.Scale(t.position, td.size);
+            var key = new Vector2Int(Mathf.FloorToInt(wp.x / cell), Mathf.FloorToInt(wp.z / cell));
+            if (!treeGrid.TryGetValue(key, out var tl)) treeGrid[key] = tl = new List<Vector2>();
+            tl.Add(new Vector2(wp.x, wp.z));
+        }
+        bool NearTree(float wx, float wz, float r)
+        {
+            var k = new Vector2Int(Mathf.FloorToInt(wx / cell), Mathf.FloorToInt(wz / cell));
+            for (int dx = -1; dx <= 1; dx++)
+                for (int dz = -1; dz <= 1; dz++)
+                {
+                    if (!treeGrid.TryGetValue(new Vector2Int(k.x + dx, k.y + dz), out var tl)) continue;
+                    foreach (var p in tl)
+                        if (Vector2.Distance(p, new Vector2(wx, wz)) < r) return true;
+                }
+            return false;
+        }
+
         // 활성 종류 + 가중치 목록
         var pool = new List<(int proto, RockManager.RockType type)>();
         float totalW = 0f;
@@ -215,6 +241,19 @@ public class RockManagerEditor : Editor
 
                 var pick = Pick();
                 float sc = S(pick.Item2.minSize, pick.Item2.maxSize);
+
+                // ★몸통이 걸치는 범위까지 검사 — 큰 바위가 길·모래에 걸쳐 보이는 것 방지
+                float rMeters = rm.footprint * sc + rm.edgeMargin;
+                float rn = rMeters / td.size.x;
+                if (AllowedAt(nx + rn, nz) < rm.layerThreshold || AllowedAt(nx - rn, nz) < rm.layerThreshold ||
+                    AllowedAt(nx, nz + rn) < rm.layerThreshold || AllowedAt(nx, nz - rn) < rm.layerThreshold ||
+                    AllowedAt(nx + rn * 0.7f, nz + rn * 0.7f) < rm.layerThreshold ||
+                    AllowedAt(nx - rn * 0.7f, nz - rn * 0.7f) < rm.layerThreshold ||
+                    AllowedAt(nx + rn * 0.7f, nz - rn * 0.7f) < rm.layerThreshold ||
+                    AllowedAt(nx - rn * 0.7f, nz + rn * 0.7f) < rm.layerThreshold) continue;
+
+                // 나무와 겹침 방지
+                if (NearTree(px, pz, rm.footprint * sc + rm.treeGap)) continue;
                 list.Add(new TreeInstance
                 {
                     prototypeIndex = pick.Item1,

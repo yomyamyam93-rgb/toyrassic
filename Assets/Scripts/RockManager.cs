@@ -26,6 +26,10 @@ public class RockManager : MonoBehaviour
     public RockType[] types = new RockType[0];
     public System.Collections.Generic.List<PlaceLayer> placeLayers = new System.Collections.Generic.List<PlaceLayer>();
     [Range(0.05f, 0.9f)] [Tooltip("이 비율 이상 허용 재질이어야 심음")] public float layerThreshold = 0.25f;
+    [Tooltip("바위 발자국 반경 (m, 크기 1배 기준) — 몸통이 걸치는 범위까지 허용 재질이어야 함")]
+    public float footprint = 1.3f;
+    [Tooltip("추가 경계 여백 (m)")] public float edgeMargin = 1f;
+    [Tooltip("나무와의 최소 간격 (m) — 바위가 나무에 겹치지 않게")] public float treeGap = 3f;
 
     [Header("배치")]
     [Tooltip("배치 격자 간격 (m) — 작을수록 빽빽")] public float cellSize = 46f;
