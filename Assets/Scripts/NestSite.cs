@@ -21,7 +21,17 @@ public class NestSite : MonoBehaviour
     [Tooltip("쫄병 공격력 배율")] public float dmgMul = 0.5f;
     [Tooltip("둥지에서 이 반경 링에서 튀어나옴")] public float spawnRing = 14f;
 
-    public static int EggCount;
+    /// 알 보유 수 — 실제 저장은 슬롯 인벤토리(Inv)
+    public static int EggCount
+    {
+        get => Inv.Count("알");
+        set
+        {
+            int cur = Inv.Count("알");
+            if (value > cur) Inv.Add("알", value - cur);
+            else if (value < cur) Inv.Consume("알", cur - value);
+        }
+    }
 
     bool triggered, cleared;
     float spawnT;

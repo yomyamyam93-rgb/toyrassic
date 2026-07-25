@@ -332,7 +332,7 @@ public class PlayerBow : MonoBehaviour
         var d = pos - transform.position; d.y = 0f;
         if (d.magnitude > 16f) pos = transform.position + d.normalized * 16f;
         PlayerBuild.PlaceAt(pos);
-        Stock.HasIncubator = false;
+        Inv.Consume("부화기", 1);
         if (Hotbar.I != null) Hotbar.I.RemoveKind(GearKind.Incubator);
     }
 

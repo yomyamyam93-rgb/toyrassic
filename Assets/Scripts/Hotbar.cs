@@ -317,3 +317,78 @@ public class GearDrag : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndDrag
         }
     }
 }
+
+/// 인벤토리 칸 — 드롭 대상 (칸 이동)
+public class InvSlotTag : MonoBehaviour
+{
+    public int index;
+}
+
+/// 인벤토리 칸 드래그 — 칸끼리 이동/합치기, 장비는 핫바에 놓으면 장착
+public class InvDrag : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndDragHandler
+{
+    public int index;
+    string dragId;
+    Image ghost; Text ghostText;
+
+    public void OnBeginDrag(PointerEventData e)
+    {
+        var s = Inv.Slots[index];
+        if (s.Empty) { dragId = null; return; }
+        dragId = s.id;
+        var canvas = GetComponentInParent<Canvas>();
+        var g = new GameObject("drag_ghost", typeof(RectTransform));
+        g.transform.SetParent(canvas.transform, false);
+        var rt = (RectTransform)g.transform;
+        rt.sizeDelta = new Vector2(56, 56);
+        ghost = g.AddComponent<Image>();
+        ghost.raycastTarget = false;
+        ghost.preserveAspect = true;
+        var sp = ItemDB.Icon(dragId);
+        if (sp != null) ghost.sprite = sp;
+        else
+        {
+            ghost.color = new Color(1, 1, 1, 0.01f);
+            ghostText = new GameObject("t", typeof(RectTransform)).AddComponent<Text>();
+            ghostText.transform.SetParent(g.transform, false);
+            ghostText.font = (UIStyle.I != null && UIStyle.I.font != null) ? UIStyle.I.font : Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            ghostText.fontSize = 18; ghostText.fontStyle = FontStyle.Bold;
+            ghostText.alignment = TextAnchor.MiddleCenter;
+            ghostText.color = UIStyle.I != null ? UIStyle.I.textMain : Color.black;
+            ghostText.text = dragId;
+            ghostText.raycastTarget = false;
+            var trt = (RectTransform)ghostText.transform;
+            trt.anchorMin = Vector2.zero; trt.anchorMax = Vector2.one;
+            trt.offsetMin = trt.offsetMax = Vector2.zero;
+        }
+        rt.position = e.position;
+    }
+
+    public void OnDrag(PointerEventData e)
+    {
+        if (ghost != null) ghost.rectTransform.position = e.position;
+    }
+
+    public void OnEndDrag(PointerEventData e)
+    {
+        if (ghost != null) Destroy(ghost.gameObject);
+        if (dragId == null) return;
+        var hit = e.pointerCurrentRaycast.gameObject;
+        var hb = hit != null ? hit.GetComponentInParent<HotbarSlot>() : null;
+        if (hb != null)
+        {   // 핫바에 놓음 — 장비면 장착
+            var kind = ItemDB.GearOf(dragId);
+            if (kind != GearKind.None && Hotbar.I != null)
+            {
+                Hotbar.I.Assign(hb.index, kind);
+                SquadHUD.Toast($"슬롯 {(hb.index == 9 ? 0 : hb.index + 1)}번에 장착!");
+            }
+        }
+        else
+        {   // 다른 인벤토리 칸에 놓음 — 이동/합치기
+            var tag = hit != null ? hit.GetComponentInParent<InvSlotTag>() : null;
+            if (tag != null) Inv.Move(index, tag.index);
+        }
+        dragId = null;
+    }
+}

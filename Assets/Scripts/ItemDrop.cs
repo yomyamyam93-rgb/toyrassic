@@ -177,9 +177,9 @@ public class ItemDrop : MonoBehaviour
         Color c;
         switch (kind)
         {
-            case Kind.Wood: Stock.Wood += amount; label = $"+{amount} 나뭇가지"; c = new Color(0.55f, 0.95f, 0.4f); break;
-            case Kind.Stone: Stock.Stone += amount; label = $"+{amount} 돌"; c = new Color(0.9f, 0.9f, 0.9f); break;
-            default: NestSite.EggCount += amount; label = $"+{amount} 알"; c = new Color(1f, 0.9f, 0.5f); break;
+            case Kind.Wood: Inv.Add("나뭇가지", amount); label = $"+{amount} 나뭇가지"; c = new Color(0.55f, 0.95f, 0.4f); break;
+            case Kind.Stone: Inv.Add("돌", amount); label = $"+{amount} 돌"; c = new Color(0.9f, 0.9f, 0.9f); break;
+            default: Inv.Add("알", amount); label = $"+{amount} 알"; c = new Color(1f, 0.9f, 0.5f); break;
         }
         var pos = player != null ? player.position + Vector3.up * 3.5f : transform.position;
         FX.PopText(pos, label, c, 1.7f);

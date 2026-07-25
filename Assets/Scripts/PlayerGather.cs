@@ -1,26 +1,17 @@
 using UnityEngine;
 
 /// 자원 창고 — 나뭇가지·돌 + 도구 보유 (부화기·강화 재료)
+/// 자원 상태 — 실제 저장은 전부 슬롯 인벤토리(Inv). 여긴 읽기 편의 껍데기.
 public static class Stock
 {
-    public static int Wood, Stone;
+    public static int Wood => Inv.Count("나뭇가지");
+    public static int Stone => Inv.Count("돌");
+    public static bool HasAxe => Inv.Count("도끼") > 0;
+    public static bool HasPick => Inv.Count("곡갱이") > 0;
+    public static bool HasIncubator => Inv.Count("부화기") > 0;
     public static int ArrowLv = 1, BowLv = 1;      // 제작 창에서 강화
-    public static bool HasAxe, HasPick;            // 도끼=나무 패기 해금, 곡괭이=바위 캐기 해금
-    public static bool HasIncubator;               // 제작한 부화기 아이템 (설치하면 소모)
-    /// 새 아이템 범용 저장소 — 아이콘만 추가된 아이템의 수량 (ItemDB 참조)
-    public static readonly System.Collections.Generic.Dictionary<string, int> Extra
-        = new System.Collections.Generic.Dictionary<string, int>();
 
-    public static void Add(string id, int n)
-    {
-        switch (id)
-        {
-            case "나뭇가지": Wood += n; break;
-            case "돌": Stone += n; break;
-            case "알": NestSite.EggCount += n; break;
-            default: Extra.TryGetValue(id, out int cur); Extra[id] = cur + n; break;
-        }
-    }
+    public static void Add(string id, int n) => Inv.Add(id, n);
 }
 
 /// 채집 — 도구가 있으면 근처 나무/바위를 클릭으로 자연스럽게 팬다 (프롬프트 없음).

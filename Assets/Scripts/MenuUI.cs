@@ -29,7 +29,7 @@ public class MenuUI : MonoBehaviour
     Text statText;
     Image[] slotIcons;
     Text[] slotCounts, slotFallbacks;
-    GearDrag[] slotDrags;
+    InvDrag[] slotDrags;
     Text[] craftInfo; Button[] craftBtn; Text[] craftBtnLabel;
     PlayerBow bow;
     int curPage;
@@ -230,9 +230,9 @@ public class MenuUI : MonoBehaviour
         grid.cellSize = new Vector2(ss, ss);
         grid.spacing = new Vector2(sg, sg);
         grid.padding = new RectOffset(8, 8, 8, 8);
-        int slots = 24;
+        int slots = Inv.Size;
         slotIcons = new Image[slots]; slotCounts = new Text[slots];
-        slotFallbacks = new Text[slots]; slotDrags = new GearDrag[slots];
+        slotFallbacks = new Text[slots]; slotDrags = new InvDrag[slots];
         for (int i = 0; i < slots; i++)
         {
             var innerSlot = Framed("slot" + i, inv, SlotBg, SlotBorder);
@@ -250,7 +250,9 @@ public class MenuUI : MonoBehaviour
             Stretch(slotCounts[i].rectTransform);
             slotCounts[i].rectTransform.offsetMax = new Vector2(-5, 0);
             slotCounts[i].raycastTarget = false;
-            slotDrags[i] = innerSlot.gameObject.AddComponent<GearDrag>();   // 장비면 핫바로 드래그 가능
+            innerSlot.gameObject.AddComponent<InvSlotTag>().index = i;      // 드롭 대상 (칸 이동)
+            slotDrags[i] = innerSlot.gameObject.AddComponent<InvDrag>();    // 드래그 소스 (이동·장착)
+            slotDrags[i].index = i;
             slotDrags[i].enabled = false;
         }
 
@@ -330,29 +332,17 @@ public class MenuUI : MonoBehaviour
     void RefreshInv()
     {
         if (!pageInv.activeSelf) return;
-        // ItemDB 자동 등록 아이템 전부 — 아이콘 파일만 추가하면 여기 자동으로 뜬다
-        var list = new System.Collections.Generic.List<(Sprite icon, string fb, int count, GearKind kind)>();
-        foreach (var id in ItemDB.Ids)
-            list.Add((ItemDB.Icon(id), id, ItemDB.Count(id), ItemDB.GearOf(id)));
-        // 아이콘 파일이 아직 없는 특수 아이템 (부화기 등)
-        if (ItemDB.Icon("부화기") == null && Stock.HasIncubator)
-            list.Add((null, "부화기", 1, GearKind.Incubator));
-        var items = list.ToArray();
+        // 슬롯 인벤토리(Inv) 그대로 표시 — 칸끼리 드래그 이동/합치기, 장비는 핫바로도
         for (int i = 0; i < slotIcons.Length; i++)
         {
-            bool has = i < items.Length && items[i].count > 0 && (items[i].icon != null || items[i].fb != "");
-            slotIcons[i].enabled = has && items[i].icon != null;
-            if (slotIcons[i].enabled) slotIcons[i].sprite = items[i].icon;
-            slotFallbacks[i].text = has && items[i].icon == null ? items[i].fb : "";
-            slotCounts[i].text = has && items[i].kind == GearKind.None ? items[i].count.ToString() : "";
-            bool draggable = has && items[i].kind != GearKind.None;
-            slotDrags[i].enabled = draggable;
-            if (draggable)
-            {
-                slotDrags[i].kind = items[i].kind;
-                slotDrags[i].sprite = items[i].icon;
-                slotDrags[i].fallback = items[i].fb;
-            }
+            var s = Inv.Slots[i];
+            bool has = !s.Empty;
+            var icon = has ? ItemDB.Icon(s.id) : null;
+            slotIcons[i].enabled = icon != null;
+            if (icon != null) slotIcons[i].sprite = icon;
+            slotFallbacks[i].text = has && icon == null ? s.id : "";
+            slotCounts[i].text = has && s.count > 1 ? s.count.ToString() : "";
+            slotDrags[i].enabled = has;
         }
     }
 
@@ -428,39 +418,37 @@ public class MenuUI : MonoBehaviour
     {
         var c = Cost(idx);
         if (Stock.Wood < c.wood || Stock.Stone < c.stone) return;
+        void Pay() { Inv.Consume("나뭇가지", c.wood); Inv.Consume("돌", c.stone); }
         switch (idx)
         {
             case 0:
                 if (Stock.HasAxe) return;
-                Stock.Wood -= c.wood;
-                Stock.HasAxe = true;
+                Pay(); Inv.Add("도끼", 1);
                 if (Hotbar.I != null) Hotbar.I.AutoAssign(GearKind.Axe);
                 SquadHUD.Toast("도끼 제작!  핫바에 장착됨 — 숫자키로 바꿔 들고 나무를 패자");
                 break;
             case 1:
                 if (Stock.HasPick) return;
-                Stock.Wood -= c.wood; Stock.Stone -= c.stone;
-                Stock.HasPick = true;
+                Pay(); Inv.Add("곡갱이", 1);
                 if (Hotbar.I != null) Hotbar.I.AutoAssign(GearKind.Pick);
                 SquadHUD.Toast("곡괭이 제작!  핫바에 장착됨 — 숫자키로 바꿔 들고 바위를 캐자");
                 break;
             case 2:
                 if (Stock.HasIncubator || Incubator.Active != null) return;
-                Stock.Wood -= c.wood; Stock.Stone -= c.stone;
-                Stock.HasIncubator = true;
+                Pay(); Inv.Add("부화기", 1);
                 if (Hotbar.I != null) Hotbar.I.AutoAssign(GearKind.Incubator);
                 SquadHUD.Toast("부화기 제작!  핫바에서 들고 원하는 곳을 클릭해 설치");
                 break;
             case 3:
                 if (Stock.ArrowLv >= 4) return;
-                Stock.Wood -= c.wood; Stock.Stone -= c.stone;
+                Pay();
                 Stock.ArrowLv++;
                 if (bow != null) bow.arrowDamage += 6f;
                 SquadHUD.Toast($"화살촉 강화!  피해 +6 (Lv.{Stock.ArrowLv})");
                 break;
             case 4:
                 if (Stock.BowLv >= 4) return;
-                Stock.Wood -= c.wood;
+                Pay();
                 Stock.BowLv++;
                 if (bow != null) { bow.fireCooldown *= 0.85f; bow.aimFillTime *= 0.9f; }
                 SquadHUD.Toast($"활 개량!  공속 상승 (Lv.{Stock.BowLv})");

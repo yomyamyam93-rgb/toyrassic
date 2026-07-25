@@ -35,21 +35,8 @@ public static class ItemDB
         return icons.TryGetValue(id, out var s) ? s : null;
     }
 
-    /// 보유 수량 — 기존 저장소와 연결, 새 아이템은 범용 저장소(Stock.Extra)
-    public static int Count(string id)
-    {
-        switch (id)
-        {
-            case "나뭇가지": return Stock.Wood;
-            case "돌": return Stock.Stone;
-            case "알": return NestSite.EggCount;
-            case "활": return 1;                      // 기본 무기 — 항상 보유
-            case "도끼": return Stock.HasAxe ? 1 : 0;
-            case "곡갱이": return Stock.HasPick ? 1 : 0;
-            case "부화기": return Stock.HasIncubator ? 1 : 0;
-            default: return Stock.Extra.TryGetValue(id, out int n) ? n : 0;
-        }
-    }
+    /// 보유 수량 — 전부 슬롯 인벤토리(Inv)에서
+    public static int Count(string id) => Inv.Count(id);
 
     /// 장비 여부 (핫바 드래그 가능)
     public static GearKind GearOf(string id)
