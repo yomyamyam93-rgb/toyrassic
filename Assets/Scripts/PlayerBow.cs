@@ -34,6 +34,11 @@ public class PlayerBow : MonoBehaviour
     public Material outlineHull;
     public Material outlineMask;
 
+    [Header("도구 3D 모델 (비우면 절차 생성)")]
+    public GameObject toolAxeModel;
+    public GameObject toolPickModel;
+    [Tooltip("손에 들리는 도구 길이 (m)")] public float toolLength = 2.1f;
+
     [Header("마우스 커서")]
     public Texture2D cursorNormal;   // 평소 화살표
     public Texture2D cursorAim;      // 조준 중 원형 타겟
@@ -63,6 +68,9 @@ public class PlayerBow : MonoBehaviour
         gather = GetComponent<PlayerGather>();
         cam = Camera.main;
         if (handColor.a < 0.01f) handColor = SampleBodyColor();
+        // 도구 모델 자동 로드 (씬 연결 없어도 동작)
+        if (toolAxeModel == null) toolAxeModel = Resources.Load<GameObject>("Tools/tool_axe");
+        if (toolPickModel == null) toolPickModel = Resources.Load<GameObject>("Tools/tool_pick");
         Build();
         BuildTools();
     }
@@ -70,6 +78,27 @@ public class PlayerBow : MonoBehaviour
     /// 도끼(나무)·곡괭이(바위) — 패는 순간에만 오른손에 등장
     void BuildTools()
     {
+        // 3D 모델 마운트 — 제일 긴 축을 자루(+Z)로 자동 정렬, 그립(원점)=자루 끝
+        Transform MountModel(string n, GameObject model)
+        {
+            var root = new GameObject(n).transform;
+            root.SetParent(handR, false);
+            var inst = Instantiate(model, root);
+            inst.transform.localPosition = Vector3.zero;
+            var mf = inst.GetComponentInChildren<MeshFilter>();
+            if (mf != null && mf.sharedMesh != null)
+            {
+                var size = mf.sharedMesh.bounds.size;
+                // 파이프라인 원점=바닥 중앙 → 긴 축을 +Z 로 눕힘
+                if (size.y >= size.x && size.y >= size.z) inst.transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
+                else if (size.x >= size.z) inst.transform.localRotation = Quaternion.Euler(0f, -90f, 0f);
+                float len = Mathf.Max(size.x, Mathf.Max(size.y, size.z));
+                inst.transform.localScale = Vector3.one * (toolLength / Mathf.Max(0.01f, len));
+            }
+            root.gameObject.SetActive(false);
+            return root;
+        }
+
         Transform MakeTool(string n, Color headC, Vector3 headScale)
         {
             var root = new GameObject(n).transform;
@@ -90,8 +119,10 @@ public class PlayerBow : MonoBehaviour
             root.gameObject.SetActive(false);
             return root;
         }
-        toolAxe = MakeTool("Axe", new Color(0.78f, 0.80f, 0.85f), new Vector3(0.12f, 0.55f, 0.45f));
-        toolPick = MakeTool("Pickaxe", new Color(0.46f, 0.45f, 0.43f), new Vector3(0.9f, 0.16f, 0.22f));
+        toolAxe = toolAxeModel != null ? MountModel("Axe", toolAxeModel)
+                                       : MakeTool("Axe", new Color(0.78f, 0.80f, 0.85f), new Vector3(0.12f, 0.55f, 0.45f));
+        toolPick = toolPickModel != null ? MountModel("Pickaxe", toolPickModel)
+                                         : MakeTool("Pickaxe", new Color(0.46f, 0.45f, 0.43f), new Vector3(0.9f, 0.16f, 0.22f));
         trailAxe = MakeTrail(toolAxe);
         trailPick = MakeTrail(toolPick);
     }
