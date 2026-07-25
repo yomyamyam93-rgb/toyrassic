@@ -57,8 +57,11 @@ Shader "Toyrassic/Leaf"
             {
                 half4 tex = SAMPLE_TEXTURE2D(_MainTex, sampler_MainTex, i.uv);
                 // 얇은 면 페이드: 카드가 시선과 평행해질수록(비스듬한 구도) 잎이 스르륵 사라짐
+                // ※잎 노멀은 명암용으로 구형으로 구부러져 있어 못 씀 —
+                //   픽셀 미분으로 '실제 카드 면'의 기하 노멀을 구해 판정한다
                 float3 vdir = normalize(_WorldSpaceCameraPos - i.wp);
-                float facing = abs(dot(normalize(i.wn), vdir));
+                float3 geoN = normalize(cross(ddy(i.wp), ddx(i.wp)));
+                float facing = abs(dot(geoN, vdir));
                 float edge = smoothstep(_EdgeLo, _EdgeHi, facing);
                 clip(tex.a * edge - _Cutoff);
 
