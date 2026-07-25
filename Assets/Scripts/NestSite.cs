@@ -59,14 +59,17 @@ public class NestSite : MonoBehaviour
                 if (small.Count == 0) small.AddRange(spawner.entries);
                 var entry = small[Random.Range(0, small.Count)];
                 float ang = Random.Range(0f, Mathf.PI * 2f);
-                var pos = transform.position + new Vector3(Mathf.Cos(ang), 0, Mathf.Sin(ang)) * Random.Range(spawnRing * 0.6f, spawnRing);
+                var landPos = transform.position + new Vector3(Mathf.Cos(ang), 0, Mathf.Sin(ang)) * Random.Range(spawnRing * 0.6f, spawnRing);
                 var terr = Terrain.activeTerrain;
-                if (terr != null) pos.y = terr.SampleHeight(pos) + terr.transform.position.y;
-                var g = spawner.Spawn(entry, pos, sizeMul, hpMul, dmgMul);
+                if (terr != null) landPos.y = terr.SampleHeight(landPos) + terr.transform.position.y;
+                // 둥지 한가운데서 생성 → 쫀득하게 포물선 점프로 파바박 튀어나옴
+                var g = spawner.Spawn(entry, transform.position, sizeMul, hpMul, dmgMul);
                 if (g != null)
                 {
                     var u = g.GetComponent<PetUnit>();
                     u.name = entry.koreanName + "(분노)";
+                    u.Airborne(0.55f, 3.2f);                      // 체공 — 그동안 행동 불가
+                    g.AddComponent<LeapIn>().Init(transform.position, landPos, 0.55f);
                     swarm.Add(u);
                     spawned++;
                 }
@@ -96,11 +99,35 @@ public class NestSite : MonoBehaviour
             if (Vector3.Distance(player.position, egg.position) < 4f)
             {
                 EggCount++;
-                SquadHUD.Toast($"전설의 알 획득! ×{EggCount}  (부화는 거점에서 — 다음 업데이트)");
+                SquadHUD.Toast($"전설의 알 획득! ×{EggCount}  — B키로 부화기를 설치하자");
                 FX.Burst(egg.position, new Color(1.9f, 1.7f, 0.6f, 1f), 30, 0.25f, 3f);
                 Destroy(egg.gameObject);
                 egg = null;
             }
+        }
+    }
+}
+
+/// 스폰 점프 인 — 둥지 중심에서 착지점까지 포물선으로 쫀득하게 튀어나옴
+public class LeapIn : MonoBehaviour
+{
+    Vector3 from, to; float dur, t;
+
+    public void Init(Vector3 f, Vector3 target, float d) { from = f; to = target; dur = d; }
+
+    void Update()
+    {
+        t += Time.deltaTime / Mathf.Max(0.05f, dur);
+        float k = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01(t));
+        var p = Vector3.Lerp(from, to, k);
+        transform.position = new Vector3(p.x, transform.position.y, p.z);   // 높이는 에어본이 처리
+        var d2 = to - from; d2.y = 0f;
+        if (d2.sqrMagnitude > 0.01f)
+            transform.rotation = Quaternion.LookRotation(d2.normalized, Vector3.up);
+        if (t >= 1f)
+        {
+            FX.Burst(transform.position, new Color(0.8f, 0.72f, 0.55f, 0.8f), 8, 0.4f, 2.2f);   // 착지 먼지
+            Destroy(this);
         }
     }
 }

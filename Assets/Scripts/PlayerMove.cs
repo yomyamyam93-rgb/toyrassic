@@ -25,6 +25,11 @@ public class PlayerMove : MonoBehaviour
     Vector3 vel;
     Terrain[] terrains;
 
+    // ── 탑승 (부화한 펫 = 탈것) ──
+    PetUnit mount;
+    Renderer mountRend;
+    PetMotion mountMotion;
+
     void Awake()
     {
         motion = GetComponent<BlobMotion>();
@@ -66,6 +71,22 @@ public class PlayerMove : MonoBehaviour
 
     void Update()
     {
+        // 내 펫이 있으면 자동 탑승 — 펫이 탈것
+        var m = BlueprintPickup.MyPet();
+        if (m != null && !m.Alive) m = null;
+        if (m != mount)
+        {
+            if (mount != null) mount.mounted = false;
+            mount = m;
+            if (mount != null)
+            {
+                mount.mounted = true;
+                mountRend = mount.GetComponentInChildren<Renderer>();
+                mountMotion = mount.GetComponent<PetMotion>();
+                SquadHUD.Toast($"{mount.name} 탑승!");
+            }
+        }
+
         float ix, iz;
         ReadInput(out ix, out iz);
 
@@ -92,17 +113,45 @@ public class PlayerMove : MonoBehaviour
         curSpd = Mathf.MoveTowards(curSpd, hasInput ? top : 0f, accel * Time.deltaTime);
         vel = hasInput ? dir.normalized * curSpd
                        : (curSpd > 0.01f && vel.sqrMagnitude > 1e-6f ? vel.normalized * curSpd : Vector3.zero);
+        float sp = vel.magnitude;
+
+        if (mount != null)
+        {
+            // ── 탑승 이동: 펫이 WASD 방향을 보며 자기 홉 모션으로 달림 ──
+            float pulse = mountMotion != null ? mountMotion.MovePulse : 1f;
+            var mp = mount.transform.position + vel * pulse * Time.deltaTime;
+            mp.y = mount.transform.position.y;              // 높이는 PetUnit.Ground 가 처리
+            mount.transform.position = mp;
+            if (hasInput)
+            {
+                var want = Quaternion.LookRotation(dir.normalized, Vector3.up);
+                mount.transform.rotation = Quaternion.RotateTowards(mount.transform.rotation, want, 720f * Time.deltaTime);
+            }
+            if (mountMotion != null) mountMotion.speed01 = Mathf.Clamp01(sp / moveSpeed);
+            // 라이더(캐릭터)는 통통 안 튀고 안장에 앉아 마우스만 바라봄
+            motion.GroundY = float.NaN;
+            motion.SetMotion(BlobMotion.Mode.Idle, 0f, false);
+            return;
+        }
 
         var np = transform.position + vel * Time.deltaTime;
         np.y = GroundAt(np);
         transform.position = np;
 
-        float sp = vel.magnitude;
-        var m = BlobMotion.Mode.Idle;
-        if (sp > moveSpeed * 0.55f) m = BlobMotion.Mode.Run;
-        else if (sp > 0.35f) m = BlobMotion.Mode.Walk;
+        var mo = BlobMotion.Mode.Idle;
+        if (sp > moveSpeed * 0.55f) mo = BlobMotion.Mode.Run;
+        else if (sp > 0.35f) mo = BlobMotion.Mode.Walk;
         motion.GroundY = np.y;
-        motion.SetMotion(m, Mathf.Clamp01(sp / moveSpeed), wet);
+        motion.SetMotion(mo, Mathf.Clamp01(sp / moveSpeed), wet);
         // 방향은 PlayerBow 가 마우스 위치로 정한다 (이동 방향과 분리 — 무빙샷)
+    }
+
+    void LateUpdate()
+    {
+        // 안장 위치 고정 — 펫 등 위에 착 붙어 함께 통통
+        if (mount == null || mountRend == null) return;
+        var mpos = mount.transform.position;
+        float seatY = mountRend.bounds.max.y - mount.body * 0.10f;
+        transform.position = new Vector3(mpos.x, seatY, mpos.z);
     }
 }

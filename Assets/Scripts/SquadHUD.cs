@@ -40,6 +40,15 @@ public class SquadHUD : MonoBehaviour
         if (NestSite.EggCount > 0)
             Shadowed(new Rect(14, 102, 300, 24), $"🥚 알 ×{NestSite.EggCount}", sub, new Color(1f, 0.92f, 0.6f));
 
+        // 부화 게이지 — 웨이브를 막아야 찬다
+        var inc = Incubator.Active;
+        if (inc != null && inc.incubating)
+        {
+            var gold = new Color(1f, 0.85f, 0.3f);
+            Shadowed(new Rect(14, 126, 400, 22), $"🐣 부화 게이지  {inc.clearedWaves}/{inc.totalWaves}", sub, gold);
+            Bar(new Rect(16, 150, 240, 12), inc.totalWaves > 0 ? inc.clearedWaves / (float)inc.totalWaves : 0f, gold, null);
+        }
+
         if (toastT > 0f && !string.IsNullOrEmpty(toast))
         {
             var big = new GUIStyle(GUI.skin.label) { fontSize = 27, fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleCenter };

@@ -13,7 +13,7 @@ public class PetMotion : MonoBehaviour
     [Range(0f, 0.06f)] public float breathAmp = 0.018f;
 
     [Header("이동 — 통통 튀는 홉")]
-    [Range(0f, 0.35f)] public float hopAmp = 0.14f;     // 도약 높이 (몸높이 비율) — 통통!
+    [Range(0f, 0.6f)] public float hopAmp = 0.32f;      // 도약 높이 (몸높이 비율) — 통! 통!
     [Range(0f, 10f)] public float waddleDeg = 2.5f;     // 좌우 무게 흔들림
     [Range(0f, 10f)] public float leanDeg = 3f;         // 전진 기울기
 
@@ -75,7 +75,7 @@ public class PetMotion : MonoBehaviour
 
     // 크기 보정 템포: 작으면 촐랑, 크면 쿵... 쿵...
     float BreathRate => 1.8f / sizeK * tempo;      // 10m 몸 ≈ 0.7Hz
-    float StepRate   => 7.0f / Mathf.Pow(sizeK, 0.7f) * tempo;   // 홉 박자 — 큰 몸도 경쾌하게
+    float StepRate   => 5.8f / Mathf.Pow(sizeK, 0.7f) * tempo;   // 홉 박자 — 높이 뛰는 만큼 체공 길게
     float PunchSpeed => 6.0f / Mathf.Sqrt(sizeK) * tempo;   // 펀치는 큰 몸도 빠르게 (타격 순간 절정)
 
     /// 공격 순간 호출
@@ -93,7 +93,7 @@ public class PetMotion : MonoBehaviour
         BobY = step * hopAmp * bodyH * speed01;
         // ★평균이 정확히 1이 되게 정규화 (raw 평균 = 0.25+1.5×(2/π) = 1.2049)
         //   → 실효 속도 = MoveSpd 그대로 유지하면서 박자만 통통
-        float raw = (0.25f + step * 1.5f) / 1.2049f;
+        float raw = (0.12f + step * 1.75f) / 1.2341f;   // 착지 땐 거의 멈추고 공중에서 쭉 — 대비 강하게
         MovePulse = Mathf.Lerp(1f, raw, speed01);
 
         // ── 스쿼시&스트레치 (부피 보존) + 공격 펀치 + 피격 움찔 ──

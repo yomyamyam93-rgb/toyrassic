@@ -24,6 +24,12 @@ public class PetUnit : MonoBehaviour
     [Tooltip("캐릭터 본인 — AI 없이 체력·피격·어그로 대상만 됨")]
     public bool isAvatar = false;
     public static PetUnit Avatar;
+    [Tooltip("건물(부화기 등) — AI·모션 없이 서서 맞기만 함")]
+    public bool isStructure = false;
+    [Tooltip("주변에 적이 없으면 이 대상을 향해 진군 (습격 웨이브용)")]
+    public PetUnit forceTarget;
+    [Tooltip("탑승 중 — 이동은 PlayerMove 가 조종, AI 정지")]
+    [HideInInspector] public bool mounted;
     [Tooltip("목표 크기(최대 변, m). 0 = 티어 기본값 사용. 인스펙터 슬라이더가 조절")]
     public float sizeM = 0f;
     public int level = 1;
@@ -86,6 +92,10 @@ public class PetUnit : MonoBehaviour
     float airT, airDur, airHeight, airY;             // 금속 광역의 에어본
     float strikeT;                                   // 타격 지연 — 모션 절정에 데미지
     float jumpT; Vector3 jumpFrom, jumpTo;           // 돌 점프 내려찍기
+    float dashT; Vector3 dashFrom, dashTo;           // 기본 공격: 기 모으고 돌진
+    Vector3 lockedAim;                               // 장전 시작 때 고정되는 목표 지점
+    float ghostHp;                                   // 롤식 지연 감소 바
+    Transform barGhost;
     int burstLeft; float burstT;                     // 나무 3연타
     PetMotion motion;
     float curSpeed;
@@ -108,6 +118,7 @@ public class PetUnit : MonoBehaviour
         footOff = r != null ? transform.position.y - r.bounds.min.y : 0f;
         if (r != null) body = Mathf.Max(1f, Mathf.Max(r.bounds.size.x, Mathf.Max(r.bounds.size.y, r.bounds.size.z)));
         if (isAvatar) { Avatar = this; MakeBar(r); return; }   // 캐릭터: 모션·AI 없음
+        if (isStructure) { MakeBar(r); return; }               // 건물: 모션 없음, 맞기만
         motion = GetComponent<PetMotion>();
         if (motion == null) motion = gameObject.AddComponent<PetMotion>();
         MakeBar(r);
@@ -121,9 +132,9 @@ public class PetUnit : MonoBehaviour
                        / (1f + agi * 0.010f);
     float Damage => mat == Mat.Water ? intel * 0.22f  // 💧물총 속사 — 발당 약하게 (DPS 는 비슷)
                   : str * (mat == Mat.Metal ? 0.95f : mat == Mat.Stone ? 1.05f : mat == Mat.Wood ? 0.45f
-                         : mat == Mat.Fire ? 1.8f : 0.8f);
-    // 크기 배율 완만하게 (7m ×1.05 ~ 60m ×2.9) — 작은 애들이 안 뒤처지게
-    float MoveSpd => (3.2f + agi * 0.05f) * (0.8f + body * 0.035f) * (slowT > 0f ? 0.55f : 1f);
+                         : mat == Mat.Fire ? 1.8f : mat == Mat.Lightning ? 0.8f : 1.4f);   // Basic 돌진 = 묵직하게
+    // 기본 이속 상향 — 통통 뛰어서 다가오는 속도감
+    float MoveSpd => (8f + agi * 0.1f) * (0.8f + body * 0.035f) * (slowT > 0f ? 0.55f : 1f);
     float AtkRange => mat == Mat.Metal ? body * 0.95f + 1f
                     : mat == Mat.Stone ? body * 2.2f
                     : mat == Mat.Wood ? body * 2.6f
@@ -135,12 +146,15 @@ public class PetUnit : MonoBehaviour
                      : mat == Mat.Stone ? 0.45f
                      : mat == Mat.Wood ? 0.35f
                      : mat == Mat.Water ? 0.12f    // 물총은 조준만 살짝
-                     : 0.3f;
+                     : mat == Mat.Lightning ? 0.3f
+                     : 2.8f;                       // Basic: 쭈우욱 기 모으기 (~3초) 후 돌진
 
     void Update()
     {
         if (dead) { LungeFx(); return; }
-        if (isAvatar) { HitFlash(); Bar(); return; }   // 캐릭터: 피격·바만
+        if (isAvatar) { HitFlash(); Bar(); return; }             // 캐릭터: 피격·바만
+        if (isStructure) { HitFlash(); Bar(); return; }          // 건물
+        if (mounted) { HitFlash(); Ground(false); Bar(); return; }   // 탑승 중: 이동은 주인이 조종
         atkCd -= Time.deltaTime;
         slowT = Mathf.Max(0f, slowT - Time.deltaTime);
 
@@ -157,6 +171,9 @@ public class PetUnit : MonoBehaviour
 
         // 돌: 점프 내려찍기 진행
         if (jumpT > 0f) { JumpAdvance(); Ground(false); Bar(); HitFlash(); return; }
+
+        // 기본 공격: 돌진 진행
+        if (dashT > 0f) { DashAdvance(); Ground(false); Bar(); HitFlash(); return; }
 
         // 나무: 3연타 진행 (회전하며 표표푝)
         if (burstLeft > 0)
@@ -198,7 +215,8 @@ public class PetUnit : MonoBehaviour
             if (target == null || !target.Alive) winding = false;
             else
             {
-                Face(target.transform.position - transform.position);
+                // 기본 공격: 장전 시작 때 조준을 '고정' — 기 모으는 동안 방향 유지 (회피 여지)
+                Face((mat == Mat.Basic ? lockedAim : target.transform.position) - transform.position);
                 if (windupT <= 0f) { winding = false; ExecuteAttack(); }
             }
         }
@@ -228,7 +246,11 @@ public class PetUnit : MonoBehaviour
             if (d < bd) { bd = d; near = u; }
             if (u.mat == Mat.Metal && d < td) { td = d; taunt = u; }   // 금속 = 어그로 우선
         }
-        return taunt != null ? taunt : near;
+        if (taunt != null) return taunt;
+        if (near != null) return near;
+        // 주변에 적이 없으면 강제 목표(부화기 등)로 진군 — 거리 무제한
+        if (forceTarget != null && forceTarget.Alive && forceTarget.team != team) return forceTarget;
+        return null;
     }
 
     void Peace()
@@ -254,7 +276,7 @@ public class PetUnit : MonoBehaviour
     {
         float d = Dist(target.transform.position);
         if (d > AtkRange) Step(target.transform.position - transform.position, MoveSpd);
-        else if (atkCd <= 0f) { winding = true; windupT = WindupDur; }
+        else if (atkCd <= 0f) { winding = true; windupT = WindupDur; lockedAim = target.transform.position; }
         else Face(target.transform.position - transform.position);
     }
 
@@ -300,10 +322,13 @@ public class PetUnit : MonoBehaviour
                 lungeTo = transform.position + dir.normalized * (body * 0.15f);
                 break;
 
-            default:            // Basic — 원소 없는 기본 평타 (살짝 달려들며 콱)
-                strikeT = 0.09f;
-                lungeT = 1f; lungeFrom = transform.position;
-                lungeTo = transform.position + dir.normalized * (body * 0.14f);
+            default:            // Basic — 기 모으고(고정 조준) → 돌진 콰앙 → 살짝 딜레이
+                var dd = lockedAim - transform.position; dd.y = 0;
+                float dl = Mathf.Min(dd.magnitude, AtkRange * 1.4f);
+                dashFrom = transform.position;
+                dashTo = transform.position + (dd.sqrMagnitude > 1e-4f ? dd.normalized : transform.forward) * dl;
+                dashT = 1f;
+                atkCd = AtkPeriod + 0.9f;   // 돌진 후 딜레이 (텀)
                 break;
         }
     }
@@ -327,18 +352,6 @@ public class PetUnit : MonoBehaviour
                     target.transform.position + Vector3.up * target.body * 0.3f,
                     new Color(1.8f, 2.3f, 3.2f), body * 0.02f);
         }
-        else if (mat == Mat.Basic && target != null && target.Alive)
-        {
-            TryHit(target, Damage);
-            // 소범위 스플래시 — 물량전에서 뭉친 적을 같이 후려침 (절반 데미지)
-            var center = target.transform.position;
-            foreach (var u in All)
-            {
-                if (u == this || u == target || !u.Alive || u.team == team) continue;
-                var d2 = u.transform.position - center; d2.y = 0;
-                if (d2.magnitude < body * 0.7f) TryHit(u, Damage * 0.5f);
-            }
-        }
     }
 
     IEnumerable<PetUnit> EnemiesWithin(float radius)
@@ -347,6 +360,31 @@ public class PetUnit : MonoBehaviour
         {
             if (u == this || !u.Alive || u.team == team) continue;
             if (Dist(u.transform.position) <= radius) yield return u;
+        }
+    }
+
+    // 기본 공격 돌진 — 가속하며 몸통 박치기, 도착 지점 광역 타격
+    void DashAdvance()
+    {
+        dashT -= Time.deltaTime / 0.24f;
+        float k = 1f - Mathf.Clamp01(dashT);
+        float kh = k * k;                                        // 가속 곡선 — 슈우웅 팍!
+        var p = Vector3.Lerp(dashFrom, dashTo, kh);
+        transform.position = new Vector3(p.x, transform.position.y, p.z);
+        airY = Mathf.Sin(k * Mathf.PI) * body * 0.15f;           // 낮게 붕 떠서 박음
+        var d2 = dashTo - dashFrom; d2.y = 0; Face(d2);
+        if (dashT <= 0f)
+        {
+            airY = 0f;
+            if (motion != null) motion.Punch();
+            FX.Burst(transform.position + transform.forward * body * 0.3f,
+                     new Color(1f, 0.95f, 0.85f, 0.9f), 14, body * 0.08f, body * 0.5f);
+            foreach (var u in All)
+            {
+                if (u == this || !u.Alive || u.team == team) continue;
+                var dd = u.transform.position - transform.position; dd.y = 0;
+                if (dd.magnitude < body * 0.75f + u.body * 0.4f) TryHit(u, Damage);
+            }
         }
     }
 
@@ -393,6 +431,10 @@ public class PetUnit : MonoBehaviour
     {
         if (dead) return;
         hp -= dmg;
+        // 피해 숫자 — 내 편이 맞으면 빨강, 적이 맞으면 밝은 노랑
+        FX.DamageNum(transform.position + Vector3.up * body * 0.8f, dmg,
+                     team == Team.Player ? new Color(1f, 0.35f, 0.3f) : new Color(1f, 0.95f, 0.6f),
+                     Mathf.Clamp(body * 0.22f, 0.9f, 3.5f));
         if (hp <= 0f)
         {
             if (isAvatar)
@@ -430,17 +472,22 @@ public class PetUnit : MonoBehaviour
     void Die()
     {
         dead = true;
+        if (isStructure)   // 건물(부화기) — 파괴 처리는 소유 컴포넌트(Incubator)가 함
+        {
+            if (barRoot != null) barRoot.gameObject.SetActive(false);
+            return;
+        }
         if (motion != null) { motion.enabled = false; transform.localScale = baseScale; }
         transform.rotation = Quaternion.Euler(0f, transform.eulerAngles.y, 82f);
         var p = transform.position; p.y -= footOff * 0.35f; transform.position = p;
         if (barRoot != null) barRoot.gameObject.SetActive(false);
         if (team == Team.Wild)
-        {   // 격파 경험치 → 내 펫 (한 마리 키우기, 캐릭터 제외)
+        {   // 격파 경험치 → 내 펫 (캐릭터 제외). 펫 획득은 오직 부화로!
             foreach (var u in All)
                 if (u.Alive && u.team == Team.Player && !u.isAvatar) { u.GainXP(supply * 18f); break; }
         }
-        if (team == Team.Wild && collectible) BlueprintPickup.Spawn(this);   // 격파 → 설계도
-        else { SpawnDrop(); Destroy(gameObject, 8f); }
+        SpawnDrop();
+        Destroy(gameObject, 8f);
     }
 
     /// 설계도 획득 시 내 군단으로 합류 — 쓰러진 그 개체가 그대로 일어난다
@@ -548,9 +595,10 @@ public class PetUnit : MonoBehaviour
         return -28f + 388f * (1f - Mathf.Pow(1f - u, 2.4f));
     }
 
-    // ── HP 바 ──
+    // ── HP 바 (둥근 모서리 + 롤식 지연 감소) ──
     void MakeBar(Renderer r)
     {
+        ghostHp = hp;
         float top = r != null ? (r.bounds.max.y - transform.position.y) : 2f;
         float ls = Mathf.Max(0.01f, transform.lossyScale.y);
         barRoot = new GameObject("hpbar").transform;
@@ -564,24 +612,35 @@ public class PetUnit : MonoBehaviour
             q.name = n; q.SetParent(barRoot, false);
             q.localPosition = new Vector3(0, 0, z);
             var mm = q.GetComponent<MeshRenderer>();
-            mm.material = new Material(Shader.Find("Universal Render Pipeline/Unlit"));
+            mm.material = new Material(Shader.Find("Sprites/Default"));   // 알파 지원 — 둥근 모서리
+            mm.material.mainTexture = FX.RoundedTex();
             mm.material.color = c;
             mm.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
             return q;
         }
-        var bg = Quad("bg", new Color(0.1f, 0.1f, 0.1f, 1f), 0.001f);
-        bg.localScale = new Vector3(1.7f, 0.22f, 1f);
+        var bg = Quad("bg", new Color(0.08f, 0.08f, 0.10f, 0.92f), 0.002f);
+        bg.localScale = new Vector3(1.9f, 0.42f, 1f);                     // 두껍게
+        barGhost = Quad("ghost", new Color(1f, 0.55f, 0.25f, 0.95f), 0.001f);   // 깎인 체력 잔상
+        barGhost.localScale = new Vector3(1.78f, 0.30f, 1f);
         barFill = Quad("fill", team == Team.Player ? new Color(0.35f, 0.9f, 0.4f) : new Color(0.95f, 0.4f, 0.35f), 0f);
-        barFill.localScale = new Vector3(1.64f, 0.16f, 1f);
+        barFill.localScale = new Vector3(1.78f, 0.30f, 1f);
     }
 
     void Bar()
     {
         if (barRoot == null || Camera.main == null) return;
         barRoot.rotation = Quaternion.LookRotation(barRoot.position - Camera.main.transform.position);
+        // 롤식: 실체력은 즉시, 잔상 바는 잠깐 머물다 스르륵 따라 내려옴
+        ghostHp = hp > ghostHp ? hp : Mathf.MoveTowards(ghostHp, hp, maxHp * 0.45f * Time.deltaTime);
         float f = maxHp > 0 ? hp / maxHp : 0f;
-        var s = barFill.localScale; s.x = 1.64f * f; barFill.localScale = s;
-        var lp = barFill.localPosition; lp.x = -(1.64f - s.x) * 0.5f; barFill.localPosition = lp;
+        float g = maxHp > 0 ? ghostHp / maxHp : 0f;
+        void SetW(Transform t2, float w)
+        {
+            var s = t2.localScale; s.x = 1.78f * Mathf.Clamp01(w); t2.localScale = s;
+            var lp = t2.localPosition; lp.x = -(1.78f - s.x) * 0.5f; t2.localPosition = lp;
+        }
+        SetW(barFill, f);
+        SetW(barGhost, g);
     }
 }
 

@@ -10,6 +10,43 @@ public static class FX
         return pmat;
     }
 
+    // ── 둥근 모서리 바 텍스처 (체력바용, 1회 생성 캐시) ──
+    static Texture2D roundTex;
+    public static Texture2D RoundedTex()
+    {
+        if (roundTex != null) return roundTex;
+        int w = 64, h = 24, r = 10;
+        roundTex = new Texture2D(w, h, TextureFormat.RGBA32, false);
+        for (int y = 0; y < h; y++)
+            for (int x = 0; x < w; x++)
+            {
+                float dx = Mathf.Max(0, Mathf.Max(r - x, x - (w - 1 - r)));
+                float dy = Mathf.Max(0, Mathf.Max(r - y, y - (h - 1 - r)));
+                float d = Mathf.Sqrt(dx * dx + dy * dy);
+                float a = Mathf.Clamp01(r - d + 0.5f);
+                roundTex.SetPixel(x, y, new Color(1f, 1f, 1f, a));
+            }
+        roundTex.Apply();
+        return roundTex;
+    }
+
+    /// 피해 숫자 — 뽁 떠올라 흩어지며 사라짐
+    public static void DamageNum(Vector3 pos, float amount, Color c, float scale = 1f)
+    {
+        var go = new GameObject("fx_dmg");
+        go.transform.position = pos + new Vector3(Random.Range(-0.4f, 0.4f), 0f, Random.Range(-0.2f, 0.2f));
+        var tm = go.AddComponent<TextMesh>();
+        tm.text = Mathf.Max(1, Mathf.RoundToInt(amount)).ToString();
+        tm.fontSize = 48;
+        tm.characterSize = 0.09f * scale;
+        tm.anchor = TextAnchor.MiddleCenter;
+        tm.fontStyle = FontStyle.Bold;
+        tm.color = c;
+        var mr = go.GetComponent<MeshRenderer>();
+        mr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+        go.AddComponent<FxDmgNum>();
+    }
+
     /// 뽁 터지는 버스트 — 타격·착지 먼지·격파
     public static void Burst(Vector3 pos, Color c, int count, float size, float speed, float life = 0.45f)
     {
@@ -228,5 +265,28 @@ public class FxFade : MonoBehaviour
         var c = baseCol; c.a = baseCol.a * Mathf.Clamp01(1f - t * t);   // 곡선 페이드
         mr.material.color = c;
         transform.localScale = Vector3.one * (1f + t * 0.15f);          // 살짝 퍼지며 사라짐
+    }
+}
+
+/// 피해 숫자 — 떠오르며 커졌다 작아지고 페이드
+public class FxDmgNum : MonoBehaviour
+{
+    float t;
+    TextMesh tm;
+    Color c0;
+
+    void Start() { tm = GetComponent<TextMesh>(); c0 = tm.color; Destroy(gameObject, 0.85f); }
+
+    void Update()
+    {
+        t += Time.deltaTime / 0.85f;
+        transform.position += Vector3.up * 1.6f * Time.deltaTime;
+        if (Camera.main != null)
+            transform.rotation = Quaternion.LookRotation(transform.position - Camera.main.transform.position);
+        // 뽁: 초반에 커졌다가 살짝 줄고, 끝에 페이드
+        float pop = t < 0.18f ? Mathf.Lerp(0.6f, 1.25f, t / 0.18f) : Mathf.Lerp(1.25f, 0.95f, (t - 0.18f) / 0.82f);
+        transform.localScale = Vector3.one * pop;
+        var c = c0; c.a = t > 0.6f ? Mathf.Lerp(1f, 0f, (t - 0.6f) / 0.4f) : 1f;
+        if (tm != null) tm.color = c;
     }
 }

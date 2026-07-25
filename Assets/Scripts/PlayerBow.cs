@@ -9,9 +9,10 @@ public class PlayerBow : MonoBehaviour
 {
     [Header("공격")]
     [Tooltip("발사 간격 (초) — 공속")] public float fireCooldown = 0.45f;
-    public float arrowDamage = 14f;
-    public float arrowSpeed = 60f;
-    [Tooltip("사거리 (m)")] public float arrowRange = 70f;
+    public float arrowDamage = 25f;
+    [Tooltip("화살 속도 — 총알처럼 빠르게")] public float arrowSpeed = 130f;
+    [Tooltip("최대 사거리 (m)")] public float arrowRange = 70f;
+    [Tooltip("에임 게이지가 최대 사거리까지 차는 시간 (초)")] public float aimFillTime = 0.7f;
     [Tooltip("완전히 당겨지는 시간 (연출용)")] public float drawTime = 0.22f;
 
     [Header("손 (동그라미)")]
@@ -32,9 +33,9 @@ public class PlayerBow : MonoBehaviour
     public Material outlineMask;
 
     Transform handL, handR, bowRoot;
-    LineRenderer bowString;
+    LineRenderer bowString, aimLine;
     Transform nockArrow;
-    float cd, drawT; bool drawing;
+    float cd, drawT, aimLen; bool drawing;
     Vector3 aimDir = Vector3.forward;
     BlobMotion motion;
     Camera cam;
@@ -124,6 +125,19 @@ public class PlayerBow : MonoBehaviour
         bowString.positionCount = 3;
         bowString.widthMultiplier = 0.05f;
 
+        // 에임 라인 — 누르는 동안 사거리가 쭈우욱 차오름
+        var ag = new GameObject("AimLine");
+        ag.transform.SetParent(transform, false);
+        aimLine = ag.AddComponent<LineRenderer>();
+        aimLine.useWorldSpace = true;
+        aimLine.positionCount = 2;
+        aimLine.material = new Material(Shader.Find("Sprites/Default"));
+        aimLine.startWidth = 0.4f; aimLine.endWidth = 0.1f;
+        aimLine.startColor = new Color(1f, 0.85f, 0.35f, 0.55f);
+        aimLine.endColor = new Color(1f, 0.85f, 0.35f, 0.12f);
+        aimLine.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+        aimLine.enabled = false;
+
         // 재놓인 화살 (당길 때만 보임)
         var na = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
         Destroy(na.GetComponent<Collider>());
@@ -205,19 +219,25 @@ public class PlayerBow : MonoBehaviour
             if (d.sqrMagnitude > 0.04f) aimDir = d.normalized;
         }
 
-        if (pressed) { drawing = true; drawT = Mathf.Min(drawTime, drawT + Time.deltaTime); }
+        if (pressed)
+        {
+            drawing = true;
+            drawT = Mathf.Min(drawTime, drawT + Time.deltaTime);
+            // 에임 게이지: 누르고 있는 동안 사거리가 쭈우욱 차오름 — 놓는 순간의 길이만큼 날아감
+            aimLen = Mathf.MoveTowards(aimLen, arrowRange, arrowRange / Mathf.Max(0.05f, aimFillTime) * Time.deltaTime);
+        }
         if (released)
         {
-            if (drawing && cd <= 0f) { Fire(); cd = fireCooldown; }
-            drawing = false; drawT = 0f;
+            if (drawing && cd <= 0f) { Fire(Mathf.Max(10f, aimLen)); cd = fireCooldown; }
+            drawing = false; drawT = 0f; aimLen = 0f;
         }
     }
 
-    void Fire()
+    void Fire(float range)
     {
         var from = bowRoot.position + Vector3.up * arrowUp;   // 발사 높이만 올림 (손·활은 그대로)
-        ArrowProj.Throw(from, aimDir, arrowSpeed, arrowDamage, arrowRange);   // 관통은 추후 스킬로
-        FX.Burst(from, new Color(1f, 0.95f, 0.7f, 0.8f), 6, 0.10f, 0.8f);
+        ArrowProj.Throw(from, aimDir, arrowSpeed, arrowDamage, range);   // 관통은 추후 스킬로
+        FX.Burst(from, new Color(2.2f, 1.9f, 0.8f, 0.9f), 10, 0.16f, 2.4f, 0.2f);   // 반짝! 총구 화염
     }
 
     void LateUpdate()
@@ -255,6 +275,15 @@ public class PlayerBow : MonoBehaviour
             nockArrow.localScale = new Vector3(0.11f, len * 0.5f, 0.11f);
             nockArrow.localPosition = new Vector3(0f, 0f, back + len * 0.5f);
             nockArrow.localRotation = Quaternion.Euler(90f, 0f, 0f);
+        }
+
+        // 에임 라인 — 발사 높이에서 조준 방향으로, 차오른 만큼
+        aimLine.enabled = drawing;
+        if (drawing)
+        {
+            var from2 = bowRoot.position + Vector3.up * arrowUp;
+            aimLine.SetPosition(0, from2);
+            aimLine.SetPosition(1, from2 + aimDir * aimLen);
         }
     }
 }

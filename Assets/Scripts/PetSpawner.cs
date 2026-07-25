@@ -188,10 +188,10 @@ public class PetSpawner : MonoBehaviour
         pu.team = PetUnit.Team.Wild; pu.mat = PetUnit.Mat.Basic;
         pu.collectible = true; pu.species = e.species;
         pu.supply = e.tier == PetScale.Tier.S ? 1 : e.tier == PetScale.Tier.M ? 2 : e.tier == PetScale.Tier.L ? 3 : 4;
-        if (e.tier == PetScale.Tier.S) { pu.str = 6; pu.agi = 16; pu.vit = 16; }
-        else if (e.tier == PetScale.Tier.M) { pu.str = 9; pu.agi = 12; pu.vit = 24; }
-        else if (e.tier == PetScale.Tier.L) { pu.str = 11; pu.agi = 8; pu.vit = 34; }
-        else { pu.str = 15; pu.agi = 5; pu.vit = 48; }
+        if (e.tier == PetScale.Tier.S) { pu.str = 6; pu.agi = 16; pu.vit = 10; }      // 체력 하향 —
+        else if (e.tier == PetScale.Tier.M) { pu.str = 9; pu.agi = 12; pu.vit = 15; } // 잡는 데 안 질리게
+        else if (e.tier == PetScale.Tier.L) { pu.str = 11; pu.agi = 8; pu.vit = 22; }
+        else { pu.str = 15; pu.agi = 5; pu.vit = 32; }
         pu.str *= dmgMul;
         pu.vit *= hpMul;
         pu.intel = 8;
