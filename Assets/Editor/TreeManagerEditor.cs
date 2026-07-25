@@ -6,8 +6,25 @@ using System.Collections.Generic;
 [CustomEditor(typeof(TreeManager))]
 public class TreeManagerEditor : Editor
 {
-    static bool fTypes = true, fLayers = true, fPlace, fRemove;
+    static bool fTypes = true, fLayers = true, fPlace, fRemove, fLeaf;
     static GameObject newPrefab;
+
+    /// 트리 프로토타입이 쓰는 Toyrassic/Leaf 재질 전부
+    static List<Material> LeafMats(TerrainData td)
+    {
+        var list = new List<Material>();
+        var seen = new HashSet<Material>();
+        foreach (var p in td.treePrototypes)
+        {
+            if (p.prefab == null) continue;
+            foreach (var r in p.prefab.GetComponentsInChildren<MeshRenderer>(true))
+                foreach (var m in r.sharedMaterials)
+                    if (m != null && m.shader != null && m.shader.name == "Toyrassic/Leaf"
+                        && m.HasProperty("_EdgeLo") && seen.Add(m))
+                        list.Add(m);
+        }
+        return list;
+    }
 
     public override void OnInspectorGUI()
     {
@@ -111,6 +128,34 @@ public class TreeManagerEditor : Editor
             tm.minHeight = EditorGUILayout.FloatField("최소 높이(m)", tm.minHeight);
             tm.maxHeight = EditorGUILayout.FloatField("최대 높이(m)", tm.maxHeight);
             tm.avoidCliffEdge = EditorGUILayout.ToggleLeft("절벽 끝 피하기", tm.avoidCliffEdge);
+        }
+        EditorGUILayout.EndFoldoutHeaderGroup();
+
+        // ── 잎 렌더링 — 얇은면 페이드 (모든 잎 재질에 즉시 적용) ──
+        fLeaf = EditorGUILayout.BeginFoldoutHeaderGroup(fLeaf, "잎 렌더링 / 얇은면 페이드");
+        if (fLeaf)
+        {
+            EditorGUILayout.HelpBox("잎 카드가 비스듬히(얇게) 보일 때 사라지는 각도.\n시작을 올리면 더 일찍 사라지고, 잎이 숭숭 비면 내릴 것.", MessageType.None);
+            var mats = LeafMats(td);
+            if (mats.Count == 0) EditorGUILayout.HelpBox("Toyrassic/Leaf 재질을 못 찾음.", MessageType.Warning);
+            else
+            {
+                float lo = mats[0].GetFloat("_EdgeLo"), hi = mats[0].GetFloat("_EdgeHi");
+                float nhi = EditorGUILayout.Slider("사라짐 시작", hi, 0f, 1f);
+                float nlo = EditorGUILayout.Slider("완전히 사라짐", lo, 0f, 1f);
+                if (!Mathf.Approximately(nhi, hi) || !Mathf.Approximately(nlo, lo))
+                {
+                    nlo = Mathf.Min(nlo, nhi);
+                    foreach (var m in mats)
+                    {
+                        Undo.RecordObject(m, "잎 얇은면 페이드");
+                        m.SetFloat("_EdgeLo", nlo);
+                        m.SetFloat("_EdgeHi", nhi);
+                        EditorUtility.SetDirty(m);
+                    }
+                }
+                EditorGUILayout.LabelField($"적용 재질 {mats.Count}개", EditorStyles.miniLabel);
+            }
         }
         EditorGUILayout.EndFoldoutHeaderGroup();
 
