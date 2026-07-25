@@ -126,10 +126,12 @@ public class PlayerGather : MonoBehaviour
             hitAny = true;
         }
 
-        // ② 깨어난 노드 — 전부
+        // ② 깨어난 노드 — 전부 (큰 바위는 덩치만큼 판정 여유)
         foreach (var t in ChoppableTree.All.ToArray())
         {
-            if (t == null || !InArc(t.transform.position, 1.2f)) continue;
+            if (t == null) continue;
+            float ex = t.IsRock ? t.transform.localScale.x * 1.6f : 1.2f;
+            if (!InArc(t.transform.position, ex)) continue;
             t.Hit(t.IsRock ? (isPick ? pickVsRock : axeVsRock) : (isPick ? pickVsTree : axeVsTree));
             hitAny = true;
         }
@@ -145,14 +147,13 @@ public class PlayerGather : MonoBehaviour
                 for (int i = 0; i < trees.Length; i++)
                 {
                     var wp = Vector3.Scale(trees[i].position, td.size) + to;
-                    if (!InArc(wp, 1.0f)) continue;
+                    var proto = td.treePrototypes[trees[i].prototypeIndex].prefab;
+                    bool isRock = proto != null && proto.name.ToLower().Contains("rock");
+                    // 큰 바위는 중심이 멀어도 표면이 닿으면 맞게 — 크기만큼 판정 여유
+                    float ex = isRock ? trees[i].widthScale * 1.6f : 1.0f;
+                    if (!InArc(wp, ex)) continue;
                     float d = FlatDist(wp, transform.position);
-                    if (d < bd)
-                    {
-                        bd = d; best = i; bwp = wp;
-                        var proto = td.treePrototypes[trees[i].prototypeIndex].prefab;
-                        bRock = proto != null && proto.name.ToLower().Contains("rock");
-                    }
+                    if (d < bd) { bd = d; best = i; bwp = wp; bRock = isRock; }
                 }
                 if (best < 0) break;
                 var node = Materialize(best, bwp, bRock);
