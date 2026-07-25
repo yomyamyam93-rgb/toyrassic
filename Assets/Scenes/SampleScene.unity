@@ -8452,12 +8452,12 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::ScatterSpawner
   player: {fileID: 107336113}
-  cap: 14
-  minDist: 40
-  maxDist: 120
-  despawnDist: 150
-  respawnDelay: 30
+  cellSize: 55
+  density: 0.3
   stickRatio: 0.55
+  seed: 11
+  respawnDelay: 90
+  minRespawnDist: 45
   minHeight: 42
   maxHeight: 130
   maxSlope: 22
@@ -9393,9 +9393,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: f3a3c9a7689315a46990de944d4d919b, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::DropDisplayManager
-  stickLength: 3.4
-  stickThick: 0.95
-  pebbleScale: {x: 3.2, y: 2.3, z: 3}
+  iconSize: 2.4
   bobAmp: 0.64
   bobSpeed: 2.4
   beamOn: 1

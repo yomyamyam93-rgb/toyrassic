@@ -5,8 +5,8 @@ using UnityEngine.EventSystems;
 using UnityEngine.InputSystem;
 #endif
 
-/// 장비 종류 — 핫바에 장착하는 것들
-public enum GearKind { None, Bow, Axe, Pick }
+/// 장비 종류 — 핫바에 장착하는 것들 (Incubator=설치형 아이템)
+public enum GearKind { None, Bow, Axe, Pick, Incubator }
 
 /// 하단 핫바 (1~0) — 인벤토리에서 드래그해 장착, 숫자키로 바꿔 든다.
 /// 스타일은 UIStyle 을 읽는다. 플레이어에 부착.
@@ -113,10 +113,19 @@ public class Hotbar : MonoBehaviour
         return k == GearKind.Bow ? ItemDB.Icon("활")
              : k == GearKind.Axe ? ItemDB.Icon("도끼")
              : k == GearKind.Pick ? ItemDB.Icon("곡갱이")
+             : k == GearKind.Incubator ? ItemDB.Icon("부화기")   // 아이콘 파일 넣으면 자동 연결
              : null;
     }
 
-    static string KindFallback(GearKind k) => k == GearKind.Bow ? "활" : "";
+    static string KindFallback(GearKind k)
+        => k == GearKind.Bow ? "활" : k == GearKind.Incubator ? "부화기" : "";
+
+    /// 특정 장비를 핫바에서 제거 (설치 소모 등)
+    public void RemoveKind(GearKind kind)
+    {
+        for (int i = 0; i < 10; i++) if (slots[i] == kind) slots[i] = GearKind.None;
+        RefreshAll();
+    }
 
     void Build()
     {
@@ -179,7 +188,7 @@ public class Hotbar : MonoBehaviour
             iconImgs[i].raycastTarget = false;
             iconImgs[i].enabled = false;
 
-            fallbacks[i] = MakeText(inner, 22, true, TextAnchor.MiddleCenter);
+            fallbacks[i] = MakeText(inner, 15, true, TextAnchor.MiddleCenter);
             StretchRT(fallbacks[i].rectTransform);
             fallbacks[i].raycastTarget = false;
 

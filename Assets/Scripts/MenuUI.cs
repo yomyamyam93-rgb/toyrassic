@@ -334,6 +334,9 @@ public class MenuUI : MonoBehaviour
         var list = new System.Collections.Generic.List<(Sprite icon, string fb, int count, GearKind kind)>();
         foreach (var id in ItemDB.Ids)
             list.Add((ItemDB.Icon(id), id, ItemDB.Count(id), ItemDB.GearOf(id)));
+        // 아이콘 파일이 아직 없는 특수 아이템 (부화기 등)
+        if (ItemDB.Icon("부화기") == null && Stock.HasIncubator)
+            list.Add((null, "부화기", 1, GearKind.Incubator));
         var items = list.ToArray();
         for (int i = 0; i < slotIcons.Length; i++)
         {
@@ -406,12 +409,13 @@ public class MenuUI : MonoBehaviour
             ? "곡괭이  (보유)  —  바위를 클릭해 캘 수 있다"
             : $"곡괭이  —  나뭇가지 {C(c1.wood, Stock.Wood)} · 돌 {C(c1.stone, Stock.Stone)}   (해금: 바위 캐기)";
         craftInfo[2].text = $"부화기  —  나뭇가지 {C(c2.wood, Stock.Wood)} · 돌 {C(c2.stone, Stock.Stone)}" +
-                            (Incubator.Active != null ? "   (설치됨)" : "");
+                            (Incubator.Active != null ? "   (설치됨)"
+                             : Stock.HasIncubator ? "   (제작됨 — 핫바에서 설치)" : "");
         craftInfo[3].text = $"화살촉 강화 Lv.{Stock.ArrowLv}→{Stock.ArrowLv + 1}  (+6 피해)  —  나뭇가지 {C(c3.wood, Stock.Wood)} · 돌 {C(c3.stone, Stock.Stone)}";
         craftInfo[4].text = $"활 개량 Lv.{Stock.BowLv}→{Stock.BowLv + 1}  (공속↑)  —  나뭇가지 {C(c4.wood, Stock.Wood)}";
         craftBtn[0].interactable = !Stock.HasAxe && Stock.Wood >= c0.wood;
         craftBtn[1].interactable = !Stock.HasPick && Stock.Wood >= c1.wood && Stock.Stone >= c1.stone;
-        craftBtn[2].interactable = Incubator.Active == null && Stock.Wood >= c2.wood && Stock.Stone >= c2.stone;
+        craftBtn[2].interactable = !Stock.HasIncubator && Incubator.Active == null && Stock.Wood >= c2.wood && Stock.Stone >= c2.stone;
         craftBtn[3].interactable = Stock.ArrowLv < 4 && Stock.Wood >= c3.wood && Stock.Stone >= c3.stone;
         craftBtn[4].interactable = Stock.BowLv < 4 && Stock.Wood >= c4.wood;
         craftBtnLabel[0].text = Stock.HasAxe ? "보유" : "제작";
@@ -441,10 +445,11 @@ public class MenuUI : MonoBehaviour
                 SquadHUD.Toast("곡괭이 제작!  핫바에 장착됨 — 숫자키로 바꿔 들고 바위를 캐자");
                 break;
             case 2:
-                if (Incubator.Active != null) return;
+                if (Stock.HasIncubator || Incubator.Active != null) return;
                 Stock.Wood -= c.wood; Stock.Stone -= c.stone;
-                PlayerBuild.Place(transform);
-                SetOpen(false);
+                Stock.HasIncubator = true;
+                if (Hotbar.I != null) Hotbar.I.AutoAssign(GearKind.Incubator);
+                SquadHUD.Toast("부화기 제작!  핫바에서 들고 원하는 곳을 클릭해 설치");
                 break;
             case 3:
                 if (Stock.ArrowLv >= 4) return;

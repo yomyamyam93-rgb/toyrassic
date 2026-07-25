@@ -46,6 +46,7 @@ public static class ItemDB
             case "활": return 1;                      // 기본 무기 — 항상 보유
             case "도끼": return Stock.HasAxe ? 1 : 0;
             case "곡갱이": return Stock.HasPick ? 1 : 0;
+            case "부화기": return Stock.HasIncubator ? 1 : 0;
             default: return Stock.Extra.TryGetValue(id, out int n) ? n : 0;
         }
     }
@@ -58,6 +59,7 @@ public static class ItemDB
             case "활": return GearKind.Bow;
             case "도끼": return GearKind.Axe;
             case "곡갱이": return GearKind.Pick;
+            case "부화기": return GearKind.Incubator;
             default: return GearKind.None;
         }
     }

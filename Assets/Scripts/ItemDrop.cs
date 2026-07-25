@@ -1,10 +1,8 @@
 using System.Collections.Generic;
 using UnityEngine;
-#if ENABLE_INPUT_SYSTEM
-using UnityEngine.InputSystem;
-#endif
 
-/// 땅에 떨어진 아이템 — 둥둥 떠서 회전, E로 줍는다.
+/// 땅에 떨어진 아이템 — 인벤토리 아이콘 그대로(빌보드 스프라이트) 둥실둥실.
+/// E로 주우면 쓔웅 하고 플레이어에게 빨려간 뒤 획득.
 public class ItemDrop : MonoBehaviour
 {
     public enum Kind { Wood, Stone, Egg }
@@ -12,17 +10,57 @@ public class ItemDrop : MonoBehaviour
     public int amount = 1;
 
     public static readonly List<ItemDrop> All = new List<ItemDrop>();
-    float bobT;
-    float baseY;
-    readonly List<GameObject> outlines = new List<GameObject>();
+    float bobT, baseY;
     bool highlighted;
     bool collecting; float flySpd;
-    /// 줍는 중 (빨려가는 중) — 중복 줍기 방지
     public bool Collecting => collecting;
-    static Transform player;
-    static Material sHullWhite, sMask; static bool matsInit;
-    Transform beam;   // 빛기둥 비콘 — 멀리서도 아이템이 확 보이게
 
+    SpriteRenderer body, underlay;   // 본체 아이콘 + 근접 하이라이트(흰 밑판)
+    Transform beam;
+    static Transform player;
+
+    void OnEnable() { All.Add(this); }
+    void OnDisable() { All.Remove(this); }
+    void OnDestroy() { if (beam != null) Destroy(beam.gameObject); }
+
+    static string IconId(Kind k) => k == Kind.Wood ? "나뭇가지" : k == Kind.Stone ? "돌" : "알";
+
+    public static ItemDrop Spawn(Kind kind, Vector3 pos, int amount, GameObject legacyVisual = null)
+    {
+        if (legacyVisual != null) Object.Destroy(legacyVisual);   // 3D 비주얼은 안 씀 (아이콘 통일)
+        var set = DropDisplayManager.I;
+
+        var g = new GameObject("드랍_" + kind);
+        g.transform.SetParent(SceneBuckets.Drops);
+        var d = g.AddComponent<ItemDrop>();
+        d.kind = kind; d.amount = amount;
+
+        // 본체 = 인벤토리 아이콘 스프라이트 (빌보드)
+        d.body = g.AddComponent<SpriteRenderer>();
+        d.body.sprite = ItemDB.Icon(IconId(kind));
+        float size = set != null ? set.iconSize : 2.4f;
+        g.transform.localScale = Vector3.one * size;
+
+        // 근접 하이라이트 — 같은 아이콘의 흰 실루엣이 살짝 크게 뒤에
+        var u = new GameObject("hl");
+        u.transform.SetParent(g.transform, false);
+        u.transform.localScale = Vector3.one * 1.14f;
+        d.underlay = u.AddComponent<SpriteRenderer>();
+        d.underlay.sprite = d.body.sprite;
+        d.underlay.color = Color.white;
+        d.underlay.sortingOrder = -1;
+        u.SetActive(false);
+
+        var terr = Terrain.activeTerrain;
+        if (terr != null) pos.y = terr.SampleHeight(pos) + terr.transform.position.y;
+        d.baseY = pos.y + 1.1f;
+        g.transform.position = pos + Vector3.up * 1.1f;
+
+        d.MakeBeam();
+        return d;
+    }
+
+    // ── 빛기둥 비콘 ──
     static Texture2D beamTex;
     static Texture2D BeamTex()
     {
@@ -32,8 +70,8 @@ public class ItemDrop : MonoBehaviour
         for (int y = 0; y < h; y++)
             for (int x = 0; x < w; x++)
             {
-                float fade = Mathf.Pow(1f - y / (h - 1f), 1.6f);                 // 위로 갈수록 옅게
-                float edge = Mathf.Pow(Mathf.Sin(Mathf.PI * x / (w - 1f)), 0.7f); // 가장자리 부드럽게
+                float fade = Mathf.Pow(1f - y / (h - 1f), 1.6f);
+                float edge = Mathf.Pow(Mathf.Sin(Mathf.PI * x / (w - 1f)), 0.7f);
                 beamTex.SetPixel(x, y, new Color(1f, 1f, 1f, fade * edge));
             }
         beamTex.Apply();
@@ -66,9 +104,8 @@ public class ItemDrop : MonoBehaviour
         bool on = set == null || set.beamOn;
         float h = set != null ? set.beamHeight : 6.5f;
         float w = set != null ? set.beamWidth : 1.1f;
-        var c = set != null ? set.BeamColor(kind)
-              : new Color(1.5f, 1.4f, 0.8f, 0.6f);
-        beam.gameObject.SetActive(on);
+        var c = set != null ? set.BeamColor(kind) : new Color(1.5f, 1.4f, 0.8f, 0.6f);
+        beam.gameObject.SetActive(on && !collecting);
         foreach (Transform q in beam)
         {
             q.localScale = new Vector3(w, h, 1f);
@@ -78,94 +115,16 @@ public class ItemDrop : MonoBehaviour
         }
     }
 
-    void OnEnable() { All.Add(this); }
-    void OnDisable() { All.Remove(this); }
-
-    static void InitMats()
-    {
-        if (matsInit) return; matsInit = true;
-        var sp = Object.FindFirstObjectByType<PetSpawner>();
-        if (sp != null && sp.outlineHull != null)
-        {
-            sHullWhite = new Material(sp.outlineHull);            // 흰색 강조 라인
-            sHullWhite.SetColor("_OutlineColor", Color.white);
-            sMask = sp.outlineMask;
-        }
-    }
-
-    public static ItemDrop Spawn(Kind kind, Vector3 pos, int amount, GameObject visual = null)
-    {
-        GameObject g;
-        var set = DropDisplayManager.I;   // 표시 설정 (없으면 기본값)
-        if (visual != null) g = visual;
-        else if (kind == Kind.Wood)
-        {   // 잔가지 — 길쭉하고 비스듬히
-            g = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
-            Object.Destroy(g.GetComponent<Collider>());
-            var m = new Material(Shader.Find("Universal Render Pipeline/Lit"));
-            m.color = new Color(0.52f, 0.35f, 0.18f);
-            g.GetComponent<MeshRenderer>().material = m;
-            float len = set != null ? set.stickLength : 3.4f;
-            float th = set != null ? set.stickThick : 0.95f;
-            g.transform.localScale = new Vector3(th, len, th);
-            g.transform.rotation = Quaternion.Euler(78f, Random.Range(0f, 360f), 0f);
-        }
-        else
-        {
-            g = GameObject.CreatePrimitive(PrimitiveType.Sphere);
-            Object.Destroy(g.GetComponent<Collider>());
-            var m = new Material(Shader.Find("Universal Render Pipeline/Lit"));
-            m.color = kind == Kind.Stone ? new Color(0.62f, 0.60f, 0.55f) : new Color(0.98f, 0.93f, 0.80f);
-            g.GetComponent<MeshRenderer>().material = m;
-            g.transform.localScale = kind == Kind.Stone
-                ? (set != null ? set.pebbleScale : new Vector3(3.2f, 2.3f, 3.0f))
-                : Vector3.one * 0.8f;
-        }
-        g.name = "드랍_" + kind;
-        var terr = Terrain.activeTerrain;
-        if (terr != null) pos.y = terr.SampleHeight(pos) + terr.transform.position.y;
-        g.transform.position = pos + Vector3.up * 0.8f;
-        var d = g.GetComponent<ItemDrop>();
-        if (d == null) d = g.AddComponent<ItemDrop>();
-        d.kind = kind; d.amount = amount; d.baseY = pos.y + 0.8f;
-        g.transform.SetParent(SceneBuckets.Drops);   // 하이라키 정리
-        if (visual == null) d.MakeOutlines();   // 근접 하이라이트용 (알 비주얼은 자체 외곽선 있음)
-        d.MakeBeam();                           // 멀리서도 보이는 빛기둥
-        return d;
-    }
-
-    void OnDestroy() { if (beam != null) Destroy(beam.gameObject); }
-
-    /// 외곽선 준비 — 평소 꺼두고 가까이 가면 켠다 (주울 수 있다는 신호)
-    void MakeOutlines()
-    {
-        InitMats();
-        if (sHullWhite == null || sMask == null) return;
-        var mf = GetComponent<MeshFilter>();
-        if (mf == null || mf.sharedMesh == null) return;
-        foreach (var pair in new[] { ("Outline", sHullWhite), ("OutlineMask", sMask) })
-        {
-            var o = new GameObject(pair.Item1);
-            o.transform.SetParent(transform, false);
-            o.AddComponent<MeshFilter>().sharedMesh = mf.sharedMesh;
-            var mr = o.AddComponent<MeshRenderer>();
-            mr.sharedMaterial = pair.Item2;
-            mr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
-            o.SetActive(false);
-            outlines.Add(o);
-        }
-    }
-
     void Update()
     {
         // 줍기 연출 — 쓔웅 하고 플레이어 몸쪽으로 가속하며 빨려 들어감
         if (collecting)
         {
             if (player == null) { Award(); return; }
-            flySpd += 85f * Time.deltaTime;                          // 가속
+            flySpd += 85f * Time.deltaTime;
             var target = player.position + Vector3.up * 2.0f;
             transform.position = Vector3.MoveTowards(transform.position, target, flySpd * Time.deltaTime);
-            transform.localScale = Vector3.MoveTowards(transform.localScale, transform.localScale * 0.3f, 3.5f * Time.deltaTime);
+            transform.localScale = Vector3.MoveTowards(transform.localScale, transform.localScale * 0.3f, 4f * Time.deltaTime);
             if (Vector3.Distance(transform.position, target) < 1.2f) Award();
             return;
         }
@@ -173,15 +132,18 @@ public class ItemDrop : MonoBehaviour
         var set = DropDisplayManager.I;
         float amp = set != null ? set.bobAmp : 0.18f;
         float spd = set != null ? set.bobSpeed : 2.4f;
-        bobT += Time.deltaTime;   // 회전 없음 — 둥실둥실만
+        bobT += Time.deltaTime;
         var p = transform.position;
         p.y = baseY + Mathf.Sin(bobT * spd) * amp + amp;
         transform.position = p;
-        if (beam != null) beam.position = new Vector3(p.x, baseY - 0.8f, p.z);
+        if (beam != null) beam.position = new Vector3(p.x, baseY - 1.1f, p.z);
 
-        // 근접 하이라이트 — 줍기 사거리 안이면 테두리 반짝 + 살짝 커짐
+        // 빌보드 — 항상 카메라를 향함
+        if (Camera.main != null) transform.rotation = Camera.main.transform.rotation;
+
+        // 근접 하이라이트 (흰 실루엣) = 줍기 가능 신호
         if (player == null) { var pl = GameObject.Find("Player"); if (pl != null) player = pl.transform; }
-        if (player != null && outlines.Count > 0)
+        if (player != null && underlay != null)
         {
             float hd = set != null ? set.highlightDist : 6.5f;
             float hs = set != null ? set.highlightScale : 1.15f;
@@ -191,7 +153,7 @@ public class ItemDrop : MonoBehaviour
             if (near != highlighted)
             {
                 highlighted = near;
-                foreach (var o in outlines) if (o != null) o.SetActive(near);
+                underlay.gameObject.SetActive(near);
                 transform.localScale *= near ? hs : 1f / hs;
             }
         }
@@ -203,7 +165,7 @@ public class ItemDrop : MonoBehaviour
         if (collecting) return;
         collecting = true;
         flySpd = 6f;
-        foreach (var o in outlines) if (o != null) o.SetActive(false);
+        if (underlay != null) underlay.gameObject.SetActive(false);
         if (beam != null) beam.gameObject.SetActive(false);
     }
 
@@ -224,4 +186,3 @@ public class ItemDrop : MonoBehaviour
         Destroy(gameObject);
     }
 }
-

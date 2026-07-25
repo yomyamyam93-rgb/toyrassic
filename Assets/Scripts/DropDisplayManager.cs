@@ -8,9 +8,7 @@ public class DropDisplayManager : MonoBehaviour
     public static DropDisplayManager I;
 
     [Header("아이템 크기 (새 스폰부터 적용)")]
-    [Tooltip("잔가지 길이")] public float stickLength = 3.4f;
-    [Tooltip("잔가지 굵기")] public float stickThick = 0.95f;
-    [Tooltip("조약돌 크기")] public Vector3 pebbleScale = new Vector3(3.2f, 2.3f, 3.0f);
+    [Tooltip("아이콘 크기 (m) — 드랍템은 인벤토리 아이콘 그대로 표시")] public float iconSize = 2.4f;
 
     [Header("둥실거림")]
     [Tooltip("위아래 진폭 (m)")] public float bobAmp = 0.18f;

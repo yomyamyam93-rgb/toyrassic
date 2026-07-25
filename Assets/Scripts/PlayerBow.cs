@@ -286,8 +286,15 @@ public class PlayerBow : MonoBehaviour
         }
 
         // ★장비 기반 행동 — 핫바(1~0)에서 든 것으로만 행동한다
+        bool pressedNow = pressed && !prevPressed;
+        prevPressed = pressed;
         var gear = Hotbar.I != null ? Hotbar.I.Current : GearKind.Bow;
-        if (gear == GearKind.Axe || gear == GearKind.Pick)
+        if (gear == GearKind.Incubator)
+        {   // 설치형: 클릭한 지점에 부화기 설치 (아이템 소모)
+            if (pressedNow) TryPlaceIncubator(mp);
+            drawing = false; drawT = 0f; aimLen = 0f;
+        }
+        else if (gear == GearKind.Axe || gear == GearKind.Pick)
         {   // 도구 장착: 클릭 = 해당 노드 패기 (도끼=나무, 곡괭이=바위)
             if (pressed && gather != null) gather.TryChop(mp, gear == GearKind.Pick);
             drawing = false; drawT = 0f; aimLen = 0f;
@@ -311,6 +318,22 @@ public class PlayerBow : MonoBehaviour
     {
         var p = transform.position + aimDir * drawReach;
         return new Vector3(p.x, stableY + arrowUp, p.z);
+    }
+
+    /// 부화기 설치 — 클릭 지점 (사거리 16m 제한), 성공 시 아이템 소모
+    void TryPlaceIncubator(Vector2 mp)
+    {
+        if (Incubator.Active != null) { SquadHUD.Toast("부화기는 이미 설치돼 있다"); return; }
+        if (cam == null) return;
+        var ray = cam.ScreenPointToRay(mp);
+        var plane = new Plane(Vector3.up, transform.position);
+        if (!plane.Raycast(ray, out float t)) return;
+        var pos = ray.GetPoint(t);
+        var d = pos - transform.position; d.y = 0f;
+        if (d.magnitude > 16f) pos = transform.position + d.normalized * 16f;
+        PlayerBuild.PlaceAt(pos);
+        Stock.HasIncubator = false;
+        if (Hotbar.I != null) Hotbar.I.RemoveKind(GearKind.Incubator);
     }
 
     void Fire(float range)

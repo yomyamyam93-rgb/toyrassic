@@ -19,20 +19,13 @@ public class PlayerBuild : MonoBehaviour
         pressed = Input.GetKeyDown(KeyCode.B);
 #endif
         if (!pressed) return;
-        if (Incubator.Active != null) { SquadHUD.Toast("부화기는 이미 있다 — 알을 가져가자"); return; }
-        if (Stock.Wood < costWood || Stock.Stone < costStone)
-        {
-            SquadHUD.Toast($"재료 부족!  부화기 = 나무 {costWood}·돌 {costStone}  (지금: 나무 {Stock.Wood}·돌 {Stock.Stone})");
-            return;
-        }
-        Stock.Wood -= costWood; Stock.Stone -= costStone;
-        Place(transform);
+        // 설치는 이제 핫바 방식 — B는 안내만
+        SquadHUD.Toast("부화기는 제작(Tab) 후 핫바에서 들고, 원하는 곳을 클릭해 설치!");
     }
 
-    /// 부화기 설치 (비용 차감은 호출자가) — B키·제작 창 공용
-    public static void Place(Transform player)
+    /// 부화기 설치 — 지정 위치에
+    public static void PlaceAt(Vector3 pos)
     {
-        var pos = player.position + player.forward * 8f;
         var terr = Terrain.activeTerrain;
         if (terr != null) pos.y = terr.SampleHeight(pos) + terr.transform.position.y;
         var go = new GameObject("부화기");
