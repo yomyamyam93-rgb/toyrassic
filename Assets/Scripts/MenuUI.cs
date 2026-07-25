@@ -330,13 +330,10 @@ public class MenuUI : MonoBehaviour
     void RefreshInv()
     {
         if (!pageInv.activeSelf) return;
-        // 활(장비) + ItemDB 자동 등록 아이템 전부 — 아이콘 파일만 추가하면 여기 자동으로 뜬다
-        var list = new System.Collections.Generic.List<(Sprite icon, string fb, int count, GearKind kind)>
-        {
-            (null, "활", 1, GearKind.Bow),
-        };
+        // ItemDB 자동 등록 아이템 전부 — 아이콘 파일만 추가하면 여기 자동으로 뜬다
+        var list = new System.Collections.Generic.List<(Sprite icon, string fb, int count, GearKind kind)>();
         foreach (var id in ItemDB.Ids)
-            list.Add((ItemDB.Icon(id), "", ItemDB.Count(id), ItemDB.GearOf(id)));
+            list.Add((ItemDB.Icon(id), id, ItemDB.Count(id), ItemDB.GearOf(id)));
         var items = list.ToArray();
         for (int i = 0; i < slotIcons.Length; i++)
         {

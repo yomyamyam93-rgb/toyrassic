@@ -110,8 +110,10 @@ public class Hotbar : MonoBehaviour
 
     Sprite KindSprite(GearKind k)
     {
-        if (menu == null) return null;
-        return k == GearKind.Axe ? menu.icoAxe : k == GearKind.Pick ? menu.icoPick : null;
+        return k == GearKind.Bow ? ItemDB.Icon("활")
+             : k == GearKind.Axe ? ItemDB.Icon("도끼")
+             : k == GearKind.Pick ? ItemDB.Icon("곡갱이")
+             : null;
     }
 
     static string KindFallback(GearKind k) => k == GearKind.Bow ? "활" : "";

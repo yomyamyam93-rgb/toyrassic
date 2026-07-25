@@ -10,7 +10,7 @@ public static class ItemDB
     static List<string> ids;
 
     // 기본 아이템은 항상 이 순서로 앞에, 새 아이콘은 이름순으로 뒤에
-    static readonly string[] knownOrder = { "나뭇가지", "돌", "알", "도끼", "곡갱이" };
+    static readonly string[] knownOrder = { "나뭇가지", "돌", "알", "활", "도끼", "곡갱이" };
 
     static void Ensure()
     {
@@ -43,6 +43,7 @@ public static class ItemDB
             case "나뭇가지": return Stock.Wood;
             case "돌": return Stock.Stone;
             case "알": return NestSite.EggCount;
+            case "활": return 1;                      // 기본 무기 — 항상 보유
             case "도끼": return Stock.HasAxe ? 1 : 0;
             case "곡갱이": return Stock.HasPick ? 1 : 0;
             default: return Stock.Extra.TryGetValue(id, out int n) ? n : 0;
@@ -54,6 +55,7 @@ public static class ItemDB
     {
         switch (id)
         {
+            case "활": return GearKind.Bow;
             case "도끼": return GearKind.Axe;
             case "곡갱이": return GearKind.Pick;
             default: return GearKind.None;
