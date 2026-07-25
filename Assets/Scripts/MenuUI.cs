@@ -12,12 +12,12 @@ public class MenuUI : MonoBehaviour
 {
     public static bool IsOpen { get; private set; }
 
-    [Header("아이템 아이콘")]
-    public Sprite icoWood;
-    public Sprite icoStone;
-    public Sprite icoEgg;
-    public Sprite icoAxe;
-    public Sprite icoPick;
+    // 아이템 아이콘 — 파일 이름으로 자동 연결 (Resources/Icons/, 덮어쓰면 자동 갱신)
+    public Sprite icoWood => IconLib.Get("나뭇가지");
+    public Sprite icoStone => IconLib.Get("돌");
+    public Sprite icoEgg => IconLib.Get("알");
+    public Sprite icoAxe => IconLib.Get("도끼");
+    public Sprite icoPick => IconLib.Get("곡갱이");
 
     const int FontH1 = 26, FontBody = 18, FontCap = 14;
     const float Pad = 16f, Gap = 8f;
@@ -59,6 +59,7 @@ public class MenuUI : MonoBehaviour
     public void Rebuild()
     {
         if (font == null) return;
+        IconLib.ClearCache();   // 아이콘 파일 바뀐 것도 반영
         bool wasOpen = IsOpen;
         if (canvasRoot != null) Destroy(canvasRoot);
         Build();
