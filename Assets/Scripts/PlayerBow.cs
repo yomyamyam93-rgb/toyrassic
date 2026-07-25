@@ -133,9 +133,9 @@ public class PlayerBow : MonoBehaviour
         aimLine.useWorldSpace = true;
         aimLine.positionCount = 2;
         aimLine.material = new Material(Shader.Find("Sprites/Default"));
-        aimLine.startWidth = 0.4f; aimLine.endWidth = 0.1f;
-        aimLine.startColor = new Color(1f, 0.85f, 0.35f, 0.55f);
-        aimLine.endColor = new Color(1f, 0.85f, 0.35f, 0.12f);
+        aimLine.startWidth = 0.55f; aimLine.endWidth = 0.22f;
+        aimLine.startColor = new Color(0.55f, 1.4f, 2.0f, 0.95f);   // 밝은 연하늘색 — HDR 로 찐하게 (블룸 반짝)
+        aimLine.endColor = new Color(0.55f, 1.3f, 2.0f, 0.55f);
         aimLine.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
         aimLine.enabled = false;
 
