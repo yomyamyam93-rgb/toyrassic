@@ -18,6 +18,46 @@ public class ItemDrop : MonoBehaviour
     bool highlighted;
     static Transform player;
     static Material sHullWhite, sMask; static bool matsInit;
+    Transform beam;   // 빛기둥 비콘 — 멀리서도 아이템이 확 보이게
+
+    static Texture2D beamTex;
+    static Texture2D BeamTex()
+    {
+        if (beamTex != null) return beamTex;
+        int w = 16, h = 64;
+        beamTex = new Texture2D(w, h, TextureFormat.RGBA32, false);
+        for (int y = 0; y < h; y++)
+            for (int x = 0; x < w; x++)
+            {
+                float fade = Mathf.Pow(1f - y / (h - 1f), 1.6f);                 // 위로 갈수록 옅게
+                float edge = Mathf.Pow(Mathf.Sin(Mathf.PI * x / (w - 1f)), 0.7f); // 가장자리 부드럽게
+                beamTex.SetPixel(x, y, new Color(1f, 1f, 1f, fade * edge));
+            }
+        beamTex.Apply();
+        return beamTex;
+    }
+
+    void MakeBeam()
+    {
+        var c = kind == Kind.Wood ? new Color(0.65f, 1.7f, 0.5f, 0.6f)
+              : kind == Kind.Stone ? new Color(1.3f, 1.3f, 1.5f, 0.6f)
+              : new Color(1.9f, 1.55f, 0.5f, 0.7f);
+        beam = new GameObject("beam").transform;
+        for (int i = 0; i < 2; i++)
+        {
+            var q = GameObject.CreatePrimitive(PrimitiveType.Quad).transform;
+            Destroy(q.GetComponent<Collider>());
+            q.SetParent(beam, false);
+            q.localRotation = Quaternion.Euler(0f, i * 90f, 0f);
+            q.localScale = new Vector3(1.1f, 6.5f, 1f);
+            q.localPosition = Vector3.up * 3.25f;
+            var mr = q.GetComponent<MeshRenderer>();
+            mr.material = new Material(Shader.Find("Sprites/Default"));
+            mr.material.mainTexture = BeamTex();
+            mr.material.color = c;
+            mr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+        }
+    }
 
     void OnEnable() { All.Add(this); }
     void OnDisable() { All.Remove(this); }
@@ -67,8 +107,11 @@ public class ItemDrop : MonoBehaviour
         if (d == null) d = g.AddComponent<ItemDrop>();
         d.kind = kind; d.amount = amount; d.baseY = pos.y + 0.8f;
         if (visual == null) d.MakeOutlines();   // 근접 하이라이트용 (알 비주얼은 자체 외곽선 있음)
+        d.MakeBeam();                           // 멀리서도 보이는 빛기둥
         return d;
     }
+
+    void OnDestroy() { if (beam != null) Destroy(beam.gameObject); }
 
     /// 외곽선 준비 — 평소 꺼두고 가까이 가면 켠다 (주울 수 있다는 신호)
     void MakeOutlines()
@@ -96,6 +139,7 @@ public class ItemDrop : MonoBehaviour
         var p = transform.position;
         p.y = baseY + Mathf.Sin(bobT * 2.4f) * 0.18f + 0.18f;
         transform.position = p;
+        if (beam != null) beam.position = new Vector3(p.x, baseY - 0.8f, p.z);
 
         // 근접 하이라이트 — 줍기 사거리 안이면 테두리 반짝 + 살짝 커짐
         if (player == null) { var pl = GameObject.Find("Player"); if (pl != null) player = pl.transform; }

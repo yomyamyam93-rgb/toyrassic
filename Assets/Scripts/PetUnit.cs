@@ -737,11 +737,12 @@ public class PetUnit : MonoBehaviour
     {
         ghostHp = hp;
         float top = r != null ? (r.bounds.max.y - transform.position.y) : 2f;
-        barY = top + body * (isAvatar ? 0.65f : 0.14f);   // 캐릭터는 머리 위로 확실히 띄움 (몸과 안 겹침)
+        barY = top + body * (isAvatar ? 1.0f : 0.38f) + 1.2f;   // 머리 위 여유 간격 — 착붙 금지
         barBaseScale = 1.35f;   // ★전 유닛 동일 크기 (몸 크기 비례 폐지 — 제각각 버그 수정)
         barRoot = new GameObject(name + "_hpbar").transform;
         barRoot.localScale = Vector3.one * barBaseScale;
         barSmoothY = transform.position.y + barY;
+        barRoot.position = transform.position + Vector3.up * barY;   // 생성 즉시 제자리 (원점에 떴다 오는 버그 방지)
         Transform Quad(string n, Color c, float z, int order)
         {
             var q = GameObject.CreatePrimitive(PrimitiveType.Quad).transform;
@@ -769,7 +770,9 @@ public class PetUnit : MonoBehaviour
         if (barRoot == null || Camera.main == null) return;
         // 가로는 즉시, 세로는 스무딩 — 통통 튀어도 바는 차분하게
         var p = transform.position;
-        barSmoothY = Mathf.Lerp(barSmoothY, p.y + barY, 7f * Time.deltaTime);
+        float wantY = p.y + barY;
+        if (Mathf.Abs(wantY - barSmoothY) > 6f) barSmoothY = wantY;   // 순간이동·스폰 직후엔 스냅 (미끄러져 오는 버그 방지)
+        else barSmoothY = Mathf.Lerp(barSmoothY, wantY, 7f * Time.deltaTime);
         barRoot.position = new Vector3(p.x, barSmoothY, p.z);
         var camT = Camera.main.transform;
         barRoot.rotation = camT.rotation;   // 카메라 회전 그대로 = 항상 화면과 수평 (기울어짐 방지)

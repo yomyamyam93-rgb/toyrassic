@@ -958,7 +958,7 @@ MonoBehaviour:
   m_GameObject: {fileID: 107336108}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 759302778}
+  m_Script: {fileID: 11500000, guid: 528a36d9503754749b7a8db90ffd973c, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PlayerBuild
   costWood: 20
@@ -997,7 +997,7 @@ MonoBehaviour:
   m_GameObject: {fileID: 107336108}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 1391640142}
+  m_Script: {fileID: 11500000, guid: 497d64208cb14fd4b8313687717bb3b3, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PlayerPickup
   reach: 5.5
@@ -8418,10 +8418,10 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::ScatterSpawner
   player: {fileID: 107336113}
   cap: 14
-  minDist: 14
-  maxDist: 90
-  despawnDist: 160
-  respawnDelay: 4
+  minDist: 40
+  maxDist: 120
+  despawnDist: 200
+  respawnDelay: 30
   stickRatio: 0.55
   minHeight: 42
   maxHeight: 130
@@ -9800,21 +9800,6 @@ Transform:
   m_Children: []
   m_Father: {fileID: 2135606205}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!115 &759302778
-MonoScript:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_Name: 
-  serializedVersion: 7
-  m_DefaultReferences: {}
-  m_Icon: {fileID: 0}
-  m_Type: 0
-  m_ExecutionOrder: 0
-  m_ClassName: PlayerBuild
-  m_Namespace: 
-  m_AssemblyName: Assembly-CSharp
 --- !u!1 &768300575
 GameObject:
   m_ObjectHideFlags: 0
@@ -15270,21 +15255,6 @@ Transform:
   m_Children: []
   m_Father: {fileID: 2135606205}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!115 &1391640142
-MonoScript:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_Name: 
-  serializedVersion: 7
-  m_DefaultReferences: {}
-  m_Icon: {fileID: 0}
-  m_Type: 0
-  m_ExecutionOrder: 0
-  m_ClassName: PlayerPickup
-  m_Namespace: 
-  m_AssemblyName: Assembly-CSharp
 --- !u!1 &1399262792
 GameObject:
   m_ObjectHideFlags: 0

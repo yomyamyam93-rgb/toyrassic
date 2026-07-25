@@ -23,9 +23,9 @@ public class SquadHUD : MonoBehaviour
 
     Font font;
     Sprite round;
-    Text myHpLabel, petTitle, petHpLabel, eggText, toastText;
+    Text myHpLabel, petTitle, petHpLabel, toastText;
     Image myHpFill, petHpFill, petXpFill;
-    GameObject petBars, eggPanel;
+    GameObject petBars;
     CanvasGroup toastGroup;
 
     void Start()
@@ -132,12 +132,6 @@ public class SquadHUD : MonoBehaviour
         Stretch(petHpLabel.rectTransform);
         MakeBar("PetXp", petBars.transform, BarSubH, Gold, out petXpFill);
 
-        // ── 우상단: 자원 (나무·돌·알) ──
-        var eggP = MakePanel("Resources", cgo.transform, new Vector2(1, 1), new Vector2(-Margin, -Margin), 170f);
-        eggPanel = eggP.gameObject;
-        eggText = MakeText("ResText", eggP, FontBody, TxtMain, true, TextAnchor.MiddleLeft);
-        eggText.gameObject.AddComponent<LayoutElement>().minHeight = (FontBody + 10) * 3;
-
         // ── 중앙 상단: 토스트 ──
         var toastRT = RT("Toast", cgo.transform);
         toastRT.anchorMin = toastRT.anchorMax = toastRT.pivot = new Vector2(0.5f, 1f);
@@ -179,9 +173,6 @@ public class SquadHUD : MonoBehaviour
             float need = 25f + 20f * (pet.level - 1);
             SetFill(petXpFill, pet.xp / need);
         }
-
-        // 자원 (우상단, 항상)
-        eggText.text = $"🌲 나무  {Stock.Wood}\n🪨 돌  {Stock.Stone}\n🥚 알  {NestSite.EggCount}";
 
         // 토스트 — 3초 표시 후 0.5초 페이드 (가이드 7)
         toastT -= Time.deltaTime;

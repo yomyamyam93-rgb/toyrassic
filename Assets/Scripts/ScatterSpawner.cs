@@ -9,9 +9,10 @@ public class ScatterSpawner : MonoBehaviour
 
     [Header("도넛 유지")]
     [Tooltip("주변에 유지할 개수")] public int cap = 14;
-    public float minDist = 14f, maxDist = 90f;
-    [Tooltip("이 밖으로 벗어나면 정리")] public float despawnDist = 160f;
-    [Tooltip("보충 간격 (초)")] public float respawnDelay = 4f;
+    [Tooltip("이보다 가까이엔 안 나옴 — 눈앞·방금 주운 자리에서 뿅 방지")] public float minDist = 40f;
+    public float maxDist = 120f;
+    [Tooltip("이 밖으로 벗어나면 정리")] public float despawnDist = 200f;
+    [Tooltip("보충 간격 (초) — 천천히")] public float respawnDelay = 30f;
 
     [Header("종류 비율")]
     [Range(0f, 1f)] [Tooltip("잔가지가 나올 확률 (나머지=조약돌)")] public float stickRatio = 0.55f;
