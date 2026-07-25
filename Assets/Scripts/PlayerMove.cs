@@ -22,6 +22,7 @@ public class PlayerMove : MonoBehaviour
     public Transform cam;
 
     BlobMotion motion;
+    PlayerBow bow;
     Vector3 vel;
     Terrain[] terrains;
 
@@ -33,6 +34,7 @@ public class PlayerMove : MonoBehaviour
     void Awake()
     {
         motion = GetComponent<BlobMotion>();
+        bow = GetComponent<PlayerBow>();
         terrains = FindObjectsByType<Terrain>(FindObjectsSortMode.None);
         if (cam == null && Camera.main != null) cam = Camera.main.transform;
     }
@@ -142,7 +144,9 @@ public class PlayerMove : MonoBehaviour
         if (sp > moveSpeed * 0.55f) mo = BlobMotion.Mode.Run;
         else if (sp > 0.35f) mo = BlobMotion.Mode.Walk;
         motion.GroundY = np.y;
-        motion.SetMotion(mo, Mathf.Clamp01(sp / moveSpeed), wet);
+        // 활 당기는 중엔 통통 대신 뭉글뭉글 — 붙어서 미끄러지듯 이동 (조준 안정)
+        if (bow != null && bow.IsDrawing) motion.SetMotion(BlobMotion.Mode.Idle, 0.1f, wet);
+        else motion.SetMotion(mo, Mathf.Clamp01(sp / moveSpeed), wet);
         // 방향은 PlayerBow 가 마우스 위치로 정한다 (이동 방향과 분리 — 무빙샷)
     }
 

@@ -38,6 +38,8 @@ public class PlayerBow : MonoBehaviour
     LineRenderer bowString, aimLine;
     Transform nockArrow;
     float cd, drawT, aimLen; bool drawing;
+    /// 당기는 중인가 — PlayerMove 가 읽어서 통통 대신 뭉글뭉글 이동으로 전환
+    public bool IsDrawing => drawing;
     float stableY;   // 통통 바운스를 걸러낸 발사·에임 기준 높이
     Vector3 aimDir = Vector3.forward;
     BlobMotion motion;
@@ -260,6 +262,10 @@ public class PlayerBow : MonoBehaviour
         var fwd = drawing ? aimDir : transform.forward;
         var right = Vector3.Cross(Vector3.up, fwd).normalized;
         float pull = drawing ? Mathf.Clamp01(drawT / drawTime) : 0f;
+
+        // 손 크기 — 인스펙터 조절 즉시 반영
+        var hs = Vector3.one * handRadius * 2f;
+        if ((handL.localScale - hs).sqrMagnitude > 1e-6f) { handL.localScale = hs; handR.localScale = hs; }
 
         // 손 위치: 몸 옆에 자연스럽게 '늘어뜨림' (들고 다니는 느낌 X) + 둥실 흔들림
         float bobL = Mathf.Sin(Time.time * 3.2f) * 0.12f;            // 좌우 위상 다르게 — 살아있는 느낌
