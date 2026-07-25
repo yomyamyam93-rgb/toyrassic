@@ -19,6 +19,10 @@ public class PetUnit : MonoBehaviour
     public int supply = 1;
     [Tooltip("야생일 때 격파하면 설계도를 떨어뜨려 수집(교체) 가능")]
     public bool collectible = false;
+    [Tooltip("종 ID — 인스펙터 크기 조절이 같은 종 전체에 적용되는 기준")]
+    public string species = "";
+    [Tooltip("목표 크기(최대 변, m). 0 = 티어 기본값 사용. 인스펙터 슬라이더가 조절")]
+    public float sizeM = 0f;
     public int level = 1;
     public float xp;
 

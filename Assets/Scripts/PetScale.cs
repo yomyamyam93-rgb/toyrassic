@@ -9,12 +9,12 @@ public static class PetScale
 
     public static float Target(Tier t)
     {
-        switch (t)   // 2026-07-25 재조정: 귀엽게 작게 (플레이어 4.5m 기준, 거대 티어 폐지)
+        switch (t)   // 2026-07-25 재조정 ×1.8 (플레이어 4.5m 기준)
         {
-            case Tier.S: return 3f;    // 플레이어보다 작음
-            case Tier.M: return 5f;    // 플레이어와 비슷
-            case Tier.L: return 8f;
-            default: return 12f;       // 제일 커도 플레이어 2.7배
+            case Tier.S: return 5.4f;
+            case Tier.M: return 9f;
+            case Tier.L: return 14.4f;
+            default: return 21.6f;
         }
     }
 
