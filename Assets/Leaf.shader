@@ -13,6 +13,8 @@ Shader "Toyrassic/Leaf"
         _EdgeAmp ("층 경계 뜯김", Range(0,1)) = 0.34
         _SunDir ("해 방향", Vector) = (0.743, 0.669, 0, 0)
         _Cutoff ("알파 컷", Range(0,1)) = 0.4
+        _EdgeLo ("얇은면 사라짐 (완전히)", Range(0,1)) = 0.10
+        _EdgeHi ("얇은면 사라짐 (시작)", Range(0,1)) = 0.32
     }
     SubShader
     {
@@ -34,7 +36,7 @@ Shader "Toyrassic/Leaf"
             TEXTURE2D(_Dapple); SAMPLER(sampler_Dapple);
             TEXTURE2D(_MainTex); SAMPLER(sampler_MainTex);
             float4 _Base, _SunDir;
-            float _DapScale, _EdgeAmp, _Cutoff;
+            float _DapScale, _EdgeAmp, _Cutoff, _EdgeLo, _EdgeHi;
 
             struct A { float4 pos:POSITION; float3 nrm:NORMAL; float2 uv:TEXCOORD0; };
             struct V { float4 hcs:SV_POSITION; float3 wp:TEXCOORD0; float3 wn:TEXCOORD1;
@@ -54,7 +56,11 @@ Shader "Toyrassic/Leaf"
             half4 frag(V i):SV_Target
             {
                 half4 tex = SAMPLE_TEXTURE2D(_MainTex, sampler_MainTex, i.uv);
-                clip(tex.a - _Cutoff);
+                // 얇은 면 페이드: 카드가 시선과 평행해질수록(비스듬한 구도) 잎이 스르륵 사라짐
+                float3 vdir = normalize(_WorldSpaceCameraPos - i.wp);
+                float facing = abs(dot(normalize(i.wn), vdir));
+                float edge = smoothstep(_EdgeLo, _EdgeHi, facing);
+                clip(tex.a * edge - _Cutoff);
 
                 // 트라이플래너 얼룩
                 float3 an = abs(normalize(i.wn));
