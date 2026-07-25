@@ -54,30 +54,55 @@ public static class FX
         return circleTex;
     }
 
-    /// 피해 숫자 — 뽁 떠올라 흩어지며 사라짐
-    public static void DamageNum(Vector3 pos, float amount, Color c, float scale = 1f)
-        => PopText(pos, Mathf.Max(1, Mathf.RoundToInt(amount)).ToString(), c, scale);
-
-    /// 범용 팝업 텍스트 ("+3 나무" 등) — 피해 숫자와 같은 연출
-    public static void PopText(Vector3 pos, string text, Color c, float scale = 1f)
+    // ── 월드 팝업 텍스트 (TMP) — 프리텐다드 Black + 그라디언트 + 두꺼운 검은 테두리 ──
+    public enum PopStyle { Item, Hit, Crit }
+    static TMPro.TMP_FontAsset popFont;
+    static TMPro.TMP_FontAsset PopFont()
     {
-        var go = new GameObject("fx_dmg");
+        if (popFont != null) return popFont;
+        var f = Resources.Load<Font>("Fonts/Pretendard-Black");
+        if (f != null) popFont = TMPro.TMP_FontAsset.CreateFontAsset(f);
+        return popFont;
+    }
+
+    /// 피해 숫자 — 일반: 흰→회색 그라디언트 / 치명타: 붉은 그라디언트 (c·scale 은 호환용)
+    public static void DamageNum(Vector3 pos, float amount, Color c, float scale = 1f, bool crit = false)
+        => Pop(pos, Mathf.Max(1, Mathf.RoundToInt(amount)).ToString(), crit ? PopStyle.Crit : PopStyle.Hit);
+
+    /// 아이템 획득 — 흰 글씨 + 검은 테두리 (c·scale 은 호환용)
+    public static void PopText(Vector3 pos, string text, Color c, float scale = 1f)
+        => Pop(pos, text, PopStyle.Item);
+
+    static void Pop(Vector3 pos, string text, PopStyle style)
+    {
+        var go = new GameObject("fx_pop");
         go.transform.SetParent(SceneBuckets.Fx);
         go.transform.position = pos + new Vector3(Random.Range(-0.4f, 0.4f), 0f, Random.Range(-0.2f, 0.2f));
-        var tm = go.AddComponent<TextMesh>();
-        if (UIStyle.I != null && UIStyle.I.font != null)
-        {   // 월드 팝업도 게임 폰트(프리텐다드)로
-            tm.font = UIStyle.I.font;
-            go.GetComponent<MeshRenderer>().material = UIStyle.I.font.material;
-        }
-        tm.text = text;
-        tm.fontSize = 48;
-        tm.characterSize = 0.09f * scale;
-        tm.anchor = TextAnchor.MiddleCenter;
-        tm.fontStyle = FontStyle.Bold;
-        tm.color = c;
+        var t = go.AddComponent<TMPro.TextMeshPro>();
+        var fnt = PopFont();
+        if (fnt != null) t.font = fnt;
+        t.text = text;
+        t.fontSize = style == PopStyle.Crit ? 11f : style == PopStyle.Hit ? 9f : 7.5f;
+        t.alignment = TMPro.TextAlignmentOptions.Center;
+        t.fontStyle = TMPro.FontStyles.Bold;
+        // 스타일별 그라디언트 (위→아래)
+        t.enableVertexGradient = true;
+        if (style == PopStyle.Hit)
+            t.colorGradient = new TMPro.VertexGradient(
+                Color.white, Color.white, new Color(0.72f, 0.72f, 0.74f), new Color(0.72f, 0.72f, 0.74f));
+        else if (style == PopStyle.Crit)
+            t.colorGradient = new TMPro.VertexGradient(
+                new Color(1f, 0.55f, 0.35f), new Color(1f, 0.55f, 0.35f),
+                new Color(0.85f, 0.12f, 0.10f), new Color(0.85f, 0.12f, 0.10f));
+        else
+            t.colorGradient = new TMPro.VertexGradient(Color.white, Color.white, Color.white, Color.white);
+        // 두꺼운 검은 테두리
+        var mat = t.fontMaterial;
+        mat.EnableKeyword("OUTLINE_ON");
+        mat.SetFloat(TMPro.ShaderUtilities.ID_OutlineWidth, style == PopStyle.Item ? 0.18f : 0.24f);
+        mat.SetColor(TMPro.ShaderUtilities.ID_OutlineColor, Color.black);
         var mr = go.GetComponent<MeshRenderer>();
-        mr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+        if (mr != null) { mr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off; mr.sortingOrder = 50; }
         go.AddComponent<FxDmgNum>();
     }
 
@@ -310,21 +335,25 @@ public class FxFade : MonoBehaviour
 public class FxDmgNum : MonoBehaviour
 {
     float t;
-    TextMesh tm;
-    Color c0;
+    TMPro.TextMeshPro tm;
 
-    void Start() { tm = GetComponent<TextMesh>(); c0 = tm.color; Destroy(gameObject, 0.85f); }
+    void Start() { tm = GetComponent<TMPro.TextMeshPro>(); Destroy(gameObject, 0.85f); }
 
     void Update()
     {
         t += Time.deltaTime / 0.85f;
         transform.position += Vector3.up * 1.6f * Time.deltaTime;
+        float distK = 1f;
         if (Camera.main != null)
-            transform.rotation = Quaternion.LookRotation(transform.position - Camera.main.transform.position);
+        {
+            var camT = Camera.main.transform;
+            transform.rotation = camT.rotation;   // 화면과 수평 빌보드
+            // ★줌 무관 고정 크기 — 카메라 거리 비례 (체력바와 동일 방식)
+            distK = Mathf.Clamp(Vector3.Distance(camT.position, transform.position) / 42f, 0.85f, 6f);
+        }
         // 뽁: 초반에 커졌다가 살짝 줄고, 끝에 페이드
         float pop = t < 0.18f ? Mathf.Lerp(0.6f, 1.25f, t / 0.18f) : Mathf.Lerp(1.25f, 0.95f, (t - 0.18f) / 0.82f);
-        transform.localScale = Vector3.one * pop;
-        var c = c0; c.a = t > 0.6f ? Mathf.Lerp(1f, 0f, (t - 0.6f) / 0.4f) : 1f;
-        if (tm != null) tm.color = c;
+        transform.localScale = Vector3.one * pop * distK;
+        if (tm != null) tm.alpha = t > 0.6f ? Mathf.Lerp(1f, 0f, (t - 0.6f) / 0.4f) : 1f;
     }
 }
