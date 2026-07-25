@@ -48,9 +48,6 @@ public class PlayerBow : MonoBehaviour
     public float Draw01 => drawing ? Mathf.Clamp01(aimLen / Mathf.Max(1f, arrowRange)) : 0f;
     float stableY;   // 통통 바운스를 걸러낸 발사·에임 기준 높이
     bool cursorIsAim, cursorSet;
-    bool prevPressed, chopMode;      // 클릭 채집 분기
-    PlayerGather gather;
-    Transform toolAxe, toolPick;
     Vector3 aimDir = Vector3.forward;
     BlobMotion motion;
     Camera cam;
@@ -58,38 +55,9 @@ public class PlayerBow : MonoBehaviour
     void Start()
     {
         motion = GetComponent<BlobMotion>();
-        gather = GetComponent<PlayerGather>();
         cam = Camera.main;
         if (handColor.a < 0.01f) handColor = SampleBodyColor();
         Build();
-        BuildTools();
-    }
-
-    /// 도끼(나무)·곡괭이(바위) — 채집 스윙 때만 오른손에 등장
-    void BuildTools()
-    {
-        Transform MakeTool(string n, Color headC, Vector3 headScale)
-        {
-            var root = new GameObject(n).transform;
-            root.SetParent(handR, false);
-            var h = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
-            Destroy(h.GetComponent<Collider>());
-            h.transform.SetParent(root, false);
-            h.transform.localScale = new Vector3(0.14f, 0.85f, 0.14f);
-            h.transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
-            h.transform.localPosition = new Vector3(0f, 0f, 0.85f);
-            h.GetComponent<MeshRenderer>().material = Unlit(new Color(0.5f, 0.34f, 0.18f));
-            var head = GameObject.CreatePrimitive(PrimitiveType.Cube);
-            Destroy(head.GetComponent<Collider>());
-            head.transform.SetParent(root, false);
-            head.transform.localPosition = new Vector3(0f, 0f, 1.7f);
-            head.transform.localScale = headScale;
-            head.GetComponent<MeshRenderer>().material = Unlit(headC);
-            root.gameObject.SetActive(false);
-            return root;
-        }
-        toolAxe = MakeTool("Axe", new Color(0.78f, 0.80f, 0.85f), new Vector3(0.12f, 0.55f, 0.45f));
-        toolPick = MakeTool("Pickaxe", new Color(0.46f, 0.45f, 0.43f), new Vector3(0.9f, 0.16f, 0.22f));
     }
 
     /// 캐릭터 텍스처 평균색 (1×1 로 블릿해서 읽음)
@@ -277,17 +245,15 @@ public class PlayerBow : MonoBehaviour
                                  CursorMode.Auto);
         }
 
-        // 클릭 분기: 나무·바위를 찍었으면 채집(도끼·곡괭이), 아니면 활
-        bool pressedNow = pressed && !prevPressed;
-        prevPressed = pressed;
-        if (pressedNow) chopMode = gather != null && gather.HasTargetAt(mp);
-
-        if (pressed && chopMode)
+        // 메뉴 창이 열려 있으면 전투 입력 차단
+        if (MenuUI.IsOpen)
         {
-            gather.TryChop(mp);                 // 꾹 누르면 연속으로 찍음 (쿨다운 내부 처리)
             drawing = false; drawT = 0f; aimLen = 0f;
+            if (aimLine != null) aimLine.enabled = false;
+            return;
         }
-        else if (pressed)
+
+        if (pressed)
         {
             drawing = true;
             drawT = Mathf.Min(drawTime, drawT + Time.deltaTime);
@@ -296,8 +262,8 @@ public class PlayerBow : MonoBehaviour
         }
         if (released)
         {
-            if (!chopMode && drawing && cd <= 0f) { Fire(Mathf.Max(10f, aimLen)); cd = fireCooldown; }
-            drawing = false; drawT = 0f; aimLen = 0f; chopMode = false;
+            if (drawing && cd <= 0f) { Fire(Mathf.Max(10f, aimLen)); cd = fireCooldown; }
+            drawing = false; drawT = 0f; aimLen = 0f;
         }
     }
 
@@ -381,26 +347,6 @@ public class PlayerBow : MonoBehaviour
             aimLine.SetPosition(1, from2 + aimDir * aimLen);
         }
 
-        // ── 채집 스윙 — 오른손이 도구를 들고 내려찍음 (손 위치를 덮어씀) ──
-        bool chopping = gather != null && gather.SwingT > 0f && !drawing;
-        if (toolAxe != null)
-        {
-            toolAxe.gameObject.SetActive(chopping && !gather.ChopIsRock);
-            toolPick.gameObject.SetActive(chopping && gather.ChopIsRock);
-        }
-        if (chopping)
-        {
-            var cp = gather.ChopPos;
-            var cdir = cp - transform.position; cdir.y = 0f;
-            cdir = cdir.sqrMagnitude > 0.01f ? cdir.normalized : fwd;
-            float kk = 1f - gather.SwingT;                          // 0→1 내려찍기 (가속)
-            var raisedP = transform.position + cdir * 1.0f + Vector3.up * 3.6f;
-            var hitP = Vector3.Lerp(transform.position, cp, 0.6f) + Vector3.up * 0.9f;
-            handR.position = Vector3.Lerp(raisedP, hitP, kk * kk);
-            var tool = gather.ChopIsRock ? toolPick : toolAxe;
-            var toolAim = (hitP + cdir * 0.6f + Vector3.down * 0.3f) - handR.position;
-            if (toolAim.sqrMagnitude > 0.01f) tool.rotation = Quaternion.LookRotation(toolAim.normalized, Vector3.up);
-        }
     }
 }
 
@@ -461,6 +407,12 @@ public class ArrowProj : MonoBehaviour
                 pierceLeft--;
                 if (pierceLeft <= 0) { Destroy(gameObject); return; }
             }
+        }
+
+        // 나무·바위 명중 — 부서지면 아이템 드랍 (E로 줍기)
+        if (PlayerGather.I != null && PlayerGather.I.ArrowHit(transform.position))
+        {
+            Destroy(gameObject);
         }
     }
 }

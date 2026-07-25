@@ -84,25 +84,14 @@ public class NestSite : MonoBehaviour
             if (!anyAlive)
             {
                 cleared = true;
-                SquadHUD.Toast("둥지를 정리했다! 알을 가져가자");
+                SquadHUD.Toast("둥지를 정리했다! E로 알을 줍자");
                 if (egg != null)
+                {   // 알을 줍기 아이템으로 전환 (기존 알 비주얼 그대로, E로 획득)
                     FX.Burst(egg.position, new Color(1.8f, 1.6f, 0.5f, 0.95f), 20, 0.2f, 2f);
-            }
-        }
-
-        // 알 — 정리 후 반짝이며 획득 대기
-        if (cleared && egg != null)
-        {
-            bobT += Time.deltaTime;
-            egg.Rotate(0f, 60f * Time.deltaTime, 0f, Space.World);
-            egg.position += Vector3.up * Mathf.Cos(bobT * 2.2f) * 0.006f;
-            if (Vector3.Distance(player.position, egg.position) < 4f)
-            {
-                EggCount++;
-                SquadHUD.Toast($"전설의 알 획득! ×{EggCount}  — B키로 부화기를 설치하자");
-                FX.Burst(egg.position, new Color(1.9f, 1.7f, 0.6f, 1f), 30, 0.25f, 3f);
-                Destroy(egg.gameObject);
-                egg = null;
+                    egg.SetParent(null, true);
+                    ItemDrop.Spawn(ItemDrop.Kind.Egg, egg.position, 1, egg.gameObject);
+                    egg = null;
+                }
             }
         }
     }

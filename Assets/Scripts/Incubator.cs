@@ -36,6 +36,7 @@ public class Incubator : MonoBehaviour
     Phase phase = Phase.Idle;
     PetUnit unit;
     Transform eggVis;
+    Transform gaugeRoot, gaugeFill;   // 부화 게이지 — 부화기 머리 위 (HUD 아님)
     readonly List<PetUnit> attackers = new List<PetUnit>();
     int toSpawn; float spawnT, breatherT;
     Transform player;
@@ -78,6 +79,31 @@ public class Incubator : MonoBehaviour
         }
     }
 
+    /// 부화 게이지 — 부화기 머리 위 금색 바 (줌 무관 크기)
+    void MakeGauge()
+    {
+        gaugeRoot = new GameObject("hatch_gauge").transform;
+        Transform Quad(string n, Color c, float z, int order, Vector2 scale)
+        {
+            var q = GameObject.CreatePrimitive(PrimitiveType.Quad).transform;
+            Destroy(q.GetComponent<Collider>());
+            q.name = n; q.SetParent(gaugeRoot, false);
+            q.localPosition = new Vector3(0, 0, z);
+            q.localScale = new Vector3(scale.x, scale.y, 1f);
+            var mm = q.GetComponent<MeshRenderer>();
+            mm.material = new Material(Shader.Find("Toyrassic/GroundDecal"));
+            mm.material.mainTexture = FX.RoundedTex();
+            mm.material.color = c;
+            mm.sortingOrder = order;
+            mm.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            return q;
+        }
+        Quad("bg", new Color(0.08f, 0.08f, 0.10f, 0.92f), 0.02f, 10, new Vector2(2.1f, 0.5f));
+        gaugeFill = Quad("fill", new Color(1f, 0.84f, 0.28f, 1f), 0f, 11, new Vector2(1.95f, 0.36f));
+    }
+
+    void KillGauge() { if (gaugeRoot != null) { Destroy(gaugeRoot.gameObject); gaugeRoot = null; } }
+
     void MakeEggVisual()
     {
         var egg = GameObject.CreatePrimitive(PrimitiveType.Sphere);
@@ -110,6 +136,7 @@ public class Incubator : MonoBehaviour
         if (unit != null && !unit.Alive)
         {
             if (incubating) SquadHUD.Toast("부화기가 파괴됐다… 알을 잃었다!");
+            KillGauge();
             FX.Burst(transform.position + Vector3.up * 1.5f, new Color(0.6f, 0.55f, 0.5f, 1f), 30, 0.5f, 5f);
             foreach (var a in attackers) if (a != null && a.Alive) a.forceTarget = null;
             if (Active == this) Active = null;
@@ -130,6 +157,7 @@ public class Incubator : MonoBehaviour
                     NestSite.EggCount--;
                     incubating = true; wave = 0; clearedWaves = 0;
                     MakeEggVisual();
+                    MakeGauge();
                     SquadHUD.Toast("알을 품기 시작했다! 알의 공명에 야생들이 몰려온다…");
                     FollowCam.Shake(0.3f);
                     breatherT = 4f;
@@ -199,12 +227,26 @@ public class Incubator : MonoBehaviour
             float pulse = 1f + Mathf.Sin(Time.time * 5f) * 0.03f;
             eggVis.localScale = new Vector3(2.0f * pulse, 2.6f / pulse, 2.0f * pulse);
         }
+
+        // 부화 게이지 — 부화기 머리 위, 줌 무관 크기, 막은 웨이브만큼 참
+        if (gaugeRoot != null && Camera.main != null)
+        {
+            var camT = Camera.main.transform;
+            gaugeRoot.position = transform.position + Vector3.up * 6.2f;
+            gaugeRoot.rotation = camT.rotation;
+            float dist = Vector3.Distance(camT.position, gaugeRoot.position);
+            gaugeRoot.localScale = Vector3.one * 1.5f * Mathf.Clamp(dist / 42f, 0.85f, 6f);
+            float f = totalWaves > 0 ? clearedWaves / (float)totalWaves : 0f;
+            var s = gaugeFill.localScale; s.x = 1.95f * Mathf.Max(0.02f, f); gaugeFill.localScale = s;
+            var lp = gaugeFill.localPosition; lp.x = -(1.95f - s.x) * 0.5f; gaugeFill.localPosition = lp;
+        }
     }
 
     void Hatch()
     {
         incubating = false;
         phase = Phase.Idle;
+        KillGauge();
         SquadHUD.Toast("🎉 알이 부화했다! 새 친구가 태어났다!");
         FX.Burst(transform.position + Vector3.up * 2.5f, new Color(1.9f, 1.7f, 0.6f, 1f), 40, 0.3f, 4f);
         FollowCam.Shake(0.4f);
@@ -255,12 +297,17 @@ public class PlayerBuild : MonoBehaviour
         if (Incubator.Active != null) { SquadHUD.Toast("부화기는 이미 있다 — 알을 가져가자"); return; }
         if (Stock.Wood < costWood || Stock.Stone < costStone)
         {
-            SquadHUD.Toast($"재료 부족!  부화기 = 나무 {costWood}·돌 {costStone}  (지금: 나무 {Stock.Wood}·돌 {Stock.Stone}) — E로 채집");
+            SquadHUD.Toast($"재료 부족!  부화기 = 나무 {costWood}·돌 {costStone}  (지금: 나무 {Stock.Wood}·돌 {Stock.Stone})");
             return;
         }
         Stock.Wood -= costWood; Stock.Stone -= costStone;
+        Place(transform);
+    }
 
-        var pos = transform.position + transform.forward * 8f;
+    /// 부화기 설치 (비용 차감은 호출자가) — B키·제작 창 공용
+    public static void Place(Transform player)
+    {
+        var pos = player.position + player.forward * 8f;
         var terr = Terrain.activeTerrain;
         if (terr != null) pos.y = terr.SampleHeight(pos) + terr.transform.position.y;
         var go = new GameObject("부화기");

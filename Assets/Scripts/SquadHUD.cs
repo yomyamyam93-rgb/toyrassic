@@ -23,9 +23,9 @@ public class SquadHUD : MonoBehaviour
 
     Font font;
     Sprite round;
-    Text myHpLabel, petTitle, petHpLabel, eggText, hatchTitle, toastText;
-    Image myHpFill, petHpFill, petXpFill, hatchFill;
-    GameObject petBars, eggPanel, hatchBlock;
+    Text myHpLabel, petTitle, petHpLabel, eggText, toastText;
+    Image myHpFill, petHpFill, petXpFill;
+    GameObject petBars, eggPanel;
     CanvasGroup toastGroup;
 
     void Start()
@@ -123,16 +123,6 @@ public class SquadHUD : MonoBehaviour
         Stretch(petHpLabel.rectTransform);
         MakeBar("PetXp", petBars.transform, BarSubH, Gold, out petXpFill);
 
-        // 부화 게이지 (품는 중에만)
-        hatchBlock = RT("Hatch", status).gameObject;
-        var hv = hatchBlock.AddComponent<VerticalLayoutGroup>();
-        hv.spacing = Gap * 0.75f;
-        hv.childControlWidth = true; hv.childControlHeight = true;
-        hv.childForceExpandWidth = true; hv.childForceExpandHeight = false;
-        hatchTitle = MakeText("HatchTitle", hatchBlock.transform, FontBody, Accent, true);
-        hatchTitle.gameObject.AddComponent<LayoutElement>().minHeight = FontBody + 4;
-        MakeBar("HatchBar", hatchBlock.transform, BarSubH, Gold, out hatchFill);
-
         // ── 우상단: 자원 (나무·돌·알) ──
         var eggP = MakePanel("Resources", cgo.transform, new Vector2(1, 1), new Vector2(-Margin, -Margin), 170f);
         eggPanel = eggP.gameObject;
@@ -148,14 +138,6 @@ public class SquadHUD : MonoBehaviour
         toastText = MakeText("ToastText", toastRT, FontH1, Accent, true, TextAnchor.MiddleCenter);
         Stretch(toastText.rectTransform);
 
-        // ── 좌하단: 조작 힌트 ──
-        var hintRT = RT("Hint", cgo.transform);
-        hintRT.anchorMin = hintRT.anchorMax = hintRT.pivot = new Vector2(0, 0);
-        hintRT.anchoredPosition = new Vector2(Margin, Margin);
-        hintRT.sizeDelta = new Vector2(700, 24);
-        var hint = MakeText("HintText", hintRT, FontCap, TxtSub);
-        Stretch(hint.rectTransform);
-        hint.text = "WASD 이동   ·   좌클릭(꾹) 조준 → 놓아서 발사   ·   근처 나무·바위 클릭 = 채집   ·   B 부화기 건설";
     }
 
     void Stretch(RectTransform rt)
@@ -191,16 +173,6 @@ public class SquadHUD : MonoBehaviour
 
         // 자원 (우상단, 항상)
         eggText.text = $"🌲 나무  {Stock.Wood}\n🪨 돌  {Stock.Stone}\n🥚 알  {NestSite.EggCount}";
-
-        // 부화 게이지 (품는 중에만)
-        var inc = Incubator.Active;
-        bool hatching = inc != null && inc.incubating;
-        hatchBlock.SetActive(hatching);
-        if (hatching)
-        {
-            hatchTitle.text = $"🐣 부화 게이지   {inc.clearedWaves} / {inc.totalWaves}";
-            hatchFill.fillAmount = inc.totalWaves > 0 ? inc.clearedWaves / (float)inc.totalWaves : 0f;
-        }
 
         // 토스트 — 3초 표시 후 0.5초 페이드 (가이드 7)
         toastT -= Time.deltaTime;

@@ -975,10 +975,35 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 6f81e6da30a661547ade07b2e4e93833, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PlayerGather
-  reach: 10
-  cooldown: 0.35
-  woodPer: 3
-  stonePer: 3
+  hitRadius: 2.4
+  treeHits: 3
+  rockHits: 4
+  dropPieces: 3
+--- !u!114 &107336123
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 107336108}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 0d5b130ae169b1541a55fc733e4f8d1d, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::MenuUI
+--- !u!114 &107336124
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 107336108}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 1391640142}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::PlayerPickup
+  reach: 5.5
 --- !u!1 &123082802
 GameObject:
   m_ObjectHideFlags: 0
@@ -9161,15 +9186,15 @@ MonoBehaviour:
   types:
   - name: BirchTree_Dead_1
     active: 1
-    weight: 0.74
+    weight: 1.44
     size: 2.31
   - name: BirchTree_Dead_2
     active: 1
-    weight: 0.43
+    weight: 0.92
     size: 2.48
   - name: BirchTree_Dead_3
     active: 1
-    weight: 0.04
+    weight: 0.17
     size: 3.42
   - name: BirchTree_Dead_4
     active: 0
@@ -9177,7 +9202,7 @@ MonoBehaviour:
     size: 2.32
   - name: Willow_Dead_1
     active: 1
-    weight: 0.53
+    weight: 0.98
     size: 4.22
   - name: Willow_Dead_2
     active: 0
@@ -9204,17 +9229,17 @@ MonoBehaviour:
     weight: 1
     size: 3.76
   - name: Rock_Medium_1
-    active: 0
-    weight: 1
-    size: 1
+    active: 1
+    weight: 0.55
+    size: 0.64
   - name: Rock_Medium_2
-    active: 0
-    weight: 1
-    size: 1
+    active: 1
+    weight: 0.6
+    size: 0.79
   - name: Rock_Medium_3
-    active: 0
-    weight: 1
-    size: 1
+    active: 1
+    weight: 0.66
+    size: 0.89
   placeLayers:
   - layer: {fileID: 8574412962073106934, guid: ab8fee9c7db9e19478e459ae5a7ab6da, type: 2}
     on: 0
@@ -9259,12 +9284,12 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::RockManager
   terrain: {fileID: 1274771777}
-  cellSize: 46
-  density: 0.3
-  clump: 0.55
-  minScale: 0.7
-  maxScale: 1.7
-  maxSlope: 24
+  cellSize: 30.78
+  density: 0.491
+  clump: 0.794
+  minScale: 0.6
+  maxScale: 1.69
+  maxSlope: 27.59
   minHeight: 43
   maxHeight: 128
   seed: 7
@@ -14618,6 +14643,12 @@ PrefabInstance:
     - targetCorrespondingSourceObject: {fileID: 7477283798205093626, guid: a9f97bdace247ed49a6a0d1b04c63f3e, type: 3}
       insertIndex: -1
       addedObject: {fileID: 107336122}
+    - targetCorrespondingSourceObject: {fileID: 7477283798205093626, guid: a9f97bdace247ed49a6a0d1b04c63f3e, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 107336124}
+    - targetCorrespondingSourceObject: {fileID: 7477283798205093626, guid: a9f97bdace247ed49a6a0d1b04c63f3e, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 107336123}
   m_SourcePrefab: {fileID: -4161369568681901532, guid: a9f97bdace247ed49a6a0d1b04c63f3e, type: 3}
 --- !u!1 &1317216152
 GameObject:
@@ -15188,6 +15219,21 @@ Transform:
   m_Children: []
   m_Father: {fileID: 2135606205}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!115 &1391640142
+MonoScript:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_Name: 
+  serializedVersion: 7
+  m_DefaultReferences: {}
+  m_Icon: {fileID: 0}
+  m_Type: 0
+  m_ExecutionOrder: 0
+  m_ClassName: PlayerPickup
+  m_Namespace: 
+  m_AssemblyName: Assembly-CSharp
 --- !u!1 &1399262792
 GameObject:
   m_ObjectHideFlags: 0
