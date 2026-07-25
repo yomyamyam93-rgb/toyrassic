@@ -736,7 +736,7 @@ public class PetUnit : MonoBehaviour
         ghostHp = hp;
         float top = r != null ? (r.bounds.max.y - transform.position.y) : 2f;
         barY = top + body * (isAvatar ? 0.35f : 0.14f);   // 캐릭터는 머리 위 여유 있게
-        barBaseScale = body * (isAvatar ? 0.26f : 0.16f); // 캐릭터 바는 작아서 보정
+        barBaseScale = 1.35f;   // ★전 유닛 동일 크기 (몸 크기 비례 폐지 — 제각각 버그 수정)
         barRoot = new GameObject(name + "_hpbar").transform;
         barRoot.localScale = Vector3.one * barBaseScale;
         barSmoothY = transform.position.y + barY;
