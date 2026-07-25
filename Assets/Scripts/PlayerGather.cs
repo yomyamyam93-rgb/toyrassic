@@ -58,6 +58,28 @@ public class PlayerGather : MonoBehaviour
     bool pendingImpact; float pendingAt; bool pendingIsPick; Vector3 pendingAim;
     Camera cam;
 
+    // 지형 트리 배열 캐시 — treeInstances 접근마다 전체 복사되는 것 방지 (프레임당 1회)
+    TreeInstance[] treesCache; int treesCacheFrame = -1;
+    TreeInstance[] Trees(TerrainData td)
+    {
+        if (treesCacheFrame != Time.frameCount) { treesCache = td.treeInstances; treesCacheFrame = Time.frameCount; }
+        return treesCache;
+    }
+    void InvalidateTrees() { treesCacheFrame = -1; }
+
+    // 프로토타입별 바위 여부 캐시 — 매 스윙 수천 번 문자열 비교(GC 스파이크) 방지
+    bool[] protoRock; int protoCount = -1;
+    bool[] ProtoRock(TerrainData td)
+    {
+        var ps = td.treePrototypes;
+        if (protoRock != null && protoCount == ps.Length) return protoRock;
+        protoCount = ps.Length;
+        protoRock = new bool[protoCount];
+        for (int i = 0; i < protoCount; i++)
+            protoRock[i] = ps[i].prefab != null && ps[i].prefab.name.ToLower().Contains("rock");
+        return protoRock;
+    }
+
     /// 스윙 진행 1→0 (PlayerBow 가 손·도구·트레일 연출에 사용)
     public float SwingT => swingT;
     public Vector3 ChopPos => chopPos;
@@ -140,15 +162,15 @@ public class PlayerGather : MonoBehaviour
         if (terr != null)
         {
             var td = terr.terrainData; var to = terr.transform.position;
-            var trees = td.treeInstances;
+            var trees = Trees(td);
+            var rockOf = ProtoRock(td);   // 캐시 — 문자열 연산 없음
             var cands = new System.Collections.Generic.List<(int i, float d, Vector3 wp, bool rock)>();
             for (int i = 0; i < trees.Length; i++)
             {
-                var wp = Vector3.Scale(trees[i].position, td.size) + to;
-                var proto = td.treePrototypes[trees[i].prototypeIndex].prefab;
-                bool isRock = proto != null && proto.name.ToLower().Contains("rock");
+                bool isRock = trees[i].prototypeIndex < rockOf.Length && rockOf[trees[i].prototypeIndex];
                 // 큰 바위는 중심이 멀어도 표면이 닿으면 맞게 — 크기만큼 판정 여유
                 float ex = isRock ? trees[i].widthScale * 1.6f : 1.0f;
+                var wp = Vector3.Scale(trees[i].position, td.size) + to;
                 if (!InArc(wp, ex)) continue;
                 cands.Add((i, FlatDist(wp, transform.position), wp, isRock));
             }
@@ -161,6 +183,7 @@ public class PlayerGather : MonoBehaviour
                 var list = new System.Collections.Generic.List<TreeInstance>(trees);
                 foreach (var c in chosen) list.RemoveAt(c.i);
                 td.SetTreeInstances(list.ToArray(), false);  // 재구성 1회 + 높이 스냅 생략
+                InvalidateTrees();
                 foreach (var c in chosen)
                 {
                     var node = MaterializeInst(trees[c.i], c.wp, c.rock);
@@ -195,10 +218,12 @@ public class PlayerGather : MonoBehaviour
     ChoppableTree Materialize(int idx, Vector3 wp, bool isRock)
     {
         var td = terr.terrainData;
-        var inst = td.treeInstances[idx];
-        var list = new System.Collections.Generic.List<TreeInstance>(td.treeInstances);
+        var trees = Trees(td);
+        var inst = trees[idx];
+        var list = new System.Collections.Generic.List<TreeInstance>(trees);
         list.RemoveAt(idx);
         td.SetTreeInstances(list.ToArray(), false);   // 높이 스냅 생략 — 스파이크 완화
+        InvalidateTrees();
         return MaterializeInst(inst, wp, isRock);
     }
 
@@ -232,16 +257,16 @@ public class PlayerGather : MonoBehaviour
                 return true;
             }
         }
-        // ② 지형 노드 — 맞는 순간 실체화 + 저효율 피해
+        // ② 지형 노드 — 맞는 순간 실체화 + 저효율 피해 (캐시 사용 — 매 프레임 복사 방지)
         var td = terr.terrainData; var to = terr.transform.position;
-        var trees = td.treeInstances;
+        var trees = Trees(td);
+        var rockOf = ProtoRock(td);
         for (int i = 0; i < trees.Length; i++)
         {
             var wp = Vector3.Scale(trees[i].position, td.size) + to;
             if (FlatDist(wp, pos) < arrowBlockRadius)
             {
-                var proto = td.treePrototypes[trees[i].prototypeIndex].prefab;
-                bool isRock = proto != null && proto.name.ToLower().Contains("rock");
+                bool isRock = trees[i].prototypeIndex < rockOf.Length && rockOf[trees[i].prototypeIndex];
                 var node = Materialize(i, wp, isRock);
                 if (node != null) node.Hit(arrowVsNode);
                 return true;
