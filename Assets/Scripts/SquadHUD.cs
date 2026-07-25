@@ -132,6 +132,17 @@ public class SquadHUD : MonoBehaviour
 
     void Build()
     {
+        // 통합 스타일(UIStyle) 팔레트 따르기 — 색은 한 곳에서 관리
+        var st = UIStyle.I;
+        if (st != null && st.hudUseTheme)
+        {
+            PanelBg = new Color(st.panelBg.r, st.panelBg.g, st.panelBg.b, 0.88f);
+            TxtMain = st.textMain;
+            TxtSub = st.textSub;
+            Gold = st.accent;
+            Accent = st.accent;
+        }
+
         var cgo = new GameObject("HUD_Canvas", typeof(Canvas), typeof(CanvasScaler));
         canvasRoot = cgo;
         var canvas = cgo.GetComponent<Canvas>();

@@ -11,7 +11,7 @@ public class ScatterSpawner : MonoBehaviour
     [Tooltip("주변에 유지할 개수")] public int cap = 14;
     [Tooltip("이보다 가까이엔 안 나옴 — 눈앞·방금 주운 자리에서 뿅 방지")] public float minDist = 40f;
     public float maxDist = 120f;
-    [Tooltip("이 밖으로 벗어나면 정리")] public float despawnDist = 200f;
+    [Tooltip("이 밖으로 벗어나면 정리 — 새 지역 이동 시 빨리 재배치되게")] public float despawnDist = 150f;
     [Tooltip("보충 간격 (초) — 천천히")] public float respawnDelay = 30f;
 
     [Header("종류 비율")]
@@ -30,11 +30,19 @@ public class ScatterSpawner : MonoBehaviour
         for (int i = 0; i < cap * 4 && Count() < cap; i++) TrySpawn();
     }
 
+    // 캡 판정은 '내 주변' 아이템만 — 멀리 두고 온 것 때문에 새 지역에서 안 나오는 문제 방지
     int Count()
     {
+        if (player == null) return 0;
         int n = 0;
         foreach (var d in ItemDrop.All)
-            if (d != null && (d.kind == ItemDrop.Kind.Wood || d.kind == ItemDrop.Kind.Stone)) n++;
+        {
+            if (d == null || d.kind == ItemDrop.Kind.Egg) continue;
+            float dist = Vector3.Distance(
+                new Vector3(d.transform.position.x, 0, d.transform.position.z),
+                new Vector3(player.position.x, 0, player.position.z));
+            if (dist < maxDist * 1.15f) n++;
+        }
         return n;
     }
 
@@ -73,6 +81,16 @@ public class ScatterSpawner : MonoBehaviour
             if (h < minHeight || h > maxHeight) continue;
             float nx = (pos.x - to.x) / td.size.x, nz = (pos.z - to.z) / td.size.z;
             if (Vector3.Angle(td.GetInterpolatedNormal(nx, nz), Vector3.up) > maxSlope) continue;
+            // 아이템끼리 최소 간격 — 한 구역 몰빵 방지
+            bool crowded = false;
+            foreach (var d in ItemDrop.All)
+            {
+                if (d == null || d.kind == ItemDrop.Kind.Egg) continue;
+                if (Vector3.Distance(
+                    new Vector3(d.transform.position.x, 0, d.transform.position.z),
+                    new Vector3(pos.x, 0, pos.z)) < 25f) { crowded = true; break; }
+            }
+            if (crowded) continue;
             pos.y = h;
             var kind = Random.value < stickRatio ? ItemDrop.Kind.Wood : ItemDrop.Kind.Stone;
             ItemDrop.Spawn(kind, pos, 1);
