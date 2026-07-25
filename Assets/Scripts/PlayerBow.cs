@@ -49,6 +49,7 @@ public class PlayerBow : MonoBehaviour
         public Vector3 modelPos = Vector3.zero;
         public float modelScale = 1f;
         public SwingStyle style = SwingStyle.Vertical;
+        [Tooltip("가로 긁기 방향 반전 (왼↔오)")] public bool hFlip = false;
     }
     [HideInInspector] public System.Collections.Generic.List<WeaponDef> weapons
         = new System.Collections.Generic.List<WeaponDef>();
@@ -604,6 +605,12 @@ public class PlayerBow : MonoBehaviour
                     var ePos = horiz ? hSwingEndPos : swingEndPos;
                     var sEul = horiz ? hSwingStartEuler : swingStartEuler;
                     var eEul = horiz ? hSwingEndEuler : swingEndEuler;
+                    if (horiz && setup.hFlip)
+                    {   // 가로 방향 반전 (왼↔오) — 위치 x, 회전 y·z 미러
+                        sPos.x = -sPos.x; ePos.x = -ePos.x;
+                        sEul.y = -sEul.y; sEul.z = -sEul.z;
+                        eEul.y = -eEul.y; eEul.z = -eEul.z;
+                    }
 
                     handR.position = transform.position +
                         frame * Vector3.LerpUnclamped(sPos, ePos, p);

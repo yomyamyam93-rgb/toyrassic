@@ -48,6 +48,8 @@ public class PlayerBowEditor : Editor
         bool nh = EditorGUILayout.ToggleLeft("가로로 긁기", !isV);
         if (nv && !isV) w.style = PlayerBow.SwingStyle.Vertical;
         else if (nh && isV) w.style = PlayerBow.SwingStyle.Horizontal;
+        if (w.style == PlayerBow.SwingStyle.Horizontal)
+            w.hFlip = EditorGUILayout.ToggleLeft("    ↔ 방향 반전 (왼쪽에서/오른쪽에서)", w.hFlip);
 
         EditorGUILayout.Space(6);
         EditorGUILayout.BeginHorizontal();
