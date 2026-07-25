@@ -6,6 +6,20 @@ public static class Stock
     public static int Wood, Stone;
     public static int ArrowLv = 1, BowLv = 1;      // 제작 창에서 강화
     public static bool HasAxe, HasPick;            // 도끼=나무 패기 해금, 곡괭이=바위 캐기 해금
+    /// 새 아이템 범용 저장소 — 아이콘만 추가된 아이템의 수량 (ItemDB 참조)
+    public static readonly System.Collections.Generic.Dictionary<string, int> Extra
+        = new System.Collections.Generic.Dictionary<string, int>();
+
+    public static void Add(string id, int n)
+    {
+        switch (id)
+        {
+            case "나뭇가지": Wood += n; break;
+            case "돌": Stone += n; break;
+            case "알": NestSite.EggCount += n; break;
+            default: Extra.TryGetValue(id, out int cur); Extra[id] = cur + n; break;
+        }
+    }
 }
 
 /// 채집 — 도구가 있으면 근처 나무/바위를 클릭으로 자연스럽게 팬다 (프롬프트 없음).

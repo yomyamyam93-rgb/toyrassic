@@ -13,11 +13,11 @@ public class MenuUI : MonoBehaviour
     public static bool IsOpen { get; private set; }
 
     // 아이템 아이콘 — 파일 이름으로 자동 연결 (Resources/Icons/, 덮어쓰면 자동 갱신)
-    public Sprite icoWood => IconLib.Get("나뭇가지");
-    public Sprite icoStone => IconLib.Get("돌");
-    public Sprite icoEgg => IconLib.Get("알");
-    public Sprite icoAxe => IconLib.Get("도끼");
-    public Sprite icoPick => IconLib.Get("곡갱이");
+    public Sprite icoWood => ItemDB.Icon("나뭇가지");
+    public Sprite icoStone => ItemDB.Icon("돌");
+    public Sprite icoEgg => ItemDB.Icon("알");
+    public Sprite icoAxe => ItemDB.Icon("도끼");
+    public Sprite icoPick => ItemDB.Icon("곡갱이");
 
     const int FontH1 = 26, FontBody = 18, FontCap = 14;
     const float Pad = 16f, Gap = 8f;
@@ -60,6 +60,7 @@ public class MenuUI : MonoBehaviour
     {
         if (font == null) return;
         IconLib.ClearCache();   // 아이콘 파일 바뀐 것도 반영
+        ItemDB.Reload();        // 새 아이콘 = 새 아이템 자동 등록
         bool wasOpen = IsOpen;
         if (canvasRoot != null) Destroy(canvasRoot);
         Build();
@@ -270,7 +271,7 @@ public class MenuUI : MonoBehaviour
         var cv = cr.gameObject.AddComponent<VerticalLayoutGroup>();
         cv.spacing = Gap;
         cv.padding = new RectOffset(8, 8, 8, 8);
-        cv.childControlWidth = true; cv.childControlHeight = false;
+        cv.childControlWidth = true; cv.childControlHeight = true;   // 행 높이는 LayoutElement 가 정확히 결정
         cv.childForceExpandWidth = true; cv.childForceExpandHeight = false;
         int recipes = 5;
         craftInfo = new Text[recipes]; craftBtn = new Button[recipes]; craftBtnLabel = new Text[recipes];
@@ -283,19 +284,21 @@ public class MenuUI : MonoBehaviour
         {
             int idx = i;
             var row = RT("recipe" + i, cr);
-            row.gameObject.AddComponent<LayoutElement>().minHeight = rowH;
+            var le = row.gameObject.AddComponent<LayoutElement>();
+            le.minHeight = rowH; le.preferredHeight = rowH;
             var innerRow = Framed("frame", row, SlotBg, SlotBorder, true);   // 행 크기로 꽉 채움
+            float iconSize = rowH * 0.65f;
             float textLeft = 16f;
             if (rowIcons[i] != null)
-            {   // 레시피 아이콘 (사용자 제작)
+            {   // 레시피 아이콘 (사용자 제작) — 왼쪽 여백 12, 텍스트와 안 겹침
                 var irt = RT("icon", innerRow);
                 irt.anchorMin = irt.anchorMax = irt.pivot = new Vector2(0, 0.5f);
-                irt.anchoredPosition = new Vector2(12 + rowH * 0.4f, 0);
-                irt.sizeDelta = new Vector2(rowH * 0.8f, rowH * 0.8f);
+                irt.anchoredPosition = new Vector2(12, 0);
+                irt.sizeDelta = new Vector2(iconSize, iconSize);
                 var iimg = irt.gameObject.AddComponent<Image>();
                 iimg.sprite = rowIcons[i]; iimg.preserveAspect = true;
                 iimg.raycastTarget = false;
-                textLeft = rowH * 0.8f + 24f;
+                textLeft = 12 + iconSize + 14f;
             }
             craftInfo[i] = MakeText("info", innerRow, FontBody, TxtMain);
             craftInfo[i].rectTransform.anchorMin = new Vector2(0, 0);
@@ -327,16 +330,14 @@ public class MenuUI : MonoBehaviour
     void RefreshInv()
     {
         if (!pageInv.activeSelf) return;
-        // 재료 + 장비 (장비는 핫바로 드래그해 장착)
-        var items = new (Sprite icon, string fb, int count, GearKind kind)[]
+        // 활(장비) + ItemDB 자동 등록 아이템 전부 — 아이콘 파일만 추가하면 여기 자동으로 뜬다
+        var list = new System.Collections.Generic.List<(Sprite icon, string fb, int count, GearKind kind)>
         {
-            (icoWood, "", Stock.Wood, GearKind.None),
-            (icoStone, "", Stock.Stone, GearKind.None),
-            (icoEgg, "", NestSite.EggCount, GearKind.None),
             (null, "활", 1, GearKind.Bow),
-            (icoAxe, "", Stock.HasAxe ? 1 : 0, GearKind.Axe),
-            (icoPick, "", Stock.HasPick ? 1 : 0, GearKind.Pick),
         };
+        foreach (var id in ItemDB.Ids)
+            list.Add((ItemDB.Icon(id), "", ItemDB.Count(id), ItemDB.GearOf(id)));
+        var items = list.ToArray();
         for (int i = 0; i < slotIcons.Length; i++)
         {
             bool has = i < items.Length && items[i].count > 0 && (items[i].icon != null || items[i].fb != "");
