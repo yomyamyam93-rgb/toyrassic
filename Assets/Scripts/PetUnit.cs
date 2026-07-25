@@ -96,7 +96,8 @@ public class PetUnit : MonoBehaviour
     float strikeT;                                   // 타격 지연 — 모션 절정에 데미지
     float jumpT; Vector3 jumpFrom, jumpTo;           // 돌 점프 내려찍기
     float dashT; Vector3 dashFrom, dashTo;           // 기본 공격: 기 모으고 돌진
-    Vector3 lockedAim;                               // 장전 시작 때 고정되는 목표 지점
+    Vector3 lockedAim, lockedDest;                   // 장전 '순간'에 확정 — 이후 절대 안 바뀜 (회피 가능)
+    Transform tele; float teleRadius;                // 빨간 범위 텔레그래프
     float ghostHp;                                   // 롤식 지연 감소 바
     Transform barGhost;
     int burstLeft; float burstT;                     // 나무 3연타
@@ -111,7 +112,11 @@ public class PetUnit : MonoBehaviour
 
     void OnEnable() { All.Add(this); }
     void OnDisable() { All.Remove(this); }
-    void OnDestroy() { if (barRoot != null) Destroy(barRoot.gameObject); }   // 바는 이제 몸의 자식이 아님
+    void OnDestroy()
+    {
+        if (barRoot != null) Destroy(barRoot.gameObject);   // 바는 이제 몸의 자식이 아님
+        if (tele != null) Destroy(tele.gameObject);
+    }
 
     void Start()
     {
@@ -157,7 +162,7 @@ public class PetUnit : MonoBehaviour
                      : mat == Mat.Wood ? 0.35f
                      : mat == Mat.Water ? 0.12f    // 물총은 조준만 살짝
                      : mat == Mat.Lightning ? 0.3f
-                     : 2.8f;                       // Basic: 쭈우욱 기 모으기 (~3초) 후 돌진
+                     : 1.5f;                       // Basic: 기 모으기 1.5초 후 돌진 (보고 피할 시간)
 
     void Update()
     {
@@ -222,9 +227,15 @@ public class PetUnit : MonoBehaviour
             windupT -= Time.deltaTime;
             float wp = 1f - Mathf.Clamp01(windupT / WindupDur);
             if (motion != null) motion.charge = Mathf.Max(motion.charge, wp * wp);
-            if (target == null || !target.Alive) winding = false;
+            if (target == null || !target.Alive) { winding = false; KillTele(); }
             else
             {
+                // 텔레그래프: 기 모을수록 원이 차오름 (터지기 직전 = 꽉 참)
+                if (tele != null)
+                {
+                    float wp2 = 1f - Mathf.Clamp01(windupT / WindupDur);
+                    tele.localScale = Vector3.one * teleRadius * (0.8f + 1.2f * wp2);
+                }
                 // 기본 공격: 장전 시작 때 조준을 '고정' — 기 모으는 동안 방향 유지 (회피 여지)
                 Face((mat == Mat.Basic ? lockedAim : target.transform.position) - transform.position);
                 if (windupT <= 0f) { winding = false; ExecuteAttack(); }
@@ -313,7 +324,19 @@ public class PetUnit : MonoBehaviour
     {
         float d = Dist(target.transform.position);
         if (d > AtkRange) Step(target.transform.position - transform.position, MoveSpd);
-        else if (atkCd <= 0f) { winding = true; windupT = WindupDur; lockedAim = target.transform.position; }
+        else if (atkCd <= 0f)
+        {
+            winding = true; windupT = WindupDur;
+            // ★공격을 '마음먹은 순간' 목표 지점·도착점 확정 — 이후 플레이어가 움직여도 안 따라감
+            lockedAim = target.transform.position;
+            if (mat == Mat.Basic)
+            {
+                var dd = lockedAim - transform.position; dd.y = 0;
+                float dl = Mathf.Min(dd.magnitude, AtkRange * 1.4f);
+                lockedDest = transform.position + (dd.sqrMagnitude > 1e-4f ? dd.normalized : transform.forward) * dl;
+                MakeTele(lockedDest, body * 0.95f);   // 빨간 범위 — 여길 피하면 안 맞는다
+            }
+        }
         else Face(target.transform.position - transform.position);
     }
 
@@ -359,11 +382,9 @@ public class PetUnit : MonoBehaviour
                 lungeTo = transform.position + dir.normalized * (body * 0.15f);
                 break;
 
-            default:            // Basic — 기 모으고(고정 조준) → 돌진 콰앙 → 살짝 딜레이
-                var dd = lockedAim - transform.position; dd.y = 0;
-                float dl = Mathf.Min(dd.magnitude, AtkRange * 1.4f);
+            default:            // Basic — 기 모으고(고정 조준) → 확정된 지점으로 돌진 콰앙 → 딜레이
                 dashFrom = transform.position;
-                dashTo = transform.position + (dd.sqrMagnitude > 1e-4f ? dd.normalized : transform.forward) * dl;
+                dashTo = lockedDest;        // 장전 순간 확정된 도착점 그대로
                 dashT = 1f;
                 atkCd = AtkPeriod + 0.9f;   // 돌진 후 딜레이 (텀)
                 break;
@@ -400,6 +421,29 @@ public class PetUnit : MonoBehaviour
         }
     }
 
+    // 빨간 범위 텔레그래프 — 기 모으는 동안 바닥에 표시, 보고 피하라고 있는 것
+    void MakeTele(Vector3 center, float radius)
+    {
+        KillTele();
+        teleRadius = radius;
+        var q = GameObject.CreatePrimitive(PrimitiveType.Quad);
+        Object.Destroy(q.GetComponent<Collider>());
+        q.name = "tele_" + name;
+        if (terrain != null) center.y = terrain.SampleHeight(center) + terrain.transform.position.y;
+        q.transform.position = center + Vector3.up * 0.25f;
+        q.transform.rotation = Quaternion.Euler(90f, 0f, 0f);
+        q.transform.localScale = Vector3.one * radius * 0.8f;
+        var mm = q.GetComponent<MeshRenderer>();
+        mm.material = new Material(Shader.Find("Sprites/Default"));
+        mm.material.mainTexture = FX.CircleTex();
+        mm.material.color = new Color(1f, 0.15f, 0.10f, 0.9f);
+        mm.sortingOrder = 5;
+        mm.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+        tele = q.transform;
+    }
+
+    void KillTele() { if (tele != null) { Destroy(tele.gameObject); tele = null; } }
+
     // 기본 공격 돌진 — 가속하며 몸통 박치기, 도착 지점 광역 타격
     void DashAdvance()
     {
@@ -413,6 +457,7 @@ public class PetUnit : MonoBehaviour
         if (dashT <= 0f)
         {
             airY = 0f;
+            KillTele();
             if (motion != null) motion.Punch();
             FX.Burst(transform.position + transform.forward * body * 0.3f,
                      new Color(1f, 0.95f, 0.85f, 0.9f), 14, body * 0.08f, body * 0.5f);
@@ -521,6 +566,7 @@ public class PetUnit : MonoBehaviour
     void Die()
     {
         dead = true;
+        KillTele();
         if (isStructure)   // 건물(부화기) — 파괴 처리는 소유 컴포넌트(Incubator)가 함
         {
             if (barRoot != null) barRoot.gameObject.SetActive(false);

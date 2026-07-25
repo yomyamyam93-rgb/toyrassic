@@ -902,7 +902,7 @@ MonoBehaviour:
   drawTime: 0.22
   handRadius: 0.3
   handSide: 3
-  handUp: 1.2
+  handUp: 0.5
   drawReach: 3.6
   drawUp: 1.5
   arrowUp: 1.5

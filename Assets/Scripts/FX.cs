@@ -30,6 +30,30 @@ public static class FX
         return roundTex;
     }
 
+    // ── 범위 텔레그래프용 원 텍스처 (은은한 속 + 진한 테두리) ──
+    static Texture2D circleTex;
+    public static Texture2D CircleTex()
+    {
+        if (circleTex != null) return circleTex;
+        int s = 128; float half = s * 0.5f;
+        circleTex = new Texture2D(s, s, TextureFormat.RGBA32, false);
+        for (int y = 0; y < s; y++)
+            for (int x = 0; x < s; x++)
+            {
+                float r = Mathf.Sqrt((x - half) * (x - half) + (y - half) * (y - half)) / half;   // 0~1
+                float a = 0f;
+                if (r < 0.98f)
+                {
+                    a = 0.30f;                                            // 속: 은은하게
+                    if (r > 0.86f) a = 0.95f;                             // 테두리: 진하게
+                    else if (r > 0.80f) a = Mathf.Lerp(0.30f, 0.95f, (r - 0.80f) / 0.06f);
+                }
+                circleTex.SetPixel(x, y, new Color(1f, 1f, 1f, a));
+            }
+        circleTex.Apply();
+        return circleTex;
+    }
+
     /// 피해 숫자 — 뽁 떠올라 흩어지며 사라짐
     public static void DamageNum(Vector3 pos, float amount, Color c, float scale = 1f)
     {

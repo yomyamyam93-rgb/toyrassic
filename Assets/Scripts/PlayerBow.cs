@@ -18,7 +18,7 @@ public class PlayerBow : MonoBehaviour
     [Header("손 (동그라미)")]
     public float handRadius = 0.3f;
     [Tooltip("몸 옆으로 띄우는 간격 (몸 반지름보다 크게 — 안 박히게)")] public float handSide = 3.0f;
-    public float handUp = 1.2f;
+    [Tooltip("손 높이 — 낮게 늘어뜨려야 자연스러움")] public float handUp = 0.5f;
     [Tooltip("당길 때 왼손이 앞으로 뻗는 거리 (몸 밖)")] public float drawReach = 3.6f;
     [Tooltip("당길 때 활 높이")] public float drawUp = 1.5f;
     [Tooltip("화살이 나가는 높이 (활 위치 기준 위로)")] public float arrowUp = 1.5f;
@@ -261,20 +261,29 @@ public class PlayerBow : MonoBehaviour
         var right = Vector3.Cross(Vector3.up, fwd).normalized;
         float pull = drawing ? Mathf.Clamp01(drawT / drawTime) : 0f;
 
-        // 손 위치: 몸(블롭)에 안 박히게 바깥으로 띄움 + 평소엔 둥실둥실 흔들림
-        float bobL = Mathf.Sin(Time.time * 3.2f) * 0.14f;            // 좌우 위상 다르게 — 살아있는 느낌
-        float bobR = Mathf.Sin(Time.time * 3.2f + 1.7f) * 0.14f;
-        var idleL = transform.position - right * handSide + fwd * 0.4f + Vector3.up * (handUp + bobL);
-        var idleR = transform.position + right * handSide + fwd * 0.4f + Vector3.up * (handUp + bobR);
+        // 손 위치: 몸 옆에 자연스럽게 '늘어뜨림' (들고 다니는 느낌 X) + 둥실 흔들림
+        float bobL = Mathf.Sin(Time.time * 3.2f) * 0.12f;            // 좌우 위상 다르게 — 살아있는 느낌
+        float bobR = Mathf.Sin(Time.time * 3.2f + 1.7f) * 0.12f;
+        var idleL = transform.position - right * handSide * 0.92f + fwd * 0.5f + Vector3.up * (handUp + bobL);
+        var idleR = transform.position + right * handSide + fwd * 0.3f + Vector3.up * (handUp + bobR);
 
         // 당길 때: 왼손이 몸 밖으로 쭉 뻗어 활 '중앙'을 잡고, 오른손은 시위를 당김
         var aimL = transform.position + fwd * drawReach + Vector3.up * drawUp;
         float k = 13f * Time.deltaTime;
         handL.position = Vector3.Lerp(handL.position, drawing ? aimL : idleL, k);
 
-        // 활 그립 = 왼손 정중앙 (활이 손에 정확히 잡혀 있음)
+        // 활 그립 = 왼손 정중앙. 자세는 상황에 따라:
         bowRoot.position = handL.position;
-        bowRoot.rotation = Quaternion.LookRotation(fwd, Vector3.up);
+        if (drawing)
+        {   // 조준 자세 — 시위가 조준 방향과 일직선
+            bowRoot.rotation = Quaternion.Slerp(bowRoot.rotation, Quaternion.LookRotation(fwd, Vector3.up), 18f * Time.deltaTime);
+        }
+        else
+        {   // 휴대 자세 — 비스듬히 기울여 들고, 걸을수록 살랑살랑 각도가 흔들림
+            float sway = Mathf.Sin(Time.time * 2.6f) * 7f + Mathf.Sin(Time.time * 4.1f + 1.3f) * 3f;
+            var rest = Quaternion.LookRotation(fwd, Vector3.up) * Quaternion.Euler(24f, 8f, 46f + sway);
+            bowRoot.rotation = Quaternion.Slerp(bowRoot.rotation, rest, 6f * Time.deltaTime);
+        }
 
         float back = -0.85f * pull * bowSize;
         bowString.SetPosition(0, new Vector3(0f, bowSize, 0f));
