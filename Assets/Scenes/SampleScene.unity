@@ -325,7 +325,8 @@ MonoBehaviour:
   drawTime: 0.22
   handRadius: 0.3
   handSide: 1.35
-  handUp: 1.9
+  handUp: 0.1
+  arrowUp: 1.3
   handColor: {r: 0, g: 0, b: 0, a: 0}
   bowSize: 1.15
   bowThick: 0.16

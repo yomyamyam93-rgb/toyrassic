@@ -17,7 +17,8 @@ public class PlayerBow : MonoBehaviour
     [Header("손 (동그라미)")]
     public float handRadius = 0.3f;
     [Tooltip("몸 옆으로 띄우는 간격")] public float handSide = 1.35f;
-    [Tooltip("손 높이 — 캐릭터 원점(발)에서 위로 (가슴 높이)")] public float handUp = 1.9f;
+    public float handUp = 0.1f;
+    [Tooltip("화살이 나가는 높이 (활 위치 기준 위로)")] public float arrowUp = 1.3f;
     [Tooltip("비워두면 캐릭터 텍스처 평균색 자동")] public Color handColor = Color.clear;
 
     [Header("활 — 뭉뚝 숏보우")]
@@ -214,8 +215,9 @@ public class PlayerBow : MonoBehaviour
 
     void Fire()
     {
-        ArrowProj.Throw(bowRoot.position, aimDir, arrowSpeed, arrowDamage, arrowRange);
-        FX.Burst(bowRoot.position, new Color(1f, 0.95f, 0.7f, 0.8f), 6, 0.10f, 0.8f);
+        var from = bowRoot.position + Vector3.up * arrowUp;   // 발사 높이만 올림 (손·활은 그대로)
+        ArrowProj.Throw(from, aimDir, arrowSpeed, arrowDamage, arrowRange);
+        FX.Burst(from, new Color(1f, 0.95f, 0.7f, 0.8f), 6, 0.10f, 0.8f);
     }
 
     void LateUpdate()
@@ -230,7 +232,7 @@ public class PlayerBow : MonoBehaviour
         // 손 위치: 평소엔 양옆에 동동. 당길 땐 왼손이 앞으로 나가 활을 밀고 오른손이 시위
         var idleL = transform.position - right * handSide + Vector3.up * handUp;
         var idleR = transform.position + right * handSide + Vector3.up * handUp;
-        var aimL = transform.position + fwd * 1.55f + Vector3.up * handUp;
+        var aimL = transform.position + fwd * 1.55f + Vector3.up * (handUp + 0.35f);
         float k = 16f * Time.deltaTime;
         handL.position = Vector3.Lerp(handL.position, drawing ? aimL : idleL, k);
 
