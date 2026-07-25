@@ -34,10 +34,24 @@ public class PlayerBow : MonoBehaviour
     public Material outlineHull;
     public Material outlineMask;
 
-    [Header("도구 3D 모델 (비우면 절차 생성)")]
-    public GameObject toolAxeModel;
-    public GameObject toolPickModel;
+    // (구버전 — 마이그레이션용) 도구 모델은 이제 weapons 리스트에서 관리
+    [HideInInspector] public GameObject toolAxeModel;
+    [HideInInspector] public GameObject toolPickModel;
     [Tooltip("정규화 기준 길이 (m)")] public float toolLength = 2.1f;
+
+    /// ★무기 정의 — 커스텀 인스펙터의 드롭다운에서 골라 편집. 새 무기는 '추가'로.
+    [System.Serializable]
+    public class WeaponDef
+    {
+        public string id = "도끼";            // 아이템 이름과 일치 (아이콘·핫바 연동)
+        public GameObject model;              // 3D 모델 (비우면 절차 생성)
+        public Vector3 modelEuler = Vector3.zero;
+        public Vector3 modelPos = Vector3.zero;
+        public float modelScale = 1f;
+        public SwingStyle style = SwingStyle.Vertical;
+    }
+    [HideInInspector] public System.Collections.Generic.List<WeaponDef> weapons
+        = new System.Collections.Generic.List<WeaponDef>();
 
     // ── 무기별 설정 (커스텀 인스펙터의 '무기 선택 탭'에서 편집) ──
     public enum SwingStyle { Vertical, Horizontal }
@@ -101,12 +115,21 @@ public class PlayerBow : MonoBehaviour
     bool cursorIsAim, cursorSet;
     bool prevPressed, chopMode;      // 패기(도구) / 활 자동 분기
     PlayerGather gather;
-    Transform toolAxe, toolPick;
-    Transform axeInst, pickInst;                 // 모델 본체 (보정 대상)
-    Quaternion axeAutoRot, pickAutoRot;          // 자동 정렬 회전
-    float axeAutoScale = 1f, pickAutoScale = 1f; // 자동 정렬 크기
-    TrailRenderer trailAxe, trailPick;   // 스윙 궤적
+    // 무기별 런타임 장비 (id → 손에 든 오브젝트 세트)
+    class ToolRig
+    {
+        public Transform root, inst;
+        public Quaternion autoRot = Quaternion.identity;
+        public float autoScale = 1f;
+        public TrailRenderer trail;
+    }
+    readonly System.Collections.Generic.Dictionary<string, ToolRig> rigs
+        = new System.Collections.Generic.Dictionary<string, ToolRig>();
     float prevSwingT;
+
+    /// 핫바 장비 → 무기 ID
+    static string GearId(GearKind k)
+        => k == GearKind.Axe ? "도끼" : k == GearKind.Pick ? "곡갱이" : null;
     Vector3 aimDir = Vector3.forward;
     BlobMotion motion;
     Camera cam;
@@ -117,14 +140,21 @@ public class PlayerBow : MonoBehaviour
         gather = GetComponent<PlayerGather>();
         cam = Camera.main;
         if (handColor.a < 0.01f) handColor = SampleBodyColor();
-        // 도구 모델 자동 로드 (씬 연결 없어도 동작)
-        if (toolAxeModel == null) toolAxeModel = Resources.Load<GameObject>("Tools/tool_axe");
-        if (toolPickModel == null) toolPickModel = Resources.Load<GameObject>("Tools/tool_pick");
-        // 구버전 보정값 마이그레이션
-        if (axeSetup.modelEuler == Vector3.zero && axeSetup.modelPos == Vector3.zero && Mathf.Approximately(axeSetup.modelScale, 1f))
-        { axeSetup.modelEuler = axeModelEuler; axeSetup.modelPos = axeModelPos; axeSetup.modelScale = axeModelScale; }
-        if (pickSetup.modelEuler == Vector3.zero && pickSetup.modelPos == Vector3.zero && Mathf.Approximately(pickSetup.modelScale, 1f))
-        { pickSetup.modelEuler = pickModelEuler; pickSetup.modelPos = pickModelPos; pickSetup.modelScale = pickModelScale; }
+        // 무기 리스트 기본 보장 + 구버전 값 마이그레이션
+        WeaponDef Ensure(string id)
+        {
+            var w = weapons.Find(x => x.id == id);
+            if (w == null) { w = new WeaponDef { id = id }; weapons.Add(w); }
+            return w;
+        }
+        var ax = Ensure("도끼");
+        if (ax.model == null) ax.model = toolAxeModel != null ? toolAxeModel : Resources.Load<GameObject>("Tools/tool_axe");
+        if (ax.modelEuler == Vector3.zero && ax.modelPos == Vector3.zero && Mathf.Approximately(ax.modelScale, 1f))
+        { ax.modelEuler = axeSetup.modelEuler; ax.modelPos = axeSetup.modelPos; ax.modelScale = axeSetup.modelScale; ax.style = axeSetup.style; }
+        var pk = Ensure("곡갱이");
+        if (pk.model == null) pk.model = toolPickModel != null ? toolPickModel : Resources.Load<GameObject>("Tools/tool_pick");
+        if (pk.modelEuler == Vector3.zero && pk.modelPos == Vector3.zero && Mathf.Approximately(pk.modelScale, 1f))
+        { pk.modelEuler = pickSetup.modelEuler; pk.modelPos = pickSetup.modelPos; pk.modelScale = pickSetup.modelScale; pk.style = pickSetup.style; }
         Build();
         BuildTools();
     }
@@ -178,12 +208,20 @@ public class PlayerBow : MonoBehaviour
             root.gameObject.SetActive(false);
             return root;
         }
-        toolAxe = toolAxeModel != null ? MountModel("Axe", toolAxeModel, out axeInst, out axeAutoRot, out axeAutoScale)
-                                       : MakeTool("Axe", new Color(0.78f, 0.80f, 0.85f), new Vector3(0.12f, 0.55f, 0.45f));
-        toolPick = toolPickModel != null ? MountModel("Pickaxe", toolPickModel, out pickInst, out pickAutoRot, out pickAutoScale)
-                                         : MakeTool("Pickaxe", new Color(0.46f, 0.45f, 0.43f), new Vector3(0.9f, 0.16f, 0.22f));
-        trailAxe = MakeTrail(toolAxe);
-        trailPick = MakeTrail(toolPick);
+        // ★weapons 리스트 전체 장비화 — 새 무기도 리스트에 추가만 하면 손에 들 수 있음
+        foreach (var w in weapons)
+        {
+            if (rigs.ContainsKey(w.id)) continue;
+            var rig = new ToolRig();
+            if (w.model != null)
+                rig.root = MountModel(w.id, w.model, out rig.inst, out rig.autoRot, out rig.autoScale);
+            else
+                rig.root = w.id == "곡갱이"
+                    ? MakeTool(w.id, new Color(0.46f, 0.45f, 0.43f), new Vector3(0.9f, 0.16f, 0.22f))
+                    : MakeTool(w.id, new Color(0.78f, 0.80f, 0.85f), new Vector3(0.12f, 0.55f, 0.45f));
+            rig.trail = MakeTrail(rig.root);
+            rigs[w.id] = rig;
+        }
     }
 
     /// 도구 머리 끝의 스윙 궤적 트레일 — 휘두르는 동안만 발광
@@ -520,37 +558,33 @@ public class PlayerBow : MonoBehaviour
             aimLine.SetPosition(1, from2 + aimDir * aimLen);
         }
 
-        // ── 장비 비주얼 — 든 것만 보인다 ──
+        // ── 장비 비주얼 — 든 것만 보인다 (weapons 리스트 기반) ──
         var gearV = Hotbar.I != null ? Hotbar.I.Current : GearKind.Bow;
         if (bowRoot != null) bowRoot.gameObject.SetActive(gearV == GearKind.Bow);
-        if (toolAxe != null)
         {
-            toolAxe.gameObject.SetActive(gearV == GearKind.Axe);
-            toolPick.gameObject.SetActive(gearV == GearKind.Pick);
-            var toolHeld = gearV == GearKind.Axe ? toolAxe : gearV == GearKind.Pick ? toolPick : null;
-            if (toolHeld != null)
+            string curId = GearId(gearV);
+            foreach (var kv in rigs)
+                if (kv.Value.root != null) kv.Value.root.gameObject.SetActive(kv.Key == curId);
+            ToolRig rig = null;
+            if (curId != null) rigs.TryGetValue(curId, out rig);
+            var toolHeld = rig != null ? rig.root : null;
+            var setup = curId != null ? weapons.Find(x => x.id == curId) : null;
+            if (toolHeld != null && setup != null)
             {
                 // 잡기 — 인스펙터 값 그대로 (손 기준)
                 toolHeld.localPosition = gripPosOffset;
                 toolHeld.localRotation = Quaternion.Euler(gripEuler);
                 toolHeld.localScale = Vector3.one * toolScale;
 
-                // 모델별 정렬 보정 — 무기 탭에서 조절한 값 (실시간 반영)
-                var setup = gearV == GearKind.Axe ? axeSetup : pickSetup;
-                if (gearV == GearKind.Axe && axeInst != null)
+                // 모델별 정렬 보정 — 무기 드롭다운에서 조절한 값 (실시간 반영)
+                if (rig.inst != null)
                 {
-                    axeInst.localRotation = axeAutoRot * Quaternion.Euler(setup.modelEuler);
-                    axeInst.localPosition = setup.modelPos;
-                    axeInst.localScale = Vector3.one * (axeAutoScale * setup.modelScale);
-                }
-                else if (gearV == GearKind.Pick && pickInst != null)
-                {
-                    pickInst.localRotation = pickAutoRot * Quaternion.Euler(setup.modelEuler);
-                    pickInst.localPosition = setup.modelPos;
-                    pickInst.localScale = Vector3.one * (pickAutoScale * setup.modelScale);
+                    rig.inst.localRotation = rig.autoRot * Quaternion.Euler(setup.modelEuler);
+                    rig.inst.localPosition = setup.modelPos;
+                    rig.inst.localScale = Vector3.one * (rig.autoScale * setup.modelScale);
                 }
 
-                var trail = gearV == GearKind.Axe ? trailAxe : trailPick;
+                var trail = rig.trail;
                 bool chopping = gather != null && gather.SwingT > 0f;
                 if (chopping)
                 {   // 스윙: 시작·끝 자세는 인스펙터, 사이는 가속·감속 곡선
