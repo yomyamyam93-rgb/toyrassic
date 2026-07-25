@@ -800,10 +800,9 @@ MonoBehaviour:
   height: 4
   yaw: 35
   pitch: 22
-  minPitch: 2
-  maxPitch: 85
-  farPitchDrop: 16
-  farLookUp: 6
+  nearPitch: 16
+  farPitch: 52
+  farLookUp: 4
   rotSpeed: 1.6
   zoomSpeed: 6
   rotSmoothTime: 0.06

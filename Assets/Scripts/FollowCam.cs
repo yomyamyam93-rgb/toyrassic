@@ -13,14 +13,14 @@ public class FollowCam : MonoBehaviour
     public float distance = 22f, minDist = 6f, maxDist = 105f;
     public float height = 4.5f;
     public float yaw = 35f, pitch = 28f;
-    [Tooltip("pitch 범위 (넓게 = 위에서도 볼 수 있음)")]
-    public float minPitch = 2f, maxPitch = 85f;
 
-    [Header("줌아웃 시 시야 들기")]
-    [Tooltip("최대 줌아웃에서 pitch 를 이만큼 깎아 시선을 수평선 쪽으로 든다 (바닥만 보이는 답답함 해소)")]
-    public float farPitchDrop = 16f;
+    [Header("각도 = 줌이 결정 (우클릭은 좌우 회전만)")]
+    [Tooltip("최대 확대(가까이)일 때 내려다보는 각도")]
+    public float nearPitch = 16f;
+    [Tooltip("최대 축소(멀리)일 때 내려다보는 각도")]
+    public float farPitch = 52f;
     [Tooltip("줌아웃할수록 바라보는 지점을 이만큼 위로 올린다 (m)")]
-    public float farLookUp = 6f;
+    public float farLookUp = 4f;
 
     [Header("입력 감도")]
     public float rotSpeed = 0.16f, zoomSpeed = 0.10f;
@@ -80,16 +80,18 @@ public class FollowCam : MonoBehaviour
         Vector2 d; float sc;
         ReadLook(out d, out sc);
 
-        // 목표값 갱신
+        // 목표값 갱신 — 우클릭 드래그는 '좌우(yaw)만' (상하는 줌이 정함)
         yawT += d.x * rotSpeed;
-        pitchT = Mathf.Clamp(pitchT - d.y * rotSpeed, minPitch, maxPitch);
         if (Mathf.Abs(sc) > 0.0001f)
             distT = Mathf.Clamp(distT - sc * zoomSpeed * distT * 10f, minDist, maxDist);
 
         // SmoothDamp = 드래그 중엔 부드럽게, 놓으면 짧게 감속하고 멈춤(관성·밀림 없음)
         yaw = Mathf.SmoothDampAngle(yaw, yawT, ref yawVel, rotSmoothTime);
-        pitch = Mathf.SmoothDamp(pitch, pitchT, ref pitchVel, rotSmoothTime);
         distance = Mathf.SmoothDamp(distance, distT, ref distVel, zoomSmoothTime);
+        // 상하 각도 = 줌 비율로 자동 (확대=낮은 앵글, 축소=부감)
+        float z01 = Mathf.InverseLerp(minDist, maxDist, distance);
+        pitchT = Mathf.Lerp(nearPitch, farPitch, z01);
+        pitch = Mathf.SmoothDamp(pitch, pitchT, ref pitchVel, 0.15f);
 
         // 바라보는 지점: 가로는 캐릭터, 세로는 '지면 높이'만 추적 → 통통 튐이 카메라에 안 옴
         float groundY = GroundAt(target.position);
@@ -98,13 +100,9 @@ public class FollowCam : MonoBehaviour
         look.z = Mathf.Lerp(look.z, flat.z, followXZ * Time.deltaTime);
         look.y = Mathf.Lerp(look.y, groundY, followY * Time.deltaTime);
 
-        // 줌아웃할수록(거리↑) 시선을 수평선 쪽으로 들어 바닥 대신 먼 풍경이 보이게.
-        // 렌더 시점에만 깎으므로 드래그로 잡은 pitch 목표값은 오염되지 않는다.
-        float zoom01 = Mathf.InverseLerp(minDist, maxDist, distance);
-        float viewPitch = Mathf.Max(minPitch, pitch - farPitchDrop * zoom01);
-        float lookUp = height * 0.4f + farLookUp * zoom01;
+        float lookUp = height * 0.4f + farLookUp * z01;
 
-        var rot = Quaternion.Euler(viewPitch, yaw, 0f);
+        var rot = Quaternion.Euler(pitch, yaw, 0f);
         var pos = look + Vector3.up * height + rot * Vector3.back * distance;
 
         float g = GroundAt(pos) + 2f;

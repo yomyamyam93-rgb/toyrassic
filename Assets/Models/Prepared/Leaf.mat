@@ -36,6 +36,8 @@ Material:
     - _Cutoff: 0.26
     - _DapScale: 0.16
     - _EdgeAmp: 0.34
+    - _EdgeHi: 1
+    - _EdgeLo: 0.296
     m_Colors:
     - _Base: {r: 0.5, g: 0.68, b: 0.34, a: 1}
     - _SunDir: {r: 0.743, g: 0.669, b: 0, a: 0}
