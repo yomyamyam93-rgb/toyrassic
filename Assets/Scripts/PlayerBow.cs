@@ -12,7 +12,6 @@ public class PlayerBow : MonoBehaviour
     public float arrowDamage = 14f;
     public float arrowSpeed = 60f;
     [Tooltip("사거리 (m)")] public float arrowRange = 70f;
-    [Tooltip("관통 수 — 화살 하나가 몇 마리까지 꿰뚫나")] public int arrowPierce = 3;
     [Tooltip("완전히 당겨지는 시간 (연출용)")] public float drawTime = 0.22f;
 
     [Header("손 (동그라미)")]
@@ -217,7 +216,7 @@ public class PlayerBow : MonoBehaviour
     void Fire()
     {
         var from = bowRoot.position + Vector3.up * arrowUp;   // 발사 높이만 올림 (손·활은 그대로)
-        ArrowProj.Throw(from, aimDir, arrowSpeed, arrowDamage, arrowRange, arrowPierce);
+        ArrowProj.Throw(from, aimDir, arrowSpeed, arrowDamage, arrowRange);   // 관통은 추후 스킬로
         FX.Burst(from, new Color(1f, 0.95f, 0.7f, 0.8f), 6, 0.10f, 0.8f);
     }
 
