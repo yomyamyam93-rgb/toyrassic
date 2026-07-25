@@ -497,11 +497,12 @@ public class PetUnit : MonoBehaviour
                  new Color(0.5f, 0.9f, 1.8f, 0.9f), 12, body * 0.06f, body * 0.3f);
     }
 
-    /// 피격: 흰 번쩍만 (행동 방해 없음, 둔화는 번개 전용)
+    /// 피격: 흰 번쩍 + 움찔 스쿼시 + 파르르 진동 (행동 방해 없음, 둔화는 번개 전용)
     public void OnHit()
     {
         if (dead) return;
         flashT = 1f;
+        if (motion != null) motion.Flinch();
     }
 
     /// 금속 광역의 에어본 — 붕 떴다 내려옴
@@ -610,6 +611,12 @@ public class PetUnit : MonoBehaviour
         p.y = dead ? p.y : g;
         if (!dead && motion != null) p.y += motion.BobY;
         if (!dead) p.y += airY;                      // 에어본·점프 포물선
+        if (!dead && flashT > 0.35f)
+        {   // 피격 진동 — 잠깐 파르르 (flashT 감쇠와 함께 잦아듦)
+            float amp = body * 0.022f * flashT;
+            p.x += (Random.value - 0.5f) * amp * 2f;
+            p.z += (Random.value - 0.5f) * amp * 2f;
+        }
         transform.position = p;
     }
 
