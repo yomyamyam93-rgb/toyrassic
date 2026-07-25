@@ -104,6 +104,7 @@ public class PetUnit : MonoBehaviour
     PetMotion motion;
     float curSpeed;
     bool dead;
+    float deathT, deathStartY; bool deathDropped;    // 사망 연출 (고통→스르륵)
 
     float AggroRange => 13f + body * 1.2f;
     float TauntRange => 10f + body * 1.5f;           // 금속(탱커) 어그로
@@ -166,7 +167,7 @@ public class PetUnit : MonoBehaviour
 
     void Update()
     {
-        if (dead) { LungeFx(); return; }
+        if (dead) { DeathAnim(); return; }
         if (isAvatar) { HitFlash(); Bar(); return; }             // 캐릭터: 피격·바만
         if (isStructure) { HitFlash(); Bar(); return; }          // 건물
         if (mounted) { HitFlash(); Ground(false); Bar(); return; }   // 탑승 중: 이동은 주인이 조종
@@ -573,16 +574,47 @@ public class PetUnit : MonoBehaviour
             return;
         }
         if (motion != null) { motion.enabled = false; transform.localScale = baseScale; }
-        transform.rotation = Quaternion.Euler(0f, transform.eulerAngles.y, 82f);
-        var p = transform.position; p.y -= footOff * 0.35f; transform.position = p;
+        deathT = 0f; deathStartY = transform.position.y; deathDropped = false;
         if (barRoot != null) barRoot.gameObject.SetActive(false);
         if (team == Team.Wild)
         {   // 격파 경험치 → 내 펫 (캐릭터 제외). 펫 획득은 오직 부화로!
             foreach (var u in All)
                 if (u.Alive && u.team == Team.Player && !u.isAvatar) { u.GainXP(supply * 18f); break; }
         }
-        SpawnDrop();
         Destroy(gameObject, 8f);
+    }
+
+    // 사망 연출: ①고통 — 몸을 비틀며 파르르 + 헐떡 스쿼시 → ②스르륵 힘 빠지며 쓰러짐
+    void DeathAnim()
+    {
+        if (isStructure) return;
+        deathT += Time.deltaTime;
+        float yaw = transform.eulerAngles.y;
+        if (deathT < 0.85f)
+        {
+            float k = deathT / 0.85f;
+            float writhe = Mathf.Sin(deathT * 24f) * 15f * (1f - k);          // 비틀림 (점점 잦아듦)
+            float gasp = 1f - 0.13f * Mathf.Abs(Mathf.Sin(deathT * 14f)) * (1f - k * 0.5f);   // 헐떡임
+            transform.rotation = Quaternion.Euler(-10f * (1f - k), yaw, writhe);   // 고개 젖히며 고통
+            transform.localScale = new Vector3(
+                baseScale.x / Mathf.Sqrt(gasp), baseScale.y * gasp, baseScale.z / Mathf.Sqrt(gasp));
+        }
+        else
+        {
+            float k = Mathf.Clamp01((deathT - 0.85f) / 1.0f);
+            float e = k * k * (3f - 2f * k);                                   // 스르륵 (S곡선)
+            transform.rotation = Quaternion.Euler(0f, yaw, 82f * e);
+            transform.localScale = baseScale;
+            var p = transform.position;
+            p.y = deathStartY - footOff * 0.35f * e;                           // 접지하며 가라앉음
+            transform.position = p;
+            if (k >= 1f && !deathDropped)
+            {
+                deathDropped = true;
+                FX.Burst(transform.position, new Color(0.85f, 0.8f, 0.7f, 0.7f), 10, body * 0.06f, body * 0.35f);
+                SpawnDrop();
+            }
+        }
     }
 
     /// 설계도 획득 시 내 군단으로 합류 — 쓰러진 그 개체가 그대로 일어난다
