@@ -78,7 +78,7 @@ Material:
     - _WobbleFreq: 2.8
     - _ZWrite: 0
     m_Colors:
-    - _BaseColor: {r: 0.19983837, g: 0.5, b: 0.9, a: 0.45}
+    - _BaseColor: {r: 0.19983792, g: 0.5, b: 0.9, a: 0.45}
     - _EmissionColor: {r: 0, g: 0, b: 0, a: 1}
     - _GlowColorA: {r: 0.5, g: 0.9, b: 1, a: 1}
     - _GlowColorB: {r: 0.05, g: 0.2, b: 0.5, a: 1}

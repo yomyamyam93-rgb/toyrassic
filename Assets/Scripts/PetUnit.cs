@@ -8,11 +8,17 @@ using UnityEngine;
 public class PetUnit : MonoBehaviour
 {
     public enum Team { Player, Wild }
-    public enum Mat { Metal, Wood, Stone, Fire, Water, Lightning }
+    public enum Mat { Metal, Wood, Stone, Fire, Water, Lightning, Basic }   // Basic = 원소 없는 기본 평타 (수집 프로토)
 
     [Header("소속·원소")]
     public Team team = Team.Wild;
     public Mat mat = Mat.Metal;
+
+    [Header("수집 (인구수 군단제)")]
+    [Tooltip("이 펫의 인구수 비용 (S1/M2/L3/XL4)")]
+    public int supply = 1;
+    [Tooltip("야생일 때 격파하면 설계도를 떨어뜨려 수집 가능")]
+    public bool collectible = false;
 
     [Header("코어 스탯 (코어가 전부 정함)")]
     public float str = 10f;    // 힘 = 물리 딜
@@ -72,7 +78,8 @@ public class PetUnit : MonoBehaviour
 
     // ── 원소별 발현 ──
     float AtkPeriod => (mat == Mat.Metal ? 3.2f : mat == Mat.Stone ? 3.4f : mat == Mat.Wood ? 2.3f
-                      : mat == Mat.Fire ? 3.0f : mat == Mat.Water ? 0.38f : 1.7f)   // 💧물총 속사
+                      : mat == Mat.Fire ? 3.0f : mat == Mat.Water ? 0.38f
+                      : mat == Mat.Lightning ? 1.7f : 2.0f)   // 💧물총 속사 / Basic=2.0
                        / (1f + agi * 0.010f);
     float Damage => mat == Mat.Water ? intel * 0.22f  // 💧물총 속사 — 발당 약하게 (DPS 는 비슷)
                   : str * (mat == Mat.Metal ? 0.95f : mat == Mat.Stone ? 1.05f : mat == Mat.Wood ? 0.45f
@@ -253,6 +260,12 @@ public class PetUnit : MonoBehaviour
                 lungeT = 1f; lungeFrom = transform.position;
                 lungeTo = transform.position + dir.normalized * (body * 0.15f);
                 break;
+
+            default:            // Basic — 원소 없는 기본 평타 (살짝 달려들며 콱)
+                strikeT = 0.09f;
+                lungeT = 1f; lungeFrom = transform.position;
+                lungeTo = transform.position + dir.normalized * (body * 0.14f);
+                break;
         }
     }
 
@@ -274,6 +287,10 @@ public class PetUnit : MonoBehaviour
             FX.Bolt(transform.position + Vector3.up * body * 0.35f,
                     target.transform.position + Vector3.up * target.body * 0.3f,
                     new Color(1.8f, 2.3f, 3.2f), body * 0.02f);
+        }
+        else if (mat == Mat.Basic && target != null && target.Alive)
+        {
+            TryHit(target, Damage);
         }
     }
 
@@ -361,8 +378,24 @@ public class PetUnit : MonoBehaviour
         transform.rotation = Quaternion.Euler(0f, transform.eulerAngles.y, 82f);
         var p = transform.position; p.y -= footOff * 0.35f; transform.position = p;
         if (barRoot != null) barRoot.gameObject.SetActive(false);
-        SpawnDrop();
-        Destroy(gameObject, 8f);
+        if (team == Team.Wild && collectible) BlueprintPickup.Spawn(this);   // 격파 → 설계도
+        else { SpawnDrop(); Destroy(gameObject, 8f); }
+    }
+
+    /// 설계도 획득 시 내 군단으로 합류 — 쓰러진 그 개체가 그대로 일어난다
+    public void Revive(Transform owner)
+    {
+        dead = false; hp = maxHp;
+        team = Team.Player; collectible = false; followTarget = owner;
+        transform.rotation = Quaternion.Euler(0f, transform.eulerAngles.y, 0f);
+        if (motion != null) motion.enabled = true;
+        if (barRoot != null) barRoot.gameObject.SetActive(true);
+        if (barFill != null)
+        {
+            var fm = barFill.GetComponent<MeshRenderer>();
+            if (fm != null) fm.material.color = new Color(0.35f, 0.9f, 0.4f);   // 아군 초록
+        }
+        Ground(true);
     }
 
     void SpawnDrop()
@@ -536,6 +569,65 @@ public class PetProjectile : MonoBehaviour
             }
             Destroy(gameObject);
         }
+    }
+}
+
+/// 격파한 야생이 떨어뜨리는 '설계도' — 주우면 그 펫이 내 군단에 합류 (인구수 10 이내)
+public class BlueprintPickup : MonoBehaviour
+{
+    public const int SupplyCap = 10;
+    PetUnit pet;
+    float bobT, msgT, hideT = 3f;
+    static Transform player;
+
+    /// 현재 군단 인구수 합계
+    public static int SquadSupply()
+    {
+        int s = 0;
+        foreach (var u in PetUnit.All)
+            if (u.Alive && u.team == PetUnit.Team.Player) s += u.supply;
+        return s;
+    }
+
+    public static void Spawn(PetUnit pet)
+    {
+        var g = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        g.name = "설계도_" + pet.name;
+        Object.Destroy(g.GetComponent<Collider>());
+        float s = Mathf.Clamp(pet.body * 0.06f, 0.8f, 2.5f);
+        g.transform.position = pet.transform.position + Vector3.up * (s + 0.5f);
+        g.transform.localScale = Vector3.one * s;
+        var mr = g.GetComponent<MeshRenderer>();
+        mr.material = new Material(Shader.Find("Universal Render Pipeline/Unlit"));
+        mr.material.color = new Color(1.7f, 1.4f, 0.35f);      // 금빛 (블룸에 반짝)
+        g.AddComponent<BlueprintPickup>().pet = pet;
+    }
+
+    void Update()
+    {
+        if (pet == null) { Destroy(gameObject); return; }
+        // 쓰러진 시체는 잠깐 보여주고 숨긴다 (설계도만 남음)
+        if (hideT > 0f) { hideT -= Time.deltaTime; if (hideT <= 0f) pet.gameObject.SetActive(false); }
+
+        bobT += Time.deltaTime;
+        transform.Rotate(0f, 120f * Time.deltaTime, 0f, Space.World);
+        transform.position += Vector3.up * Mathf.Cos(bobT * 2.5f) * 0.004f;
+        msgT -= Time.deltaTime;
+
+        if (player == null) { var p = GameObject.Find("Player"); if (p != null) player = p.transform; else return; }
+        if (Vector3.Distance(player.position, transform.position) > 4f) return;
+
+        int have = SquadSupply();
+        if (have + pet.supply > SupplyCap)
+        {   // 자리 없으면 안 주워짐 — 그대로 남아 있다가 자리 나면 획득 가능
+            if (msgT <= 0f) { msgT = 2.5f; SquadHUD.Toast($"인구수 부족! {have}+{pet.supply} > {SupplyCap}"); }
+            return;
+        }
+        pet.gameObject.SetActive(true);
+        pet.Revive(player);
+        SquadHUD.Toast($"{pet.name} 합류!  인구수 {SquadSupply()}/{SupplyCap}");
+        FX.Burst(transform.position, new Color(1.8f, 1.5f, 0.5f, 0.95f), 20, 0.25f, 2.2f);
+        Destroy(gameObject);
     }
 }
 
