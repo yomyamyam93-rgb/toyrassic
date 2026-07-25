@@ -62,6 +62,7 @@ public static class FX
     public static void PopText(Vector3 pos, string text, Color c, float scale = 1f)
     {
         var go = new GameObject("fx_dmg");
+        go.transform.SetParent(SceneBuckets.Fx);
         go.transform.position = pos + new Vector3(Random.Range(-0.4f, 0.4f), 0f, Random.Range(-0.2f, 0.2f));
         var tm = go.AddComponent<TextMesh>();
         tm.text = text;
@@ -79,6 +80,7 @@ public static class FX
     public static void Burst(Vector3 pos, Color c, int count, float size, float speed, float life = 0.45f)
     {
         var go = new GameObject("fx_burst");
+        go.transform.SetParent(SceneBuckets.Fx);
         go.transform.position = pos;
         var ps = go.AddComponent<ParticleSystem>();
         ps.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);   // 설정 전 정지 (재생 중 설정 에러 방지)
@@ -111,6 +113,7 @@ public static class FX
     public static void Bolt(Vector3 a, Vector3 b, Color c, float width, float dur = 0.14f)
     {
         var go = new GameObject("fx_bolt");
+        go.transform.SetParent(SceneBuckets.Fx);
         var lr = go.AddComponent<LineRenderer>();
         lr.material = PMat();
         lr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
@@ -137,6 +140,7 @@ public static class FX
                              float sweepDur = 0.28f, float fadeDur = 0.22f)
     {
         var go = new GameObject("fx_sweep");
+        go.transform.SetParent(SceneBuckets.Fx);
         go.transform.position = center + Vector3.up * 0.6f;
         go.transform.rotation = Quaternion.Euler(0f, startYaw, 0f);
 
@@ -177,6 +181,7 @@ public class FxSwingTrail : MonoBehaviour
     public static void Spawn(Vector3 center, float startYaw, float sweepDeg, float radius, Color c, float dur)
     {
         var go = new GameObject("fx_swingtrail");
+        go.transform.SetParent(SceneBuckets.Fx);
         go.transform.position = center;
         var ps = go.AddComponent<ParticleSystem>();
         ps.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);   // 설정 전 정지

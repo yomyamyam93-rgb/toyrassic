@@ -5,21 +5,37 @@ using UnityEngine.UI;
 /// 좌상단=내 상태 / 우상단=수집품 / 중앙 상단=토스트 / 좌하단=조작 힌트.
 public class SquadHUD : MonoBehaviour
 {
-    // ── UI 가이드 상수 (docs/UI_가이드.md — 임의 값 금지) ──
-    const int FontH1 = 26, FontBody = 18, FontCap = 14;
-    const float Margin = 24f, Gap = 8f, Pad = 14f;
-    const float BarH = 18f, BarSubH = 10f, PanelW = 320f;
-    static readonly Color PanelBg = new Color(0.078f, 0.090f, 0.110f, 0.72f);
-    static readonly Color BarBg = new Color(0f, 0f, 0f, 0.60f);
-    static readonly Color TxtMain = new Color(1f, 1f, 1f, 0.95f);
-    static readonly Color TxtSub = new Color(1f, 1f, 1f, 0.65f);
-    static readonly Color HpMine = new Color(0.96f, 0.42f, 0.38f);
-    static readonly Color HpPet = new Color(0.36f, 0.88f, 0.42f);
-    static readonly Color Gold = new Color(1f, 0.84f, 0.28f);
-    static readonly Color Accent = new Color(1f, 0.88f, 0.45f);
+    // ── UI 가이드 기본값 (docs/UI_가이드.md) — 인스펙터에서 다듬고 '다시 그리기' ──
+    [Header("타이포")]
+    public int FontH1 = 26;
+    public int FontBody = 18;
+    public int FontCap = 14;
 
-    static string toastMsg; static float toastT;
-    public static void Toast(string msg) { toastMsg = msg; toastT = 3.5f; }
+    [Header("여백·간격 (8pt 그리드)")]
+    public float Margin = 24f;
+    public float Gap = 8f;
+    public float Pad = 14f;
+
+    [Header("패널·바 크기")]
+    public float BarH = 18f;
+    public float BarSubH = 10f;
+    public float PanelW = 320f;
+
+    [Header("색 (역할별)")]
+    public Color PanelBg = new Color(0.078f, 0.090f, 0.110f, 0.72f);
+    public Color BarBg = new Color(0f, 0f, 0f, 0.60f);
+    public Color TxtMain = new Color(1f, 1f, 1f, 0.95f);
+    public Color TxtSub = new Color(1f, 1f, 1f, 0.65f);
+    public Color HpMine = new Color(0.96f, 0.42f, 0.38f);
+    public Color HpPet = new Color(0.36f, 0.88f, 0.42f);
+    public Color Gold = new Color(1f, 0.84f, 0.28f);
+    public Color Accent = new Color(1f, 0.88f, 0.45f);
+
+    [Header("토스트")]
+    [Tooltip("표시 시간 (초)")] public float toastTime = 3.5f;
+
+    static string toastMsg; static float toastT; static float toastDur = 3.5f;
+    public static void Toast(string msg) { toastMsg = msg; toastT = toastDur; }
 
     Font font;
     Sprite round;
@@ -28,12 +44,24 @@ public class SquadHUD : MonoBehaviour
     GameObject petBars;
     CanvasGroup toastGroup;
 
+    GameObject canvasRoot;
+
     void Start()
     {
         font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
         round = Sprite.Create(FX.RoundedTex(),
             new Rect(0, 0, 64, 24), new Vector2(0.5f, 0.5f), 100f, 0,
             SpriteMeshType.FullRect, new Vector4(11, 11, 11, 11));   // 9-슬라이스 라운드 12px
+        toastDur = toastTime;
+        Build();
+    }
+
+    /// 인스펙터에서 값 다듬은 뒤 호출 — HUD 를 새 값으로 다시 그림 (플레이 중)
+    public void Rebuild()
+    {
+        if (!Application.isPlaying || font == null) return;
+        if (canvasRoot != null) Destroy(canvasRoot);
+        toastDur = toastTime;
         Build();
     }
 
@@ -105,6 +133,7 @@ public class SquadHUD : MonoBehaviour
     void Build()
     {
         var cgo = new GameObject("HUD_Canvas", typeof(Canvas), typeof(CanvasScaler));
+        canvasRoot = cgo;
         var canvas = cgo.GetComponent<Canvas>();
         canvas.renderMode = RenderMode.ScreenSpaceOverlay;
         var scaler = cgo.GetComponent<CanvasScaler>();

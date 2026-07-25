@@ -430,6 +430,7 @@ public class PetUnit : MonoBehaviour
         var q = GameObject.CreatePrimitive(PrimitiveType.Quad);
         Object.Destroy(q.GetComponent<Collider>());
         q.name = "tele_" + name;
+        q.transform.SetParent(SceneBuckets.Fx);
         if (terrain != null) center.y = terrain.SampleHeight(center) + terrain.transform.position.y;
         q.transform.position = center + Vector3.up * 0.25f;
         q.transform.rotation = Quaternion.Euler(90f, 0f, 0f);
@@ -740,6 +741,7 @@ public class PetUnit : MonoBehaviour
         barY = top + body * (isAvatar ? 1.0f : 0.38f) + 1.2f;   // 머리 위 여유 간격 — 착붙 금지
         barBaseScale = 1.35f;   // ★전 유닛 동일 크기 (몸 크기 비례 폐지 — 제각각 버그 수정)
         barRoot = new GameObject(name + "_hpbar").transform;
+        barRoot.SetParent(SceneBuckets.Bars);   // 하이라키 정리
         barRoot.localScale = Vector3.one * barBaseScale;
         barSmoothY = transform.position.y + barY;
         barRoot.position = transform.position + Vector3.up * barY;   // 생성 즉시 제자리 (원점에 떴다 오는 버그 방지)
