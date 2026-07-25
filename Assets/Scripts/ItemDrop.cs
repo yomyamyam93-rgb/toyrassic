@@ -25,7 +25,10 @@ public class ItemDrop : MonoBehaviour
 
     static string IconId(Kind k) => k == Kind.Wood ? "나뭇가지" : k == Kind.Stone ? "돌" : "알";
 
-    public static ItemDrop Spawn(Kind kind, Vector3 pos, int amount, GameObject legacyVisual = null)
+    // 부서질 때 통! 하고 퍼져나가는 연출
+    bool popping; float popT; Vector3 popStart, popTarget;
+
+    public static ItemDrop Spawn(Kind kind, Vector3 pos, int amount, GameObject legacyVisual = null, Vector3? popFrom = null)
     {
         if (legacyVisual != null) Object.Destroy(legacyVisual);   // 3D 비주얼은 안 씀 (아이콘 통일)
         var set = DropDisplayManager.I;
@@ -54,8 +57,12 @@ public class ItemDrop : MonoBehaviour
         var terr = Terrain.activeTerrain;
         if (terr != null) pos.y = terr.SampleHeight(pos) + terr.transform.position.y;
         d.baseY = pos.y + 1.1f;
-        g.transform.position = pos + Vector3.up * 1.1f;
-
+        if (popFrom.HasValue)
+        {   // 통! — 중심에서 포물선으로 튀어나감
+            d.popping = true; d.popStart = popFrom.Value; d.popTarget = pos;
+            g.transform.position = popFrom.Value;
+        }
+        else g.transform.position = pos + Vector3.up * 1.1f;
         d.MakeBeam();
         return d;
     }
@@ -127,6 +134,22 @@ public class ItemDrop : MonoBehaviour
             transform.position = Vector3.MoveTowards(transform.position, target, flySpd * Time.deltaTime);
             transform.localScale = Vector3.MoveTowards(transform.localScale, transform.localScale * 0.3f, 4f * Time.deltaTime);
             if (Vector3.Distance(transform.position, target) < 1.2f) Award();
+            return;
+        }
+
+        // 통! 튀어나가는 중 — 포물선 후 정착
+        if (popping)
+        {
+            popT += Time.deltaTime / 0.45f;
+            float t = Mathf.Clamp01(popT);
+            float ease = 1f - Mathf.Pow(1f - t, 2f);   // 감속하며 도착
+            var horiz = Vector3.Lerp(new Vector3(popStart.x, 0, popStart.z),
+                                     new Vector3(popTarget.x, 0, popTarget.z), ease);
+            float y = Mathf.Lerp(popStart.y, baseY, t) + Mathf.Sin(t * Mathf.PI) * 1.7f;
+            transform.position = new Vector3(horiz.x, y, horiz.z);
+            if (Camera.main != null) transform.rotation = Camera.main.transform.rotation;
+            if (beam != null) beam.position = new Vector3(horiz.x, baseY - 1.1f, horiz.z);
+            if (t >= 1f) popping = false;
             return;
         }
 

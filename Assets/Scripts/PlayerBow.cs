@@ -51,6 +51,8 @@ public class PlayerBow : MonoBehaviour
     bool prevPressed, chopMode;      // 패기(도구) / 활 자동 분기
     PlayerGather gather;
     Transform toolAxe, toolPick;
+    TrailRenderer trailAxe, trailPick;   // 스윙 궤적
+    float prevSwingT;
     Vector3 aimDir = Vector3.forward;
     BlobMotion motion;
     Camera cam;
@@ -90,6 +92,25 @@ public class PlayerBow : MonoBehaviour
         }
         toolAxe = MakeTool("Axe", new Color(0.78f, 0.80f, 0.85f), new Vector3(0.12f, 0.55f, 0.45f));
         toolPick = MakeTool("Pickaxe", new Color(0.46f, 0.45f, 0.43f), new Vector3(0.9f, 0.16f, 0.22f));
+        trailAxe = MakeTrail(toolAxe);
+        trailPick = MakeTrail(toolPick);
+    }
+
+    /// 도구 머리 끝의 스윙 궤적 트레일 — 휘두르는 동안만 발광
+    TrailRenderer MakeTrail(Transform tool)
+    {
+        var tip = new GameObject("trail");
+        tip.transform.SetParent(tool, false);
+        tip.transform.localPosition = new Vector3(0f, 0f, 1.78f);
+        var tr = tip.AddComponent<TrailRenderer>();
+        tr.time = 0.16f;
+        tr.startWidth = 0.5f; tr.endWidth = 0.03f;
+        tr.material = new Material(Shader.Find("Sprites/Default"));
+        tr.startColor = new Color(1.6f, 1.5f, 1.1f, 0.8f);   // 밝게 — 블룸 살짝
+        tr.endColor = new Color(1.4f, 1.3f, 1.0f, 0f);
+        tr.emitting = false;
+        tr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+        return tr;
     }
 
     /// 캐릭터 텍스처 평균색 (1×1 로 블릿해서 읽음)
@@ -419,24 +440,36 @@ public class PlayerBow : MonoBehaviour
             var toolHeld = gearV == GearKind.Axe ? toolAxe : gearV == GearKind.Pick ? toolPick : null;
             if (toolHeld != null)
             {
+                var trail = gearV == GearKind.Axe ? trailAxe : trailPick;
                 bool chopping = gather != null && gather.SwingT > 0f;
                 if (chopping)
-                {   // 패기 스윙 — 오른손이 도구를 들고 내려찍음
+                {   // 패기 스윙 — 백스윙(예열) → 슈웅! 가속 내려찍기
                     var cp = gather.ChopPos;
                     var cdir = cp - transform.position; cdir.y = 0f;
                     cdir = cdir.sqrMagnitude > 0.01f ? cdir.normalized : fwd;
-                    float kk = 1f - gather.SwingT;                      // 0→1 내려찍기 (가속)
-                    var raisedP = transform.position + cdir * 1.0f + Vector3.up * 3.6f;
-                    var hitP = Vector3.Lerp(transform.position, cp, 0.6f) + Vector3.up * 0.9f;
-                    handR.position = Vector3.Lerp(raisedP, hitP, kk * kk);
+                    float sk = 1f - gather.SwingT;                      // 0→1
+                    float p;
+                    if (sk < 0.30f) p = -0.22f * Mathf.Sin(sk / 0.30f * Mathf.PI * 0.5f);  // 백스윙: 더 들어올림
+                    else { float u = (sk - 0.30f) / 0.70f; p = Mathf.Sin(Mathf.Pow(u, 1.9f) * Mathf.PI * 0.5f); }  // 가속 후 도달 감속
+                    var raisedP = transform.position + cdir * 1.0f + Vector3.up * 3.7f;
+                    var hitP = Vector3.Lerp(transform.position, cp, 0.62f) + Vector3.up * 0.9f;
+                    handR.position = Vector3.LerpUnclamped(raisedP, hitP, p);
                     var toolAim = (hitP + cdir * 0.6f + Vector3.down * 0.3f) - handR.position;
                     if (toolAim.sqrMagnitude > 0.01f) toolHeld.rotation = Quaternion.LookRotation(toolAim.normalized, Vector3.up);
+                    // 궤적 트레일 — 새 스윙 시작 시 초기화, 내려찍는 구간만 발광
+                    if (trail != null)
+                    {
+                        if (gather.SwingT > prevSwingT) trail.Clear();
+                        trail.emitting = sk >= 0.30f && sk <= 0.92f;
+                    }
                 }
                 else
                 {   // 휴대 자세 — 비스듬히 들고 있음
                     var rest = Quaternion.LookRotation(fwd, Vector3.up) * Quaternion.Euler(52f, 12f, 0f);
                     toolHeld.rotation = Quaternion.Slerp(toolHeld.rotation, rest, 8f * Time.deltaTime);
+                    if (trail != null) trail.emitting = false;
                 }
+                prevSwingT = gather != null ? gather.SwingT : 0f;
             }
         }
     }
