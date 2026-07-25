@@ -268,11 +268,21 @@ public class ArrowProj : MonoBehaviour
         Object.Destroy(g.GetComponent<Collider>());
         g.name = "arrow";
         var m = new Material(Shader.Find("Universal Render Pipeline/Unlit"));
-        m.color = new Color(0.85f, 0.75f, 0.55f);
+        m.color = new Color(2.4f, 1.9f, 0.6f);                    // HDR — 블룸으로 반짝
         g.GetComponent<MeshRenderer>().material = m;
-        g.transform.localScale = new Vector3(0.09f, 0.7f, 0.09f);
+        g.transform.localScale = new Vector3(0.16f, 1.0f, 0.16f); // 굵고 길게 — 잘 보이게
         g.transform.position = from;
         g.transform.rotation = Quaternion.LookRotation(dir) * Quaternion.Euler(90f, 0f, 0f);
+
+        // 빛 꼬리 — 궤적이 한눈에 보이게
+        var tr = g.AddComponent<TrailRenderer>();
+        tr.time = 0.18f;
+        tr.startWidth = 0.28f; tr.endWidth = 0.02f;
+        tr.material = new Material(Shader.Find("Universal Render Pipeline/Unlit"));
+        tr.material.color = new Color(2.2f, 1.6f, 0.5f, 0.7f);
+        tr.startColor = new Color(1f, 0.9f, 0.5f, 0.85f);
+        tr.endColor = new Color(1f, 0.7f, 0.3f, 0f);
+
         var p = g.AddComponent<ArrowProj>();
         p.dir = dir.normalized; p.speed = speed; p.dmg = dmg; p.range = range;
     }
