@@ -14,11 +14,41 @@ public class PetUnit : MonoBehaviour
     public Team team = Team.Wild;
     public Mat mat = Mat.Metal;
 
-    [Header("수집 (인구수 군단제)")]
-    [Tooltip("이 펫의 인구수 비용 (S1/M2/L3/XL4)")]
+    [Header("수집·성장 (한 마리 키우기)")]
+    [Tooltip("티어 무게 (S1/M2/L3/XL4) — 격파 경험치 계산에 사용")]
     public int supply = 1;
-    [Tooltip("야생일 때 격파하면 설계도를 떨어뜨려 수집 가능")]
+    [Tooltip("야생일 때 격파하면 설계도를 떨어뜨려 수집(교체) 가능")]
     public bool collectible = false;
+    public int level = 1;
+    public float xp;
+
+    float XpNeed => 25f + 20f * (level - 1);   // 레벨업 필요 경험치 (완만 증가)
+
+    public void GainXP(float amt)
+    {
+        if (dead || team != Team.Player) return;
+        xp += amt;
+        while (xp >= XpNeed) { xp -= XpNeed; LevelUp(true); }
+    }
+
+    void LevelUp(bool fx)
+    {
+        level++;
+        str *= 1.12f; agi *= 1.06f; vit *= 1.12f;
+        maxHp = vit * 10f; hp = maxHp;                      // 레벨업 = 풀회복
+        if (fx)
+        {
+            SquadHUD.Toast($"{name}  레벨 {level}!");
+            FX.Burst(transform.position + Vector3.up * body * 0.5f,
+                     new Color(1.8f, 1.6f, 0.4f, 0.95f), 24, body * 0.07f, body * 0.6f);
+        }
+    }
+
+    /// 펫 교체 시 레벨 이어받기 — 조용히 배수만 적용
+    public void ApplyLevels(int targetLevel)
+    {
+        while (level < targetLevel) LevelUp(false);
+    }
 
     [Header("코어 스탯 (코어가 전부 정함)")]
     public float str = 10f;    // 힘 = 물리 딜
@@ -378,6 +408,11 @@ public class PetUnit : MonoBehaviour
         transform.rotation = Quaternion.Euler(0f, transform.eulerAngles.y, 82f);
         var p = transform.position; p.y -= footOff * 0.35f; transform.position = p;
         if (barRoot != null) barRoot.gameObject.SetActive(false);
+        if (team == Team.Wild)
+        {   // 격파 경험치 → 내 펫 (한 마리 키우기)
+            foreach (var u in All)
+                if (u.Alive && u.team == Team.Player) { u.GainXP(supply * 18f); break; }
+        }
         if (team == Team.Wild && collectible) BlueprintPickup.Spawn(this);   // 격파 → 설계도
         else { SpawnDrop(); Destroy(gameObject, 8f); }
     }
@@ -572,21 +607,19 @@ public class PetProjectile : MonoBehaviour
     }
 }
 
-/// 격파한 야생이 떨어뜨리는 '설계도' — 주우면 그 펫이 내 군단에 합류 (인구수 10 이내)
+/// 격파한 야생이 떨어뜨리는 '설계도' — 주우면 내 펫이 그 펫으로 교체 (레벨 이어받음)
 public class BlueprintPickup : MonoBehaviour
 {
-    public const int SupplyCap = 10;
     PetUnit pet;
-    float bobT, msgT, hideT = 3f;
+    float bobT, hideT = 3f;
     static Transform player;
 
-    /// 현재 군단 인구수 합계
-    public static int SquadSupply()
+    /// 현재 데리고 다니는 펫 (한 마리)
+    public static PetUnit MyPet()
     {
-        int s = 0;
         foreach (var u in PetUnit.All)
-            if (u.Alive && u.team == PetUnit.Team.Player) s += u.supply;
-        return s;
+            if (u.Alive && u.team == PetUnit.Team.Player) return u;
+        return null;
     }
 
     public static void Spawn(PetUnit pet)
@@ -612,20 +645,22 @@ public class BlueprintPickup : MonoBehaviour
         bobT += Time.deltaTime;
         transform.Rotate(0f, 120f * Time.deltaTime, 0f, Space.World);
         transform.position += Vector3.up * Mathf.Cos(bobT * 2.5f) * 0.004f;
-        msgT -= Time.deltaTime;
 
         if (player == null) { var p = GameObject.Find("Player"); if (p != null) player = p.transform; else return; }
         if (Vector3.Distance(player.position, transform.position) > 4f) return;
 
-        int have = SquadSupply();
-        if (have + pet.supply > SupplyCap)
-        {   // 자리 없으면 안 주워짐 — 그대로 남아 있다가 자리 나면 획득 가능
-            if (msgT <= 0f) { msgT = 2.5f; SquadHUD.Toast($"인구수 부족! {have}+{pet.supply} > {SupplyCap}"); }
-            return;
-        }
+        // 한 마리 키우기 — 주우면 기존 펫과 교체 (레벨 이어받음)
+        var cur = MyPet();
         pet.gameObject.SetActive(true);
         pet.Revive(player);
-        SquadHUD.Toast($"{pet.name} 합류!  인구수 {SquadSupply()}/{SupplyCap}");
+        if (cur != null && cur != pet)
+        {
+            pet.ApplyLevels(cur.level);
+            pet.xp = cur.xp;
+            Object.Destroy(cur.gameObject);
+            SquadHUD.Toast($"{pet.name}(으)로 교체!  Lv.{pet.level} 이어받음");
+        }
+        else SquadHUD.Toast($"{pet.name} 합류!");
         FX.Burst(transform.position, new Color(1.8f, 1.5f, 0.5f, 0.95f), 20, 0.25f, 2.2f);
         Destroy(gameObject);
     }
