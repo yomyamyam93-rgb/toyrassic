@@ -941,13 +941,23 @@ MonoBehaviour:
     modelEuler: {x: 0, y: 0, z: 0}
     modelPos: {x: 0, y: 0, z: 0}
     modelScale: 1
-    style: 0
+    style: 1
+    hFlip: 1
   - id: "\uACE1\uAC31\uC774"
     model: {fileID: 7477283798205093626, guid: 7af4502715d004e44bdb1a48129b0078, type: 3}
+    modelEuler: {x: 4, y: 88.1, z: -16.5}
+    modelPos: {x: 0, y: 0.94, z: -1.3}
+    modelScale: 1
+    style: 0
+    hFlip: 0
+  - id: "\uAC80"
+    model: {fileID: 0}
     modelEuler: {x: 0, y: 0, z: 0}
     modelPos: {x: 0, y: 0, z: 0}
     modelScale: 1
-    style: 0
+    style: 1
+    hFlip: 0
+  weaponsMigrated: 0
   axeSetup:
     modelEuler: {x: 0, y: 0, z: 0}
     modelPos: {x: 0, y: 0, z: 0}
@@ -972,9 +982,9 @@ MonoBehaviour:
   swingEndPos: {x: 0.1, y: -0.39, z: 2.58}
   swingEndEuler: {x: 80, y: 0, z: 0}
   backswingExtra: 0.22
-  hSwingStartPos: {x: -2.4, y: 1.6, z: 0.5}
-  hSwingStartEuler: {x: 0, y: -75, z: 90}
-  hSwingEndPos: {x: 2.4, y: 1.4, z: 1}
+  hSwingStartPos: {x: -1.59, y: 0.11, z: 0.5}
+  hSwingStartEuler: {x: -0.29, y: -85.1, z: 90}
+  hSwingEndPos: {x: 2.67, y: -0.13, z: 3.6}
   hSwingEndEuler: {x: 0, y: 75, z: 90}
   trailColor: {r: 1.8, g: 1.7, b: 1.2, a: 1}
   trailAlpha: 0.95
@@ -1045,8 +1055,9 @@ MonoBehaviour:
   pickCooldown: 0.72
   impactDelay: 0.24
   startWithTools: 1
-  reach: 12
-  meleeRange: 6
+  swingRange: 5.5
+  swingAngle: 130
+  maxNodesPerSwing: 2
   treeHp: 30
   rockHp: 40
   dropPieces: 3

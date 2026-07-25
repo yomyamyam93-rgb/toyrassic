@@ -434,8 +434,8 @@ public class PlayerBow : MonoBehaviour
                                  CursorMode.Auto);
         }
 
-        // 메뉴 창이 열려 있으면 전투 입력 차단
-        if (MenuUI.IsOpen)
+        // 메뉴·이름 짓기 창이 열려 있으면 전투 입력 차단
+        if (MenuUI.IsOpen || PetNameUI.IsOpen)
         {
             drawing = false; drawT = 0f; aimLen = 0f;
             if (aimLine != null) aimLine.enabled = false;
@@ -488,6 +488,8 @@ public class PlayerBow : MonoBehaviour
         var pos = ray.GetPoint(t);
         var d = pos - transform.position; d.y = 0f;
         if (d.magnitude > 16f) pos = transform.position + d.normalized * 16f;
+        if (d.magnitude < 6f)   // 발밑 설치 방지 — 최소 6m 앞에
+            pos = transform.position + (d.sqrMagnitude > 0.01f ? d.normalized : aimDir) * 6f;
         PlayerBuild.PlaceAt(pos);
         Inv.Consume("부화기", 1);
         if (Hotbar.I != null) Hotbar.I.RemoveKind(GearKind.Incubator);

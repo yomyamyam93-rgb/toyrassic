@@ -578,9 +578,9 @@ public class PetUnit : MonoBehaviour
         deathT = 0f; deathStartY = transform.position.y; deathDropped = false;
         if (barRoot != null) barRoot.gameObject.SetActive(false);
         if (team == Team.Wild)
-        {   // 격파 경험치 → 내 펫 (캐릭터 제외). 펫 획득은 오직 부화로!
+        {   // 격파 경험치 → 내 펫 (캐릭터·건물 제외). 펫 획득은 오직 부화로!
             foreach (var u in All)
-                if (u.Alive && u.team == Team.Player && !u.isAvatar) { u.GainXP(supply * 18f); break; }
+                if (u.Alive && u.team == Team.Player && !u.isAvatar && !u.isStructure) { u.GainXP(supply * 18f); break; }
         }
         Destroy(gameObject, 8f);
     }
@@ -850,11 +850,11 @@ public class BlueprintPickup : MonoBehaviour
     float bobT, hideT = 3f;
     static Transform player;
 
-    /// 현재 데리고 다니는 펫 (한 마리, 캐릭터 제외)
+    /// 현재 데리고 다니는 펫 (한 마리 — 캐릭터·건물 제외)
     public static PetUnit MyPet()
     {
         foreach (var u in PetUnit.All)
-            if (u.Alive && u.team == PetUnit.Team.Player && !u.isAvatar) return u;
+            if (u.Alive && u.team == PetUnit.Team.Player && !u.isAvatar && !u.isStructure) return u;
         return null;
     }
 

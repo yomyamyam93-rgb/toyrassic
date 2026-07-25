@@ -274,6 +274,7 @@ public class Incubator : MonoBehaviour
                     Destroy(old.gameObject);
                     SquadHUD.Toast($"{entry.koreanName}(으)로 교체 부화!  Lv.{u.level} 이어받음");
                 }
+                PetNameUI.Show(u);   // 이름 짓기 창
             }
         }
     }
