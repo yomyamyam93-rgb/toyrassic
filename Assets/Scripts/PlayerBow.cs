@@ -40,6 +40,8 @@ public class PlayerBow : MonoBehaviour
     float cd, drawT, aimLen; bool drawing;
     /// 당기는 중인가 — PlayerMove 가 읽어서 통통 대신 뭉글뭉글 이동으로 전환
     public bool IsDrawing => drawing;
+    /// 얼마나 당겼나 0~1 — 많이 당길수록 이속 감소용
+    public float Draw01 => drawing ? Mathf.Clamp01(aimLen / Mathf.Max(1f, arrowRange)) : 0f;
     float stableY;   // 통통 바운스를 걸러낸 발사·에임 기준 높이
     Vector3 aimDir = Vector3.forward;
     BlobMotion motion;

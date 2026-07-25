@@ -14,6 +14,10 @@ public class PlayerMove : MonoBehaviour
     public float moveSpeed = 25.5f;
     public float accel = 34f;   // 속도가 빨라진 만큼 가속도 같이 올림 (반응 유지)
 
+    [Header("활 당김 이속 감소")]
+    [Tooltip("최대로 당겼을 때 이속 배율 (0.35 = 35%까지 느려짐, 멈추진 않음)")]
+    public float fullDrawSpeed = 0.35f;
+
     [Header("물")]
     public float waterY = 40f;
     [Tooltip("물에 잠기면 느려진다")]
@@ -105,6 +109,9 @@ public class PlayerMove : MonoBehaviour
         }
 
         float top = moveSpeed;
+        // 활을 당길수록 점점 느려짐 — 최대 당김 = fullDrawSpeed 배 (멈추진 않음)
+        if (bow != null && bow.IsDrawing)
+            top *= Mathf.Lerp(1f, fullDrawSpeed, bow.Draw01);
         float gy = GroundAt(transform.position);
         bool wet = gy < waterY;
         if (wet) top *= wetFactor;
