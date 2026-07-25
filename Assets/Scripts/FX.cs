@@ -57,12 +57,31 @@ public static class FX
     // ── 월드 팝업 텍스트 (TMP) — 프리텐다드 Black + 그라디언트 + 두꺼운 검은 테두리 ──
     public enum PopStyle { Item, Hit, Crit }
     static TMPro.TMP_FontAsset popFont;
+    static bool popFontTried;
     static TMPro.TMP_FontAsset PopFont()
     {
-        if (popFont != null) return popFont;
-        var f = Resources.Load<Font>("Fonts/Pretendard-Black");
-        if (f != null) popFont = TMPro.TMP_FontAsset.CreateFontAsset(f);
+        if (popFontTried) return popFont;   // 1회만 시도 — 피격마다 재시도해서 렉 걸리던 것 방지
+        popFontTried = true;
+        popFont = Resources.Load<TMPro.TMP_FontAsset>("Fonts/PretendardBlack SDF");   // 미리 구운 에셋
+        if (popFont == null) popFont = TMPro.TMP_Settings.defaultFontAsset;           // 폴백
         return popFont;
+    }
+
+    // 스타일별 공유 재질 — 팝업마다 재질을 안 만들어 렉 방지, 테두리는 진한 검정
+    static readonly System.Collections.Generic.Dictionary<PopStyle, Material> popMats
+        = new System.Collections.Generic.Dictionary<PopStyle, Material>();
+    static Material PopMat(PopStyle s)
+    {
+        if (popMats.TryGetValue(s, out var m) && m != null) return m;
+        var f = PopFont();
+        if (f == null || f.material == null) return null;
+        m = new Material(f.material);
+        m.EnableKeyword("OUTLINE_ON");
+        m.SetFloat(TMPro.ShaderUtilities.ID_OutlineWidth, s == PopStyle.Item ? 0.22f : 0.3f);   // 진하고 두껍게
+        m.SetColor(TMPro.ShaderUtilities.ID_OutlineColor, Color.black);
+        m.SetFloat(TMPro.ShaderUtilities.ID_FaceDilate, 0.14f);   // 글자 살 두께 보강 (볼드감)
+        popMats[s] = m;
+        return m;
     }
 
     /// 피해 숫자 — 일반: 흰→회색 그라디언트 / 치명타: 붉은 그라디언트 (c·scale 은 호환용)
@@ -96,11 +115,9 @@ public static class FX
                 new Color(0.85f, 0.12f, 0.10f), new Color(0.85f, 0.12f, 0.10f));
         else
             t.colorGradient = new TMPro.VertexGradient(Color.white, Color.white, Color.white, Color.white);
-        // 두꺼운 검은 테두리
-        var mat = t.fontMaterial;
-        mat.EnableKeyword("OUTLINE_ON");
-        mat.SetFloat(TMPro.ShaderUtilities.ID_OutlineWidth, style == PopStyle.Item ? 0.18f : 0.24f);
-        mat.SetColor(TMPro.ShaderUtilities.ID_OutlineColor, Color.black);
+        // 두꺼운 검은 테두리 — 스타일별 공유 재질 (팝업마다 재질 생성 안 함)
+        var mat = PopMat(style);
+        if (mat != null) t.fontSharedMaterial = mat;
         var mr = go.GetComponent<MeshRenderer>();
         if (mr != null) { mr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off; mr.sortingOrder = 50; }
         go.AddComponent<FxDmgNum>();
