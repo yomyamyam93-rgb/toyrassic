@@ -961,6 +961,24 @@ MonoBehaviour:
   m_Script: {fileID: 759302778}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PlayerBuild
+  costWood: 20
+  costStone: 12
+--- !u!114 &107336122
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 107336108}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 6f81e6da30a661547ade07b2e4e93833, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::PlayerGather
+  reach: 10
+  cooldown: 0.35
+  woodPer: 3
+  stonePer: 3
 --- !u!1 &123082802
 GameObject:
   m_ObjectHideFlags: 0
@@ -8998,6 +9016,7 @@ GameObject:
   - component: {fileID: 653440019}
   - component: {fileID: 653440018}
   - component: {fileID: 653440021}
+  - component: {fileID: 653440022}
   m_Layer: 0
   m_Name: World Manager
   m_TagString: Untagged
@@ -9227,6 +9246,28 @@ MonoBehaviour:
   minHeight: 2
   maxHeight: 267
   avoidCliffEdge: 1
+--- !u!114 &653440022
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 653440017}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 38abb5f8add08f6438a4a680b4a61ffa, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::RockManager
+  terrain: {fileID: 1274771777}
+  cellSize: 46
+  density: 0.3
+  clump: 0.55
+  minScale: 0.7
+  maxScale: 1.7
+  maxSlope: 24
+  minHeight: 43
+  maxHeight: 128
+  seed: 7
 --- !u!1 &659583562
 GameObject:
   m_ObjectHideFlags: 0
@@ -14574,6 +14615,9 @@ PrefabInstance:
     - targetCorrespondingSourceObject: {fileID: 7477283798205093626, guid: a9f97bdace247ed49a6a0d1b04c63f3e, type: 3}
       insertIndex: -1
       addedObject: {fileID: 107336121}
+    - targetCorrespondingSourceObject: {fileID: 7477283798205093626, guid: a9f97bdace247ed49a6a0d1b04c63f3e, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 107336122}
   m_SourcePrefab: {fileID: -4161369568681901532, guid: a9f97bdace247ed49a6a0d1b04c63f3e, type: 3}
 --- !u!1 &1317216152
 GameObject:

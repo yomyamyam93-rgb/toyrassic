@@ -56,11 +56,15 @@ public static class FX
 
     /// 피해 숫자 — 뽁 떠올라 흩어지며 사라짐
     public static void DamageNum(Vector3 pos, float amount, Color c, float scale = 1f)
+        => PopText(pos, Mathf.Max(1, Mathf.RoundToInt(amount)).ToString(), c, scale);
+
+    /// 범용 팝업 텍스트 ("+3 나무" 등) — 피해 숫자와 같은 연출
+    public static void PopText(Vector3 pos, string text, Color c, float scale = 1f)
     {
         var go = new GameObject("fx_dmg");
         go.transform.position = pos + new Vector3(Random.Range(-0.4f, 0.4f), 0f, Random.Range(-0.2f, 0.2f));
         var tm = go.AddComponent<TextMesh>();
-        tm.text = Mathf.Max(1, Mathf.RoundToInt(amount)).ToString();
+        tm.text = text;
         tm.fontSize = 48;
         tm.characterSize = 0.09f * scale;
         tm.anchor = TextAnchor.MiddleCenter;

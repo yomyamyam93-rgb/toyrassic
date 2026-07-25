@@ -237,9 +237,11 @@ public class Incubator : MonoBehaviour
     }
 }
 
-/// B키로 부화기 설치 — 플레이어에 부착
+/// B키로 부화기 설치 — 재료(나무·돌) 필요. 플레이어에 부착
 public class PlayerBuild : MonoBehaviour
 {
+    [Tooltip("부화기 건설 비용")] public int costWood = 20, costStone = 12;
+
     void Update()
     {
         bool pressed = false;
@@ -251,6 +253,12 @@ public class PlayerBuild : MonoBehaviour
 #endif
         if (!pressed) return;
         if (Incubator.Active != null) { SquadHUD.Toast("부화기는 이미 있다 — 알을 가져가자"); return; }
+        if (Stock.Wood < costWood || Stock.Stone < costStone)
+        {
+            SquadHUD.Toast($"재료 부족!  부화기 = 나무 {costWood}·돌 {costStone}  (지금: 나무 {Stock.Wood}·돌 {Stock.Stone}) — E로 채집");
+            return;
+        }
+        Stock.Wood -= costWood; Stock.Stone -= costStone;
 
         var pos = transform.position + transform.forward * 8f;
         var terr = Terrain.activeTerrain;

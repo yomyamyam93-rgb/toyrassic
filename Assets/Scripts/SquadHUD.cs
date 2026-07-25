@@ -133,11 +133,11 @@ public class SquadHUD : MonoBehaviour
         hatchTitle.gameObject.AddComponent<LayoutElement>().minHeight = FontBody + 4;
         MakeBar("HatchBar", hatchBlock.transform, BarSubH, Gold, out hatchFill);
 
-        // ── 우상단: 수집품 (알) ──
-        var eggP = MakePanel("Eggs", cgo.transform, new Vector2(1, 1), new Vector2(-Margin, -Margin), 150f);
+        // ── 우상단: 자원 (나무·돌·알) ──
+        var eggP = MakePanel("Resources", cgo.transform, new Vector2(1, 1), new Vector2(-Margin, -Margin), 170f);
         eggPanel = eggP.gameObject;
-        eggText = MakeText("EggText", eggP, FontBody, Accent, true, TextAnchor.MiddleCenter);
-        eggText.gameObject.AddComponent<LayoutElement>().minHeight = FontBody + 6;
+        eggText = MakeText("ResText", eggP, FontBody, TxtMain, true, TextAnchor.MiddleLeft);
+        eggText.gameObject.AddComponent<LayoutElement>().minHeight = (FontBody + 10) * 3;
 
         // ── 중앙 상단: 토스트 ──
         var toastRT = RT("Toast", cgo.transform);
@@ -155,7 +155,7 @@ public class SquadHUD : MonoBehaviour
         hintRT.sizeDelta = new Vector2(700, 24);
         var hint = MakeText("HintText", hintRT, FontCap, TxtSub);
         Stretch(hint.rectTransform);
-        hint.text = "WASD 이동   ·   좌클릭(꾹) 조준 → 놓아서 발사   ·   B 부화기 설치";
+        hint.text = "WASD 이동   ·   좌클릭(꾹) 조준 → 놓아서 발사   ·   E 채집(나무·바위)   ·   B 부화기 건설";
     }
 
     void Stretch(RectTransform rt)
@@ -194,9 +194,8 @@ public class SquadHUD : MonoBehaviour
             petTitle.color = TxtSub;
         }
 
-        // 알 (우상단, 있을 때만)
-        eggPanel.SetActive(NestSite.EggCount > 0);
-        if (NestSite.EggCount > 0) eggText.text = $"🥚 알 × {NestSite.EggCount}";
+        // 자원 (우상단, 항상)
+        eggText.text = $"🌲 나무  {Stock.Wood}\n🪨 돌  {Stock.Stone}\n🥚 알  {NestSite.EggCount}";
 
         // 부화 게이지 (품는 중에만)
         var inc = Incubator.Active;

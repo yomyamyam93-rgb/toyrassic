@@ -730,14 +730,15 @@ public class PetUnit : MonoBehaviour
 
     // ── HP 바 (둥근 모서리 + 롤식 지연 감소) ──
     // ★몸에 안 붙임 — 스쿼시·통통 바운스에 안 흔들리게 월드 공간에서 부드럽게 따라감
-    float barY, barSmoothY;
+    float barY, barSmoothY, barBaseScale;
     void MakeBar(Renderer r)
     {
         ghostHp = hp;
         float top = r != null ? (r.bounds.max.y - transform.position.y) : 2f;
-        barY = top + body * 0.12f;
+        barY = top + body * (isAvatar ? 0.30f : 0.12f);   // 캐릭터는 머리 위 여유 있게
+        barBaseScale = body * 0.16f;
         barRoot = new GameObject(name + "_hpbar").transform;
-        barRoot.localScale = Vector3.one * (body * 0.16f);
+        barRoot.localScale = Vector3.one * barBaseScale;
         barSmoothY = transform.position.y + barY;
         Transform Quad(string n, Color c, float z, int order)
         {
@@ -768,7 +769,11 @@ public class PetUnit : MonoBehaviour
         var p = transform.position;
         barSmoothY = Mathf.Lerp(barSmoothY, p.y + barY, 7f * Time.deltaTime);
         barRoot.position = new Vector3(p.x, barSmoothY, p.z);
-        barRoot.rotation = Quaternion.LookRotation(barRoot.position - Camera.main.transform.position);
+        var camT = Camera.main.transform;
+        barRoot.rotation = Quaternion.LookRotation(barRoot.position - camT.position);
+        // ★줌 무관 화면 크기 고정 — 카메라 거리에 비례해 월드 크기를 키움
+        float dist = Vector3.Distance(camT.position, barRoot.position);
+        barRoot.localScale = Vector3.one * barBaseScale * Mathf.Clamp(dist / 45f, 0.55f, 6f);
         // 롤식: 실체력은 즉시, 잔상 바는 잠깐 머물다 스르륵 따라 내려옴
         ghostHp = hp > ghostHp ? hp : Mathf.MoveTowards(ghostHp, hp, maxHp * 0.45f * Time.deltaTime);
         float f = maxHp > 0 ? hp / maxHp : 0f;
