@@ -993,7 +993,12 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 6f81e6da30a661547ade07b2e4e93833, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PlayerGather
-  hitRadius: 2.4
+  reach: 12
+  swingCooldown: 0.45
+  treeHits: 3
+  rockHits: 4
+  dropPieces: 3
+  arrowBlockRadius: 1.6
 --- !u!114 &107336123
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1024,6 +1029,18 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PlayerPickup
   reach: 5.5
+--- !u!114 &107336125
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 107336108}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 9346d7c451b431a4aa6c6685af78652f, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Hotbar
 --- !u!1 &123082802
 GameObject:
   m_ObjectHideFlags: 0
@@ -9418,13 +9435,21 @@ MonoBehaviour:
   cornerRadius: 12
   borderWidth: 3
   windowSize: {x: 920, y: 560}
-  slotSize: 64
-  slotGap: 8
+  slotSize: 94
+  slotGap: 2
   slotBg: {r: 0.902, g: 0.859, b: 0.784, a: 1}
   slotBorder: {r: 0.71, g: 0.643, b: 0.533, a: 1}
-  buttonHeight: 44
-  buttonShadow: 4
+  buttonHeight: 50
+  buttonShadow: 0
   hudUseTheme: 1
+  craftRowHeight: 60
+  craftBtnWidth: 170
+  statFontSize: 18
+  statLineSpacing: 1.5
+  statIndent: 16
+  hotbarSlotSize: 58
+  hotbarGap: 6
+  hotbarBottom: 16
 --- !u!1 &659583562
 GameObject:
   m_ObjectHideFlags: 0
@@ -14766,6 +14791,9 @@ PrefabInstance:
     - targetCorrespondingSourceObject: {fileID: 7477283798205093626, guid: a9f97bdace247ed49a6a0d1b04c63f3e, type: 3}
       insertIndex: -1
       addedObject: {fileID: 107336123}
+    - targetCorrespondingSourceObject: {fileID: 7477283798205093626, guid: a9f97bdace247ed49a6a0d1b04c63f3e, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 107336125}
   m_SourcePrefab: {fileID: -4161369568681901532, guid: a9f97bdace247ed49a6a0d1b04c63f3e, type: 3}
 --- !u!1 &1317216152
 GameObject:

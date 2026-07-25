@@ -85,20 +85,12 @@ public class PlayerGather : MonoBehaviour
         return best;
     }
 
-    /// 클릭 순간: 도구를 보유한 대상이 마우스 근처에 있는가 (활/패기 자동 분기)
-    public bool HasTargetAt(Vector2 mp)
-    {
-        int i = FindTarget(mp, out _, out bool isRock);
-        if (i < 0) return false;
-        return isRock ? Stock.HasPick : Stock.HasAxe;   // 도구 없으면 그냥 활
-    }
-
-    /// 한 번 패기 — 쿨다운 자체 관리. 누르고 있으면 연속
-    public void TryChop(Vector2 mp)
+    /// 한 번 패기 — 장착한 도구에 맞는 대상만 (도끼=나무, 곡괭이=바위). 누르고 있으면 연속
+    public void TryChop(Vector2 mp, bool rockOnly)
     {
         if (cd > 0f) return;
         int i = FindTarget(mp, out var wp, out var isRock);
-        if (i < 0) return;
+        if (i < 0 || isRock != rockOnly) return;
         if (isRock ? !Stock.HasPick : !Stock.HasAxe) return;
         cd = swingCooldown; swingT = 1f;
         chopPos = wp + Vector3.up * 2.2f; chopIsRock = isRock;

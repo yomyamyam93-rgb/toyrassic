@@ -266,8 +266,8 @@ public class PlayerBow : MonoBehaviour
             if (d.sqrMagnitude > 0.04f) aimDir = d.normalized;
         }
 
-        // 커서 교체 — 조준 중엔 원형 타겟(중앙 핫스팟), 평소엔 화살표
-        bool wantAim = pressed;
+        // 커서 교체 — 활 조준 중엔 원형 타겟(중앙 핫스팟), 평소엔 화살표
+        bool wantAim = pressed && (Hotbar.I == null || Hotbar.I.Current == GearKind.Bow);
         if (wantAim != cursorIsAim || !cursorSet)
         {
             cursorIsAim = wantAim; cursorSet = true;
@@ -285,28 +285,25 @@ public class PlayerBow : MonoBehaviour
             return;
         }
 
-        // 클릭 분기: 도구 보유 + 나무·바위를 노렸으면 패기, 아니면 활 (자연스럽게)
-        bool pressedNow = pressed && !prevPressed;
-        prevPressed = pressed;
-        if (pressedNow) chopMode = gather != null && gather.HasTargetAt(mp);
-
-        if (pressed && chopMode)
-        {
-            gather.TryChop(mp);                 // 꾹 누르면 연속으로 팸 (쿨다운 내부 처리)
+        // ★장비 기반 행동 — 핫바(1~0)에서 든 것으로만 행동한다
+        var gear = Hotbar.I != null ? Hotbar.I.Current : GearKind.Bow;
+        if (gear == GearKind.Axe || gear == GearKind.Pick)
+        {   // 도구 장착: 클릭 = 해당 노드 패기 (도끼=나무, 곡괭이=바위)
+            if (pressed && gather != null) gather.TryChop(mp, gear == GearKind.Pick);
             drawing = false; drawT = 0f; aimLen = 0f;
         }
-        else if (pressed)
-        {
-            drawing = true;
-            drawT = Mathf.Min(drawTime, drawT + Time.deltaTime);
-            // 에임 게이지: 누르고 있는 동안 사거리가 쭈우욱 차오름 — 놓는 순간의 길이만큼 날아감
-            aimLen = Mathf.MoveTowards(aimLen, arrowRange, arrowRange / Mathf.Max(0.05f, aimFillTime) * Time.deltaTime);
+        else if (gear == GearKind.Bow)
+        {   // 활 장착: 기존 조준·발사
+            if (pressed)
+            {
+                drawing = true;
+                drawT = Mathf.Min(drawTime, drawT + Time.deltaTime);
+                aimLen = Mathf.MoveTowards(aimLen, arrowRange, arrowRange / Mathf.Max(0.05f, aimFillTime) * Time.deltaTime);
+            }
+            if (released && drawing && cd <= 0f) { Fire(Mathf.Max(10f, aimLen)); cd = fireCooldown; }
         }
-        if (released)
-        {
-            if (!chopMode && drawing && cd <= 0f) { Fire(Mathf.Max(10f, aimLen)); cd = fireCooldown; }
-            drawing = false; drawT = 0f; aimLen = 0f; chopMode = false;
-        }
+        else { drawing = false; drawT = 0f; aimLen = 0f; }   // 맨손
+        if (released) { drawing = false; drawT = 0f; aimLen = 0f; }
     }
 
     /// 통통 바운스를 걸러낸 안정 발사점 — 활 중앙 위치에서, 위아래로 안 떨림
@@ -389,25 +386,35 @@ public class PlayerBow : MonoBehaviour
             aimLine.SetPosition(1, from2 + aimDir * aimLen);
         }
 
-        // ── 패기 스윙 — 오른손이 도구를 들고 내려찍음 ──
-        bool chopping = gather != null && gather.SwingT > 0f && !drawing;
+        // ── 장비 비주얼 — 든 것만 보인다 ──
+        var gearV = Hotbar.I != null ? Hotbar.I.Current : GearKind.Bow;
+        if (bowRoot != null) bowRoot.gameObject.SetActive(gearV == GearKind.Bow);
         if (toolAxe != null)
         {
-            toolAxe.gameObject.SetActive(chopping && !gather.ChopIsRock);
-            toolPick.gameObject.SetActive(chopping && gather.ChopIsRock);
-        }
-        if (chopping)
-        {
-            var cp = gather.ChopPos;
-            var cdir = cp - transform.position; cdir.y = 0f;
-            cdir = cdir.sqrMagnitude > 0.01f ? cdir.normalized : fwd;
-            float kk = 1f - gather.SwingT;                          // 0→1 내려찍기 (가속)
-            var raisedP = transform.position + cdir * 1.0f + Vector3.up * 3.6f;
-            var hitP = Vector3.Lerp(transform.position, cp, 0.6f) + Vector3.up * 0.9f;
-            handR.position = Vector3.Lerp(raisedP, hitP, kk * kk);
-            var tool = gather.ChopIsRock ? toolPick : toolAxe;
-            var toolAim = (hitP + cdir * 0.6f + Vector3.down * 0.3f) - handR.position;
-            if (toolAim.sqrMagnitude > 0.01f) tool.rotation = Quaternion.LookRotation(toolAim.normalized, Vector3.up);
+            toolAxe.gameObject.SetActive(gearV == GearKind.Axe);
+            toolPick.gameObject.SetActive(gearV == GearKind.Pick);
+            var toolHeld = gearV == GearKind.Axe ? toolAxe : gearV == GearKind.Pick ? toolPick : null;
+            if (toolHeld != null)
+            {
+                bool chopping = gather != null && gather.SwingT > 0f;
+                if (chopping)
+                {   // 패기 스윙 — 오른손이 도구를 들고 내려찍음
+                    var cp = gather.ChopPos;
+                    var cdir = cp - transform.position; cdir.y = 0f;
+                    cdir = cdir.sqrMagnitude > 0.01f ? cdir.normalized : fwd;
+                    float kk = 1f - gather.SwingT;                      // 0→1 내려찍기 (가속)
+                    var raisedP = transform.position + cdir * 1.0f + Vector3.up * 3.6f;
+                    var hitP = Vector3.Lerp(transform.position, cp, 0.6f) + Vector3.up * 0.9f;
+                    handR.position = Vector3.Lerp(raisedP, hitP, kk * kk);
+                    var toolAim = (hitP + cdir * 0.6f + Vector3.down * 0.3f) - handR.position;
+                    if (toolAim.sqrMagnitude > 0.01f) toolHeld.rotation = Quaternion.LookRotation(toolAim.normalized, Vector3.up);
+                }
+                else
+                {   // 휴대 자세 — 비스듬히 들고 있음
+                    var rest = Quaternion.LookRotation(fwd, Vector3.up) * Quaternion.Euler(52f, 12f, 0f);
+                    toolHeld.rotation = Quaternion.Slerp(toolHeld.rotation, rest, 8f * Time.deltaTime);
+                }
+            }
         }
     }
 }

@@ -38,6 +38,20 @@ public class UIStyle : MonoBehaviour
     [Header("⑥ HUD")]
     [Tooltip("HUD 도 이 밝은 테마를 따름")] public bool hudUseTheme = true;
 
+    [Header("⑦ 제작 탭")]
+    [Tooltip("레시피 행 높이")] public float craftRowHeight = 60f;
+    [Tooltip("제작 버튼 폭")] public float craftBtnWidth = 170f;
+
+    [Header("⑧ 스탯 탭")]
+    [Tooltip("글자 크기")] public int statFontSize = 18;
+    [Tooltip("행간")] public float statLineSpacing = 1.5f;
+    [Tooltip("왼쪽 들여쓰기")] public float statIndent = 16f;
+
+    [Header("⑨ 핫바 (하단 1~0)")]
+    [Tooltip("칸 크기")] public float hotbarSlotSize = 58f;
+    [Tooltip("칸 간격")] public float hotbarGap = 6f;
+    [Tooltip("바닥에서 띄우는 높이")] public float hotbarBottom = 16f;
+
     void Awake() { I = this; }
     void OnEnable() { I = this; }
 
@@ -73,6 +87,8 @@ public class UIStyle : MonoBehaviour
         if (menu != null) menu.Rebuild();
         var hud = Object.FindFirstObjectByType<SquadHUD>();
         if (hud != null) hud.Rebuild();
+        var hb = Object.FindFirstObjectByType<Hotbar>();
+        if (hb != null) hb.Rebuild();
     }
 
     void OnValidate()

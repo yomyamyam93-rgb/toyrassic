@@ -28,7 +28,8 @@ public class MenuUI : MonoBehaviour
     Image[] tabImgs; Text[] tabTexts;
     Text statText;
     Image[] slotIcons;
-    Text[] slotCounts;
+    Text[] slotCounts, slotFallbacks;
+    GearDrag[] slotDrags;
     Text[] craftInfo; Button[] craftBtn; Text[] craftBtnLabel;
     PlayerBow bow;
     int curPage;
@@ -115,9 +116,10 @@ public class MenuUI : MonoBehaviour
     }
 
     /// 테두리 있는 패널 — 바깥(테두리색) + 안쪽(배경색). 안쪽 RT 반환
-    RectTransform Framed(string n, Transform parent, Color bg, Color border)
+    RectTransform Framed(string n, Transform parent, Color bg, Color border, bool stretch = false)
     {
         var outer = RT(n, parent);
+        if (stretch) Stretch(outer);   // 부모(행) 크기로 꽉 채움 — 제작 행 뭉침 버그 방지
         var oimg = outer.gameObject.AddComponent<Image>();
         oimg.sprite = Round; oimg.type = Image.Type.Sliced; oimg.color = border;
         var inner = RT("inner", outer);
@@ -228,6 +230,7 @@ public class MenuUI : MonoBehaviour
         grid.padding = new RectOffset(8, 8, 8, 8);
         int slots = 24;
         slotIcons = new Image[slots]; slotCounts = new Text[slots];
+        slotFallbacks = new Text[slots]; slotDrags = new GearDrag[slots];
         for (int i = 0; i < slots; i++)
         {
             var innerSlot = Framed("slot" + i, inv, SlotBg, SlotBorder);
@@ -237,19 +240,27 @@ public class MenuUI : MonoBehaviour
             slotIcons[i] = irt.gameObject.AddComponent<Image>();
             slotIcons[i].preserveAspect = true;
             slotIcons[i].enabled = false;
+            slotIcons[i].raycastTarget = false;
+            slotFallbacks[i] = MakeText("fb", innerSlot, 22, TxtMain, true, TextAnchor.MiddleCenter);
+            Stretch(slotFallbacks[i].rectTransform);
+            slotFallbacks[i].raycastTarget = false;
             slotCounts[i] = MakeText("count", innerSlot, FontCap, TxtMain, true, TextAnchor.LowerRight);
             Stretch(slotCounts[i].rectTransform);
             slotCounts[i].rectTransform.offsetMax = new Vector2(-5, 0);
+            slotCounts[i].raycastTarget = false;
+            slotDrags[i] = innerSlot.gameObject.AddComponent<GearDrag>();   // 장비면 핫바로 드래그 가능
+            slotDrags[i].enabled = false;
         }
 
         // ── 스탯 ──
-        var st = Page("Page_Stat");
-        pageStat = st.gameObject;
-        statText = MakeText("stat", st, FontBody, TxtMain);
+        var st2 = Page("Page_Stat");
+        pageStat = st2.gameObject;
+        statText = MakeText("stat", st2, St != null ? St.statFontSize : FontBody, TxtMain);
+        statText.lineSpacing = St != null ? St.statLineSpacing : 1.5f;
         statText.rectTransform.anchorMin = new Vector2(0, 1);
         statText.rectTransform.anchorMax = new Vector2(1, 1);
         statText.rectTransform.pivot = new Vector2(0, 1);
-        statText.rectTransform.anchoredPosition = new Vector2(16, -12);
+        statText.rectTransform.anchoredPosition = new Vector2(St != null ? St.statIndent : 16f, -12);
         statText.alignment = TextAnchor.UpperLeft;
 
         // ── 제작 ──
@@ -264,31 +275,33 @@ public class MenuUI : MonoBehaviour
         craftInfo = new Text[recipes]; craftBtn = new Button[recipes]; craftBtnLabel = new Text[recipes];
         string[] btnLabels = { "제작", "제작", "설치", "강화", "강화" };
         Sprite[] rowIcons = { icoAxe, icoPick, icoEgg, null, null };
+        float rowH = St != null ? St.craftRowHeight : 60f;
+        float btnW = St != null ? St.craftBtnWidth : 170f;
         float bh = St != null ? St.buttonHeight : 44f;
         for (int i = 0; i < recipes; i++)
         {
             int idx = i;
             var row = RT("recipe" + i, cr);
-            row.sizeDelta = new Vector2(0, bh + 16f);
-            row.gameObject.AddComponent<LayoutElement>().minHeight = bh + 16f;
-            var innerRow = Framed("frame", row, SlotBg, SlotBorder);
+            row.gameObject.AddComponent<LayoutElement>().minHeight = rowH;
+            var innerRow = Framed("frame", row, SlotBg, SlotBorder, true);   // 행 크기로 꽉 채움
             float textLeft = 16f;
             if (rowIcons[i] != null)
             {   // 레시피 아이콘 (사용자 제작)
                 var irt = RT("icon", innerRow);
                 irt.anchorMin = irt.anchorMax = irt.pivot = new Vector2(0, 0.5f);
-                irt.anchoredPosition = new Vector2(10, 0);
-                irt.sizeDelta = new Vector2(bh, bh);
+                irt.anchoredPosition = new Vector2(12 + rowH * 0.4f, 0);
+                irt.sizeDelta = new Vector2(rowH * 0.8f, rowH * 0.8f);
                 var iimg = irt.gameObject.AddComponent<Image>();
                 iimg.sprite = rowIcons[i]; iimg.preserveAspect = true;
-                textLeft = bh + 20f;
+                iimg.raycastTarget = false;
+                textLeft = rowH * 0.8f + 24f;
             }
             craftInfo[i] = MakeText("info", innerRow, FontBody, TxtMain);
             craftInfo[i].rectTransform.anchorMin = new Vector2(0, 0);
             craftInfo[i].rectTransform.anchorMax = new Vector2(1, 1);
             craftInfo[i].rectTransform.offsetMin = new Vector2(textLeft, 0);
-            craftInfo[i].rectTransform.offsetMax = new Vector2(-200, 0);
-            craftBtn[i] = MakeButton(innerRow, btnLabels[i], new Vector2(170, bh - 4f), out craftBtnLabel[i]);
+            craftInfo[i].rectTransform.offsetMax = new Vector2(-(btnW + 30f), 0);
+            craftBtn[i] = MakeButton(innerRow, btnLabels[i], new Vector2(btnW, bh - 4f), out craftBtnLabel[i]);
             var brt = (RectTransform)craftBtn[i].transform;
             brt.anchorMin = brt.anchorMax = brt.pivot = new Vector2(1, 0.5f);
             brt.anchoredPosition = new Vector2(-12, 0);
@@ -313,16 +326,31 @@ public class MenuUI : MonoBehaviour
     void RefreshInv()
     {
         if (!pageInv.activeSelf) return;
-        var items = new (Sprite icon, int count)[]
+        // 재료 + 장비 (장비는 핫바로 드래그해 장착)
+        var items = new (Sprite icon, string fb, int count, GearKind kind)[]
         {
-            (icoWood, Stock.Wood), (icoStone, Stock.Stone), (icoEgg, NestSite.EggCount),
+            (icoWood, "", Stock.Wood, GearKind.None),
+            (icoStone, "", Stock.Stone, GearKind.None),
+            (icoEgg, "", NestSite.EggCount, GearKind.None),
+            (null, "활", 1, GearKind.Bow),
+            (icoAxe, "", Stock.HasAxe ? 1 : 0, GearKind.Axe),
+            (icoPick, "", Stock.HasPick ? 1 : 0, GearKind.Pick),
         };
         for (int i = 0; i < slotIcons.Length; i++)
         {
-            bool has = i < items.Length && items[i].count > 0 && items[i].icon != null;
-            slotIcons[i].enabled = has;
-            if (has) slotIcons[i].sprite = items[i].icon;
-            slotCounts[i].text = has ? items[i].count.ToString() : "";
+            bool has = i < items.Length && items[i].count > 0 && (items[i].icon != null || items[i].fb != "");
+            slotIcons[i].enabled = has && items[i].icon != null;
+            if (slotIcons[i].enabled) slotIcons[i].sprite = items[i].icon;
+            slotFallbacks[i].text = has && items[i].icon == null ? items[i].fb : "";
+            slotCounts[i].text = has && items[i].kind == GearKind.None ? items[i].count.ToString() : "";
+            bool draggable = has && items[i].kind != GearKind.None;
+            slotDrags[i].enabled = draggable;
+            if (draggable)
+            {
+                slotDrags[i].kind = items[i].kind;
+                slotDrags[i].sprite = items[i].icon;
+                slotDrags[i].fallback = items[i].fb;
+            }
         }
     }
 
@@ -403,13 +431,15 @@ public class MenuUI : MonoBehaviour
                 if (Stock.HasAxe) return;
                 Stock.Wood -= c.wood;
                 Stock.HasAxe = true;
-                SquadHUD.Toast("도끼 제작!  이제 나무를 클릭해 패면 나뭇가지가 우수수");
+                if (Hotbar.I != null) Hotbar.I.AutoAssign(GearKind.Axe);
+                SquadHUD.Toast("도끼 제작!  핫바에 장착됨 — 숫자키로 바꿔 들고 나무를 패자");
                 break;
             case 1:
                 if (Stock.HasPick) return;
                 Stock.Wood -= c.wood; Stock.Stone -= c.stone;
                 Stock.HasPick = true;
-                SquadHUD.Toast("곡괭이 제작!  이제 바위를 클릭해 캐면 돌이 와르르");
+                if (Hotbar.I != null) Hotbar.I.AutoAssign(GearKind.Pick);
+                SquadHUD.Toast("곡괭이 제작!  핫바에 장착됨 — 숫자키로 바꿔 들고 바위를 캐자");
                 break;
             case 2:
                 if (Incubator.Active != null) return;
