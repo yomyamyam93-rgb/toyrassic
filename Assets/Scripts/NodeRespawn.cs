@@ -53,8 +53,11 @@ public class NodeRespawn : MonoBehaviour
 
             var td = terr.terrainData;
             var list = new List<TreeInstance>(td.treeInstances) { e.inst };
-            td.SetTreeInstances(list.ToArray(), true);
-            TreeBlocker.Rebuild();
+            td.SetTreeInstances(list.ToArray(), false);   // 높이 스냅 생략 — 스파이크 완화
+            // 충돌은 이 지점만 추가 (전체 재빌드 안 함)
+            var pf = e.inst.prototypeIndex < td.treePrototypes.Length ? td.treePrototypes[e.inst.prototypeIndex].prefab : null;
+            bool rock = pf != null && pf.name.ToLower().Contains("rock");
+            TreeBlocker.AddPoint(e.wp, (rock ? 2.0f : 0.8f) * Mathf.Max(0.4f, e.inst.widthScale));
             queue.RemoveAt(i);
         }
     }

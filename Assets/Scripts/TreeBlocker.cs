@@ -30,6 +30,26 @@ public static class TreeBlocker
 
     static Vector2Int Key(Vector3 p) => new Vector2Int(Mathf.FloorToInt(p.x / Cell), Mathf.FloorToInt(p.z / Cell));
 
+    /// 그 지점의 장애물만 제거 — 전체 재빌드(스파이크) 대신 (노드 파괴 시)
+    public static void RemovePoint(Vector3 wp)
+    {
+        if (grid == null) return;
+        var k = Key(wp);
+        if (!grid.TryGetValue(k, out var list)) return;
+        for (int i = list.Count - 1; i >= 0; i--)
+            if (Mathf.Abs(list[i].x - wp.x) < 1.5f && Mathf.Abs(list[i].y - wp.z) < 1.5f)
+                list.RemoveAt(i);
+    }
+
+    /// 지점 추가 — 노드 리스폰 시
+    public static void AddPoint(Vector3 wp, float radius)
+    {
+        if (grid == null) { Rebuild(); return; }   // 아직 없으면 어차피 전체 빌드에 포함
+        var k = Key(wp);
+        if (!grid.TryGetValue(k, out var list)) grid[k] = list = new List<Vector3>();
+        list.Add(new Vector3(wp.x, wp.z, radius));
+    }
+
     /// pos(반경 radius 몸)가 나무를 뚫지 않게 밀어낸 위치를 돌려준다
     public static Vector3 Resolve(Vector3 pos, float radius)
     {

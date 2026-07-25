@@ -76,9 +76,16 @@ public static class FX
         var f = PopFont();
         if (f == null || f.material == null) return null;
         m = new Material(f.material);
+        // 외곽선 + 언더레이 이중 — 확실히 진한 검정 테두리
         m.EnableKeyword("OUTLINE_ON");
-        m.SetFloat(TMPro.ShaderUtilities.ID_OutlineWidth, s == PopStyle.Item ? 0.22f : 0.3f);   // 진하고 두껍게
+        m.SetFloat(TMPro.ShaderUtilities.ID_OutlineWidth, s == PopStyle.Item ? 0.25f : 0.32f);
         m.SetColor(TMPro.ShaderUtilities.ID_OutlineColor, Color.black);
+        m.EnableKeyword("UNDERLAY_ON");
+        m.SetColor(TMPro.ShaderUtilities.ID_UnderlayColor, Color.black);
+        m.SetFloat(TMPro.ShaderUtilities.ID_UnderlayOffsetX, 0f);
+        m.SetFloat(TMPro.ShaderUtilities.ID_UnderlayOffsetY, 0f);
+        m.SetFloat(TMPro.ShaderUtilities.ID_UnderlayDilate, 0.45f);   // 사방으로 퍼지는 검정 밑판
+        m.SetFloat(TMPro.ShaderUtilities.ID_UnderlaySoftness, 0f);
         m.SetFloat(TMPro.ShaderUtilities.ID_FaceDilate, 0.14f);   // 글자 살 두께 보강 (볼드감)
         popMats[s] = m;
         return m;

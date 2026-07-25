@@ -91,7 +91,7 @@ public class ChoppableTree : MonoBehaviour
         if (!isRock)
             FX.Burst(wp + Vector3.up * 4.5f, new Color(0.45f, 0.72f, 0.30f, 1f), 26, 0.55f, 6.5f);
         FollowCam.Shake(0.22f);
-        TreeBlocker.Rebuild();
+        TreeBlocker.RemovePoint(wp);   // 전체 재빌드 대신 이 지점만 (렉 스파이크 방지)
         if (hasSrc) NodeRespawn.Register(src);   // 시간 지나면 다시 자람 (설정 가능)
         Destroy(gameObject);
     }

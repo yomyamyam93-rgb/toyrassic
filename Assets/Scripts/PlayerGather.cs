@@ -136,30 +136,38 @@ public class PlayerGather : MonoBehaviour
             hitAny = true;
         }
 
-        // ③ 지형 노드 — 부채꼴 안 가까운 것부터 실체화해서 타격 (최대 N개)
+        // ③ 지형 노드 — 부채꼴 안 후보 수집 → ★한 번의 지형 재구성으로 배치 실체화 (스윙 렉 방지)
         if (terr != null)
         {
-            for (int n = 0; n < maxNodesPerSwing; n++)
+            var td = terr.terrainData; var to = terr.transform.position;
+            var trees = td.treeInstances;
+            var cands = new System.Collections.Generic.List<(int i, float d, Vector3 wp, bool rock)>();
+            for (int i = 0; i < trees.Length; i++)
             {
-                var td = terr.terrainData; var to = terr.transform.position;
-                var trees = td.treeInstances;
-                int best = -1; float bd = float.MaxValue; Vector3 bwp = default; bool bRock = false;
-                for (int i = 0; i < trees.Length; i++)
+                var wp = Vector3.Scale(trees[i].position, td.size) + to;
+                var proto = td.treePrototypes[trees[i].prototypeIndex].prefab;
+                bool isRock = proto != null && proto.name.ToLower().Contains("rock");
+                // 큰 바위는 중심이 멀어도 표면이 닿으면 맞게 — 크기만큼 판정 여유
+                float ex = isRock ? trees[i].widthScale * 1.6f : 1.0f;
+                if (!InArc(wp, ex)) continue;
+                cands.Add((i, FlatDist(wp, transform.position), wp, isRock));
+            }
+            if (cands.Count > 0)
+            {
+                cands.Sort((a, b) => a.d.CompareTo(b.d));
+                int take = Mathf.Min(maxNodesPerSwing, cands.Count);
+                var chosen = cands.GetRange(0, take);
+                chosen.Sort((a, b) => b.i.CompareTo(a.i));   // 뒤에서부터 제거
+                var list = new System.Collections.Generic.List<TreeInstance>(trees);
+                foreach (var c in chosen) list.RemoveAt(c.i);
+                td.SetTreeInstances(list.ToArray(), false);  // 재구성 1회 + 높이 스냅 생략
+                foreach (var c in chosen)
                 {
-                    var wp = Vector3.Scale(trees[i].position, td.size) + to;
-                    var proto = td.treePrototypes[trees[i].prototypeIndex].prefab;
-                    bool isRock = proto != null && proto.name.ToLower().Contains("rock");
-                    // 큰 바위는 중심이 멀어도 표면이 닿으면 맞게 — 크기만큼 판정 여유
-                    float ex = isRock ? trees[i].widthScale * 1.6f : 1.0f;
-                    if (!InArc(wp, ex)) continue;
-                    float d = FlatDist(wp, transform.position);
-                    if (d < bd) { bd = d; best = i; bwp = wp; bRock = isRock; }
+                    var node = MaterializeInst(trees[c.i], c.wp, c.rock);
+                    if (node == null) continue;
+                    node.Hit(c.rock ? (isPick ? pickVsRock : axeVsRock) : (isPick ? pickVsTree : axeVsTree));
+                    hitAny = true;
                 }
-                if (best < 0) break;
-                var node = Materialize(best, bwp, bRock);
-                if (node == null) break;
-                node.Hit(bRock ? (isPick ? pickVsRock : axeVsRock) : (isPick ? pickVsTree : axeVsTree));
-                hitAny = true;
             }
         }
 
@@ -168,23 +176,30 @@ public class PlayerGather : MonoBehaviour
 
     static float FlatDist(Vector3 a, Vector3 b) { a.y = 0; b.y = 0; return Vector3.Distance(a, b); }
 
-    /// 지형 인스턴스 → 리액션 가능한 실체로 (첫 타격 때 한 번)
-    ChoppableTree Materialize(int idx, Vector3 wp, bool isRock)
+    /// 인스턴스 데이터 → 리액션 가능한 실체 GO (지형 배열은 안 건드림)
+    ChoppableTree MaterializeInst(TreeInstance inst, Vector3 wp, bool isRock)
     {
         var td = terr.terrainData;
-        var inst = td.treeInstances[idx];
         var proto = td.treePrototypes[inst.prototypeIndex].prefab;
         if (proto == null) return null;
         var go = Object.Instantiate(proto, wp, Quaternion.Euler(0, inst.rotation * Mathf.Rad2Deg, 0));
         go.name = "깨어난_" + proto.name;
         go.transform.localScale = new Vector3(inst.widthScale, inst.heightScale, inst.widthScale);
-        var list = new System.Collections.Generic.List<TreeInstance>(td.treeInstances);
-        list.RemoveAt(idx);
-        td.SetTreeInstances(list.ToArray(), true);
         var ct = go.AddComponent<ChoppableTree>();
         ct.Init(isRock, isRock ? rockHp : treeHp, dropPieces);
         ct.src = inst; ct.hasSrc = true;   // 리스폰용 원본 기록
         return ct;
+    }
+
+    /// 단일 실체화 (화살용) — 지형 재구성 1회
+    ChoppableTree Materialize(int idx, Vector3 wp, bool isRock)
+    {
+        var td = terr.terrainData;
+        var inst = td.treeInstances[idx];
+        var list = new System.Collections.Generic.List<TreeInstance>(td.treeInstances);
+        list.RemoveAt(idx);
+        td.SetTreeInstances(list.ToArray(), false);   // 높이 스냅 생략 — 스파이크 완화
+        return MaterializeInst(inst, wp, isRock);
     }
 
     /// 한 번 휘두르기 — ★조준할 필요 없음. 스윙 절정에 전방 부채꼴 전부 타격
