@@ -118,7 +118,13 @@ public class PetUnit : MonoBehaviour
         terrain = Terrain.activeTerrain;
         maxHp = hp = vit * 10f;
         baseScale = transform.localScale;
-        var r = GetComponentInChildren<Renderer>();
+        // ※파티클(꽃잎 등) 렌더러는 바운즈가 엉뚱해서 제외 — 체력바가 하늘로 가는 사고 방지
+        Renderer r = null;
+        foreach (var rr in GetComponentsInChildren<Renderer>())
+        {
+            if (rr is ParticleSystemRenderer || rr is LineRenderer || rr is TrailRenderer) continue;
+            r = rr; break;
+        }
         footOff = r != null ? transform.position.y - r.bounds.min.y : 0f;
         if (r != null) body = Mathf.Max(1f, Mathf.Max(r.bounds.size.x, Mathf.Max(r.bounds.size.y, r.bounds.size.z)));
         if (isAvatar) { Avatar = this; MakeBar(r); return; }   // 캐릭터: 모션·AI 없음
@@ -655,7 +661,7 @@ public class PetUnit : MonoBehaviour
         barRoot = new GameObject(name + "_hpbar").transform;
         barRoot.localScale = Vector3.one * (body * 0.16f);
         barSmoothY = transform.position.y + barY;
-        Transform Quad(string n, Color c, float z)
+        Transform Quad(string n, Color c, float z, int order)
         {
             var q = GameObject.CreatePrimitive(PrimitiveType.Quad).transform;
             Object.Destroy(q.GetComponent<Collider>());
@@ -665,14 +671,15 @@ public class PetUnit : MonoBehaviour
             mm.material = new Material(Shader.Find("Sprites/Default"));   // 알파 지원 — 둥근 모서리
             mm.material.mainTexture = FX.RoundedTex();
             mm.material.color = c;
+            mm.sortingOrder = order;   // ★그리기 순서 고정 — 투명 정렬 뒤섞임(색 이상해짐) 방지
             mm.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
             return q;
         }
-        var bg = Quad("bg", new Color(0.08f, 0.08f, 0.10f, 0.92f), 0.002f);
+        var bg = Quad("bg", new Color(0.08f, 0.08f, 0.10f, 0.92f), 0.02f, 10);
         bg.localScale = new Vector3(1.9f, 0.42f, 1f);                     // 두껍게
-        barGhost = Quad("ghost", new Color(1f, 0.55f, 0.25f, 0.95f), 0.001f);   // 깎인 체력 잔상
+        barGhost = Quad("ghost", new Color(1f, 0.55f, 0.25f, 0.95f), 0.01f, 11);   // 깎인 체력 잔상
         barGhost.localScale = new Vector3(1.78f, 0.30f, 1f);
-        barFill = Quad("fill", team == Team.Player ? new Color(0.35f, 0.9f, 0.4f) : new Color(0.95f, 0.4f, 0.35f), 0f);
+        barFill = Quad("fill", team == Team.Player ? new Color(0.35f, 0.9f, 0.4f) : new Color(0.95f, 0.4f, 0.35f), 0f, 12);
         barFill.localScale = new Vector3(1.78f, 0.30f, 1f);
     }
 

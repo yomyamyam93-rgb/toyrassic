@@ -17,9 +17,11 @@ public class PlayerBow : MonoBehaviour
 
     [Header("손 (동그라미)")]
     public float handRadius = 0.3f;
-    [Tooltip("몸 옆으로 띄우는 간격")] public float handSide = 1.35f;
-    public float handUp = 0.1f;
-    [Tooltip("화살이 나가는 높이 (활 위치 기준 위로)")] public float arrowUp = 1.3f;
+    [Tooltip("몸 옆으로 띄우는 간격 (몸 반지름보다 크게 — 안 박히게)")] public float handSide = 3.0f;
+    public float handUp = 1.2f;
+    [Tooltip("당길 때 왼손이 앞으로 뻗는 거리 (몸 밖)")] public float drawReach = 3.6f;
+    [Tooltip("당길 때 활 높이")] public float drawUp = 1.5f;
+    [Tooltip("화살이 나가는 높이 (활 위치 기준 위로)")] public float arrowUp = 1.5f;
     [Tooltip("비워두면 캐릭터 텍스처 평균색 자동")] public Color handColor = Color.clear;
 
     [Header("활 — 뭉뚝 숏보우")]
@@ -234,10 +236,11 @@ public class PlayerBow : MonoBehaviour
         }
     }
 
-    /// 통통 바운스를 걸러낸 안정 발사점 — 에임 라인·화살이 위아래로 안 떨림
+    /// 통통 바운스를 걸러낸 안정 발사점 — 활 중앙 위치에서, 위아래로 안 떨림
     Vector3 StableFrom()
     {
-        return new Vector3(transform.position.x, stableY + arrowUp, transform.position.z);
+        var p = transform.position + aimDir * drawReach;
+        return new Vector3(p.x, stableY + arrowUp, p.z);
     }
 
     void Fire(float range)
@@ -258,14 +261,18 @@ public class PlayerBow : MonoBehaviour
         var right = Vector3.Cross(Vector3.up, fwd).normalized;
         float pull = drawing ? Mathf.Clamp01(drawT / drawTime) : 0f;
 
-        // 손 위치: 평소엔 양옆에 동동. 당길 땐 왼손이 앞으로 나가 활을 밀고 오른손이 시위
-        var idleL = transform.position - right * handSide + Vector3.up * handUp;
-        var idleR = transform.position + right * handSide + Vector3.up * handUp;
-        var aimL = transform.position + fwd * 1.55f + Vector3.up * (handUp + 0.35f);
-        float k = 16f * Time.deltaTime;
+        // 손 위치: 몸(블롭)에 안 박히게 바깥으로 띄움 + 평소엔 둥실둥실 흔들림
+        float bobL = Mathf.Sin(Time.time * 3.2f) * 0.14f;            // 좌우 위상 다르게 — 살아있는 느낌
+        float bobR = Mathf.Sin(Time.time * 3.2f + 1.7f) * 0.14f;
+        var idleL = transform.position - right * handSide + fwd * 0.4f + Vector3.up * (handUp + bobL);
+        var idleR = transform.position + right * handSide + fwd * 0.4f + Vector3.up * (handUp + bobR);
+
+        // 당길 때: 왼손이 몸 밖으로 쭉 뻗어 활 '중앙'을 잡고, 오른손은 시위를 당김
+        var aimL = transform.position + fwd * drawReach + Vector3.up * drawUp;
+        float k = 13f * Time.deltaTime;
         handL.position = Vector3.Lerp(handL.position, drawing ? aimL : idleL, k);
 
-        // 활은 항상 왼손에 들려 있음 (그립 = 왼손)
+        // 활 그립 = 왼손 정중앙 (활이 손에 정확히 잡혀 있음)
         bowRoot.position = handL.position;
         bowRoot.rotation = Quaternion.LookRotation(fwd, Vector3.up);
 
@@ -274,8 +281,9 @@ public class PlayerBow : MonoBehaviour
         bowString.SetPosition(1, new Vector3(0f, 0f, back));
         bowString.SetPosition(2, new Vector3(0f, -bowSize, 0f));
 
+        // 오른손 = 시위 당김 지점에 정확히 (당기는 모션이 눈에 보이게)
         var nockPos = bowRoot.TransformPoint(new Vector3(0f, 0f, back));
-        handR.position = Vector3.Lerp(handR.position, drawing ? nockPos : idleR, k);
+        handR.position = Vector3.Lerp(handR.position, drawing ? nockPos : idleR, drawing ? 22f * Time.deltaTime : k);
 
         nockArrow.gameObject.SetActive(drawing);
         if (drawing)
