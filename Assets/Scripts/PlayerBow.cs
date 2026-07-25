@@ -359,8 +359,8 @@ public class PlayerBow : MonoBehaviour
             drawing = false; drawT = 0f; aimLen = 0f;
         }
         else if (gear == GearKind.Axe || gear == GearKind.Pick)
-        {   // 도구 장착: 클릭 = 해당 노드 패기 (도끼=나무, 곡괭이=바위)
-            if (pressed && gather != null) gather.TryChop(mp, gear == GearKind.Pick);
+        {   // 도구 장착: 클릭 = 그냥 휘두른다 — 노드·몹·허공 뭐든 (효율만 다름)
+            if (pressed && gather != null) gather.TrySwing(mp, gear == GearKind.Pick, aimDir);
             drawing = false; drawT = 0f; aimLen = 0f;
         }
         else if (gear == GearKind.Bow)

@@ -25,20 +25,33 @@ public class PlayerGather : MonoBehaviour
     [Tooltip("곡괭이 휘두르는 간격 (묵직하게)")] public float pickCooldown = 0.72f;
     [Tooltip("스윙 시작 → 실제 타격까지 (모션 절정 동기)")] public float impactDelay = 0.24f;
 
-    [Header("패기")]
-    [Tooltip("채집 사거리 (m)")] public float reach = 12f;
-    [Tooltip("나무를 몇 번 패야 부서지나")] public int treeHits = 3;
-    [Tooltip("바위를 몇 번 캐야 부서지나")] public int rockHits = 4;
+    [Header("사거리")]
+    [Tooltip("노드(나무·바위) 스윙 사거리 (m)")] public float reach = 12f;
+    [Tooltip("몹 근접 타격 사거리 (m)")] public float meleeRange = 6f;
+
+    [Header("노드 체력")]
+    public float treeHp = 30f;
+    public float rockHp = 40f;
     [Tooltip("부서질 때 튀어나오는 조각 수")] public int dropPieces = 3;
 
+    [Header("★효율 표 — 뭐든 칠 수 있고 효율만 다름")]
+    [Tooltip("도끼→나무 (3방)")] public float axeVsTree = 10f;
+    [Tooltip("도끼→바위 (비효율)")] public float axeVsRock = 3f;
+    [Tooltip("곡괭이→바위 (4방)")] public float pickVsRock = 10f;
+    [Tooltip("곡괭이→나무 (비효율)")] public float pickVsTree = 4f;
+    [Tooltip("도끼→몹 근접딜")] public float axeVsMob = 20f;
+    [Tooltip("곡괭이→몹 근접딜")] public float pickVsMob = 26f;
+    [Tooltip("화살→노드 (저효율)")] public float arrowVsNode = 4f;
+
     [Header("화살 차단")]
-    [Tooltip("화살이 줄기에 박히는 반경 (m)")] public float arrowBlockRadius = 1.6f;
+    [Tooltip("화살이 줄기에 맞는 반경 (m)")] public float arrowBlockRadius = 1.6f;
 
     Terrain terr;
     TreeInstance[] original;   // 종료 시 복구용 스냅샷
     float cd, swingT;
     Vector3 chopPos; bool chopIsRock;
-    ChoppableTree pendingTarget; bool pendingImpact; float pendingAt;
+    ChoppableTree pendingNode; PetUnit pendingMob; float pendingDmg;
+    bool pendingImpact; float pendingAt;
     Camera cam;
 
     /// 스윙 진행 1→0 (PlayerBow 가 손·도구·트레일 연출에 사용)
@@ -69,23 +82,47 @@ public class PlayerGather : MonoBehaviour
         if (pendingImpact && Time.time >= pendingAt)
         {
             pendingImpact = false;
-            if (pendingTarget != null) { pendingTarget.Hit(); FollowCam.Shake(0.08f); }
+            if (pendingNode != null) { pendingNode.Hit(pendingDmg); FollowCam.Shake(0.08f); }
+            else if (pendingMob != null && pendingMob.Alive)
+            {
+                pendingMob.TakeDamage(pendingDmg, PetUnit.Avatar);
+                pendingMob.OnHit();
+                FX.Burst(pendingMob.transform.position + Vector3.up * pendingMob.body * 0.4f,
+                         Color.white, 10, pendingMob.body * 0.06f, pendingMob.body * 0.4f);
+                FollowCam.Shake(0.1f);
+            }
+            pendingNode = null; pendingMob = null;
         }
     }
 
     static float FlatDist(Vector3 a, Vector3 b) { a.y = 0; b.y = 0; return Vector3.Distance(a, b); }
 
-    /// 깨어난 나무 중 마우스가 노린 것
-    ChoppableTree FindLive(Ray ray, bool rockOnly)
+    /// 깨어난 노드 중 마우스가 노린 것 (종류 무관 — 효율만 다름)
+    ChoppableTree FindLive(Ray ray, out float rayDist)
     {
-        ChoppableTree best = null; float bd = 4.5f;
+        ChoppableTree best = null; rayDist = 4.5f;
         foreach (var t in ChoppableTree.All)
         {
-            if (t == null || t.IsRock != rockOnly) continue;
+            if (t == null) continue;
             if (FlatDist(t.transform.position, transform.position) > reach) continue;
             var mid = t.transform.position + Vector3.up * 3f;
             float rd = Vector3.Cross(ray.direction, mid - ray.origin).magnitude;
-            if (rd < bd) { bd = rd; best = t; }
+            if (rd < rayDist) { rayDist = rd; best = t; }
+        }
+        return best;
+    }
+
+    /// 근접 사거리의 야생 몹 중 마우스가 노린 것
+    PetUnit FindMob(Ray ray, out float rayDist)
+    {
+        PetUnit best = null; rayDist = 4f;
+        foreach (var u in PetUnit.All)
+        {
+            if (u == null || !u.Alive || u.team != PetUnit.Team.Wild) continue;
+            if (FlatDist(u.transform.position, transform.position) > meleeRange) continue;
+            var mid = u.transform.position + Vector3.up * u.body * 0.4f;
+            float rd = Vector3.Cross(ray.direction, mid - ray.origin).magnitude;
+            if (rd < rayDist) { rayDist = rd; best = u; }
         }
         return best;
     }
@@ -127,41 +164,73 @@ public class PlayerGather : MonoBehaviour
         list.RemoveAt(idx);
         td.SetTreeInstances(list.ToArray(), true);
         var ct = go.AddComponent<ChoppableTree>();
-        ct.Init(isRock, isRock ? rockHits : treeHits, dropPieces);
+        ct.Init(isRock, isRock ? rockHp : treeHp, dropPieces);
         return ct;
     }
 
-    /// 한 번 휘두르기 — 장착 도구에 맞는 대상만 (도끼=나무, 곡괭이=바위)
-    public void TryChop(Vector2 mp, bool rockOnly)
+    /// 한 번 휘두르기 — ★뭐든 침. 노드·몹·허공 전부 스윙 가능, 효율만 다름
+    public void TrySwing(Vector2 mp, bool isPick, Vector3 aimDir)
     {
         if (cd > 0f) return;
-        if (rockOnly ? !Stock.HasPick : !Stock.HasAxe) return;
         if (terr == null) { terr = Terrain.activeTerrain; if (terr == null) return; }
         if (cam == null) { cam = Camera.main; if (cam == null) return; }
         var ray = cam.ScreenPointToRay(mp);
 
-        var live = FindLive(ray, rockOnly);
-        if (live == null)
-        {
-            int i = FindTerrain(ray, out var wp, out var isRock);
-            if (i < 0 || isRock != rockOnly) return;
-            live = Materialize(i, wp, isRock);
-            if (live == null) return;
-        }
-
-        cd = rockOnly ? pickCooldown : axeCooldown;
+        cd = isPick ? pickCooldown : axeCooldown;
         swingT = 1f;
-        chopPos = live.transform.position + Vector3.up * 2.2f;
-        chopIsRock = rockOnly;
-        pendingTarget = live;
+        chopIsRock = isPick;   // 트레일·도구 선택용
+
+        // 대상 후보: 깨어난 노드 / 지형 노드 / 야생 몹 — 마우스에 제일 가까운 것
+        var live = FindLive(ray, out float liveRd);
+        int ti = FindTerrain(ray, out var twp, out var tIsRock);
+        var mob = FindMob(ray, out float mobRd);
+        float terRd = ti >= 0 ? 4.4f : float.MaxValue;   // FindTerrain 은 자체 4.5 컷
+
+        // 몹이 노드보다 마우스에 가까우면 몹 우선
+        if (mob != null && mobRd < liveRd && mobRd < 4.0f)
+        {
+            chopPos = mob.transform.position + Vector3.up * mob.body * 0.4f;
+            pendingMob = mob; pendingNode = null;
+            pendingDmg = isPick ? pickVsMob : axeVsMob;
+        }
+        else
+        {
+            ChoppableTree node = live;
+            if (node == null && ti >= 0) node = Materialize(ti, twp, tIsRock);
+            if (node != null)
+            {
+                chopPos = node.transform.position + Vector3.up * 2.2f;
+                pendingNode = node; pendingMob = null;
+                pendingDmg = node.IsRock
+                    ? (isPick ? pickVsRock : axeVsRock)
+                    : (isPick ? pickVsTree : axeVsTree);
+            }
+            else
+            {   // 허공 스윙 — 그냥 붕
+                chopPos = transform.position + aimDir * 4f + Vector3.up * 1.8f;
+                pendingNode = null; pendingMob = null;
+                return;
+            }
+        }
         pendingImpact = true;
         pendingAt = Time.time + impactDelay;
     }
 
-    /// 화살이 이 지점에서 나무/바위에 막혔는가 (채집 아님 — 박히고 소멸만)
+    /// 화살이 나무/바위에 맞음 — 화살로도 캘 수 있다, 효율이 낮을 뿐 (arrowVsNode)
     public bool ArrowHit(Vector3 pos)
     {
         if (terr == null) { terr = Terrain.activeTerrain; if (terr == null) return false; }
+        // ① 이미 깨어난 노드
+        foreach (var t in ChoppableTree.All)
+        {
+            if (t == null) continue;
+            if (FlatDist(t.transform.position, pos) < arrowBlockRadius)
+            {
+                t.Hit(arrowVsNode);
+                return true;
+            }
+        }
+        // ② 지형 노드 — 맞는 순간 실체화 + 저효율 피해
         var td = terr.terrainData; var to = terr.transform.position;
         var trees = td.treeInstances;
         for (int i = 0; i < trees.Length; i++)
@@ -169,7 +238,10 @@ public class PlayerGather : MonoBehaviour
             var wp = Vector3.Scale(trees[i].position, td.size) + to;
             if (FlatDist(wp, pos) < arrowBlockRadius)
             {
-                FX.Burst(pos, new Color(0.8f, 0.75f, 0.65f, 0.7f), 6, 0.18f, 1.8f);
+                var proto = td.treePrototypes[trees[i].prototypeIndex].prefab;
+                bool isRock = proto != null && proto.name.ToLower().Contains("rock");
+                var node = Materialize(i, wp, isRock);
+                if (node != null) node.Hit(arrowVsNode);
                 return true;
             }
         }

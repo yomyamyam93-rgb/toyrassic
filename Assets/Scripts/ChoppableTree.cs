@@ -7,7 +7,7 @@ public class ChoppableTree : MonoBehaviour
 {
     public static readonly List<ChoppableTree> All = new List<ChoppableTree>();
 
-    bool isRock; int hitsLeft; int pieces;
+    bool isRock; float hp; int pieces;
     Vector3 baseScale;
     float bounceT;
     readonly List<Material> mats = new List<Material>();
@@ -19,9 +19,9 @@ public class ChoppableTree : MonoBehaviour
     void OnEnable() { All.Add(this); }
     void OnDisable() { All.Remove(this); }
 
-    public void Init(bool rock, int hits, int dropPieces)
+    public void Init(bool rock, float nodeHp, int dropPieces)
     {
-        isRock = rock; hitsLeft = hits; pieces = dropPieces;
+        isRock = rock; hp = nodeHp; pieces = dropPieces;
         baseScale = transform.localScale;
         foreach (var r in GetComponentsInChildren<Renderer>())
             foreach (var m in r.materials)   // 인스턴스 — 곧 사라질 오브젝트라 OK
@@ -33,10 +33,10 @@ public class ChoppableTree : MonoBehaviour
             }
     }
 
-    /// 한 대 맞음 — 스윙 절정 타이밍에 호출됨
-    public void Hit()
+    /// 피해 — 도구·화살에 따라 효율이 다름 (스윙 절정 타이밍에 호출)
+    public void Hit(float dmg)
     {
-        hitsLeft--;
+        hp -= dmg;
         bounceT = 1f;
         var wp = transform.position;
         if (isRock)
@@ -46,7 +46,7 @@ public class ChoppableTree : MonoBehaviour
             FX.Burst(wp + Vector3.up * 4f, new Color(0.45f, 0.72f, 0.30f, 0.9f), 14, 0.45f, 4.5f);
             FX.Burst(wp + Vector3.up * 1.3f, new Color(0.55f, 0.38f, 0.20f, 0.9f), 8, 0.3f, 3f);
         }
-        if (hitsLeft <= 0) Break();
+        if (hp <= 0f) Break();
     }
 
     void Update()
