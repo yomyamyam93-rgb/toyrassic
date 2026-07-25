@@ -103,7 +103,6 @@ public class PlayerMove : MonoBehaviour
         else if (sp > 0.35f) m = BlobMotion.Mode.Walk;
         motion.GroundY = np.y;
         motion.SetMotion(m, Mathf.Clamp01(sp / moveSpeed), wet);
-        if (hasInput) motion.FaceTowards(dir);          // 입력 방향을 바로 바라봄
-        else if (sp > 0.2f) motion.FaceTowards(vel);
+        // 방향은 PlayerBow 가 마우스 위치로 정한다 (이동 방향과 분리 — 무빙샷)
     }
 }
