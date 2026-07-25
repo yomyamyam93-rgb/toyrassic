@@ -17,7 +17,7 @@ public class ItemDrop : MonoBehaviour
     readonly List<GameObject> outlines = new List<GameObject>();
     bool highlighted;
     static Transform player;
-    static Material sHull, sMask; static bool matsInit;
+    static Material sHullWhite, sMask; static bool matsInit;
 
     void OnEnable() { All.Add(this); }
     void OnDisable() { All.Remove(this); }
@@ -26,7 +26,12 @@ public class ItemDrop : MonoBehaviour
     {
         if (matsInit) return; matsInit = true;
         var sp = Object.FindFirstObjectByType<PetSpawner>();
-        if (sp != null) { sHull = sp.outlineHull; sMask = sp.outlineMask; }
+        if (sp != null && sp.outlineHull != null)
+        {
+            sHullWhite = new Material(sp.outlineHull);            // 흰색 강조 라인
+            sHullWhite.SetColor("_OutlineColor", Color.white);
+            sMask = sp.outlineMask;
+        }
     }
 
     public static ItemDrop Spawn(Kind kind, Vector3 pos, int amount, GameObject visual = null)
@@ -40,7 +45,7 @@ public class ItemDrop : MonoBehaviour
             var m = new Material(Shader.Find("Universal Render Pipeline/Lit"));
             m.color = new Color(0.52f, 0.35f, 0.18f);
             g.GetComponent<MeshRenderer>().material = m;
-            g.transform.localScale = new Vector3(0.4f, 1.5f, 0.4f);
+            g.transform.localScale = new Vector3(0.95f, 3.4f, 0.95f);   // 2.5배 — 확실히 보이게
             g.transform.rotation = Quaternion.Euler(78f, Random.Range(0f, 360f), 0f);
         }
         else
@@ -51,7 +56,7 @@ public class ItemDrop : MonoBehaviour
             m.color = kind == Kind.Stone ? new Color(0.62f, 0.60f, 0.55f) : new Color(0.98f, 0.93f, 0.80f);
             g.GetComponent<MeshRenderer>().material = m;
             g.transform.localScale = kind == Kind.Stone
-                ? new Vector3(1.35f, 0.95f, 1.25f)     // 조약돌 — 납작 둥글, 잘 보이게
+                ? new Vector3(3.2f, 2.3f, 3.0f)        // 조약돌 — 2.5배, 확실히 보이게
                 : Vector3.one * 0.8f;
         }
         g.name = "드랍_" + kind;
@@ -69,10 +74,10 @@ public class ItemDrop : MonoBehaviour
     void MakeOutlines()
     {
         InitMats();
-        if (sHull == null || sMask == null) return;
+        if (sHullWhite == null || sMask == null) return;
         var mf = GetComponent<MeshFilter>();
         if (mf == null || mf.sharedMesh == null) return;
-        foreach (var pair in new[] { ("Outline", sHull), ("OutlineMask", sMask) })
+        foreach (var pair in new[] { ("Outline", sHullWhite), ("OutlineMask", sMask) })
         {
             var o = new GameObject(pair.Item1);
             o.transform.SetParent(transform, false);
@@ -87,8 +92,7 @@ public class ItemDrop : MonoBehaviour
 
     void Update()
     {
-        bobT += Time.deltaTime;
-        transform.Rotate(0f, 80f * Time.deltaTime, 0f, Space.World);
+        bobT += Time.deltaTime;   // 회전 없음 — 둥실둥실만
         var p = transform.position;
         p.y = baseY + Mathf.Sin(bobT * 2.4f) * 0.18f + 0.18f;
         transform.position = p;
@@ -125,35 +129,3 @@ public class ItemDrop : MonoBehaviour
     }
 }
 
-/// E키 줍기 — 근처의 드랍 아이템을 줍는다. 플레이어에 부착
-public class PlayerPickup : MonoBehaviour
-{
-    [Tooltip("줍기 사거리 (m)")] public float reach = 6.5f;
-    float cd;
-
-    void Update()
-    {
-        cd -= Time.deltaTime;
-        bool pressed = false;
-#if ENABLE_INPUT_SYSTEM
-        var k = Keyboard.current;
-        if (k != null) pressed = k.eKey.isPressed;   // 꾹 누르면 연달아 줍기
-#else
-        pressed = Input.GetKey(KeyCode.E);
-#endif
-        if (!pressed || cd > 0f) return;
-
-        ItemDrop best = null; float bd = reach;
-        foreach (var d in ItemDrop.All)
-        {
-            if (d == null) continue;
-            float dist = Vector3.Distance(
-                new Vector3(d.transform.position.x, 0, d.transform.position.z),
-                new Vector3(transform.position.x, 0, transform.position.z));
-            if (dist < bd) { bd = dist; best = d; }
-        }
-        if (best == null) return;
-        cd = 0.12f;
-        best.Collect();
-    }
-}
