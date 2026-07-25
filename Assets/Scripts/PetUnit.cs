@@ -111,6 +111,7 @@ public class PetUnit : MonoBehaviour
 
     void OnEnable() { All.Add(this); }
     void OnDisable() { All.Remove(this); }
+    void OnDestroy() { if (barRoot != null) Destroy(barRoot.gameObject); }   // 바는 이제 몸의 자식이 아님
 
     void Start()
     {
@@ -637,15 +638,16 @@ public class PetUnit : MonoBehaviour
     }
 
     // ── HP 바 (둥근 모서리 + 롤식 지연 감소) ──
+    // ★몸에 안 붙임 — 스쿼시·통통 바운스에 안 흔들리게 월드 공간에서 부드럽게 따라감
+    float barY, barSmoothY;
     void MakeBar(Renderer r)
     {
         ghostHp = hp;
         float top = r != null ? (r.bounds.max.y - transform.position.y) : 2f;
-        float ls = Mathf.Max(0.01f, transform.lossyScale.y);
-        barRoot = new GameObject("hpbar").transform;
-        barRoot.SetParent(transform, false);
-        barRoot.localPosition = new Vector3(0f, (top + body * 0.10f) / ls, 0f);
-        barRoot.localScale = Vector3.one * (body * 0.16f) / ls;
+        barY = top + body * 0.12f;
+        barRoot = new GameObject(name + "_hpbar").transform;
+        barRoot.localScale = Vector3.one * (body * 0.16f);
+        barSmoothY = transform.position.y + barY;
         Transform Quad(string n, Color c, float z)
         {
             var q = GameObject.CreatePrimitive(PrimitiveType.Quad).transform;
@@ -670,6 +672,10 @@ public class PetUnit : MonoBehaviour
     void Bar()
     {
         if (barRoot == null || Camera.main == null) return;
+        // 가로는 즉시, 세로는 스무딩 — 통통 튀어도 바는 차분하게
+        var p = transform.position;
+        barSmoothY = Mathf.Lerp(barSmoothY, p.y + barY, 7f * Time.deltaTime);
+        barRoot.position = new Vector3(p.x, barSmoothY, p.z);
         barRoot.rotation = Quaternion.LookRotation(barRoot.position - Camera.main.transform.position);
         // 롤식: 실체력은 즉시, 잔상 바는 잠깐 머물다 스르륵 따라 내려옴
         ghostHp = hp > ghostHp ? hp : Mathf.MoveTowards(ghostHp, hp, maxHp * 0.45f * Time.deltaTime);

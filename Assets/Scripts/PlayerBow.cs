@@ -36,6 +36,7 @@ public class PlayerBow : MonoBehaviour
     LineRenderer bowString, aimLine;
     Transform nockArrow;
     float cd, drawT, aimLen; bool drawing;
+    float stableY;   // 통통 바운스를 걸러낸 발사·에임 기준 높이
     Vector3 aimDir = Vector3.forward;
     BlobMotion motion;
     Camera cam;
@@ -233,9 +234,15 @@ public class PlayerBow : MonoBehaviour
         }
     }
 
+    /// 통통 바운스를 걸러낸 안정 발사점 — 에임 라인·화살이 위아래로 안 떨림
+    Vector3 StableFrom()
+    {
+        return new Vector3(transform.position.x, stableY + arrowUp, transform.position.z);
+    }
+
     void Fire(float range)
     {
-        var from = bowRoot.position + Vector3.up * arrowUp;   // 발사 높이만 올림 (손·활은 그대로)
+        var from = StableFrom();
         ArrowProj.Throw(from, aimDir, arrowSpeed, arrowDamage, range);   // 관통은 추후 스킬로
         FX.Burst(from, new Color(2.2f, 1.9f, 0.8f, 0.9f), 10, 0.16f, 2.4f, 0.2f);   // 반짝! 총구 화염
     }
@@ -244,6 +251,8 @@ public class PlayerBow : MonoBehaviour
     {
         // 항상 마우스 방향을 바라봄 (이동 방향과 무관 — 무빙샷 가능)
         if (motion != null) motion.FaceTowards(aimDir);
+        // 발사 기준 높이는 바운스를 강하게 걸러서 차분하게
+        stableY = stableY == 0f ? transform.position.y : Mathf.Lerp(stableY, transform.position.y, 5f * Time.deltaTime);
 
         var fwd = drawing ? aimDir : transform.forward;
         var right = Vector3.Cross(Vector3.up, fwd).normalized;
@@ -277,11 +286,11 @@ public class PlayerBow : MonoBehaviour
             nockArrow.localRotation = Quaternion.Euler(90f, 0f, 0f);
         }
 
-        // 에임 라인 — 발사 높이에서 조준 방향으로, 차오른 만큼
+        // 에임 라인 — 안정 발사점에서 조준 방향으로, 차오른 만큼 (바운스에 안 흔들림)
         aimLine.enabled = drawing;
         if (drawing)
         {
-            var from2 = bowRoot.position + Vector3.up * arrowUp;
+            var from2 = StableFrom();
             aimLine.SetPosition(0, from2);
             aimLine.SetPosition(1, from2 + aimDir * aimLen);
         }
