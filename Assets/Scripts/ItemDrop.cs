@@ -91,6 +91,7 @@ public class ItemDrop : MonoBehaviour
             var mr = q.GetComponent<MeshRenderer>();
             mr.material = new Material(Shader.Find("Sprites/Default"));
             mr.material.mainTexture = BeamTex();
+            mr.sortingOrder = -5;   // 아이콘(0)·하이라이트(-1)보다 뒤 — 빛기둥이 아이템을 안 가림
             mr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
         }
         ApplyBeamSettings();
