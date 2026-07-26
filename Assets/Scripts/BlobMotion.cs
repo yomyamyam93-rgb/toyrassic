@@ -80,7 +80,8 @@ public class BlobMotion : MonoBehaviour
         }
         if (wet) { rate *= wetSlow; amp *= wetAmp; }
 
-        t += Time.deltaTime * rate;
+        // F1 자세 정지 — 통통 바운스도 멈춰야 장비 위치를 맞출 수 있다
+        if (!PlayerBow.PoseFrozen) t += Time.deltaTime * rate;
         // 0~1 반복. 위로 솟았다가 착지하는 한 주기.
         float ph = Mathf.Repeat(t, 1f);
         float up = Mathf.Sin(ph * Mathf.PI);          // 0→1→0

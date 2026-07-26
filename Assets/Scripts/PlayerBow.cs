@@ -145,6 +145,7 @@ public class PlayerBow : MonoBehaviour
 
     void Start()
     {
+        PoseFrozen = false;   // static — 도메인 리로드를 껐을 때 이전 세션 상태가 남지 않게
         motion = GetComponent<BlobMotion>();
         gather = GetComponent<PlayerGather>();
         cam = Camera.main;
@@ -435,13 +436,37 @@ public class PlayerBow : MonoBehaviour
 #endif
     }
 
+    /// ★F1 정지 — 장비 위치를 맞출 때 조준이 마우스를 따라 계속 돌아가면
+    /// 맞출 수가 없어서, 자세를 그 자리에 얼려 두는 모드
+    public static bool PoseFrozen;
+
     void Update()
     {
         cd -= Time.deltaTime;
         if (cam == null) { cam = Camera.main; if (cam == null) return; }
 
+#if ENABLE_INPUT_SYSTEM
+        var kb = Keyboard.current;
+        if (kb != null && kb.f1Key.wasPressedThisFrame)
+#else
+        if (Input.GetKeyDown(KeyCode.F1))
+#endif
+        {
+            PoseFrozen = !PoseFrozen;
+            SquadHUD.Toast(PoseFrozen
+                ? "자세 정지 (F1) — 조준·이동 멈춤. 인스펙터에서 장비 위치를 맞추세요"
+                : "자세 정지 해제 (F1)");
+        }
+
         bool pressed, released; Vector2 mp;
         if (!ReadMouse(out pressed, out released, out mp)) return;
+
+        if (PoseFrozen)
+        {   // 얼어붙음 — 조준 방향·전투 입력 전부 그대로 유지 (장비 정렬은 계속 반영됨)
+            drawing = false; drawT = 0f; aimLen = 0f;
+            if (aimLine != null) aimLine.enabled = false;
+            return;   // 장비 비주얼은 LateUpdate 가 계속 갱신 — 인스펙터 조절은 실시간 반영
+        }
 
         // 마우스 → '에임 라인과 같은 높이' 평면 교점 → 조준 방향
         // (캐릭터 발 높이로 계산하면 시차 때문에 라인이 포인터와 어긋난다)

@@ -103,7 +103,8 @@ public class PlayerMove : MonoBehaviour
 
         float ix, iz;
         ReadInput(out ix, out iz);
-        if (suppressMove) { ix = 0f; iz = 0f; vel = Vector3.zero; }   // 대시 중엔 조작 무시
+        // 대시 중 / F1 자세 정지 중엔 조작 무시
+        if (suppressMove || PlayerBow.PoseFrozen) { ix = 0f; iz = 0f; vel = Vector3.zero; }
 
         var input = new Vector3(ix, 0f, iz);
         if (input.sqrMagnitude > 1f) input.Normalize();
