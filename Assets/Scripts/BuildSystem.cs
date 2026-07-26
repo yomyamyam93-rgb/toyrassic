@@ -61,6 +61,10 @@ public class BuildSystem : MonoBehaviour
     [Tooltip("배치 사거리 (m)")] public float reach = 24f;
     [Tooltip("최대 경사 (°)")] public float maxSlope = 22f;
     [Tooltip("철거 시 재료 환급 비율")] [Range(0f, 1f)] public float refund = 0.5f;
+    [Tooltip("바닥을 지면에서 띄우는 높이 (m) — 잔디에 안 묻히게")] public float floorLift = 0.9f;
+    [Tooltip("이 거리 안의 바닥에는 딱 붙여서 이어 짓는다 (m)")] public float snapRange = 16f;
+
+    public static float FloorLift = 0.9f;   // Structure 에서 참조
 
     int sel;
     float yaw;
@@ -169,7 +173,33 @@ public class BuildSystem : MonoBehaviour
         pos = SnapPos(hit);
 
         var p = pieces[sel];
-        if (terr != null)
+        FloorLift = floorLift;
+
+        // ★이어 짓기 스냅 — 근처 바닥이 있으면 그 옆칸에 딱 붙인다 (같은 높이·같은 각도)
+        Structure snapTo = null;
+        if (p.isFloor)
+        {
+            float bd = snapRange;
+            foreach (var s in Structure.All)
+            {
+                if (s == null || !s.isFloor) continue;
+                float dd = Vector3.Distance(new Vector3(s.BasePos.x, 0, s.BasePos.z), new Vector3(hit.x, 0, hit.z));
+                if (dd < bd) { bd = dd; snapTo = s; }
+            }
+        }
+        if (snapTo != null)
+        {
+            yaw = snapTo.Yaw;                                   // 각도 통일
+            var rot = Quaternion.Euler(0f, yaw, 0f);
+            var local = Quaternion.Inverse(rot) * (hit - snapTo.BasePos);
+            // 마우스가 있는 쪽 한 칸 옆 (제자리면 그 위)
+            int sx = Mathf.Abs(local.x) > Mathf.Abs(local.z) ? (local.x > 0 ? 1 : -1) : 0;
+            int sz = Mathf.Abs(local.z) >= Mathf.Abs(local.x) ? (local.z > 0 ? 1 : -1) : 0;
+            if (Mathf.Abs(local.x) < p.size.x * 0.35f && Mathf.Abs(local.z) < p.size.z * 0.35f) { sx = 0; sz = 0; }
+            pos = snapTo.BasePos + rot * new Vector3(sx * p.size.x, 0f, sz * p.size.z);
+            valid = true;
+        }
+        else if (terr != null)
         {
             pos.y = terr.SampleHeight(pos) + terr.transform.position.y;
             var td = terr.terrainData; var to = terr.transform.position;
@@ -186,11 +216,15 @@ public class BuildSystem : MonoBehaviour
         foreach (var s in Structure.All)
         {
             if (s == null) continue;
-            float d2 = Vector3.Distance(new Vector3(s.transform.position.x, 0, s.transform.position.z),
+            float d2 = Vector3.Distance(new Vector3(s.BasePos.x, 0, s.BasePos.z),
                                         new Vector3(pos.x, 0, pos.z));
-            if (d2 >= grid * 0.9f) continue;
-            if (s.isFloor && !p.isFloor) { floorHere = s; continue; }   // 바닥 위엔 올릴 수 있다
-            valid = false;                                              // 같은 종류끼리는 겹침 불가
+            if (s.isFloor && !p.isFloor)
+            {   // 바닥 위엔 올릴 수 있다 (바닥 범위 안이면)
+                if (d2 < s.Size.x * 0.6f) floorHere = s;
+                continue;
+            }
+            float need = p.isFloor ? Mathf.Min(p.size.x, s.Size.x) * 0.8f : grid * 0.9f;
+            if (d2 < need) valid = false;   // 같은 종류끼리는 겹침 불가
         }
         if (floorHere != null) pos.y = floorHere.TopY;
 
@@ -479,6 +513,10 @@ public class Structure : MonoBehaviour
     public bool isFloor;
     /// 이 구조물 윗면 높이 (바닥 위에 올려 지을 때 기준)
     public float TopY { get; private set; }
+    /// 설치 기준점(바닥면 중심)·각도·크기 — 이어 짓기 스냅에 쓰인다
+    public Vector3 BasePos { get; private set; }
+    public float Yaw { get; private set; }
+    public Vector3 Size { get; private set; }
     PetUnit unit;
     float blockRadius;
 
@@ -491,7 +529,7 @@ public class Structure : MonoBehaviour
         Object.Destroy(go.GetComponent<Collider>());
         go.name = "구조물_" + p.name;
         go.transform.SetParent(SceneBuckets.Drops.parent);   // 씬 루트 정리함 옆
-        if (p.isFloor) pos.y += 0.15f;                       // 바닥은 지면에서 살짝 띄운다
+        if (p.isFloor) pos.y += BuildSystem.FloorLift;       // 바닥은 잔디 위로 올려 놓는다
         go.transform.position = pos + Vector3.up * p.size.y * 0.5f;
         go.transform.rotation = Quaternion.Euler(0f, yaw, 0f);
         go.transform.localScale = p.size;
@@ -504,6 +542,7 @@ public class Structure : MonoBehaviour
         s.blockRadius = p.blockRadius;
         s.isFloor = p.isFloor;
         s.TopY = pos.y + p.size.y;   // 이 위에 다음 층을 올린다
+        s.BasePos = pos; s.Yaw = yaw; s.Size = p.size;
         if (p.blockRadius <= 0.01f) { /* 바닥은 통행 가능 — 충돌 등록 안 함 */ }
         var u = go.AddComponent<PetUnit>();
         u.isStructure = true; u.team = PetUnit.Team.Player;
@@ -512,7 +551,6 @@ public class Structure : MonoBehaviour
         s.unit = u;
         if (p.blockRadius > 0.01f)
             TreeBlocker.AddPoint(pos, p.blockRadius);   // 벽만 통행 차단 (바닥은 지나갈 수 있음)
-        if (p.isFloor) s.ClearGrassUnder(pos, p.size);  // 바닥 밑 잔디 제거 (철거 시 복구)
         return s;
     }
 
@@ -534,50 +572,8 @@ public class Structure : MonoBehaviour
             if (w > 0 || st > 0) SquadHUD.Toast($"구조물 철거 — 나뭇가지 {w}·돌 {st} 회수");
         }
         TreeBlocker.RemovePoint(transform.position);
-        RestoreGrass();
         FX.Burst(transform.position, new Color(0.75f, 0.68f, 0.55f, 0.9f), 20, 0.45f, 4f, 0.6f);
         Destroy(gameObject);
     }
 
-    // ── 바닥 밑 잔디 제거·복구 (지형 디테일 레이어) ──
-    Terrain grassTerr;
-    int gx, gy, gw, gh;
-    List<int[,]> grassBackup;
-
-    public void ClearGrassUnder(Vector3 pos, Vector3 size)
-    {
-        grassTerr = Terrain.activeTerrain;
-        if (grassTerr == null) return;
-        var td = grassTerr.terrainData;
-        int layers = td.detailPrototypes.Length;
-        if (layers == 0) return;
-        var to = grassTerr.transform.position;
-
-        // 월드 → 디테일 좌표 (바닥 발자국 + 약간 여유)
-        float halfX = size.x * 0.5f + 0.5f, halfZ = size.z * 0.5f + 0.5f;
-        float u0 = (pos.x - halfX - to.x) / td.size.x, u1 = (pos.x + halfX - to.x) / td.size.x;
-        float v0 = (pos.z - halfZ - to.z) / td.size.z, v1 = (pos.z + halfZ - to.z) / td.size.z;
-        gx = Mathf.Clamp(Mathf.FloorToInt(u0 * td.detailWidth), 0, td.detailWidth - 1);
-        gy = Mathf.Clamp(Mathf.FloorToInt(v0 * td.detailHeight), 0, td.detailHeight - 1);
-        int x1 = Mathf.Clamp(Mathf.CeilToInt(u1 * td.detailWidth), 0, td.detailWidth);
-        int y1 = Mathf.Clamp(Mathf.CeilToInt(v1 * td.detailHeight), 0, td.detailHeight);
-        gw = Mathf.Max(1, x1 - gx); gh = Mathf.Max(1, y1 - gy);
-
-        grassBackup = new List<int[,]>(layers);
-        var zeros = new int[gh, gw];
-        for (int l = 0; l < layers; l++)
-        {
-            grassBackup.Add(td.GetDetailLayer(gx, gy, gw, gh, l));
-            td.SetDetailLayer(gx, gy, l, zeros);
-        }
-    }
-
-    void RestoreGrass()
-    {
-        if (grassTerr == null || grassBackup == null) return;
-        var td = grassTerr.terrainData;
-        for (int l = 0; l < grassBackup.Count && l < td.detailPrototypes.Length; l++)
-            td.SetDetailLayer(gx, gy, l, grassBackup[l]);
-        grassBackup = null;
-    }
 }
