@@ -25,6 +25,17 @@ public class PlayerBow : MonoBehaviour
     [Tooltip("화살이 나가는 높이 (활 위치 기준 위로)")] public float arrowUp = 1.5f;
     [Tooltip("비워두면 캐릭터 텍스처 평균색 자동")] public Color handColor = Color.clear;
 
+    [Header("타격감 — 치는 순간 앞부분이 뭉뚝하게 부풀었다 돌아온다")]
+    [Tooltip("얼마나 부푸나 (0=끔, 0.35=35% 커짐)")] public float impactPop = 0.35f;
+    [Tooltip("부풀었다 돌아오는 구간 길이 (스윙 전체 대비 비율)")] public float impactPopSpan = 0.45f;
+    [Tooltip("길이 방향은 덜 늘리기 (1=똑같이, 0.4=옆으로만 뚱뚱하게)")] public float impactPopLong = 0.4f;
+
+    [Header("도구 휴대 — 평소 들고 다닐 때 (스윙 중엔 무시)")]
+    [Tooltip("손 기준 위치 보정 (각도는 아래 '잡기' 의 gripEuler)")]
+    public Vector3 toolCarryPos = Vector3.zero;
+    [Tooltip("활 휴대 위치 보정 — 왼손 기준")]
+    public Vector3 bowCarryPos = Vector3.zero;
+
     [Header("활 휴대 자세 — 안 쏠 때 들고 다니는 각도")]
     [Tooltip("기울기 (X=앞뒤 Y=좌우 Z=옆으로 눕힘). 예전 절차 활대는 Z=46 이었지만 실제 활 모델엔 과하다")]
     public Vector3 carryEuler = new Vector3(14f, 8f, 16f);
@@ -657,6 +668,7 @@ public class PlayerBow : MonoBehaviour
             float sway = (Mathf.Sin(Time.time * 2.6f) * 7f + Mathf.Sin(Time.time * 4.1f + 1.3f) * 3f) * carrySway;
             var rest = Quaternion.LookRotation(fwd, Vector3.up) * Quaternion.Euler(carryEuler + new Vector3(0f, 0f, sway));
             bowRoot.rotation = Quaternion.Slerp(bowRoot.rotation, rest, 6f * Time.deltaTime);
+            bowRoot.position += bowRoot.rotation * bowCarryPos;   // 휴대 위치 보정 (활 기준)
         }
 
         float back = -0.85f * pull * bowSize;
@@ -731,7 +743,24 @@ public class PlayerBow : MonoBehaviour
                     var fix = Quaternion.Euler(setup.modelEuler);
                     rig.inst.localRotation = fix * rig.autoRot;
                     rig.inst.localPosition = fix * (rig.autoPos * s) + setup.modelPos;
-                    rig.inst.localScale = Vector3.one * s;
+
+                    // ★타격 팝 — 치는 순간 부풀었다 돌아온다. 회전축이 손잡이라
+                    //   전체를 키워도 머리 쪽이 크게 부푸는 것처럼 보인다
+                    float pop = 0f;
+                    if (gather != null && gather.SwingT > 0f && impactPop > 0.001f)
+                    {
+                        float sk0 = 1f - gather.SwingT;
+                        float from = gather.ImpactAt01 - impactPopSpan * 0.25f;
+                        float u = (sk0 - from) / Mathf.Max(0.05f, impactPopSpan);
+                        if (u > 0f && u < 1f) pop = Mathf.Sin(u * Mathf.PI) * impactPop;
+                    }
+                    // 모델의 긴 축(=손잡이에서 머리로 가는 쪽)만 덜 늘려 옆으로 뚱뚱하게
+                    var lengthAxis = (Quaternion.Inverse(rig.autoRot) * Vector3.forward);
+                    var popScale = new Vector3(
+                        1f + pop * Mathf.Lerp(1f, impactPopLong, Mathf.Abs(lengthAxis.x)),
+                        1f + pop * Mathf.Lerp(1f, impactPopLong, Mathf.Abs(lengthAxis.y)),
+                        1f + pop * Mathf.Lerp(1f, impactPopLong, Mathf.Abs(lengthAxis.z)));
+                    rig.inst.localScale = popScale * s;
                 }
 
                 var trail = rig.trail;
@@ -776,9 +805,10 @@ public class PlayerBow : MonoBehaviour
                     }
                 }
                 else
-                {   // 휴대 — 손 방향만 전방으로 (도구 자세는 gripEuler 가 결정)
+                {   // 휴대 — 손 방향만 전방으로 (자세는 gripEuler, 위치는 toolCarryPos)
                     handR.rotation = Quaternion.Slerp(handR.rotation,
                         Quaternion.LookRotation(fwd, Vector3.up), 10f * Time.deltaTime);
+                    toolHeld.localPosition = gripPosOffset + toolCarryPos;
                     if (trail != null) trail.emitting = false;
                 }
                 prevSwingT = gather != null ? gather.SwingT : 0f;

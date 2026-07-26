@@ -93,6 +93,8 @@ public class PlayerGather : MonoBehaviour
     public float SwingT => swingT;
     public Vector3 ChopPos => chopPos;
     public bool ChopIsRock => chopIsRock;
+    /// 스윙 진행도(0→1) 중 실제로 타격이 들어가는 지점 — 연출 타이밍 동기용
+    public float ImpactAt01 => Mathf.Clamp01(impactDelay / 0.34f);
 
     void Awake()
     {
