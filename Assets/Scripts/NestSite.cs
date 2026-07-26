@@ -33,6 +33,49 @@ public class NestSite : MonoBehaviour
         }
     }
 
+    /// 씬의 모든 둥지 — 알을 잃었을 때 어디로 돌려놓을지 고르는 데 쓴다
+    public static readonly List<NestSite> All = new List<NestSite>();
+    void OnEnable() { if (!All.Contains(this)) All.Add(this); }
+    void OnDisable() { All.Remove(this); }
+
+    /// ★부화에 실패하면 알은 없어지는 게 아니라 어느 둥지로 돌아간다.
+    /// 비어 있는 둥지 중 제일 가까운 곳을 되살리고 그 둥지를 알려준다 (재도전 가능).
+    public static NestSite ReturnEgg(Vector3 from)
+    {
+        NestSite best = null; float bd = float.MaxValue;
+        foreach (var n in All)
+        {
+            if (n == null || n.egg != null) continue;      // 알이 남아 있는 둥지는 건너뜀
+            float d = Vector3.Distance(n.transform.position, from);
+            if (d < bd) { bd = d; best = n; }
+        }
+        if (best == null) return null;
+        best.Respawn();
+        return best;
+    }
+
+    /// 둥지를 처음 상태로 — 알을 다시 얹고 무리도 되살아난다
+    void Respawn()
+    {
+        triggered = false; cleared = false;
+        spawned = 0; spawnT = 0f;
+        swarm.Clear();
+        if (egg == null)
+        {
+            var e = GameObject.CreatePrimitive(PrimitiveType.Sphere).transform;
+            Destroy(e.GetComponent<Collider>());
+            e.name = "알";
+            e.SetParent(transform, false);
+            e.localPosition = new Vector3(0f, 1.6f, 0f);
+            e.localScale = new Vector3(1.6f, 2.1f, 1.6f);
+            var mr = e.GetComponent<MeshRenderer>();
+            mr.material = new Material(Shader.Find("Universal Render Pipeline/Lit"));
+            mr.material.color = new Color(0.95f, 0.9f, 0.75f);
+            egg = e;
+        }
+        FX.Burst(transform.position + Vector3.up * 2f, new Color(1.7f, 1.5f, 0.6f, 0.95f), 24, 0.3f, 3f);
+    }
+
     bool triggered, cleared;
     float spawnT;
     int spawned;

@@ -14,13 +14,15 @@ public class Incubator : MonoBehaviour
     [Header("연결")]
     public PetSpawner spawner;
 
-    [Header("웨이브 (방어해야 게이지가 참)")]
-    [Tooltip("총 몇 웨이브를 막아야 부화하나")] public int totalWaves = 3;
+    [Header("부화 — 시간이 곧 게이지 (버텨내면 태어난다)")]
+    [Tooltip("알이 부화하기까지 총 시간 (초)")] public float hatchDuration = 90f;
+    [Tooltip("그 사이 몇 차례 몰려오나 — 앞 차수를 다 못 잡아도 다음이 온다")]
+    public int totalWaves = 3;
+    [Tooltip("첫 습격까지 준비 시간 (초)")] public float firstWaveDelay = 6f;
     public int baseWaveSize = 6;
-    [Tooltip("웨이브마다 몇 마리씩 늘어나나")] public int waveSizeGrow = 4;
+    [Tooltip("차수마다 몇 마리씩 늘어나나")] public int waveSizeGrow = 4;
     public float spawnInterval = 0.5f;
     [Tooltip("습격이 몰려오는 거리")] public float ringMin = 45f, ringMax = 60f;
-    [Tooltip("웨이브 사이 숨 고르기 (초)")] public float breather = 6f;
 
     [Header("습격 쫄병 배율")]
     public float sizeMul = 0.6f, hpMul = 0.35f, dmgMul = 0.6f;
@@ -30,16 +32,19 @@ public class Incubator : MonoBehaviour
 
     [HideInInspector] public bool incubating;
     [HideInInspector] public int wave;          // 진행 중 웨이브 번호
-    [HideInInspector] public int clearedWaves;  // 막아낸 웨이브 수 (게이지)
+    /// 부화 진행도 0~1 (시간으로 찬다)
+    public float Progress01 => hatchDuration > 0f ? Mathf.Clamp01(hatchT / hatchDuration) : 0f;
 
-    enum Phase { Idle, Spawning, Fighting, Breather }
-    Phase phase = Phase.Idle;
     PetUnit unit;
     Transform eggVis;
     Transform gaugeRoot, gaugeFill;   // 부화 게이지 — 부화기 머리 위 (HUD 아님)
     readonly List<PetUnit> attackers = new List<PetUnit>();
-    int toSpawn; float spawnT, breatherT;
+    int toSpawn; float spawnT;
     Transform player;
+    // ★시간축 — 웨이브를 '다 죽이면 다음'이 아니라 정해진 시각에 알아서 내보낸다.
+    //   앞 차수가 안 정리돼도 다음이 겹쳐 오므로 갈수록 압박이 쌓인다.
+    float hatchT;        // 품기 시작한 뒤 흐른 시간
+    int wavesSent;       // 지금까지 내보낸 차수
 
     void Awake()
     {
@@ -135,7 +140,18 @@ public class Incubator : MonoBehaviour
         // 파괴 체크 — 품던 알 소실
         if (unit != null && !unit.Alive)
         {
-            if (incubating) SquadHUD.Toast("부화기가 파괴됐다… 알을 잃었다!");
+            if (incubating)
+            {   // ★알은 사라지지 않고 어느 둥지로 돌아간다 — 좌표를 알려줘 재도전할 수 있게
+                var nest = NestSite.ReturnEgg(transform.position);
+                if (nest != null)
+                {
+                    var np = nest.transform.position;
+                    float far = Vector3.Distance(np, transform.position);
+                    SquadHUD.Toast($"부화기가 파괴됐다! 알을 빼앗겼다…\n" +
+                                   $"알이 둥지로 돌아갔다 — {np.x:F0}, {np.z:F0}  (여기서 {far:F0}m)");
+                }
+                else SquadHUD.Toast("부화기가 파괴됐다… 알을 잃었다!");
+            }
             KillGauge();
             FX.Burst(transform.position + Vector3.up * 1.5f, new Color(0.6f, 0.55f, 0.5f, 1f), 30, 0.5f, 5f);
             foreach (var a in attackers) if (a != null && a.Alive) a.forceTarget = null;
@@ -148,77 +164,73 @@ public class Incubator : MonoBehaviour
             new Vector3(player.position.x, 0, player.position.z),
             new Vector3(transform.position.x, 0, transform.position.z));
 
-        switch (phase)
+        // ── 알 넣기 — 알을 들고 다가오면 품기 시작 (= 습격 시작) ──
+        if (!incubating)
         {
-            case Phase.Idle:
-                // 알 넣기 — 알을 들고 다가오면 품기 시작 (= 웨이브 소환)
-                if (NestSite.EggCount > 0 && d < 7f)
-                {
-                    NestSite.EggCount--;
-                    incubating = true; wave = 0; clearedWaves = 0;
-                    MakeEggVisual();
-                    MakeGauge();
-                    SquadHUD.Toast("알을 품기 시작했다! 알의 공명에 야생들이 몰려온다…");
-                    FollowCam.Shake(0.3f);
-                    breatherT = 4f;
-                    phase = Phase.Breather;
-                }
-                break;
+            if (NestSite.EggCount > 0 && d < 7f)
+            {
+                NestSite.EggCount--;
+                incubating = true;
+                hatchT = 0f; wavesSent = 0; wave = 0;
+                attackers.Clear();
+                MakeEggVisual();
+                MakeGauge();
+                SquadHUD.Toast("알을 품기 시작했다! 알의 공명에 야생들이 몰려온다…");
+                FollowCam.Shake(0.3f);
+            }
+            return;
+        }
 
-            case Phase.Breather:
-                breatherT -= Time.deltaTime;
-                if (breatherT <= 0f)
-                {
-                    wave++;
-                    toSpawn = baseWaveSize + waveSizeGrow * (wave - 1);
-                    attackers.Clear();
-                    SquadHUD.Toast($"웨이브 {wave}/{totalWaves} — 야생 습격이 온다!");
-                    spawnT = 0.2f;
-                    phase = Phase.Spawning;
-                }
-                break;
+        // ── 부화는 시간이 채운다. 적을 다 잡든 말든 시계는 흐른다 ──
+        hatchT += Time.deltaTime;
+        if (hatchT >= hatchDuration) { Hatch(); return; }
 
-            case Phase.Spawning:
-                spawnT -= Time.deltaTime;
-                if (spawnT <= 0f && spawner != null)
-                {
-                    spawnT = spawnInterval;
-                    var pool = new List<PetSpawner.Entry>();
-                    foreach (var e in spawner.entries)
-                        if (e.tier == PetScale.Tier.S || e.tier == PetScale.Tier.M ||
-                            (wave >= totalWaves && e.tier == PetScale.Tier.L)) pool.Add(e);
-                    if (pool.Count == 0) pool.AddRange(spawner.entries);
-                    var entry = pool[Random.Range(0, pool.Count)];
-                    float a = Random.Range(0f, Mathf.PI * 2f);
-                    var pos = transform.position + new Vector3(Mathf.Cos(a), 0, Mathf.Sin(a)) * Random.Range(ringMin, ringMax);
-                    var terr = Terrain.activeTerrain;
-                    if (terr != null) pos.y = terr.SampleHeight(pos) + terr.transform.position.y;
-                    var g = spawner.Spawn(entry, pos, sizeMul, hpMul, dmgMul);
-                    if (g != null)
-                    {
-                        var u = g.GetComponent<PetUnit>();
-                        u.name = entry.koreanName + "(습격)";
-                        u.forceTarget = unit;            // 부화기를 향해 진군
-                        attackers.Add(u);
-                        toSpawn--;
-                        if (toSpawn <= 0) phase = Phase.Fighting;
-                    }
-                }
-                break;
+        // 정해진 시각이 되면 다음 차수를 내보낸다 (앞 차수가 남아 있어도 겹쳐서 온다)
+        if (wavesSent < totalWaves)
+        {
+            // 첫 차수는 준비 시간 뒤, 나머지는 남은 시간을 고르게 나눠서
+            float slot = (hatchDuration - firstWaveDelay) / Mathf.Max(1, totalWaves);
+            float due = firstWaveDelay + slot * wavesSent;
+            if (hatchT >= due)
+            {
+                wavesSent++;
+                wave = wavesSent;
+                toSpawn += baseWaveSize + waveSizeGrow * (wavesSent - 1);
+                spawnT = 0.2f;
+                SquadHUD.Toast(wavesSent >= totalWaves
+                    ? "마지막 습격이다! 버텨라"
+                    : $"{wavesSent}차 습격이 온다! ({wavesSent}/{totalWaves})");
+                FollowCam.Shake(0.2f);
+            }
+        }
 
-            case Phase.Fighting:
-                bool anyAlive = false;
-                foreach (var u in attackers) if (u != null && u.Alive) { anyAlive = true; break; }
-                if (!anyAlive)
+        // 대기 중인 소환분을 조금씩 흘려보낸다
+        if (toSpawn > 0 && spawner != null)
+        {
+            spawnT -= Time.deltaTime;
+            if (spawnT <= 0f)
+            {
+                spawnT = spawnInterval;
+                var pool = new List<PetSpawner.Entry>();
+                foreach (var e in spawner.entries)
+                    if (e.tier == PetScale.Tier.S || e.tier == PetScale.Tier.M ||
+                        (wavesSent >= totalWaves && e.tier == PetScale.Tier.L)) pool.Add(e);
+                if (pool.Count == 0) pool.AddRange(spawner.entries);
+                var entry = pool[Random.Range(0, pool.Count)];
+                float ang = Random.Range(0f, Mathf.PI * 2f);
+                var pos = transform.position + new Vector3(Mathf.Cos(ang), 0, Mathf.Sin(ang)) * Random.Range(ringMin, ringMax);
+                var terr = Terrain.activeTerrain;
+                if (terr != null) pos.y = terr.SampleHeight(pos) + terr.transform.position.y;
+                var g = spawner.Spawn(entry, pos, sizeMul, hpMul, dmgMul);
+                if (g != null)
                 {
-                    clearedWaves = wave;
-                    if (wave >= totalWaves) { Hatch(); return; }
-                    SquadHUD.Toast($"웨이브 {wave} 방어 성공!  부화 게이지 {wave}/{totalWaves}");
-                    FX.Burst(transform.position + Vector3.up * 2f, new Color(1.6f, 1.4f, 0.5f, 0.9f), 16, 0.3f, 2.5f);
-                    breatherT = breather;
-                    phase = Phase.Breather;
+                    var u = g.GetComponent<PetUnit>();
+                    u.name = entry.koreanName + "(습격)";
+                    u.forceTarget = unit;            // 부화기를 향해 진군
+                    attackers.Add(u);
+                    toSpawn--;
                 }
-                break;
+            }
         }
 
         // 품는 알 연출 — 두근두근
@@ -236,7 +248,7 @@ public class Incubator : MonoBehaviour
             gaugeRoot.rotation = camT.rotation;
             float dist = Vector3.Distance(camT.position, gaugeRoot.position);
             gaugeRoot.localScale = Vector3.one * 1.5f * Mathf.Clamp(dist / 42f, 0.85f, 6f);
-            float f = totalWaves > 0 ? clearedWaves / (float)totalWaves : 0f;
+            float f = hatchDuration > 0f ? Mathf.Clamp01(hatchT / hatchDuration) : 0f;   // 시간 = 게이지
             var s = gaugeFill.localScale; s.x = 1.95f * Mathf.Max(0.02f, f); gaugeFill.localScale = s;
             var lp = gaugeFill.localPosition; lp.x = -(1.95f - s.x) * 0.5f; gaugeFill.localPosition = lp;
         }
@@ -245,7 +257,7 @@ public class Incubator : MonoBehaviour
     void Hatch()
     {
         incubating = false;
-        phase = Phase.Idle;
+        hatchT = 0f; wavesSent = 0; toSpawn = 0;
         KillGauge();
         SquadHUD.Toast("🎉 알이 부화했다! 새 친구가 태어났다!");
         FX.Burst(transform.position + Vector3.up * 2.5f, new Color(1.9f, 1.7f, 0.6f, 1f), 40, 0.3f, 4f);
