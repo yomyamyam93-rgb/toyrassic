@@ -468,6 +468,8 @@ public class MenuUI : MonoBehaviour
 
         // ── 캐릭터 ──
         sb.AppendLine($"<b>캐릭터   Lv.{PlayerLevel.Level}</b>   경험치 {PlayerLevel.Xp:F0} / {PlayerLevel.XpNeed:F0}");
+        sb.AppendLine($"  <b>전투력 {Power.OfPlayerTotal()}</b>   (나 {Power.OfPlayer()}" +
+                      (pet != null ? $" + 펫 {Power.Of(pet) / 2})" : ")"));
         if (me != null) sb.AppendLine($"  체력  {Mathf.CeilToInt(me.hp)} / {Mathf.CeilToInt(me.maxHp)}");
         sb.AppendLine($"  힘 {PlayerLevel.Str}  ·  민첩 {PlayerLevel.Agi}  ·  체력 {PlayerLevel.Vit}");
         sb.AppendLine($"  피해 {PlayerLevel.DamageMul:F2}배 · 공속 {PlayerLevel.AtkSpeedMul:F2}배 · 이동 {PlayerLevel.MoveMul:F2}배");
@@ -482,6 +484,7 @@ public class MenuUI : MonoBehaviour
         if (pet != null)
         {
             sb.AppendLine($"<b>펫  {pet.name}   Lv.{pet.level}</b>   경험치 {pet.xp:F0} / {pet.XpNeed:F0}");
+            sb.AppendLine($"  <b>전투력 {Power.Of(pet)}</b>");
             sb.AppendLine($"  체력  {Mathf.CeilToInt(pet.hp)} / {Mathf.CeilToInt(pet.maxHp)}");
             sb.AppendLine($"  힘 {pet.str:F0}  ·  민첩 {pet.agi:F0}  ·  체력 {pet.vit:F0}");
             sb.AppendLine($"  찍은 점수 — 힘 {pet.pStr} · 민첩 {pet.pAgi} · 체력 {pet.pVit}  (스탯당 최대 {PetUnit.MaxPerStat})");
@@ -493,6 +496,18 @@ public class MenuUI : MonoBehaviour
         {
             sb.AppendLine("<b>펫</b>");
             sb.AppendLine("  (없음 — 알을 부화시키면 생긴다)");
+        }
+
+        // ── 부대 (수비대가 생기면 그대로 여기에 잡힌다) ──
+        var squad = new System.Collections.Generic.List<PetUnit>(Power.MySquad());
+        if (squad.Count > 1 || (squad.Count == 1 && pet == null))
+        {
+            sb.AppendLine();
+            // 부대 크기가 정해져 있지 않으니 '총합'이 곧 실제 전력이다.
+            // 평균은 "한 마리 한 마리가 쓸 만한가"를 보는 참고값.
+            sb.AppendLine($"<b>부대</b>   {squad.Count}마리");
+            sb.AppendLine($"  <b>총 전투력 {Power.Total(squad)}</b>   (평균 {Power.Average(squad)})");
+            sb.AppendLine($"  나까지 합친 세력 전력  <b>{Power.OfEmpire()}</b>");
         }
 
         statText.text = sb.ToString();
