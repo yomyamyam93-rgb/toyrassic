@@ -102,6 +102,11 @@ public static class FX
         var f = PopFont();
         if (f == null || f.material == null) return null;
         m = new Material(f.material);
+        // ★수치는 무조건 맨 앞 — TMP 의 Overlay 셰이더로 바꾼다.
+        //   Distance Field 기본 셰이더는 _ZTestMode 를 꺼도 그리는 순서에서 밀려
+        //   캐릭터 뒤로 들어가는 일이 있다. Overlay 는 큐 자체가 제일 뒤(=맨 앞에 그림).
+        var overlay = Shader.Find("TextMeshPro/Distance Field Overlay");
+        if (overlay != null) m.shader = overlay;
         // 외곽선 + 언더레이 이중 — 확실히 진한 검정 테두리
         m.EnableKeyword("OUTLINE_ON");
         m.SetFloat(TMPro.ShaderUtilities.ID_OutlineWidth, s == PopStyle.Item ? 0.25f : 0.32f);
@@ -115,7 +120,7 @@ public static class FX
         m.SetFloat(TMPro.ShaderUtilities.ID_FaceDilate, 0.14f);   // 글자 살 두께 보강 (볼드감)
         // ★깊이 무시 — 캐릭터·나무에 가리지 않고 항상 맨 앞
         m.SetFloat("_ZTestMode", (float)UnityEngine.Rendering.CompareFunction.Always);
-        m.renderQueue = 4000;
+        m.renderQueue = 4500;   // Overlay 큐 — 캐릭터·나무·이펙트 그 무엇보다 뒤에 그린다
         popMats[s] = m;
         return m;
     }
@@ -195,7 +200,11 @@ public static class FX
         var mat = PopMat(style);
         if (mat != null) t.fontSharedMaterial = mat;
         var mr = go.GetComponent<MeshRenderer>();
-        if (mr != null) { mr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off; mr.sortingOrder = 50; }
+        if (mr != null)
+        {
+            mr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            mr.sortingOrder = 32000;   // 같은 큐 안에서도 제일 마지막 = 제일 앞
+        }
         go.AddComponent<FxDmgNum>();
     }
 
@@ -295,13 +304,16 @@ public static class FX
 
     /// ★지나가는 초승달 — 부채꼴이 한꺼번에 뜨는 Sweep 과 달리, 얇은 날이
     /// 시작각에서 끝각으로 '지나간다'. 베는 맛이 나야 하는 칼·도끼용.
+    /// span = 날이 훑고 남는 꼬리 길이(°). 짧으면 '베는' 참격, 길면 '긁는' 궤적.
+    /// thick = 굵기 배수. 무겁게 긁을수록 두껍게.
     public static void SweepArc(Vector3 center, float startYaw, float sweepDeg, float radius, Color c,
-                                float travelDur = 0.22f, float fadeDur = 0.16f)
+                                float travelDur = 0.22f, float fadeDur = 0.16f,
+                                float span = 55f, float thick = 1f)
     {
         var go = new GameObject("fx_arc");
         go.transform.SetParent(SceneBuckets.Fx);
         go.transform.position = center + Vector3.up * 0.7f;
-        go.AddComponent<FxArc>().Init(startYaw, sweepDeg, radius, c, travelDur, fadeDur);
+        go.AddComponent<FxArc>().Init(startYaw, sweepDeg, radius, c, travelDur, fadeDur, span, thick);
     }
 
     /// ★땅 갈라짐 — 착지 지점에서 금이 사방으로 쭉쭉 뻗는다. 내리찍기용.
@@ -323,18 +335,19 @@ public static class FX
 /// 지나가는 초승달 한 자루
 public class FxArc : MonoBehaviour
 {
-    LineRenderer lr; float startYaw, sweepDeg, radius, travel, fade, t;
-    Color col; const int Seg = 14;
-    /// 날이 훑고 지나간 각도 폭 (초승달 길이)
-    const float Span = 55f;
+    LineRenderer lr; float startYaw, sweepDeg, radius, travel, fade, t, span, thick;
+    Color col; int seg = 14;
 
-    public void Init(float startYaw, float sweepDeg, float radius, Color c, float travel, float fade)
+    public void Init(float startYaw, float sweepDeg, float radius, Color c, float travel, float fade,
+                     float span, float thick)
     {
         this.startYaw = startYaw; this.sweepDeg = sweepDeg; this.radius = radius;
         this.travel = Mathf.Max(0.02f, travel); this.fade = Mathf.Max(0.02f, fade); col = c;
+        this.span = span; this.thick = thick;
+        seg = Mathf.Clamp(Mathf.CeilToInt(span / 4f), 12, 60);   // 길수록 촘촘히
         lr = gameObject.AddComponent<LineRenderer>();
         lr.useWorldSpace = false;
-        lr.positionCount = Seg + 1;
+        lr.positionCount = seg + 1;
         lr.material = new Material(Shader.Find("Sprites/Default"));
         lr.numCapVertices = 3;
         lr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
@@ -346,16 +359,16 @@ public class FxArc : MonoBehaviour
         t += Time.deltaTime;
         float k = Mathf.Clamp01(t / travel);
         float head = sweepDeg * (1f - Mathf.Pow(1f - k, 2.5f));   // 확 나갔다 감속
-        for (int i = 0; i <= Seg; i++)
+        for (int i = 0; i <= seg; i++)
         {
-            float a = head - Span * Mathf.Sign(sweepDeg) * i / Seg;   // 머리에서 꼬리로
+            float a = head - span * Mathf.Sign(sweepDeg) * i / seg;   // 머리에서 꼬리로
             float rad = Mathf.Deg2Rad * (startYaw + a);
             var d = new Vector3(Mathf.Sin(rad), 0f, Mathf.Cos(rad));
-            lr.SetPosition(i, d * radius * (1f - 0.06f * i / Seg));
+            lr.SetPosition(i, d * radius * (1f - 0.06f * i / seg));
         }
         float alpha = t < travel ? 1f : Mathf.Clamp01(1f - (t - travel) / fade);
-        lr.startWidth = radius * 0.16f * alpha;
-        lr.endWidth = radius * 0.02f * alpha;
+        lr.startWidth = radius * 0.16f * thick * alpha;
+        lr.endWidth = radius * 0.02f * thick * alpha;
         var c2 = col; c2.a = col.a * alpha;
         lr.startColor = c2; lr.endColor = new Color(c2.r, c2.g, c2.b, 0f);
         if (t > travel + fade) Destroy(gameObject);

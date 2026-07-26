@@ -18,6 +18,8 @@ public class SkillSystem : MonoBehaviour
     [Header("Q — 무기별 동작 (이펙트만이 아니라 실제로 휘두른다)")]
     [Tooltip("도끼: 멈춤 없이 몸째로 한 바퀴 — 바퀴수·도는 시간")]
     public float qAxeTurns = 1f, qAxeSpinTime = 0.4f;
+    [Tooltip("긁는 궤적 — 꼬리 길이(°, 길수록 '긁는' 느낌)·굵기")]
+    public float qAxeArcTail = 240f, qAxeArcThick = 1.6f;
     public float qAxeDamageMul = 2.0f, qAxeRangeMul = 1.5f;
 
     [Tooltip("곡괭이: 뛰어올라 내리찍기 — 뜨는 시간·높이·정점 정지·낙하 시간")]
@@ -211,10 +213,13 @@ public class SkillSystem : MonoBehaviour
         if (blob != null) blob.skillHoldFacing = true;   // 도는 동안 마우스 안 따라감
         if (move != null) move.suppressMove = true;
 
-        // 멈춤 없이 곧바로 한 바퀴 — 처음엔 확 돌고 끝에서 스르륵 멎는다
+        // 멈춤 없이 곧바로 한 바퀴 — 처음엔 확 돌고 끝에서 스르륵 멎는다.
+        // ★여러 번 베는 게 아니라 '주변을 한 바퀴 긁는' 느낌 — 꼬리를 길게(240°)
+        //   두껍게 끌어서 궤적이 몸 둘레에 계속 남아 있게 한다
         if (gather != null) gather.SkillSwing(dir, false, false, qAxeDamageMul, qAxeRangeMul);
-        FX.SweepArc(area, transform.eulerAngles.y, 360f, areaR,
-                    new Color(1.7f, 1.55f, 1.1f, 0.9f), qAxeSpinTime, 0.3f);
+        FX.SweepArc(area, transform.eulerAngles.y, 360f * qAxeTurns, areaR,
+                    new Color(1.7f, 1.55f, 1.1f, 0.9f), qAxeSpinTime, 0.28f,
+                    qAxeArcTail, qAxeArcThick);
         FollowCam.Shake(0.35f);
         float t = 0f, total = 360f * qAxeTurns;
         while (t < qAxeSpinTime)
