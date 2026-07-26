@@ -117,6 +117,23 @@ public class PetSpawner : MonoBehaviour
         return false;
     }
 
+    /// 종 이름 → 공격 패턴 (물기 / 돌진 / 내려찍기 / 꼬리 휩쓸기)
+    public static PetUnit.Pattern PatternOf(string species, PetScale.Tier tier)
+    {
+        string s = (species ?? "").ToLower();
+        if (s.Contains("wolf") || s.Contains("tiger") || s.Contains("squirrel") || s.Contains("bird") || s.Contains("raptor"))
+            return PetUnit.Pattern.Bite;
+        if (s.Contains("trike") || s.Contains("deer") || s.Contains("flyer"))
+            return PetUnit.Pattern.Charge;
+        if (s.Contains("tyranno") || s.Contains("stego"))
+            return PetUnit.Pattern.Slam;
+        if (s.Contains("bronto"))
+            return PetUnit.Pattern.Sweep;
+        // 이름을 모르면 크기로 — 작으면 물기, 크면 내려찍기
+        return tier == PetScale.Tier.S || tier == PetScale.Tier.M
+            ? PetUnit.Pattern.Bite : PetUnit.Pattern.Slam;
+    }
+
     Entry Pick()
     {
         float total = 0f;
@@ -187,6 +204,7 @@ public class PetSpawner : MonoBehaviour
         var pu = unit.AddComponent<PetUnit>();
         pu.team = PetUnit.Team.Wild; pu.mat = PetUnit.Mat.Basic;
         pu.collectible = true; pu.species = e.species;
+        pu.pattern = PatternOf(e.species, e.tier);   // 종별 공격 패턴
         pu.supply = e.tier == PetScale.Tier.S ? 1 : e.tier == PetScale.Tier.M ? 2 : e.tier == PetScale.Tier.L ? 3 : 4;
         if (e.tier == PetScale.Tier.S) { pu.str = 6; pu.agi = 16; pu.vit = 10; }      // 체력 하향 —
         else if (e.tier == PetScale.Tier.M) { pu.str = 9; pu.agi = 12; pu.vit = 15; } // 잡는 데 안 질리게

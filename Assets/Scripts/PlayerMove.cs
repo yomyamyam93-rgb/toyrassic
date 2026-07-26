@@ -32,6 +32,8 @@ public class PlayerMove : MonoBehaviour
 
     // ── 탑승 (부화한 펫 = 탈것) ──
     PetUnit mount;
+    /// 지금 타고 있는 펫 (스킬 시스템이 읽음)
+    public PetUnit Mount => mount;
     Renderer mountRend;
     PetMotion mountMotion;
 

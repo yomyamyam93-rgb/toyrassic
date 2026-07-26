@@ -10,9 +10,13 @@ public class PetUnit : MonoBehaviour
     public enum Team { Player, Wild }
     public enum Mat { Metal, Wood, Stone, Fire, Water, Lightning, Basic }   // Basic = 원소 없는 기본 평타 (수집 프로토)
 
+    /// 종별 공격 패턴 (Mat.Basic 일 때 적용) — 물기·돌진·내려찍기·꼬리 휩쓸기
+    public enum Pattern { Bite, Charge, Slam, Sweep }
+
     [Header("소속·원소")]
     public Team team = Team.Wild;
     public Mat mat = Mat.Metal;
+    [Tooltip("종별 공격 패턴 (Basic 일 때)")] public Pattern pattern = Pattern.Bite;
 
     [Header("수집·성장 (한 마리 키우기)")]
     [Tooltip("티어 무게 (S1/M2/L3/XL4) — 격파 경험치 계산에 사용")]
@@ -144,11 +148,19 @@ public class PetUnit : MonoBehaviour
     // ── 원소별 발현 ──
     float AtkPeriod => (mat == Mat.Metal ? 3.2f : mat == Mat.Stone ? 3.4f : mat == Mat.Wood ? 2.3f
                       : mat == Mat.Fire ? 3.0f : mat == Mat.Water ? 0.38f
-                      : mat == Mat.Lightning ? 1.7f : 2.0f)   // 💧물총 속사 / Basic=2.0
+                      : mat == Mat.Lightning ? 1.7f
+                      : pattern == Pattern.Bite ? 1.5f      // 물기 = 빠른 연타
+                      : pattern == Pattern.Charge ? 3.0f    // 돌진 = 준비 필요
+                      : pattern == Pattern.Slam ? 3.3f      // 내려찍기 = 묵직
+                      : 2.6f)                                // 꼬리 휩쓸기
                        / (1f + agi * 0.010f);
     float Damage => mat == Mat.Water ? intel * 0.22f  // 💧물총 속사 — 발당 약하게 (DPS 는 비슷)
                   : str * (mat == Mat.Metal ? 0.95f : mat == Mat.Stone ? 1.05f : mat == Mat.Wood ? 0.45f
-                         : mat == Mat.Fire ? 1.8f : mat == Mat.Lightning ? 0.8f : 1.4f);   // Basic 돌진 = 묵직하게
+                         : mat == Mat.Fire ? 1.8f : mat == Mat.Lightning ? 0.8f
+                         : pattern == Pattern.Bite ? 1.0f      // 빠른 대신 약하게
+                         : pattern == Pattern.Charge ? 1.7f    // 한 방 크게
+                         : pattern == Pattern.Slam ? 1.9f      // 광역 강타
+                         : 1.2f);                               // 꼬리 = 광역 약타
     // 기본 이속 상향 — 통통 뛰어서 다가오는 속도감
     float MoveSpd => (8f + agi * 0.1f) * (0.8f + body * 0.035f) * (slowT > 0f ? 0.55f : 1f);
     float AtkRange => mat == Mat.Metal ? body * 0.95f + 1f
@@ -156,14 +168,21 @@ public class PetUnit : MonoBehaviour
                     : mat == Mat.Wood ? body * 2.6f
                     : mat == Mat.Fire ? body * 3.2f
                     : mat == Mat.Water ? body * 3.0f
-                    : body * 1.1f + 1f;              // 번개 근접 평타
+                    : mat == Mat.Lightning ? body * 1.1f + 1f
+                    : pattern == Pattern.Bite ? body * 0.85f + 1.5f    // 붙어서 문다
+                    : pattern == Pattern.Charge ? body * 2.4f          // 멀리서 달려든다
+                    : pattern == Pattern.Slam ? body * 1.5f
+                    : body * 1.2f + 1f;                                 // 꼬리
     float WindupDur => mat == Mat.Metal ? 0.85f      // 우우우웅
                      : mat == Mat.Fire ? 0.85f       // 기 모으기
                      : mat == Mat.Stone ? 0.45f
                      : mat == Mat.Wood ? 0.35f
                      : mat == Mat.Water ? 0.12f    // 물총은 조준만 살짝
                      : mat == Mat.Lightning ? 0.3f
-                     : 1.5f;                       // Basic: 기 모으기 1.5초 후 돌진 (보고 피할 시간)
+                     : pattern == Pattern.Bite ? 0.55f      // 물기 = 짧은 준비
+                     : pattern == Pattern.Charge ? 1.5f     // 돌진 = 긴 예열 (보고 피함)
+                     : pattern == Pattern.Slam ? 1.7f       // 내려찍기 = 제일 길게
+                     : 1.0f;                                 // 꼬리
 
     void Update()
     {
@@ -383,11 +402,30 @@ public class PetUnit : MonoBehaviour
                 lungeTo = transform.position + dir.normalized * (body * 0.15f);
                 break;
 
-            default:            // Basic — 기 모으고(고정 조준) → 확정된 지점으로 돌진 콰앙 → 딜레이
-                dashFrom = transform.position;
-                dashTo = lockedDest;        // 장전 순간 확정된 도착점 그대로
-                dashT = 1f;
-                atkCd = AtkPeriod + 0.9f;   // 돌진 후 딜레이 (텀)
+            default:            // Basic — 종별 패턴
+                switch (pattern)
+                {
+                    case Pattern.Bite:      // 물기 — 짧게 달려들어 콱
+                        strikeT = 0.09f;
+                        lungeT = 1f; lungeFrom = transform.position;
+                        lungeTo = transform.position + dir.normalized * (body * 0.35f);
+                        break;
+                    case Pattern.Slam:      // 내려찍기 — 점프해서 착지 광역
+                        jumpT = 1f;
+                        jumpFrom = transform.position;
+                        jumpTo = lockedDest - dir.normalized * (body * 0.35f);
+                        break;
+                    case Pattern.Sweep:     // 꼬리 휩쓸기 — 제자리 회전 광역
+                        strikeT = 0.14f;
+                        if (motion != null) motion.Punch();
+                        break;
+                    default:                // Charge — 기 모으고 돌진 콰앙
+                        dashFrom = transform.position;
+                        dashTo = lockedDest;
+                        dashT = 1f;
+                        atkCd = AtkPeriod + 0.9f;
+                        break;
+                }
                 break;
         }
     }
@@ -410,6 +448,26 @@ public class PetUnit : MonoBehaviour
             FX.Bolt(transform.position + Vector3.up * body * 0.35f,
                     target.transform.position + Vector3.up * target.body * 0.3f,
                     new Color(1.8f, 2.3f, 3.2f), body * 0.02f);
+        }
+        else if (mat == Mat.Basic)
+        {
+            if (pattern == Pattern.Sweep)
+            {   // 꼬리 휩쓸기 — 제자리 광역 + 약한 넉백
+                float aoe = body * 1.3f;
+                FX.Sweep(transform.position, transform.eulerAngles.y - 120f, 240f, aoe,
+                         new Color(1.3f, 1.25f, 1.0f, 0.75f), 0.3f, 0.22f);
+                FollowCam.Shake(body * 0.014f);
+                foreach (var u in EnemiesWithin(aoe))
+                    if (TryHit(u, Damage))
+                    {
+                        var push = u.transform.position - transform.position; push.y = 0;
+                        if (push.sqrMagnitude > 1e-4f) u.transform.position += push.normalized * body * 0.10f;
+                    }
+            }
+            else if (target != null && target.Alive)
+            {   // Bite — 단일 물기
+                TryHit(target, Damage);
+            }
         }
     }
 
