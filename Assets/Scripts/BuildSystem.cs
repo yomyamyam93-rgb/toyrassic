@@ -81,14 +81,27 @@ public class BuildSystem : MonoBehaviour
         if (!IsBuilding) return;
         if (k.escapeKey.wasPressedThisFrame) { SetMode(false); return; }
         if (k.rKey.wasPressedThisFrame) yaw += 45f;
+        // 휠 = 현재 탭 안에서 건축물 넘기기 (건축 모드 동안 카메라 줌은 잠김)
         float scroll = m.scroll.ReadValue().y;
-        if (Mathf.Abs(scroll) > 0.01f) sel = (sel + (scroll > 0 ? 1 : pieces.Count - 1)) % pieces.Count;
-        for (int i = 0; i < Mathf.Min(pieces.Count, 9); i++)
+        if (Mathf.Abs(scroll) > 0.01f && shown.Count > 0)
+        {
+            int at = Mathf.Max(0, shown.IndexOf(sel));
+            at = (at + (scroll > 0 ? 1 : shown.Count - 1)) % shown.Count;
+            sel = shown[at];
+        }
+        // Tab / Q·E = 카테고리 전환 (탭이 여러 개일 때)
+        if (cats.Count > 1 && k.tabKey.wasPressedThisFrame)
+        {
+            catSel = (catSel + 1) % cats.Count;
+            RebuildCards();
+        }
+        // 숫자키 = 현재 탭의 카드 선택 (핫바는 건축 모드 동안 잠김)
+        for (int i = 0; i < Mathf.Min(shown.Count, 9); i++)
         {
             var key = i == 0 ? k.digit1Key : i == 1 ? k.digit2Key : i == 2 ? k.digit3Key
                     : i == 3 ? k.digit4Key : i == 4 ? k.digit5Key : i == 5 ? k.digit6Key
                     : i == 6 ? k.digit7Key : i == 7 ? k.digit8Key : k.digit9Key;
-            if (key.wasPressedThisFrame) sel = i;
+            if (key.wasPressedThisFrame) sel = shown[i];
         }
 
         UpdateGhost(m.position.ReadValue(), out bool valid, out Vector3 pos);
@@ -385,7 +398,7 @@ public class BuildSystem : MonoBehaviour
         var hrt2 = hintText.rectTransform;
         hrt2.anchorMin = Vector2.zero; hrt2.anchorMax = Vector2.one;
         hrt2.offsetMin = hrt2.offsetMax = Vector2.zero;
-        hintText.text = "좌클릭 설치   ·   우클릭 철거(재료 절반 회수)   ·   R 회전   ·   휠/숫자 선택   ·   B 또는 ESC 종료";
+        hintText.text = "좌클릭 설치   ·   우클릭 철거(절반 회수)   ·   R 회전   ·   휠·숫자 건축물 선택   ·   Tab 분류 전환   ·   B·ESC 종료  (건축 중 카메라 줌·핫바 잠김)";
 
         RebuildCards();
     }

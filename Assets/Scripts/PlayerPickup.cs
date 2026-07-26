@@ -13,6 +13,7 @@ public class PlayerPickup : MonoBehaviour
     void Update()
     {
         cd -= Time.deltaTime;
+        if (BuildSystem.IsBuilding || MenuUI.IsOpen || PetNameUI.IsOpen) return;   // 창·건축 중엔 줍기 잠금
         bool pressed = false;
 #if ENABLE_INPUT_SYSTEM
         var k = Keyboard.current;

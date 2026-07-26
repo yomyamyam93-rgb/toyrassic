@@ -52,6 +52,8 @@ public class Hotbar : MonoBehaviour
 
     void Update()
     {
+        // 건축 모드·창 열림 중엔 숫자키를 그쪽이 쓴다 (입력 충돌 방지)
+        if (BuildSystem.IsBuilding || MenuUI.IsOpen || PetNameUI.IsOpen) return;
 #if ENABLE_INPUT_SYSTEM
         var k = Keyboard.current;
         if (k == null) return;

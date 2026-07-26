@@ -79,7 +79,8 @@ public class MenuUI : MonoBehaviour
 #else
         tab = Input.GetKeyDown(KeyCode.Tab); esc = Input.GetKeyDown(KeyCode.Escape);
 #endif
-        if (tab) SetOpen(!IsOpen);
+        // 건축 모드에선 Tab 을 건축 분류 전환이 쓴다 (입력 충돌 방지)
+        if (tab && !BuildSystem.IsBuilding) SetOpen(!IsOpen);
         else if (esc && IsOpen) SetOpen(false);
         if (!IsOpen) return;
         RefreshInv();

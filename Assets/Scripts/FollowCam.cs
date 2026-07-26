@@ -79,6 +79,9 @@ public class FollowCam : MonoBehaviour
 
         Vector2 d; float sc;
         ReadLook(out d, out sc);
+        // 입력 소유권: 건축 모드에선 휠=건축물 선택, 창이 열려 있으면 카메라 조작 정지
+        if (BuildSystem.IsBuilding) sc = 0f;
+        if (MenuUI.IsOpen || PetNameUI.IsOpen) { d = Vector2.zero; sc = 0f; }
 
         // 목표값 갱신 — 우클릭 드래그는 '좌우(yaw)만' (상하는 줌이 정함)
         yawT += d.x * rotSpeed;

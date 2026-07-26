@@ -122,7 +122,8 @@ public class SkillSystem : MonoBehaviour
         AdvanceDash();
         RefreshHUD();
 
-        if (MenuUI.IsOpen || PetNameUI.IsOpen) return;
+        // 창·건축 모드에선 스킬 입력 잠금 (Q·E·R 이 건축 조작과 겹치지 않게)
+        if (MenuUI.IsOpen || PetNameUI.IsOpen || BuildSystem.IsBuilding) { aiming = -1; UpdatePreview(); return; }
 #if ENABLE_INPUT_SYSTEM
         var k = Keyboard.current;
         if (k == null) return;
