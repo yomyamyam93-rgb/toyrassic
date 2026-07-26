@@ -148,6 +148,19 @@ public class PlayerGather : MonoBehaviour
             hitAny = true;
         }
 
+        // ①-b 내 구조물 — 때려서 부수면 재료 회수 (철거 방식)
+        float structDmg = isPick ? pickVsRock : axeVsTree;
+        foreach (var u in PetUnit.All)
+        {
+            if (u == null || !u.Alive || !u.isStructure) continue;
+            if (!InArc(u.transform.position, u.body * 0.4f)) continue;
+            u.TakeDamage(structDmg, PetUnit.Avatar);
+            u.OnHit();
+            FX.Burst(u.transform.position + Vector3.up * 1.5f,
+                     new Color(0.8f, 0.72f, 0.58f, 0.9f), 10, 0.3f, 3f);
+            hitAny = true;
+        }
+
         // ② 깨어난 노드 — 전부 (큰 바위는 덩치만큼 판정 여유)
         foreach (var t in ChoppableTree.All.ToArray())
         {

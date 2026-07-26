@@ -7,8 +7,8 @@ using UnityEngine.InputSystem;
 
 /// 거점 건축 — 업계 표준 구성:
 /// ①건축 모드 토글(B) ②고스트 프리뷰(유효=초록/무효=빨강) ③그리드 스냅
-/// ④회전(R) ⑤유효성 검사(경사·겹침·재료) ⑥재료 소모 ⑦철거(우클릭, 절반 환급)
-/// ⑧팔레트(휠·숫자) ⑨구조물 HP — 웨이브에서 부서진다
+/// ④회전(휠·R) ⑤유효성 검사(경사·겹침·재료) ⑥재료 소모 ⑦철거=도구로 부수면 절반 환급
+/// ⑧팔레트(카테고리 탭·카드) ⑨구조물 HP — 웨이브에서 부서진다
 public class BuildSystem : MonoBehaviour
 {
     public static bool IsBuilding { get; private set; }
@@ -64,7 +64,6 @@ public class BuildSystem : MonoBehaviour
 
     int sel;
     float yaw;
-    bool demolishMode;   // X 로 켜는 철거 모드
     GameObject ghost;
     Renderer ghostRend;
     Camera cam;
@@ -112,15 +111,8 @@ public class BuildSystem : MonoBehaviour
             if (key.wasPressedThisFrame) sel = shown[i];
         }
 
-        // X = 철거 모드 토글 (우클릭은 카메라 회전 그대로 — 실수로 안 부서지게)
-        if (k.xKey.wasPressedThisFrame) demolishMode = !demolishMode;
-
         UpdateGhost(m.position.ReadValue(), out bool valid, out Vector3 pos);
-        if (m.leftButton.wasPressedThisFrame)
-        {
-            if (demolishMode) Demolish(m.position.ReadValue());
-            else if (valid) Place(pos);
-        }
+        if (m.leftButton.wasPressedThisFrame && valid) Place(pos);
 #endif
         RefreshHUD();
     }
@@ -133,8 +125,7 @@ public class BuildSystem : MonoBehaviour
         if (on)
         {
             if (ghost == null) MakeGhost();
-            demolishMode = false;
-            SquadHUD.Toast("건축 모드 — 좌클릭 설치 · 휠 회전 · 숫자 선택 · X 철거 모드 · B 종료");
+            SquadHUD.Toast("건축 모드 — 좌클릭 설치 · 휠 회전 · 숫자 선택 · B 종료 (철거는 도구로 부수기)");
         }
     }
 
@@ -203,7 +194,7 @@ public class BuildSystem : MonoBehaviour
         }
         if (floorHere != null) pos.y = floorHere.TopY;
 
-        ghost.SetActive(!demolishMode);   // 철거 모드에선 고스트 숨김
+        ghost.SetActive(true);
         ghost.transform.position = pos + Vector3.up * p.size.y * 0.5f;
         ghost.transform.rotation = Quaternion.Euler(0f, yaw, 0f);
         ghost.transform.localScale = p.size;
@@ -221,25 +212,7 @@ public class BuildSystem : MonoBehaviour
         FollowCam.Shake(0.08f);
     }
 
-    void Demolish(Vector2 mp)
-    {
-        if (cam == null) return;
-        var ray = cam.ScreenPointToRay(mp);
-        Structure best = null; float bd = 4f;
-        foreach (var s in Structure.All)
-        {
-            if (s == null) continue;
-            if (Vector3.Distance(s.transform.position, transform.position) > reach + 4f) continue;
-            float rd = Vector3.Cross(ray.direction, s.transform.position + Vector3.up - ray.origin).magnitude;
-            if (rd < bd) { bd = rd; best = s; }
-        }
-        if (best == null) return;
-        int w = Mathf.RoundToInt(best.woodCost * refund), st = Mathf.RoundToInt(best.stoneCost * refund);
-        if (w > 0) Inv.Add("나뭇가지", w);
-        if (st > 0) Inv.Add("돌", st);
-        SquadHUD.Toast($"철거 — 나뭇가지 {w}·돌 {st} 회수");
-        best.Demolish();
-    }
+    // 철거는 이제 '부숴서 회수' — 도구·무기로 구조물을 때리면 자원이 돌아온다 (Structure 가 처리)
 
     // ── 건축 팔레트 UI (발헤임·팰월드식: 카테고리 탭 + 아이콘 카드 + 상세) ──
     List<string> cats = new List<string>();
@@ -480,14 +453,8 @@ public class BuildSystem : MonoBehaviour
             cardCost[i].color = can ? txtMain : new Color(txtMain.r, txtMain.g, txtMain.b, 0.4f);
         }
 
-        // 조작 힌트 — 모드에 따라
         if (hintText != null)
-        {
-            string badHex2 = ColorUtility.ToHtmlStringRGB(St != null ? St.bad : Color.red);
-            hintText.text = demolishMode
-                ? $"<color=#{badHex2}><b>철거 모드</b></color>   좌클릭으로 구조물 철거(재료 절반 회수)   ·   X 로 건축 모드 복귀   ·   B·ESC 종료"
-                : "좌클릭 설치   ·   휠 회전(R 45°)   ·   숫자·카드 클릭 선택   ·   Tab 분류   ·   <b>X 철거 모드</b>   ·   B·ESC 종료";
-        }
+            hintText.text = "좌클릭 설치   ·   휠 회전(R 45°)   ·   숫자·카드 클릭 선택   ·   Tab 분류   ·   B·ESC 종료      <b>철거: 도구로 부수면 재료 절반 회수</b>";
 
         // 선택 상세
         if (sel >= 0 && sel < pieces.Count)
@@ -524,6 +491,7 @@ public class Structure : MonoBehaviour
         Object.Destroy(go.GetComponent<Collider>());
         go.name = "구조물_" + p.name;
         go.transform.SetParent(SceneBuckets.Drops.parent);   // 씬 루트 정리함 옆
+        if (p.isFloor) pos.y += 0.15f;                       // 바닥은 지면에서 살짝 띄운다
         go.transform.position = pos + Vector3.up * p.size.y * 0.5f;
         go.transform.rotation = Quaternion.Euler(0f, yaw, 0f);
         go.transform.localScale = p.size;
@@ -544,18 +512,72 @@ public class Structure : MonoBehaviour
         s.unit = u;
         if (p.blockRadius > 0.01f)
             TreeBlocker.AddPoint(pos, p.blockRadius);   // 벽만 통행 차단 (바닥은 지나갈 수 있음)
+        if (p.isFloor) s.ClearGrassUnder(pos, p.size);  // 바닥 밑 잔디 제거 (철거 시 복구)
         return s;
     }
 
     void Update()
     {
-        if (unit != null && !unit.Alive) Demolish();
+        if (unit != null && !unit.Alive) Demolish(true);   // 부서짐 = 자원 회수
     }
 
-    public void Demolish()
+    /// refundNow=true 면 재료 절반을 돌려준다 (부숴서 회수)
+    public void Demolish(bool refundNow = false)
     {
+        if (refundNow)
+        {
+            var bs = Object.FindFirstObjectByType<BuildSystem>();
+            float r = bs != null ? bs.refund : 0.5f;
+            int w = Mathf.RoundToInt(woodCost * r), st = Mathf.RoundToInt(stoneCost * r);
+            if (w > 0) Inv.Add("나뭇가지", w);
+            if (st > 0) Inv.Add("돌", st);
+            if (w > 0 || st > 0) SquadHUD.Toast($"구조물 철거 — 나뭇가지 {w}·돌 {st} 회수");
+        }
         TreeBlocker.RemovePoint(transform.position);
+        RestoreGrass();
         FX.Burst(transform.position, new Color(0.75f, 0.68f, 0.55f, 0.9f), 20, 0.45f, 4f, 0.6f);
         Destroy(gameObject);
+    }
+
+    // ── 바닥 밑 잔디 제거·복구 (지형 디테일 레이어) ──
+    Terrain grassTerr;
+    int gx, gy, gw, gh;
+    List<int[,]> grassBackup;
+
+    public void ClearGrassUnder(Vector3 pos, Vector3 size)
+    {
+        grassTerr = Terrain.activeTerrain;
+        if (grassTerr == null) return;
+        var td = grassTerr.terrainData;
+        int layers = td.detailPrototypes.Length;
+        if (layers == 0) return;
+        var to = grassTerr.transform.position;
+
+        // 월드 → 디테일 좌표 (바닥 발자국 + 약간 여유)
+        float halfX = size.x * 0.5f + 0.5f, halfZ = size.z * 0.5f + 0.5f;
+        float u0 = (pos.x - halfX - to.x) / td.size.x, u1 = (pos.x + halfX - to.x) / td.size.x;
+        float v0 = (pos.z - halfZ - to.z) / td.size.z, v1 = (pos.z + halfZ - to.z) / td.size.z;
+        gx = Mathf.Clamp(Mathf.FloorToInt(u0 * td.detailWidth), 0, td.detailWidth - 1);
+        gy = Mathf.Clamp(Mathf.FloorToInt(v0 * td.detailHeight), 0, td.detailHeight - 1);
+        int x1 = Mathf.Clamp(Mathf.CeilToInt(u1 * td.detailWidth), 0, td.detailWidth);
+        int y1 = Mathf.Clamp(Mathf.CeilToInt(v1 * td.detailHeight), 0, td.detailHeight);
+        gw = Mathf.Max(1, x1 - gx); gh = Mathf.Max(1, y1 - gy);
+
+        grassBackup = new List<int[,]>(layers);
+        var zeros = new int[gh, gw];
+        for (int l = 0; l < layers; l++)
+        {
+            grassBackup.Add(td.GetDetailLayer(gx, gy, gw, gh, l));
+            td.SetDetailLayer(gx, gy, l, zeros);
+        }
+    }
+
+    void RestoreGrass()
+    {
+        if (grassTerr == null || grassBackup == null) return;
+        var td = grassTerr.terrainData;
+        for (int l = 0; l < grassBackup.Count && l < td.detailPrototypes.Length; l++)
+            td.SetDetailLayer(gx, gy, l, grassBackup[l]);
+        grassBackup = null;
     }
 }

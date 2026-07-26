@@ -176,7 +176,12 @@ public class PetUnit : MonoBehaviour
         footOff = r != null ? transform.position.y - r.bounds.min.y : 0f;
         if (r != null) body = Mathf.Max(1f, Mathf.Max(r.bounds.size.x, Mathf.Max(r.bounds.size.y, r.bounds.size.z)));
         if (isAvatar) { Avatar = this; MakeBar(r); return; }   // 캐릭터: 모션·AI 없음
-        if (isStructure) { MakeBar(r); return; }               // 건물: 모션 없음, 맞기만
+        if (isStructure)
+        {   // 건물: 모션 없음, 맞기만. 체력바는 평소 숨김
+            MakeBar(r);
+            if (barRoot != null) barRoot.gameObject.SetActive(false);
+            return;
+        }
         motion = GetComponent<PetMotion>();
         if (motion == null) motion = gameObject.AddComponent<PetMotion>();
         MakeBar(r);
@@ -665,6 +670,7 @@ public class PetUnit : MonoBehaviour
     {
         if (dead) return;
         hp -= dmg;
+        barShowT = 3f;   // 구조물 체력바 — 맞을 때만 잠깐 보인다
         // 피해 숫자 — 내 편이 맞으면 빨강, 적이 맞으면 밝은 노랑
         FX.DamageNum(transform.position + Vector3.up * body * 0.8f, dmg,
                      team == Team.Player ? new Color(1f, 0.35f, 0.3f) : new Color(1f, 0.95f, 0.6f),
@@ -926,9 +932,17 @@ public class PetUnit : MonoBehaviour
         barFill.localScale = new Vector3(1.78f, 0.30f, 1f);
     }
 
+    float barShowT;
     void Bar()
     {
         if (barRoot == null || Camera.main == null) return;
+        if (isStructure)
+        {   // 구조물은 평소 숨김 — 피격·변화 때만 잠깐
+            barShowT -= Time.deltaTime;
+            bool show = barShowT > 0f;
+            if (barRoot.gameObject.activeSelf != show) barRoot.gameObject.SetActive(show);
+            if (!show) return;
+        }
         // 가로는 즉시, 세로는 스무딩 — 통통 튀어도 바는 차분하게
         var p = transform.position;
         float wantY = p.y + barY;
