@@ -70,7 +70,9 @@ public class PlayerGather : MonoBehaviour
     [Tooltip("맨손 휘두르는 간격")] public float bareCooldown = 0.85f;
 
     // 효율 표 — 든 도구에 따라 대상별 피해 (칼은 전투 특화, 채집은 형편없음)
-    float DmgMob => (pendingBare ? bareVsMob : pendingIsSword ? swordVsMob : pendingIsPick ? pickVsMob : axeVsMob) * skillDmgMul;
+    // ★힘 스탯은 몹 피해에만 곱한다 — 채집 속도까지 빨라지면 레벨이 채집을 무의미하게 만든다
+    float DmgMob => (pendingBare ? bareVsMob : pendingIsSword ? swordVsMob : pendingIsPick ? pickVsMob : axeVsMob)
+                  * skillDmgMul * PlayerLevel.DamageMul;
     float DmgTree => (pendingBare ? bareVsNode : pendingIsSword ? swordVsNode : pendingIsPick ? pickVsTree : axeVsTree) * skillDmgMul;
     float DmgRock => (pendingBare ? bareVsNode : pendingIsSword ? swordVsNode : pendingIsPick ? pickVsRock : axeVsRock) * skillDmgMul;
     Camera cam;
@@ -306,7 +308,8 @@ public class PlayerGather : MonoBehaviour
 
         // 맨손인지는 지금 든 장비로 판단 (무기 없이 치면 느리고 약하다)
         pendingBare = !force && Hotbar.I != null && Hotbar.I.Current == GearKind.None;
-        cd = pendingBare ? bareCooldown : isSword ? swordCooldown : isPick ? pickCooldown : axeCooldown;
+        cd = (pendingBare ? bareCooldown : isSword ? swordCooldown : isPick ? pickCooldown : axeCooldown)
+             / Mathf.Max(0.5f, PlayerLevel.AtkSpeedMul);   // 민첩 = 공격 속도
         swingT = 1f;
         chopIsRock = isPick;   // 트레일·도구 선택용
         chopPos = SwingOrigin + aimDir * 4f + Vector3.up * 1.8f;   // 탈 땐 펫 앞

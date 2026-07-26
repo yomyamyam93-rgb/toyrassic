@@ -141,7 +141,7 @@ public class PlayerMove : MonoBehaviour
 
         InputDir = dir.sqrMagnitude > 1e-4f ? dir.normalized : Vector3.zero;
 
-        float top = moveSpeed;
+        float top = moveSpeed * PlayerLevel.MoveMul;   // 민첩 = 이동 속도 (아주 조금)
         // 활을 당길수록 점점 느려짐 — 최대 당김 = fullDrawSpeed 배 (멈추진 않음)
         if (bow != null && bow.IsDrawing)
             top *= Mathf.Lerp(1f, fullDrawSpeed, bow.Draw01);

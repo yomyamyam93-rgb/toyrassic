@@ -142,6 +142,81 @@ public class PetSpawner : MonoBehaviour
             ? PetUnit.Pattern.Bite : PetUnit.Pattern.Slam;
     }
 
+    [Header("야생 레벨 — 시작점에서 멀수록 강하다")]
+    [Tooltip("이 지점이 1레벨 기준 (비우면 첫 플레이어 위치)")] public Transform levelOrigin;
+    [Tooltip("몇 m 마다 1레벨씩 오르나")] public float metersPerLevel = 45f;
+    [Tooltip("같은 자리에서도 흔들리는 폭 (±)")] public int levelJitter = 3;
+
+    static Vector3 originCache; static bool originSet;
+
+    /// 그 자리의 야생 레벨 — 거리 + 덩치 보정
+    public int WildLevelAt(Vector3 pos, PetScale.Tier tier)
+    {
+        if (!originSet)
+        {
+            var p = levelOrigin != null ? levelOrigin : (player != null ? player : null);
+            originCache = p != null ? p.position : Vector3.zero;
+            originSet = true;
+        }
+        float d = Vector3.Distance(new Vector3(pos.x, 0, pos.z), new Vector3(originCache.x, 0, originCache.z));
+        int byDist = Mathf.FloorToInt(d / Mathf.Max(5f, metersPerLevel));
+        int byTier = tier == PetScale.Tier.S ? 0 : tier == PetScale.Tier.M ? 2
+                   : tier == PetScale.Tier.L ? 5 : 9;      // 큰 놈이 조금 더 높다
+        int lv = 1 + byDist + byTier + Random.Range(-levelJitter, levelJitter + 1);
+        return Mathf.Clamp(lv, 1, PetUnit.MaxLevel);
+    }
+
+    /// ★종별 역할 — 뭐가 뾰족한지. 평범한 놈 없이 확실히 갈리게 한다.
+    public enum Role
+    {
+        암살자,   // 물기형 — 빠르고 자주 때린다. 대신 물몸
+        돌격병,   // 돌진형 — 한 방이 세다. 대신 느리고 뜸하다
+        방패,     // 내려찍기형 — 아주 튼튼하다. 대신 느리고 약하다
+        거인,     // 휩쓸기형 — 맷집과 한 방 둘 다. 대신 아주 느리다
+    }
+
+    public static Role RoleOf(string species, PetScale.Tier tier)
+    {
+        switch (PatternOf(species, tier))
+        {
+            case PetUnit.Pattern.Bite: return Role.암살자;
+            case PetUnit.Pattern.Charge: return Role.돌격병;
+            case PetUnit.Pattern.Sweep: return Role.거인;
+            default: return Role.방패;
+        }
+    }
+
+    /// 역할별 스탯 배수 — 한쪽을 크게 올리고 한쪽은 확실히 깎는다.
+    /// (곱해서 1 근처가 되게 해 총합 전력은 비슷하게 유지)
+    public static void ApplyRole(PetUnit u, Role role, Entry e)
+    {
+        float atkSpd = 1f, move = 1f, range = 1f;
+        switch (role)
+        {
+            case Role.암살자:                       // 빠르게 파고들어 연타
+                u.str *= 0.65f; u.vit *= 0.55f;
+                atkSpd = 1.9f; move = 1.5f; range = 0.9f;
+                break;
+            case Role.돌격병:                       // 한 방이 무겁다
+                u.str *= 1.75f; u.vit *= 0.95f;
+                atkSpd = 0.6f; move = 1.15f; range = 1.25f;
+                break;
+            case Role.방패:                         // 안 죽는다
+                u.str *= 0.7f; u.vit *= 2.1f;
+                atkSpd = 0.75f; move = 0.7f; range = 1f;
+                break;
+            case Role.거인:                         // 크고 무겁다
+                u.str *= 1.35f; u.vit *= 1.6f;
+                atkSpd = 0.5f; move = 0.55f; range = 1.15f;
+                break;
+        }
+        // 종 자체에 적어둔 값이 있으면 그걸 우선 (인스펙터에서 손으로 조절한 경우)
+        u.atkSpeedMul = Mathf.Approximately(e.atkSpeed, 1f) ? atkSpd : e.atkSpeed;
+        u.moveSpeedMul = Mathf.Approximately(e.moveSpeed, 1f) ? move : e.moveSpeed;
+        u.rangeMul = Mathf.Approximately(e.range, 1f) ? range : e.range;
+        u.maxHp = u.vit * 10f; u.hp = u.maxHp;
+    }
+
     Entry Pick()
     {
         float total = 0f;
@@ -228,6 +303,8 @@ public class PetSpawner : MonoBehaviour
         pu.str *= dmgMul;
         pu.vit *= hpMul;
         pu.intel = 8;
+        ApplyRole(pu, RoleOf(e.species, e.tier), e);        // 역할별 특성 (뾰족하게)
+        pu.SetWildLevel(WildLevelAt(pos, e.tier));          // 멀수록 강하다
         return unit;
     }
 }

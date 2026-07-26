@@ -39,7 +39,11 @@ public class PetUnit : MonoBehaviour
     public int level = 1;
     public float xp;
 
-    float XpNeed => 25f + 20f * (level - 1);   // 레벨업 필요 경험치 (완만 증가)
+    public float XpNeed => 25f + 20f * (level - 1);   // 레벨업 필요 경험치 (완만 증가)
+
+    /// 남은 스탯 포인트 — 레벨업하면 쌓이고, 스탯 창에서 직접 찍는다
+    public int points;
+    [Tooltip("레벨업마다 주는 포인트")] public const int PointsPerLevel = 5;
 
     public void GainXP(float amt)
     {
@@ -48,23 +52,80 @@ public class PetUnit : MonoBehaviour
         while (xp >= XpNeed) { xp -= XpNeed; LevelUp(true); }
     }
 
+    /// ★펫 스탯 찍기 — 0=힘 1=민첩 2=체력.
+    /// 기본값 대비 '비율'로 올린다. 그래야 물몸 암살자가 포인트로 탱커가 되는 일이 없고,
+    /// 종 특성이 끝까지 유지된다. 상한도 걸어 몰빵을 막는다.
+    public int pStr, pAgi, pVit;                    // 찍은 점수
+    float baseStr, baseAgi, baseVit; bool baseSet;
+    public const float PerPoint = 0.012f;           // 한 점 = 기본값의 +1.2%
+    public const int MaxPerStat = 120;              // 한 스탯에 최대 120점 (약 +144%)
+
+    void EnsureBase()
+    {
+        if (baseSet) return;
+        baseStr = str; baseAgi = agi; baseVit = vit; baseSet = true;
+    }
+
+    public bool SpendPoint(int which)
+    {
+        if (points <= 0) return false;
+        EnsureBase();
+        if (which == 0) { if (pStr >= MaxPerStat) return false; pStr++; }
+        else if (which == 1) { if (pAgi >= MaxPerStat) return false; pAgi++; }
+        else { if (pVit >= MaxPerStat) return false; pVit++; }
+        points--;
+        ApplyPoints();
+        return true;
+    }
+
+    void ApplyPoints()
+    {
+        EnsureBase();
+        str = baseStr * (1f + pStr * PerPoint);
+        agi = baseAgi * (1f + pAgi * PerPoint);
+        float before = maxHp;
+        vit = baseVit * (1f + pVit * PerPoint);
+        maxHp = vit * 10f;
+        hp = Mathf.Min(maxHp, hp + Mathf.Max(0f, maxHp - before));   // 늘어난 만큼 회복
+    }
+
+    /// 최고 레벨 — 야생·내 펫 공통
+    public const int MaxLevel = 100;
+
     void LevelUp(bool fx)
     {
+        if (level >= MaxLevel) { xp = 0f; return; }
         level++;
-        str *= 1.12f; agi *= 1.06f; vit *= 1.12f;
+        // ★자동으로 세지지 않는다 — 포인트를 주고 직접 찍게 한다.
+        //   (자동 배수는 종 특성을 덮어써서 전부 비슷해진다)
+        points += PointsPerLevel;
         maxHp = vit * 10f; hp = maxHp;                      // 레벨업 = 풀회복
         if (fx)
         {
-            SquadHUD.Toast($"{name}  레벨 {level}!");
+            SquadHUD.Toast($"{name}  레벨 {level}!  스탯 포인트 {points}점 (Tab → 펫)");
             FX.Burst(transform.position + Vector3.up * body * 0.5f,
                      new Color(1.8f, 1.6f, 0.4f, 0.95f), 24, body * 0.07f, body * 0.6f);
         }
     }
 
-    /// 펫 교체 시 레벨 이어받기 — 조용히 배수만 적용
+    /// ★야생 레벨 — 잡을수록 강한 놈이 나오도록. 레벨만큼 스탯이 조금씩 오른다.
+    /// 1렙 기준 대비 100렙이 약 4배 (레벨당 3%) — 가파르지 않게.
+    public void SetWildLevel(int lv)
+    {
+        level = Mathf.Clamp(lv, 1, MaxLevel);
+        float k = 1f + (level - 1) * 0.03f;
+        str *= k; vit *= k; agi *= 1f + (level - 1) * 0.012f;
+        maxHp = vit * 10f; hp = maxHp;
+    }
+
+    /// 펫 교체 시 레벨 이어받기 — 보관함에서 꺼낼 때
     public void ApplyLevels(int targetLevel)
     {
-        while (level < targetLevel) LevelUp(false);
+        int add = Mathf.Clamp(targetLevel, 1, MaxLevel) - level;
+        if (add <= 0) return;
+        level += add;
+        points += add * PointsPerLevel;
+        maxHp = vit * 10f; hp = maxHp;
     }
 
     [Header("코어 스탯 (코어가 전부 정함)")]
@@ -792,7 +853,8 @@ public class PetUnit : MonoBehaviour
         deathT = 0f; deathStartY = transform.position.y; deathDropped = false;
         if (barRoot != null) barRoot.gameObject.SetActive(false);
         if (team == Team.Wild)
-        {   // 격파 경험치 → 내 펫 (캐릭터·건물 제외). 펫 획득은 오직 부화로!
+        {   // 격파 경험치 → 캐릭터와 내 펫 둘 다. 펫 획득은 오직 부화로!
+            PlayerLevel.Gain(supply * 12f + body * 0.6f);   // 덩치가 클수록 더 준다
             foreach (var u in All)
                 if (u.Alive && u.team == Team.Player && !u.isAvatar && !u.isStructure) { u.GainXP(supply * 18f); break; }
         }

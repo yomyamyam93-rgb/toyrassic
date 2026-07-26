@@ -760,7 +760,7 @@ public class PlayerBow : MonoBehaviour
     {
         var from = ShotFrom(shot);   // 무기마다 나가는 지점이 다르다
         float spd = shot != null ? arrowSpeed * shot.shotSpeedMul : arrowSpeed;
-        float dmg = shot != null ? arrowDamage * shot.shotDamageMul : arrowDamage;
+        float dmg = (shot != null ? arrowDamage * shot.shotDamageMul : arrowDamage) * PlayerLevel.DamageMul;
         ArrowProj.Throw(from, aimDir, spd, dmg, range);   // 관통은 추후 스킬로
         FX.Burst(from, shot != null ? new Color(1.4f, 1.3f, 1.1f, 0.85f)   // 새총 — 돌멩이 튀는 느낌
                                     : new Color(2.2f, 1.9f, 0.8f, 0.9f),

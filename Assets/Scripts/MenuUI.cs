@@ -33,6 +33,7 @@ public class MenuUI : MonoBehaviour
     int petSel;
     Image[] tabImgs; Text[] tabTexts;
     Text statText;
+    Button[] statBtn; Text[] statBtnLabel;   // 0~2 캐릭터(힘·민첩·체력) / 3~5 펫
     Image[] slotIcons;
     Text[] slotCounts, slotFallbacks;
     InvDrag[] slotDrags;
@@ -307,6 +308,26 @@ public class MenuUI : MonoBehaviour
         statText.rectTransform.anchoredPosition = new Vector2(St != null ? St.statIndent : 16f, -12);
         statText.alignment = TextAnchor.UpperLeft;
 
+        // ★스탯 찍기 버튼 — 캐릭터 3개 / 펫 3개
+        string[] statNames = { "힘", "민첩", "체력" };
+        statBtn = new Button[6]; statBtnLabel = new Text[6];
+        for (int i = 0; i < 6; i++)
+        {
+            int idx = i;
+            bool isPet = i >= 3;
+            var b = MakeButton(st2, "＋ " + statNames[i % 3], new Vector2(120f, 36f), out statBtnLabel[i]);
+            var brt = (RectTransform)b.transform;
+            brt.anchorMin = brt.anchorMax = brt.pivot = new Vector2(0, 1);
+            brt.anchoredPosition = new Vector2(30f + (i % 3) * 132f, isPet ? -300f : -150f);
+            b.onClick.AddListener(() =>
+            {
+                if (idx < 3) PlayerLevel.Spend(idx);
+                else { var p = BlueprintPickup.MyPet(); if (p != null) p.SpendPoint(idx - 3); }
+                RefreshStat();
+            });
+            statBtn[i] = b;
+        }
+
         // ── 제작 ──
         var cr = Page("Page_Craft");
         pageCraft = cr.gameObject;
@@ -444,25 +465,49 @@ public class MenuUI : MonoBehaviour
         var me = PetUnit.Avatar;
         var pet = BlueprintPickup.MyPet();
         var sb = new System.Text.StringBuilder();
-        sb.AppendLine("<b>캐릭터</b>");
+
+        // ── 캐릭터 ──
+        sb.AppendLine($"<b>캐릭터   Lv.{PlayerLevel.Level}</b>   경험치 {PlayerLevel.Xp:F0} / {PlayerLevel.XpNeed:F0}");
         if (me != null) sb.AppendLine($"  체력  {Mathf.CeilToInt(me.hp)} / {Mathf.CeilToInt(me.maxHp)}");
-        if (bow != null)
-        {
-            sb.AppendLine($"  화살 피해  {bow.arrowDamage:F0}");
-            sb.AppendLine($"  공속  {1f / Mathf.Max(0.05f, bow.fireCooldown):F1}발/초");
-            sb.AppendLine($"  사거리  {bow.arrowRange:F0} m");
-        }
+        sb.AppendLine($"  힘 {PlayerLevel.Str}  ·  민첩 {PlayerLevel.Agi}  ·  체력 {PlayerLevel.Vit}");
+        sb.AppendLine($"  피해 {PlayerLevel.DamageMul:F2}배 · 공속 {PlayerLevel.AtkSpeedMul:F2}배 · 이동 {PlayerLevel.MoveMul:F2}배");
+        sb.AppendLine(PlayerLevel.Points > 0
+            ? $"  <b>남은 포인트 {PlayerLevel.Points}점</b>"
+            : "  (남은 포인트 없음)");
         sb.AppendLine();
-        sb.AppendLine("<b>펫</b>");
+        sb.AppendLine();
+        sb.AppendLine();
+
+        // ── 펫 ──
         if (pet != null)
         {
-            float need = 25f + 20f * (pet.level - 1);
-            sb.AppendLine($"  {pet.name}   Lv.{pet.level}   (경험치 {pet.xp:F0}/{need:F0})");
+            sb.AppendLine($"<b>펫  {pet.name}   Lv.{pet.level}</b>   경험치 {pet.xp:F0} / {pet.XpNeed:F0}");
             sb.AppendLine($"  체력  {Mathf.CeilToInt(pet.hp)} / {Mathf.CeilToInt(pet.maxHp)}");
-            sb.AppendLine($"  힘 {pet.str:F0}   민첩 {pet.agi:F0}   체력스탯 {pet.vit:F0}");
+            sb.AppendLine($"  힘 {pet.str:F0}  ·  민첩 {pet.agi:F0}  ·  체력 {pet.vit:F0}");
+            sb.AppendLine($"  찍은 점수 — 힘 {pet.pStr} · 민첩 {pet.pAgi} · 체력 {pet.pVit}  (스탯당 최대 {PetUnit.MaxPerStat})");
+            sb.AppendLine(pet.points > 0
+                ? $"  <b>남은 포인트 {pet.points}점</b>"
+                : "  (남은 포인트 없음)");
         }
-        else sb.AppendLine("  (없음 — 알을 부화시키면 생긴다)");
+        else
+        {
+            sb.AppendLine("<b>펫</b>");
+            sb.AppendLine("  (없음 — 알을 부화시키면 생긴다)");
+        }
+
         statText.text = sb.ToString();
+
+        // 버튼 상태 — 포인트가 없으면 잠긴다
+        if (statBtn != null)
+            for (int i = 0; i < statBtn.Length; i++)
+            {
+                if (statBtn[i] == null) continue;
+                bool isPet = i >= 3;
+                statBtn[i].gameObject.SetActive(!isPet || pet != null);
+                statBtn[i].interactable = isPet
+                    ? (pet != null && pet.points > 0)
+                    : PlayerLevel.Points > 0;
+            }
     }
 
     // 레시피: [0]돌도끼 [1]돌곡괭이 [2]새총 (맨손) / [3]칼 [4]활 [5]부화기 (제작대 필요)
