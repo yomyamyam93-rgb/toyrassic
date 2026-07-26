@@ -20,6 +20,9 @@ public class SkillSystem : MonoBehaviour
     public float qAxeTurns = 1f, qAxeSpinTime = 0.4f;
     [Tooltip("긁는 궤적 — 꼬리 길이(°, 길수록 '긁는' 느낌)·굵기")]
     public float qAxeArcTail = 240f, qAxeArcThick = 1.6f;
+    [Tooltip("도넛 — 안쪽 구멍 비율(몸에 붙으면 자루라 안 맞는다)·바깥 날 피해 배수")]
+    [Range(0f, 0.7f)] public float qAxeInnerRatio = 0.34f;
+    public float qAxeEdgeBonus = 1.6f;
     public float qAxeDamageMul = 2.0f, qAxeRangeMul = 1.5f;
 
     [Tooltip("곡괭이: 뛰어올라 내리찍기 — 뜨는 시간·높이·정점 정지·낙하 시간")]
@@ -195,20 +198,44 @@ public class SkillSystem : MonoBehaviour
 
     /// ★무기 스킬의 피격 영역 — 미리보기와 실제 판정이 여기 한 곳에서 나온다.
     /// (따로 계산하면 보이는 범위와 맞는 범위가 어긋난다)
-    public void QArea(GearKind gear, Vector3 dir, out Vector3 center, out float radius)
+    public void QArea(GearKind gear, Vector3 dir, out Vector3 center, out float radius, out float inner)
     {
         var mount = move != null ? move.Mount : null;
         var body = mount != null ? mount.transform.position : transform.position;
+        inner = 0f;
         if (gear == GearKind.Pick)        { center = body + dir * qSlamStep; radius = qSlamRadius; }
         else if (gear == GearKind.Sword)  { center = body + dir * (qComboStep * qComboHits * 0.5f); radius = qSpinRadius * 0.8f; }
-        else                              { center = body; radius = qSpinRadius; }
+        else
+        {   // 도끼 = 도넛. 몸에 딱 붙은 적은 자루에 맞아 안 통하고, 바깥 날에 맞아야 제대로
+            center = body; radius = qSpinRadius; inner = qSpinRadius * qAxeInnerRatio;
+        }
+    }
+    public void QArea(GearKind gear, Vector3 dir, out Vector3 center, out float radius)
+        => QArea(gear, dir, out center, out radius, out _);
+
+    /// 도넛 판정 — 안쪽 구멍 안은 안 맞는다. 바깥 날에 맞으면 더 아프다.
+    void HitRing(Vector3 center, float inner, float outer, float dmg, float knock, float edgeBonus)
+    {
+        foreach (var u in PetUnit.All)
+        {
+            if (u == null || !u.Alive || u.team != PetUnit.Team.Wild) continue;
+            var d = u.transform.position - center; d.y = 0f;
+            float m = d.magnitude;
+            if (m > outer + u.body * 0.3f) continue;
+            if (m < inner - u.body * 0.3f) continue;          // 구멍 안 = 자루에 맞음
+            float edge = Mathf.InverseLerp(inner, outer, m);  // 바깥일수록 강하게
+            u.TakeDamage(dmg * Mathf.Lerp(1f, edgeBonus, edge), PetUnit.Avatar);
+            u.OnHit();
+            u.Knock(d, knock);
+            FX.Burst(u.transform.position + Vector3.up * u.body * 0.4f, Color.white, 10, u.body * 0.06f, u.body * 0.4f);
+        }
     }
 
     /// 도끼 — 0.5초 기를 모았다가 몸째로 한 바퀴 확 돌아버린다
     System.Collections.IEnumerator QAxeSpin(Vector3 dir)
     {
         SquadHUD.Toast("회전 베기!");
-        QArea(GearKind.Axe, dir, out var area, out float areaR);   // 미리보기와 같은 영역
+        QArea(GearKind.Axe, dir, out var area, out float areaR, out float areaIn);   // 미리보기와 같은 영역
         var blob = Blob;
         if (blob != null) blob.skillHoldFacing = true;   // 도는 동안 마우스 안 따라감
         if (move != null) move.suppressMove = true;
@@ -229,7 +256,8 @@ public class SkillSystem : MonoBehaviour
             if (blob != null) blob.skillYaw = total * (1f - Mathf.Pow(1f - k, 2.2f));   // 빠르게 → 감속
             yield return null;
         }
-        HitAround(area, areaR, qSpinDamage * qAxeDamageMul, 4f);
+        // 도넛 판정 — 붙어 있으면 자루라 안 통하고, 바깥 날에 걸리면 더 아프다
+        HitRing(area, areaIn, areaR, qSpinDamage * qAxeDamageMul, 4f, qAxeEdgeBonus);
 
         if (blob != null) { blob.skillYaw = 0f; blob.skillHoldFacing = false; }
         if (move != null) move.suppressMove = false;
@@ -530,7 +558,7 @@ public class SkillSystem : MonoBehaviour
         var body = mount != null ? mount.transform.position : origin;
         var gear = Hotbar.I != null ? Hotbar.I.Current : GearKind.Bow;
 
-        float lineLen = 0f, lineWidth = 0f, circleR = 0f;
+        float lineLen = 0f, lineWidth = 0f, circleR = 0f, circleIn = 0f;
         Vector3 circleAt = body;
 
         switch (aiming)
@@ -538,7 +566,7 @@ public class SkillSystem : MonoBehaviour
             case 0:
                 if (gear == GearKind.Bow) { lineLen = bow != null ? bow.arrowRange : 70f; lineWidth = 1.4f; }
                 // ★실제 판정과 똑같은 영역을 그대로 보여준다 (QArea 한 곳에서 나온다)
-                else QArea(gear, dir, out circleAt, out circleR);
+                else QArea(gear, dir, out circleAt, out circleR, out circleIn);
                 break;
             case 1:   // 펫 공격기 — 종류별 모양 (부채꼴은 원으로 근사)
                 switch (CurPetAtk())
@@ -571,6 +599,10 @@ public class SkillSystem : MonoBehaviour
             if (terrainRef != null) c.y = terrainRef.SampleHeight(c) + terrainRef.transform.position.y;
             previewCircle.position = c + Vector3.up * 0.25f;
             previewCircle.localScale = new Vector3(circleR * 2f, circleR * 2f, 1f);
+            // 도넛이면 구멍 뚫린 그림으로 (구멍 비율까지 실제 판정과 같게)
+            var want = circleIn > 0.01f ? FX.RingThinTex(circleIn / circleR) : FX.CircleThinTex();
+            var pmr = previewCircle.GetComponent<MeshRenderer>();
+            if (pmr.material.mainTexture != want) pmr.material.mainTexture = want;
         }
 
         // 영역 안 대상 빨갛게
@@ -582,7 +614,9 @@ public class SkillSystem : MonoBehaviour
             if (circleR > 0f)
             {
                 var dc = u.transform.position - circleAt; dc.y = 0f;
-                hit = dc.magnitude <= circleR + u.body * 0.3f;
+                float md = dc.magnitude;
+                hit = md <= circleR + u.body * 0.3f
+                   && (circleIn <= 0.01f || md >= circleIn - u.body * 0.3f);   // 도넛 구멍 안은 제외
             }
             if (!hit && lineLen > 0f)
             {

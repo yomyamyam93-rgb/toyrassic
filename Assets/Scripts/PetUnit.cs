@@ -902,9 +902,7 @@ public class PetUnit : MonoBehaviour
     // ── HP 바 (둥근 모서리 + 롤식 지연 감소) ──
     // ★몸에 안 붙임 — 스쿼시·통통 바운스에 안 흔들리게 월드 공간에서 부드럽게 따라감
     float barY, barSmoothY, barBaseScale;
-    /// 이 거리보다 멀면 체력바를 숨긴다 (줌아웃 때 먼 적 바가 화면을 뒤덮는 문제)
-    public static float BarMaxDist = 85f;
-    /// 거리 보정 배율 상한 — 넘어가면 화면에서 자연히 작아진다
+    /// 거리 보정 배율 상한 — 넘어가면 화면에서 자연히 작아진다 (숨기지는 않음)
     const float barMaxGrow = 2.0f;
     void MakeBar(Renderer r)
     {
@@ -963,16 +961,12 @@ public class PetUnit : MonoBehaviour
         barRoot.rotation = camT.rotation;   // 카메라 회전 그대로 = 항상 화면과 수평 (기울어짐 방지)
         float dist = Vector3.Distance(camT.position, barRoot.position);
 
-        // ★멀면 아예 숨긴다 — 화면 크기를 고정하려고 거리에 비례해 키우다 보니,
-        //   줌아웃했을 때 먼 적의 바가 월드 기준 15m 짜리 판때기가 돼서 화면을 뒤덮었다
-        if (!isAvatar && dist > BarMaxDist)
-        {
-            if (barRoot.gameObject.activeSelf) barRoot.gameObject.SetActive(false);
-            return;
-        }
+        // 혹시 숨겨져 있으면 되살린다 (구조물은 자기 규칙대로 barShowT 가 관리)
         if (!isStructure && !barRoot.gameObject.activeSelf) barRoot.gameObject.SetActive(true);
 
-        // 화면 크기 고정 — 단 배율 상한을 낮게 잡아, 멀어질수록 화면에서 자연히 작아지게
+        // ★화면 크기 고정 — 단 배율 상한을 낮게 잡는다.
+        //   예전엔 상한이 6배라 줌아웃 때 먼 적의 바가 월드 15m 판때기가 돼 화면을 덮었다.
+        //   상한을 넘으면 더 안 커지므로 멀수록 화면에서 자연히 작아진다 (숨기지는 않는다)
         barRoot.localScale = Vector3.one * barBaseScale * Mathf.Clamp(dist / 42f, 0.85f, barMaxGrow);
         // 롤식: 실체력은 즉시, 잔상 바는 잠깐 머물다 스르륵 따라 내려옴
         ghostHp = hp > ghostHp ? hp : Mathf.MoveTowards(ghostHp, hp, maxHp * 0.45f * Time.deltaTime);

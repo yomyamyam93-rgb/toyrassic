@@ -54,6 +54,35 @@ public static class FX
         return circleTex;
     }
 
+    /// ★도넛형 스킬 영역 — 안쪽 구멍은 안 맞는 자리. 테두리는 얇고 진하게.
+    /// innerRatio = 구멍 반경 / 전체 반경. 비율마다 따로 만들어 캐시한다.
+    static readonly System.Collections.Generic.Dictionary<int, Texture2D> ringThinTex
+        = new System.Collections.Generic.Dictionary<int, Texture2D>();
+    public static Texture2D RingThinTex(float innerRatio)
+    {
+        int key = Mathf.RoundToInt(Mathf.Clamp01(innerRatio) * 100f);
+        if (ringThinTex.TryGetValue(key, out var cached) && cached != null) return cached;
+        float ir = key / 100f;
+        int s = 256; float half = s * 0.5f;
+        var tex = new Texture2D(s, s, TextureFormat.RGBA32, false);
+        for (int y = 0; y < s; y++)
+            for (int x = 0; x < s; x++)
+            {
+                float r = Mathf.Sqrt((x - half) * (x - half) + (y - half) * (y - half)) / half;
+                float a = 0f;
+                if (r > ir && r < 0.965f) a = 0.13f;                       // 맞는 띠: 옅게
+                float eOut = Mathf.Min(r - 0.955f, 1.0f - r) / 0.008f;     // 바깥 테두리
+                float eIn = Mathf.Min(r - (ir - 0.01f), (ir + 0.035f) - r) / 0.008f;   // 안쪽 테두리
+                a = Mathf.Max(a, Mathf.Max(r > 0.955f && r < 1f ? Mathf.Clamp01(eOut) : 0f,
+                                           r > ir - 0.01f && r < ir + 0.035f ? Mathf.Clamp01(eIn) : 0f));
+                tex.SetPixel(x, y, new Color(1f, 1f, 1f, a));
+            }
+        tex.Apply();
+        tex.wrapMode = TextureWrapMode.Clamp;
+        ringThinTex[key] = tex;
+        return tex;
+    }
+
     /// ★스킬 영역용 — 테두리는 얇게, 대신 진하게. 속은 거의 비워 지형이 잘 보이게.
     /// 표시된 원의 바깥 끝(r=1)이 곧 실제 피격 반경이다.
     static Texture2D circleThinTex;
