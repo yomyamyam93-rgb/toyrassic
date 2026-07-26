@@ -829,13 +829,28 @@ public class PlayerBow : MonoBehaviour
                     // ★회전은 '무기가 향하는 축'을 직접 보간한다.
                     //   시작·끝 각도를 쿼터니언으로 바로 이으면 지름길이 몸 뒤쪽으로 나서,
                     //   앞을 긁어야 할 가로 스윙이 등 뒤를 긁고 지나갔다.
+                    // ★반드시 '정면'을 거쳐 가게 한다.
+                    //   시작·끝 각도를 바로 이으면(쿼터니언이든 방향이든) 최단 호가 등 뒤로
+                    //   나서, 앞을 긁어야 할 가로 스윙이 몸 뒤를 훑고 지나갔다.
+                    //   앞 절반은 시작→정면, 뒤 절반은 정면→끝. 시작·끝 자세는 그대로 유지된다.
                     var q0 = Quaternion.Euler(sEul);
                     var q1 = Quaternion.Euler(eEul);
                     float rk = Mathf.Clamp01(p);
-                    var aim0 = Vector3.Slerp(q0 * Vector3.forward, q1 * Vector3.forward, rk);
-                    var up0 = Vector3.Slerp(q0 * Vector3.up, q1 * Vector3.up, rk);
-                    handR.rotation = aim0.sqrMagnitude > 1e-6f && up0.sqrMagnitude > 1e-6f
-                        ? frame * Quaternion.LookRotation(aim0.normalized, up0)
+                    Vector3 aimV, upV;
+                    if (rk < 0.5f)
+                    {
+                        float u = rk * 2f;
+                        aimV = Vector3.Slerp(q0 * Vector3.forward, Vector3.forward, u);
+                        upV = Vector3.Slerp(q0 * Vector3.up, Vector3.up, u);
+                    }
+                    else
+                    {
+                        float u = (rk - 0.5f) * 2f;
+                        aimV = Vector3.Slerp(Vector3.forward, q1 * Vector3.forward, u);
+                        upV = Vector3.Slerp(Vector3.up, q1 * Vector3.up, u);
+                    }
+                    handR.rotation = aimV.sqrMagnitude > 1e-6f && upV.sqrMagnitude > 1e-6f
+                        ? frame * Quaternion.LookRotation(aimV.normalized, upV)
                         : frame * Quaternion.Slerp(q0, q1, rk);
 
                     if (trail != null)
