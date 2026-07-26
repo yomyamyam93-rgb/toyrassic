@@ -328,6 +328,8 @@ public class PlayerBowEditor : Editor
         // 무기를 그 자세로 그린다
         if (model != null)
         {
+            // 휴대(오른손)일 땐 자세 각도가 곧 toolCarryEuler 라 gripEuler 만 더한다.
+            // 스윙(캐릭터)일 땐 gripEuler 만 적용된다 — 런타임과 같게.
             var gripM = slot.a.space == PoseSpace.왼손
                 ? Matrix4x4.TRS(cur, poseRot, Vector3.one * pScale)
                 : Matrix4x4.TRS(cur, poseRot * Quaternion.Euler(pb.gripEuler),

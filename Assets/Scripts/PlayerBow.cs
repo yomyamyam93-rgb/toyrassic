@@ -55,9 +55,11 @@ public class PlayerBow : MonoBehaviour
     [Tooltip("걸을 때 살랑거리는 정도 (0=고정)")] public float carrySway = 0.5f;
 
     [Header("도구 휴대 — 도끼·곡괭이·칼 (스윙 중엔 무시)")]
-    [Pose("도구 · 잡는 위치", PoseSpace.오른손, "gripEuler")]
-    [Tooltip("손 기준 위치 보정 (각도는 아래 '잡기' 의 gripEuler)")]
+    [Pose("도구 · 잡는 위치", PoseSpace.오른손, "toolCarryEuler")]
+    [Tooltip("손 기준 위치 보정")]
     public Vector3 toolCarryPos = Vector3.zero;
+    [Tooltip("★휴대할 때만 쓰는 각도 — 스윙에는 영향 없다 (스윙까지 바꾸려면 gripEuler)")]
+    public Vector3 toolCarryEuler = Vector3.zero;
     [Tooltip("들고 다닐 때 흔들리는 각도 (0=고정)")] public float toolCarrySway = 4f;
     [Tooltip("흔들리는 빠르기")] public float toolCarrySwaySpeed = 2.2f;
 
@@ -307,7 +309,8 @@ public class PlayerBow : MonoBehaviour
     {
         var tip = new GameObject("trail");
         tip.transform.SetParent(tool, false);
-        tip.transform.localPosition = new Vector3(0f, 0f, 1.78f);
+        // 무기 끝에 붙인다 — 모델은 그립에서 toolLength 만큼 뻗도록 정규화되어 있다
+        tip.transform.localPosition = new Vector3(0f, 0f, toolLength * 0.95f);
         var tr = tip.AddComponent<TrailRenderer>();
         tr.time = 0.16f;
         tr.startWidth = 0.5f; tr.endWidth = 0.03f;
@@ -842,7 +845,8 @@ public class PlayerBow : MonoBehaviour
                     // 들고 다닐 때 살짝 흔들림 — 완전히 굳어 있으면 인형 같다
                     float tsw = (Mathf.Sin(Time.time * toolCarrySwaySpeed) * 0.7f
                                + Mathf.Sin(Time.time * toolCarrySwaySpeed * 1.6f + 0.9f) * 0.3f) * toolCarrySway;
-                    toolHeld.localRotation = Quaternion.Euler(gripEuler + new Vector3(tsw, 0f, tsw * 0.6f));
+                    // ★휴대 각도는 여기서만 — 스윙 때 섞이면 무기가 비틀린 채 휘둘러진다
+                    toolHeld.localRotation = Quaternion.Euler(gripEuler + toolCarryEuler + new Vector3(tsw, 0f, tsw * 0.6f));
                     if (trail != null) trail.emitting = false;
                 }
                 prevSwingT = gather != null ? gather.SwingT : 0f;
