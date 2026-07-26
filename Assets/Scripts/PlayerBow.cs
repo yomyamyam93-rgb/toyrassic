@@ -434,8 +434,8 @@ public class PlayerBow : MonoBehaviour
                                  CursorMode.Auto);
         }
 
-        // 메뉴·이름 짓기 창이 열려 있으면 전투 입력 차단
-        if (MenuUI.IsOpen || PetNameUI.IsOpen)
+        // 메뉴·이름창·건축 모드에선 전투 입력 차단
+        if (MenuUI.IsOpen || PetNameUI.IsOpen || BuildSystem.IsBuilding)
         {
             drawing = false; drawT = 0f; aimLen = 0f;
             if (aimLine != null) aimLine.enabled = false;

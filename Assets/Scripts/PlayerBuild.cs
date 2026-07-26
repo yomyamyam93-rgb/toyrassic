@@ -18,9 +18,8 @@ public class PlayerBuild : MonoBehaviour
 #else
         pressed = Input.GetKeyDown(KeyCode.B);
 #endif
+        // B키는 이제 BuildSystem(건축 모드)이 사용 — 여기선 아무것도 안 함
         if (!pressed) return;
-        // 설치는 이제 핫바 방식 — B는 안내만
-        SquadHUD.Toast("부화기는 제작(Tab) 후 핫바에서 들고, 원하는 곳을 클릭해 설치!");
     }
 
     /// 부화기 설치 — 지정 위치에
