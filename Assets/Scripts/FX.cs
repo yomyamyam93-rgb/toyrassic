@@ -87,6 +87,9 @@ public static class FX
         m.SetFloat(TMPro.ShaderUtilities.ID_UnderlayDilate, 0.45f);   // 사방으로 퍼지는 검정 밑판
         m.SetFloat(TMPro.ShaderUtilities.ID_UnderlaySoftness, 0f);
         m.SetFloat(TMPro.ShaderUtilities.ID_FaceDilate, 0.14f);   // 글자 살 두께 보강 (볼드감)
+        // ★깊이 무시 — 캐릭터·나무에 가리지 않고 항상 맨 앞
+        m.SetFloat("_ZTestMode", (float)UnityEngine.Rendering.CompareFunction.Always);
+        m.renderQueue = 4000;
         popMats[s] = m;
         return m;
     }
