@@ -196,7 +196,8 @@ public class PlayerBow : MonoBehaviour
 
     /// 핫바 장비 → 무기 ID
     static string GearId(GearKind k)
-        => k == GearKind.Axe ? "도끼" : k == GearKind.Pick ? "곡갱이" : k == GearKind.Sword ? "칼" : null;
+        => k == GearKind.Axe ? "도끼" : k == GearKind.Pick ? "곡갱이" : k == GearKind.Sword ? "칼"
+         : k == GearKind.Sling ? "새총" : null;
     Vector3 aimDir = Vector3.forward;
     BlobMotion motion;
     Camera cam;
@@ -219,6 +220,9 @@ public class PlayerBow : MonoBehaviour
         if (ax.model == null) ax.model = toolAxeModel != null ? toolAxeModel : Resources.Load<GameObject>("Tools/tool_axe");
         var pk = Ensure("곡갱이");
         if (pk.model == null) pk.model = toolPickModel != null ? toolPickModel : Resources.Load<GameObject>("Tools/tool_pick");
+        // 새총 — 손에 드는 모델만 (쏘는 건 활 쪽 코드가 처리)
+        var sl = Ensure("새총");
+        if (sl.model == null) sl.model = Resources.Load<GameObject>("Tools/tool_sling");
         // 칼 — 모션은 도끼와 같다 (정렬값도 도끼에서 물려받고, 이후 무기 탭에서 따로 조절)
         var sw = Ensure("칼");
         if (sw.model == null)
@@ -247,7 +251,8 @@ public class PlayerBow : MonoBehaviour
         Transform MountModel(string n, GameObject model, out Transform instOut, out Quaternion autoRot, out float autoScale)
         {
             var root = new GameObject(n).transform;
-            root.SetParent(handR, false);
+            // 새총은 조준할 때 앞으로 뻗는 왼손에 든다 (활과 같은 손)
+            root.SetParent(n == "새총" ? handL : handR, false);
             var inst = Instantiate(model, root);
             // ★블렌더에서 잡아둔 배치(위치·각도)를 그대로 쓴다 — 원점(0,0,0)이 손잡이라는
             //   규칙만 지키면, 손에 든 자세는 사장님이 모델링에서 정한 그대로가 된다.
