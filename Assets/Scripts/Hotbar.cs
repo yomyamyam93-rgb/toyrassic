@@ -16,6 +16,11 @@ public class Hotbar : MonoBehaviour
 
     readonly GearKind[] slots = new GearKind[10];
     int selected;
+
+    /// ★탑승 칸 (0번, 화면상 마지막 칸) — 여기 올려둔 펫을 탄다.
+    /// 무기와 별개라 무기를 든 채로도 탈 수 있다.
+    public const int MountSlot = 9;
+    public static PetUnit MountPet;
     /// 지금 들고 있는 장비
     public GearKind Current => slots[selected];
 
@@ -72,6 +77,7 @@ public class Hotbar : MonoBehaviour
 
     public void Select(int i)
     {
+        if (i == MountSlot) return;   // 탑승 칸은 '드는' 칸이 아니다
         selected = Mathf.Clamp(i, 0, 9);
         RefreshSel();
     }
@@ -79,9 +85,22 @@ public class Hotbar : MonoBehaviour
     /// 드래그로 장착 — 같은 장비는 한 칸만
     public void Assign(int slot, GearKind kind)
     {
+        if (slot == MountSlot)   // 탑승 전용 칸 — 무기는 못 넣는다
+        {
+            SquadHUD.Toast("마지막 칸은 탑승 전용 — 펫 창에서 펫을 끌어다 놓으세요");
+            return;
+        }
         for (int i = 0; i < 10; i++) if (slots[i] == kind) slots[i] = GearKind.None;
         slots[slot] = kind;
         RefreshAll();
+    }
+
+    /// 탑승 칸에 펫 올리기 / 내리기 (펫 창에서 드래그)
+    public void SetMount(PetUnit pet)
+    {
+        MountPet = pet;
+        RefreshAll();
+        SquadHUD.Toast(pet != null ? $"{pet.name} 탑승!" : "내렸다");
     }
 
     /// 핫바 안 이동 — 목적지에 다른 장비가 있으면 서로 자리 교환
@@ -234,6 +253,13 @@ public class Hotbar : MonoBehaviour
         if (iconImgs == null) return;
         for (int i = 0; i < 10; i++)
         {
+            if (i == MountSlot)
+            {   // 탑승 칸 — 올려둔 펫 이름을 보여준다 (빈 칸이면 안내)
+                iconImgs[i].enabled = false;
+                fallbacks[i].text = MountPet != null ? MountPet.name : "탑승";
+                if (slotDrags != null && slotDrags[i] != null) slotDrags[i].enabled = false;
+                continue;
+            }
             var sp = KindSprite(slots[i]);
             iconImgs[i].enabled = sp != null;
             if (sp != null) iconImgs[i].sprite = sp;

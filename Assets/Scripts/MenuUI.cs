@@ -428,8 +428,11 @@ public class MenuUI : MonoBehaviour
             $"민첩     {s.agi:F0}\n" +
             $"지력     {s.intel:F0}\n\n" +
             (s.active ? "<b>지금 데리고 다니는 중</b>" : "보관함에서 대기 중");
-        petUseBtn.gameObject.SetActive(!s.active);
-        petUseLabel.text = "데리고 다니기";
+        // 나와 있는 펫이면 버튼이 탑승 토글이 된다
+        petUseBtn.gameObject.SetActive(true);
+        if (s.active)
+            petUseLabel.text = (live != null && Hotbar.MountPet == live) ? "내리기" : "타기";
+        else petUseLabel.text = "데리고 다니기";
     }
 
     void UsePet()
@@ -437,7 +440,14 @@ public class MenuUI : MonoBehaviour
         var list = PetBox.All;
         if (petSel < 0 || petSel >= list.Count) return;
         var d = list[petSel];
-        if (d.active) return;
+        // ★이미 나와 있는 펫이면 버튼이 '탑승/하차' 가 된다 (핫바 마지막 칸과 연동)
+        if (d.active)
+        {
+            var cur = BlueprintPickup.MyPet();
+            if (cur == null || Hotbar.I == null) return;
+            Hotbar.I.SetMount(Hotbar.MountPet == cur ? null : cur);
+            return;
+        }
         if (PetBox.SetActive(d, transform))
             SquadHUD.Toast($"{d.name} 와(과) 함께!");
     }

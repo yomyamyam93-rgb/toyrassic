@@ -27,6 +27,13 @@ public class PlayerMove : MonoBehaviour
     public Transform cam;
 
     BlobMotion motion;
+    [Header("안장 반동 — 탄 펫이 튀면 나도 같이 튄다")]
+    [Tooltip("펫의 상하 움직임을 얼마나 따라가나 (1=그대로)")] [Range(0f, 1.5f)] public float saddleFollow = 0.75f;
+    [Tooltip("원위치로 돌아오는 힘 (클수록 빨리 가라앉음)")] public float saddleSpring = 22f;
+    [Tooltip("흔들림이 잦아드는 정도 (1에 가까울수록 오래 출렁)")] [Range(0.5f, 0.99f)] public float saddleDamp = 0.86f;
+    [Tooltip("최대 반동 높이 (m)")] public float saddleMax = 0.9f;
+    float saddleOffset, saddleVel, lastMountY = float.NaN;
+
     [Header("펫이 쓰러졌을 때 떨어지는 연출")]
     [Tooltip("튕겨 올랐다 내려오는 시간")] public float dropTime = 0.45f;
     [Tooltip("튕겨 오르는 높이 (m)")] public float dropHeight = 2.5f;
@@ -89,9 +96,11 @@ public class PlayerMove : MonoBehaviour
 
     void Update()
     {
-        // 내 펫이 있으면 자동 탑승 — 펫이 탈것
-        var m = BlueprintPickup.MyPet();
-        if (m != null && !m.Alive) m = null;
+        // ★탑승은 내가 고른다 — 펫을 클릭해야 탄다 (PetCommand.Mount).
+        //   예전엔 살아있는 첫 펫을 자동으로 탔는데, 여러 마리를 데리고 다니면
+        //   어느 놈을 탈지 내가 정할 수 있어야 한다.
+        var m = PetCommand.Mount;
+        if (m != null && !m.Alive) { m = null; PetCommand.Mount = null; }
         if (m != mount)
         {
             // ★펫이 쓰러져서 내리는 경우 — 퐁 하고 튕겨 떨어진다
@@ -104,6 +113,9 @@ public class PlayerMove : MonoBehaviour
                 SquadHUD.Toast($"{mount.name} 쓰러짐! 이제 직접 맞습니다");
             }
             if (mount != null) mount.mounted = false;
+            // 안장 반동 초기화 — 내린 뒤에도 출렁이면 안 된다
+            saddleOffset = 0f; saddleVel = 0f; lastMountY = float.NaN;
+            if (motion != null && dropT <= 0f) motion.skillHop = 0f;
             mount = m;
             if (mount != null)
             {
@@ -173,9 +185,19 @@ public class PlayerMove : MonoBehaviour
                 mount.transform.rotation = Quaternion.RotateTowards(mount.transform.rotation, want, 720f * Time.deltaTime);
             }
             if (mountMotion != null) mountMotion.speed01 = Mathf.Clamp01(sp / moveSpeed);
-            // 라이더(캐릭터)는 통통 안 튀고 안장에 앉아 마우스만 바라봄
+            // ★안장 반동 — 펫이 통통 뛰면 나도 그 위에서 같이 튄다.
+            //   펫의 실제 높이 변화를 따라가되, 살짝 늦게·조금 덜 튀어야 '얹혀 있는' 느낌이 난다.
             motion.GroundY = float.NaN;
             motion.SetMotion(BlobMotion.Mode.Idle, 0f, false);
+            float petY = mount.transform.position.y;
+            if (float.IsNaN(lastMountY)) lastMountY = petY;
+            float dy = petY - lastMountY;
+            lastMountY = petY;
+            saddleVel += dy * saddleFollow;                       // 펫이 솟으면 나도 밀려 올라감
+            saddleVel -= saddleOffset * saddleSpring * Time.deltaTime;   // 원위치로 당김
+            saddleVel *= Mathf.Pow(saddleDamp, Time.deltaTime * 60f);
+            saddleOffset = Mathf.Clamp(saddleOffset + saddleVel, -saddleMax, saddleMax);
+            motion.skillHop = saddleOffset;
             return;
         }
 

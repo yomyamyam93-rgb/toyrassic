@@ -250,6 +250,30 @@ public class PetUnit : MonoBehaviour
     /// ★야생 습격병 — 스킬(원소기·패턴기)을 안 쓰고 평타만. 떼로 몰려와도 읽히게
     [HideInInspector] public bool basicOnly;
 
+    // ── 탑승 보정 — 타고 있는 동안 두 몫을 한다 ──
+    [HideInInspector] public float mountDmgMul = 1f, mountSpdMul = 1f;
+    float mountHpMul = 1f;
+    public void SetMountBuff(float dmg, float hp, float spd)
+    {
+        mountDmgMul = dmg; mountSpdMul = spd;
+        if (!Mathf.Approximately(mountHpMul, hp))
+        {
+            float ratio = maxHp > 0f ? this.hp / maxHp : 1f;   // 비율 유지 (탈 때 회복 아님)
+            mountHpMul = hp;
+            maxHp = vit * 10f * mountHpMul;
+            this.hp = Mathf.Min(maxHp, maxHp * ratio);
+        }
+    }
+
+    // ── 지휘 (PetCommand 가 넣어준다) ──
+    /// 주인을 따라다니는 중 — 이때는 싸우지 않고 붙어만 다닌다
+    [HideInInspector] public bool following;
+    /// 따라갈 자리 (주인 뒤쪽)
+    [HideInInspector] public Vector3 followSpot;
+    /// 돌격 명령을 받았나 / 어디로
+    [HideInInspector] public bool hasOrder;
+    [HideInInspector] public Vector3 orderSpot;
+
     float AtkPeriodRaw => (mat == Mat.Metal ? 3.2f : mat == Mat.Stone ? 3.4f : mat == Mat.Wood ? 2.3f
                       : mat == Mat.Fire ? 3.0f : mat == Mat.Water ? 0.38f
                       : mat == Mat.Lightning ? 1.7f
@@ -260,8 +284,9 @@ public class PetUnit : MonoBehaviour
                        / (1f + agi * 0.010f);
     /// ★실제 공격 간격 — 종 특색(공속)이 여기서 반영된다.
     /// 습격병은 이 간격만큼 쉬었다 때린다 = 무한 연타가 아니다
-    float AtkPeriod => AtkPeriodRaw / Mathf.Max(0.1f, atkSpeedMul);
-    float Damage => mat == Mat.Water ? intel * 0.22f  // 💧물총 속사 — 발당 약하게 (DPS 는 비슷)
+    float AtkPeriod => AtkPeriodRaw / Mathf.Max(0.1f, atkSpeedMul * mountSpdMul);
+    float Damage => DamageRaw * mountDmgMul;
+    float DamageRaw => mat == Mat.Water ? intel * 0.22f  // 💧물총 속사 — 발당 약하게 (DPS 는 비슷)
                   : str * (mat == Mat.Metal ? 0.95f : mat == Mat.Stone ? 1.05f : mat == Mat.Wood ? 0.45f
                          : mat == Mat.Fire ? 1.8f : mat == Mat.Lightning ? 0.8f
                          : pattern == Pattern.Bite ? 1.0f      // 빠른 대신 약하게
@@ -313,6 +338,26 @@ public class PetUnit : MonoBehaviour
             airY = Mathf.Sin(k * Mathf.PI) * airHeight;
             if (airT <= 0f) airY = 0f;
             Ground(false); Bar(); HitFlash();
+            return;
+        }
+
+        // ★소집 중 — 싸우지 않고 주인 뒤에 붙어 따라온다
+        if (following)
+        {
+            if (winding) { winding = false; KillTele(); }
+            var to = followSpot - transform.position; to.y = 0f;
+            float far = to.magnitude;
+            if (far > 1.2f)
+            {   // 멀수록 빨리 (뒤처지면 뛴다)
+                float sp = MoveSpd * (far > 9f ? 1.6f : 1f);
+                var np = transform.position + to.normalized * Mathf.Min(sp * Time.deltaTime, far);
+                np = TreeBlocker.Resolve(np, body * 0.3f);
+                transform.position = new Vector3(np.x, transform.position.y, np.z);
+                Face(to);
+                if (motion != null) motion.speed01 = Mathf.Clamp01(sp / 12f);
+            }
+            else if (motion != null) motion.speed01 = 0f;
+            Separate(); Ground(false); Bar(); HitFlash();
             return;
         }
 
@@ -463,6 +508,18 @@ public class PetUnit : MonoBehaviour
 
     void Peace()
     {
+        // ★돌격 명령 — 지정한 지점까지 가서, 도착하면 그 자리에서 싸운다
+        if (hasOrder)
+        {
+            var to = orderSpot - transform.position; to.y = 0f;
+            if (to.magnitude > 2.5f)
+            {
+                Step(to, MoveSpd * 1.3f);
+                if (motion != null) motion.speed01 = 1f;
+                return;
+            }
+            hasOrder = false;   // 도착 — 이제 알아서 근처 적을 친다
+        }
         if (team == Team.Player && followTarget != null)
         {
             float d = Dist(followTarget.position);
@@ -1155,9 +1212,10 @@ public class BlueprintPickup : MonoBehaviour
     float bobT, hideT = 3f;
     static Transform player;
 
-    /// 현재 데리고 다니는 펫 (한 마리 — 캐릭터·건물 제외)
+    /// 지금 '주력' 펫 — 타고 있으면 그놈, 아니면 아무거나 하나 (스탯창 표시용)
     public static PetUnit MyPet()
     {
+        if (PetCommand.Mount != null && PetCommand.Mount.Alive) return PetCommand.Mount;
         foreach (var u in PetUnit.All)
             if (u.Alive && u.team == PetUnit.Team.Player && !u.isAvatar && !u.isStructure) return u;
         return null;

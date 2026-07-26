@@ -123,9 +123,30 @@ public class SkillSystem : MonoBehaviour
         move = GetComponent<PlayerMove>();
         bow = GetComponent<PlayerBow>();
         gather = GetComponent<PlayerGather>();
+        cmd = GetComponent<PetCommand>();
+        if (cmd == null) cmd = gameObject.AddComponent<PetCommand>();
         cam = Camera.main;
         font = (St != null && St.font != null) ? St.font : Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
         BuildHUD();
+    }
+
+    PetCommand cmd;
+
+    /// 마우스가 가리키는 땅 지점 (돌격 명령용)
+    Vector3 AimSpot()
+    {
+        if (cam == null) cam = Camera.main;
+        if (cam == null) return transform.position + transform.forward * 10f;
+#if ENABLE_INPUT_SYSTEM
+        var m = Mouse.current;
+        var mp = m != null ? m.position.ReadValue() : new Vector2(Screen.width * 0.5f, Screen.height * 0.5f);
+#else
+        Vector2 mp = Input.mousePosition;
+#endif
+        var ray = cam.ScreenPointToRay(mp);
+        var plane = new Plane(Vector3.up, transform.position);
+        return plane.Raycast(ray, out float e) ? ray.GetPoint(e)
+                                               : transform.position + transform.forward * 10f;
     }
 
     Vector3 AimDir()
@@ -159,14 +180,14 @@ public class SkillSystem : MonoBehaviour
 #if ENABLE_INPUT_SYSTEM
         var k = Keyboard.current;
         if (k == null) return;
-        // ★키 배치: Q 무기 / E 펫 / Space 유틸 / R 합동 (F 는 상호작용=줍기)
-        // 누르고 있는 동안 영역 미리보기 — 놓을 때 발동 (조준 시간 제한 없음)
-        aiming = k.qKey.isPressed ? 0 : k.eKey.isPressed ? 1 : k.spaceKey.isPressed ? 2 : k.rKey.isPressed ? 3 : -1;
+        // ★키 배치 — 공격은 평타·Q 뿐, E·R 은 부대 지휘
+        //   Q 무기 스킬 / E 소집 / R 돌격 명령 / Space 구르기 / F 줍기
+        aiming = k.qKey.isPressed ? 0 : k.spaceKey.isPressed ? 2 : k.rKey.isPressed ? 3 : -1;
         UpdatePreview();
         if (k.qKey.wasReleasedThisFrame) TryQ();        // 무기 스킬
-        if (k.eKey.wasReleasedThisFrame) TryW();        // 펫 스킬 (제자리 강공격)
-        if (k.spaceKey.wasReleasedThisFrame) TryE();    // 유틸 (이동기·구르기)
-        if (k.rKey.wasReleasedThisFrame) TryR();        // 합동 스킬
+        if (k.spaceKey.wasReleasedThisFrame) TryE();    // 구르기
+        if (k.eKey.wasPressedThisFrame && cmd != null) cmd.Gather();          // 소집
+        if (k.rKey.wasReleasedThisFrame && cmd != null) cmd.OrderTo(AimSpot()); // 돌격
 #endif
     }
 
