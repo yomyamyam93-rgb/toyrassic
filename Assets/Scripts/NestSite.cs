@@ -21,6 +21,14 @@ public class NestSite : MonoBehaviour
     [Tooltip("쫄병 공격력 배율")] public float dmgMul = 0.5f;
     [Tooltip("둥지에서 이 반경 링에서 튀어나옴")] public float spawnRing = 14f;
 
+    [Header("보스 — 마지막에 나온다. 이 알이 무슨 펫인지 알려주는 힌트")]
+    [Tooltip("보스 크기 배수 (졸병 대비)")] public float bossSizeMul = 2f;
+    [Tooltip("보스 체력 배수")] public float bossHpMul = 2.5f;
+    [Tooltip("보스 공격력 배수")] public float bossDmgMul = 1.6f;
+    /// 이 둥지의 알이 어느 종인지 — 보스도 부화 결과도 이 종이다
+    [HideInInspector] public PetSpawner.Entry eggEntry;
+    bool bossSpawned;
+
     /// 알 보유 수 — 실제 저장은 슬롯 인벤토리(Inv)
     public static int EggCount
     {
@@ -54,10 +62,25 @@ public class NestSite : MonoBehaviour
         return best;
     }
 
+    /// 이 둥지 알의 주인 종을 고른다 (가중치)
+    PetSpawner.Entry PickEggEntry()
+    {
+        if (spawner == null || spawner.entries.Count == 0) return null;
+        float sum = 0f;
+        foreach (var e in spawner.entries) sum += Mathf.Max(0.01f, e.weight);
+        float r = Random.Range(0f, sum);
+        foreach (var e in spawner.entries)
+        {
+            r -= Mathf.Max(0.01f, e.weight);
+            if (r <= 0f) return e;
+        }
+        return spawner.entries[0];
+    }
+
     /// 둥지를 처음 상태로 — 알을 다시 얹고 무리도 되살아난다
     void Respawn()
     {
-        triggered = false; cleared = false;
+        triggered = false; cleared = false; bossSpawned = false;
         spawned = 0; spawnT = 0f;
         swarm.Clear();
         if (egg == null)
@@ -129,8 +152,33 @@ public class NestSite : MonoBehaviour
             }
         }
 
-        // 전멸 확인 → 알 개방
-        if (triggered && !cleared && spawned >= swarmSize)
+        // ★마지막에 보스 — 알의 주인이 지키러 나온다. 같은 종인데 두 배 크고 스킬을 쓴다
+        if (triggered && !bossSpawned && spawned >= swarmSize && spawner != null)
+        {
+            bossSpawned = true;
+            if (eggEntry == null) eggEntry = PickEggEntry();
+            if (eggEntry != null)
+            {
+                var g = spawner.Spawn(eggEntry, transform.position,
+                                      sizeMul * bossSizeMul, hpMul * bossHpMul, dmgMul * bossDmgMul);
+                if (g != null)
+                {
+                    var u = g.GetComponent<PetUnit>();
+                    u.name = eggEntry.koreanName + " (어미)";
+                    u.basicOnly = false;               // 보스는 스킬을 쓴다
+                    u.mat = PetUnit.Mat.Stone;         // 점프해서 범위로 내리찍기
+                    u.Airborne(0.6f, 4f);
+                    g.AddComponent<LeapIn>().Init(transform.position,
+                        transform.position + Vector3.forward * spawnRing * 0.5f, 0.6f);
+                    swarm.Add(u);
+                    SquadHUD.Toast($"둥지의 주인 — {eggEntry.koreanName}(어미)가 나타났다!");
+                    FollowCam.Shake(0.5f);
+                }
+            }
+        }
+
+        // 전멸 확인 → 알 개방 (보스가 나온 뒤라야 — 어미를 눕혀야 알을 준다)
+        if (triggered && !cleared && spawned >= swarmSize && bossSpawned)
         {
             bool anyAlive = false;
             foreach (var u in swarm) if (u != null && u.Alive) { anyAlive = true; break; }
