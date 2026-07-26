@@ -36,8 +36,14 @@ public class PlayerBow : MonoBehaviour
     public float handRadius = 0.3f;
     [Tooltip("몸 옆으로 띄우는 간격 (몸 반지름보다 크게 — 안 박히게)")] public float handSide = 3.0f;
     [Tooltip("손 높이 — 낮게 늘어뜨려야 자연스러움")] public float handUp = 0.5f;
-    [Tooltip("당길 때 왼손이 앞으로 뻗는 거리 (몸 밖)")] public float drawReach = 3.6f;
-    [Tooltip("당길 때 활 높이")] public float drawUp = 1.5f;
+    [Pose("활 · 쏠 때 왼손", PoseSpace.조준)]
+    [Tooltip("활을 당길 때 활 든 손 위치 (조준 방향 기준 — 옆·높이·앞)")]
+    public Vector3 bowAimHandL = new Vector3(0f, 1.5f, 3.6f);
+    [Pose("활 · 쏠 때 오른손", PoseSpace.조준)]
+    [Tooltip("활을 당길 때 시위 당기는 손 (절차 활대일 땐 시위에 자동으로 붙음)")]
+    public Vector3 bowAimHandR = new Vector3(0f, 1.3f, 1.4f);
+    [HideInInspector] public float drawReach = 3.6f;   // (구버전 — 값 이전용)
+    [HideInInspector] public float drawUp = 1.5f;
     [Pose("활 · 화살 나가는 지점", PoseSpace.조준)]
     [Tooltip("활에서 화살이 나가는 지점 (조준 방향 기준)")]
     public Vector3 bowShotOrigin = new Vector3(0f, 1.5f, 3.6f);
@@ -110,9 +116,13 @@ public class PlayerBow : MonoBehaviour
         [Tooltip("손에 쥔 각도")] public Vector3 gripEuler = Vector3.zero;
         [Tooltip("무기 크기")] public float scale = 2.05f;
 
-        [Tooltip("★이 무기를 들었을 때 손 위치 (0 이면 캐릭터 기본값)")]
+        [Tooltip("★평소 들고 있을 때 손 위치 보정 (0 이면 캐릭터 기본값)")]
         public Vector3 handOffsetR = Vector3.zero;   // 오른손
         public Vector3 handOffsetL = Vector3.zero;   // 왼손
+
+        [Tooltip("★쏘거나 조준할 때 손 위치 (조준 방향 기준 — 옆·높이·앞)")]
+        public Vector3 aimHandL = new Vector3(0f, 1.5f, 3.6f);   // 무기 든 손
+        public Vector3 aimHandR = new Vector3(0f, 1.2f, 1.2f);   // 당기는 손
 
         [Tooltip("들고 다닐 때 위치 (스윙 중엔 무시)")] public Vector3 carryPos = Vector3.zero;
         [Tooltip("들고 다닐 때 각도")] public Vector3 carryEuler = Vector3.zero;
@@ -272,6 +282,8 @@ public class PlayerBow : MonoBehaviour
             w.impactPop = impactPop; w.impactPopSpan = impactPopSpan; w.impactPopLong = impactPopLong;
             w.trailColor = trailColor; w.trailAlpha = trailAlpha;
             w.trailWidth = trailWidth; w.trailTime = trailTime;
+            w.aimHandL = new Vector3(0f, drawUp, drawReach);          // 쓰던 조준 자세 그대로
+            w.aimHandR = new Vector3(0f, drawUp * 0.85f, drawReach * 0.35f);
             if (w.id == "새총")
             {
                 w.shotDamageMul = slingDamageMul; w.shotRangeMul = slingRangeMul;
@@ -778,8 +790,9 @@ public class PlayerBow : MonoBehaviour
         var idleR = transform.position + right * handSide + fwd * 0.3f + Vector3.up * (handUp + bobR)
                   + right * hoR.x + Vector3.up * hoR.y + fwd * hoR.z;
 
-        // 당길 때: 왼손이 몸 밖으로 쭉 뻗어 활 '중앙'을 잡고, 오른손은 시위를 당김
-        var aimL = transform.position + fwd * drawReach + Vector3.up * drawUp;
+        // ★쏠 때 손 위치 — 무기별로 따로 (활은 활 값, 새총은 새총 값)
+        var ahL = heldW != null ? heldW.aimHandL : bowAimHandL;
+        var aimL = transform.position + right * ahL.x + fwd * ahL.z + Vector3.up * ahL.y;
         float k = 13f * Time.deltaTime;
         handL.position = Vector3.Lerp(handL.position, drawing ? aimL : idleL, k);
 
@@ -802,9 +815,14 @@ public class PlayerBow : MonoBehaviour
         bowString.SetPosition(1, new Vector3(0f, 0f, back));
         bowString.SetPosition(2, new Vector3(0f, -bowSize, 0f));
 
-        // 오른손 = 시위 당김 지점에 정확히 (당기는 모션이 눈에 보이게)
-        var nockPos = bowRoot.TransformPoint(new Vector3(0f, 0f, back));
-        handR.position = Vector3.Lerp(handR.position, drawing ? nockPos : idleR, drawing ? 22f * Time.deltaTime : k);
+        // 오른손 = 당기는 손. 활은 시위 지점에 정확히 붙고, 다른 무기는 정한 자리로
+        // 절차 활대(모델 없는 활)일 때만 시위 지점에 정확히 붙인다
+        bool useString = heldW == null && bowInst == null;
+        var ahR = heldW != null ? heldW.aimHandR : bowAimHandR;
+        var aimR = useString
+            ? bowRoot.TransformPoint(new Vector3(0f, 0f, back))
+            : transform.position + right * ahR.x + fwd * ahR.z + Vector3.up * ahR.y;
+        handR.position = Vector3.Lerp(handR.position, drawing ? aimR : idleR, drawing ? 22f * Time.deltaTime : k);
 
         nockArrow.gameObject.SetActive(drawing);
         if (drawing)

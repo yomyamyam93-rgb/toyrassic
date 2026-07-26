@@ -48,9 +48,13 @@ public partial class PlayerBowEditor
         w.gripEuler = EditorGUILayout.Vector3Field("잡는 각도", w.gripEuler);
         w.scale = EditorGUILayout.Slider("무기 크기", w.scale, 0.2f, 6f);
 
-        EditorGUILayout.LabelField("손 위치 — 이 무기를 들었을 때 (0 = 기본)", EditorStyles.miniBoldLabel);
+        EditorGUILayout.LabelField("손 위치 — 평소 (0 = 캐릭터 기본)", EditorStyles.miniBoldLabel);
         w.handOffsetR = EditorGUILayout.Vector3Field("오른손", w.handOffsetR);
         w.handOffsetL = EditorGUILayout.Vector3Field("왼손", w.handOffsetL);
+
+        EditorGUILayout.LabelField("손 위치 — 쏠 때 (조준 방향 기준: 옆·높이·앞)", EditorStyles.miniBoldLabel);
+        w.aimHandL = EditorGUILayout.Vector3Field("무기 든 손", w.aimHandL);
+        w.aimHandR = EditorGUILayout.Vector3Field("당기는 손", w.aimHandR);
 
         EditorGUILayout.LabelField("휴대 — 들고 다닐 때", EditorStyles.miniBoldLabel);
         w.carryPos = EditorGUILayout.Vector3Field("위치", w.carryPos);
@@ -130,10 +134,10 @@ public partial class PlayerBowEditor
         P(so, "fireCooldown", "재사용 대기");
         EditorGUILayout.LabelField("발사·조준", EditorStyles.miniBoldLabel);
         P(so, "bowShotOrigin", "화살 나가는 지점");
+        P(so, "bowAimHandL", "쏠 때 왼손 (활 든 손)");
+        P(so, "bowAimHandR", "쏠 때 오른손 (당기는 손)");
         P(so, "aimFillTime", "조준 차는 시간");
         P(so, "drawTime", "당기는 시간");
-        P(so, "drawReach", "당길 때 손 뻗는 거리");
-        P(so, "drawUp", "당길 때 손 높이");
         P(so, "cursorNormal", "커서 (평소)");
         P(so, "cursorAim", "커서 (조준)");
         if (EditorGUILayout.Foldout(EditorPrefs.GetBool("toyrassic.pbfold.bowvis2", false),

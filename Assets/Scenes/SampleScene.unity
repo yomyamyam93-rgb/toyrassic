@@ -2628,6 +2628,8 @@ MonoBehaviour:
   handRadius: 0.18
   handSide: 2
   handUp: -0.28
+  bowAimHandL: {x: 0, y: 0.3, z: 4}
+  bowAimHandR: {x: 0, y: 0.25500003, z: 1.4}
   drawReach: 4
   drawUp: 0.3
   bowShotOrigin: {x: 0, y: 1.5, z: 4}
@@ -2673,6 +2675,8 @@ MonoBehaviour:
     scale: 3.76
     handOffsetR: {x: 0, y: 0, z: 0}
     handOffsetL: {x: 0, y: 0, z: 0}
+    aimHandL: {x: 0, y: 0.3, z: 4}
+    aimHandR: {x: 0, y: 0.25500003, z: 1.4}
     carryPos: {x: 0, y: 0, z: 0}
     carryEuler: {x: 275.2749, y: 106.97716, z: 298.37494}
     carrySway: 4
@@ -2703,6 +2707,8 @@ MonoBehaviour:
     scale: 3.76
     handOffsetR: {x: 0, y: 0, z: 0}
     handOffsetL: {x: 0, y: 0, z: 0}
+    aimHandL: {x: 0, y: 0.3, z: 4}
+    aimHandR: {x: 0, y: 0.25500003, z: 1.4}
     carryPos: {x: 0, y: 0, z: 0}
     carryEuler: {x: 275.2749, y: 106.97716, z: 298.37494}
     carrySway: 4
@@ -2733,6 +2739,8 @@ MonoBehaviour:
     scale: 3.76
     handOffsetR: {x: 0, y: 0, z: 0}
     handOffsetL: {x: 0, y: 0, z: 0}
+    aimHandL: {x: 0, y: 0.3, z: 4}
+    aimHandR: {x: 0, y: 0.25500003, z: 1.4}
     carryPos: {x: 0, y: 0, z: 0}
     carryEuler: {x: 275.2749, y: 106.97716, z: 298.37494}
     carrySway: 4
@@ -2752,9 +2760,9 @@ MonoBehaviour:
     tuned: 1
   - id: "\uC0C8\uCD1D"
     model: {fileID: 5344298359089349504, guid: adf9c97db484d4645a7480e3c888cdd0, type: 3}
-    modelEuler: {x: 0, y: 0, z: 0}
+    modelEuler: {x: -1.51, y: -6.53, z: 43.34}
     modelPos: {x: 0, y: 0, z: 0}
-    modelScale: 1
+    modelScale: 0.57
     style: 0
     hFlip: 0
     ranged: 1
@@ -2763,6 +2771,8 @@ MonoBehaviour:
     scale: 3.76
     handOffsetR: {x: 0, y: 0, z: 0}
     handOffsetL: {x: 0, y: 0, z: 0}
+    aimHandL: {x: -0.6, y: 0.3, z: 3.6}
+    aimHandR: {x: 0.5, y: 0.27, z: 1.2}
     carryPos: {x: 0, y: 0, z: 0}
     carryEuler: {x: 275.2749, y: 106.97716, z: 298.37494}
     carrySway: 4
@@ -2774,7 +2784,7 @@ MonoBehaviour:
     trailAlpha: 0.95
     trailWidth: 0.9
     trailTime: 0.24
-    shotOrigin: {x: -1.2, y: 1.4, z: 2.2}
+    shotOrigin: {x: -1.2, y: 3.17, z: 2.2}
     shotDamageMul: 0.45
     shotRangeMul: 0.5
     shotSpeedMul: 0.6
