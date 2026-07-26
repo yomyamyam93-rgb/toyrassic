@@ -928,6 +928,12 @@ MonoBehaviour:
   drawUp: 0.3
   arrowUp: 0.3
   handColor: {r: 0.99607843, g: 1, b: 0.99607843, a: 1}
+  carryEuler: {x: 14, y: 8, z: 16}
+  carrySway: 0.5
+  bowModel: {fileID: 0}
+  bowModelEuler: {x: 0, y: 0, z: 0}
+  bowModelPos: {x: 0, y: 0, z: 0}
+  bowModelScale: 1
   bowSize: 1.15
   bowThick: 0.16
   bowColor: {r: 0.46, g: 0.28, b: 0.13, a: 1}
@@ -2680,7 +2686,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::FollowCam
   target: {fileID: 107336113}
   distance: 120
-  minDist: 30
+  minDist: 2.2
   maxDist: 120
   height: 4
   yaw: 449.74863
