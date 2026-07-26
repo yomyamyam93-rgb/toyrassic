@@ -17,6 +17,14 @@ public class PetSpawner : MonoBehaviour
         public Material material;
         public PetScale.Tier tier = PetScale.Tier.M;
         [Tooltip("스폰 가중치 — 높을수록 자주 나옴")] public float weight = 10f;
+
+        [Header("종 특색 — 1이 기준. 여기서 장단점을 준다")]
+        [Tooltip("공격 속도 배수 (높을수록 자주 때린다)")]
+        [Range(0.3f, 3f)] public float atkSpeed = 1f;
+        [Tooltip("이동 속도 배수 (높을수록 빠르다)")]
+        [Range(0.3f, 3f)] public float moveSpeed = 1f;
+        [Tooltip("사거리 배수 (원거리 종은 크게)")]
+        [Range(0.5f, 3f)] public float range = 1f;
     }
 
     [Header("종 목록 (가중치 표)")]
@@ -204,7 +212,14 @@ public class PetSpawner : MonoBehaviour
         var pu = unit.AddComponent<PetUnit>();
         pu.team = PetUnit.Team.Wild; pu.mat = PetUnit.Mat.Basic;
         pu.collectible = true; pu.species = e.species;
-        pu.pattern = PatternOf(e.species, e.tier);   // 종별 공격 패턴
+        // ★야생은 평타만 — 스킬(돌진·내려찍기·꼬리)을 안 쓴다.
+        //   떼로 몰려올 때 하나하나가 큰 기술을 쓰면 읽을 수가 없어서 잡는 맛이 죽는다.
+        //   대신 종마다 공속·이속·사거리가 달라 성격이 갈린다.
+        pu.pattern = PetUnit.Pattern.Bite;
+        pu.basicOnly = true;
+        pu.atkSpeedMul = e.atkSpeed;
+        pu.moveSpeedMul = e.moveSpeed;
+        pu.rangeMul = e.range;
         pu.supply = e.tier == PetScale.Tier.S ? 1 : e.tier == PetScale.Tier.M ? 2 : e.tier == PetScale.Tier.L ? 3 : 4;
         if (e.tier == PetScale.Tier.S) { pu.str = 6; pu.agi = 16; pu.vit = 10; }      // 체력 하향 —
         else if (e.tier == PetScale.Tier.M) { pu.str = 9; pu.agi = 12; pu.vit = 15; } // 잡는 데 안 질리게

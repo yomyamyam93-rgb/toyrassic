@@ -189,7 +189,14 @@ public class PetUnit : MonoBehaviour
     }
 
     // ── 원소별 발현 ──
-    float AtkPeriod => (mat == Mat.Metal ? 3.2f : mat == Mat.Stone ? 3.4f : mat == Mat.Wood ? 2.3f
+    // ── 종 특색 (PetSpawner.Entry 에서 넣어준다. 1 = 기준) ──
+    [HideInInspector] public float atkSpeedMul = 1f;   // 공격 속도
+    [HideInInspector] public float moveSpeedMul = 1f;  // 이동 속도
+    [HideInInspector] public float rangeMul = 1f;      // 사거리
+    /// ★야생 습격병 — 스킬(원소기·패턴기)을 안 쓰고 평타만. 떼로 몰려와도 읽히게
+    [HideInInspector] public bool basicOnly;
+
+    float AtkPeriodRaw => (mat == Mat.Metal ? 3.2f : mat == Mat.Stone ? 3.4f : mat == Mat.Wood ? 2.3f
                       : mat == Mat.Fire ? 3.0f : mat == Mat.Water ? 0.38f
                       : mat == Mat.Lightning ? 1.7f
                       : pattern == Pattern.Bite ? 1.5f      // 물기 = 빠른 연타
@@ -197,6 +204,9 @@ public class PetUnit : MonoBehaviour
                       : pattern == Pattern.Slam ? 3.3f      // 내려찍기 = 묵직
                       : 2.6f)                                // 꼬리 휩쓸기
                        / (1f + agi * 0.010f);
+    /// ★실제 공격 간격 — 종 특색(공속)이 여기서 반영된다.
+    /// 습격병은 이 간격만큼 쉬었다 때린다 = 무한 연타가 아니다
+    float AtkPeriod => AtkPeriodRaw / Mathf.Max(0.1f, atkSpeedMul);
     float Damage => mat == Mat.Water ? intel * 0.22f  // 💧물총 속사 — 발당 약하게 (DPS 는 비슷)
                   : str * (mat == Mat.Metal ? 0.95f : mat == Mat.Stone ? 1.05f : mat == Mat.Wood ? 0.45f
                          : mat == Mat.Fire ? 1.8f : mat == Mat.Lightning ? 0.8f
@@ -205,8 +215,9 @@ public class PetUnit : MonoBehaviour
                          : pattern == Pattern.Slam ? 1.9f      // 광역 강타
                          : 1.2f);                               // 꼬리 = 광역 약타
     // 기본 이속 상향 — 통통 뛰어서 다가오는 속도감
-    float MoveSpd => (8f + agi * 0.1f) * (0.8f + body * 0.035f) * (slowT > 0f ? 0.55f : 1f);
-    float AtkRange => mat == Mat.Metal ? body * 0.95f + 1f
+    float MoveSpd => (8f + agi * 0.1f) * (0.8f + body * 0.035f) * (slowT > 0f ? 0.55f : 1f) * moveSpeedMul;
+    float AtkRange => AtkRangeRaw * rangeMul;
+    float AtkRangeRaw => mat == Mat.Metal ? body * 0.95f + 1f
                     : mat == Mat.Stone ? body * 2.2f
                     : mat == Mat.Wood ? body * 2.6f
                     : mat == Mat.Fire ? body * 3.2f
@@ -526,17 +537,30 @@ public class PetUnit : MonoBehaviour
                          new Color(1.3f, 1.25f, 1.0f, 0.75f), 0.3f, 0.22f);
                 FollowCam.Shake(body * 0.014f);
                 foreach (var u in EnemiesWithin(aoe))
-                    if (TryHit(u, Damage))
+                    if (InSwingArc(u, aoe, 120f) && TryHit(u, Damage))   // 240° 밖으로 빠지면 안 맞음
                     {
                         u.Knock(u.transform.position - transform.position, body * 0.10f);
                     }
             }
             else if (target != null && target.Alive)
-            {   // Bite — 단일 물기
-                TryHit(target, Damage);
+            {
+                if (rangeMul >= rangedThreshold)
+                {   // ★원거리 종 — 붙지 않고 뱉는다. 날아가는 동안 피할 수 있다
+                    PetProjectile.Throw(this, target, Damage, false,
+                        new Color(0.85f, 0.95f, 0.6f), body * 0.06f, 0.32f, body * 0.08f);
+                }
+                // Bite — 단일 물기. 무는 순간 앞에 없으면 허공을 문다
+                else if (InSwingArc(target, AtkRange, biteHalfAngle)) TryHit(target, Damage);
+                else FX.Burst(transform.position + transform.forward * body * 0.8f + Vector3.up * body * 0.3f,
+                              new Color(0.9f, 0.9f, 0.9f, 0.5f), 5, body * 0.05f, body * 0.3f);   // 헛침
             }
         }
     }
+
+    [Tooltip("평타(물기)가 닿는 좌우 각도 (°) — 이 밖으로 피하면 빗나간다")]
+    public float biteHalfAngle = 55f;
+    [Tooltip("사거리 배수가 이 값 이상이면 원거리 종 — 붙지 않고 뱉는다")]
+    public float rangedThreshold = 1.8f;
 
     IEnumerable<PetUnit> EnemiesWithin(float radius)
     {
@@ -653,6 +677,20 @@ public class PetUnit : MonoBehaviour
     }
 
     /// 회피 판정 포함 타격
+    /// ★타격 순간에 '지금도 궤적 안인가'를 다시 본다.
+    /// 예고를 보고 빠져나갔으면 빗나가야 한다 (예전엔 시작할 때 사거리 안이면 무조건 맞았다).
+    bool InSwingArc(PetUnit victim, float reach, float halfAngle)
+    {
+        var d = victim.transform.position - transform.position; d.y = 0f;
+        if (d.magnitude > reach + victim.body * 0.35f) return false;      // 너무 멀면 빗나감
+        if (halfAngle >= 179f) return true;                               // 360° 기술은 각도 무시
+        var f = transform.forward; f.y = 0f;
+        if (d.sqrMagnitude < 1e-4f || f.sqrMagnitude < 1e-4f) return true;
+        // 덩치가 크면 가장자리로도 걸린다 — 몸 반경만큼 각도 여유
+        float slack = Mathf.Rad2Deg * Mathf.Atan2(victim.body * 0.35f, Mathf.Max(0.5f, d.magnitude));
+        return Vector3.Angle(f, d) <= halfAngle + slack;
+    }
+
     bool TryHit(PetUnit victim, float dmg)
     {
         if (Random.value < Mathf.Min(0.35f, victim.agi * 0.008f)) return false;
