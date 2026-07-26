@@ -721,7 +721,13 @@ public class PetUnit : MonoBehaviour
             if (barRoot != null) barRoot.gameObject.SetActive(false);
             return;
         }
-        if (motion != null) { motion.enabled = false; transform.localScale = baseScale; }
+        dangerT = 0f;
+        if (motion != null)
+        {
+            motion.ClearEmission();   // 죽은 뒤 붉은 발광이 남지 않게
+            motion.enabled = false;
+            transform.localScale = baseScale;
+        }
         deathT = 0f; deathStartY = transform.position.y; deathDropped = false;
         if (barRoot != null) barRoot.gameObject.SetActive(false);
         if (team == Team.Wild)
@@ -885,9 +891,10 @@ public class PetUnit : MonoBehaviour
     {
         ghostHp = hp;
         float top = r != null ? (r.bounds.max.y - transform.position.y) : 2f;
-        // ★머리 위 = 실제 렌더러 최상단 + 고정 여유. 몸 크기 비례를 크게 잡으면
-        //   XL(브론토 등)에서 바가 하늘로 뜬다 — 비례는 아주 작게만.
-        barY = top + 1.4f + body * 0.03f;
+        // 머리 위 = 렌더러 최상단 + 여유.
+        //  · 펫: 비례를 크게 잡으면 XL(브론토)이 하늘로 뜨므로 고정값 위주
+        //  · 캐릭터: 몸이 작고 카메라가 가까워 넉넉히 띄워야 잘 보인다
+        barY = top + (isAvatar ? body * 1.0f + 1.2f : 1.4f + body * 0.03f);
         barBaseScale = 1.35f;   // ★전 유닛 동일 크기 (몸 크기 비례 폐지 — 제각각 버그 수정)
         barRoot = new GameObject(name + "_hpbar").transform;
         barRoot.SetParent(SceneBuckets.Bars);   // 하이라키 정리

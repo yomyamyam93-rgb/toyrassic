@@ -80,6 +80,8 @@ public class PlayerMove : MonoBehaviour
 
     /// 스킬 대시 중엔 이동 조작이 대시를 덮어쓰지 않게 (SkillSystem 이 설정)
     public bool suppressMove;
+    /// 지금 WASD 로 가려는 방향 (카메라 기준) — 구르기 방향에 쓰임. 입력 없으면 Vector3.zero
+    public Vector3 InputDir { get; private set; }
 
     void Update()
     {
@@ -114,6 +116,8 @@ public class PlayerMove : MonoBehaviour
             dir = f * input.z + r * input.x;
             if (dir.sqrMagnitude > 1f) dir.Normalize();
         }
+
+        InputDir = dir.sqrMagnitude > 1e-4f ? dir.normalized : Vector3.zero;
 
         float top = moveSpeed;
         // 활을 당길수록 점점 느려짐 — 최대 당김 = fullDrawSpeed 배 (멈추진 않음)

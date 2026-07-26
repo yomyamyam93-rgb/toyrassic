@@ -82,15 +82,7 @@ public class SkillSystem : MonoBehaviour
                     case PetAtk.Tail: return ("스킬_꼬리치기", "꼬리 회전", true);
                     default: return ("스킬_물어뜯기", "연속 물어뜯기", true);
                 }
-            case 2:
-                switch (CurMoveSkill())
-                {   // 유틸 — 도보는 구르기, 탑승 시 펫 특성별 이동기
-                    case MoveSkill.Leap: return ("스킬_도약", "그림자 도약", true);
-                    case MoveSkill.Bash: return ("스킬_박치기", "박치기", true);
-                    case MoveSkill.Hop: return ("스킬_점프", "도약 착지", true);
-                    case MoveSkill.Break: return ("스킬_돌파", "돌파", true);
-                    default: return ("스킬_구르기", "구르기", true);
-                }
+            case 2: return ("스킬_구르기", "구르기", true);   // 지금은 전부 공통
             default: return ("스킬_협동", hasPet ? "협동기" : "펫 필요", hasPet);
         }
     }
@@ -288,9 +280,20 @@ public class SkillSystem : MonoBehaviour
     }
 
     // ── E: 이동기 (펫 특성별) ──
+    /// Space — 구르기 (지금은 전부 공통, 펫 특성별 이동기는 추후)
     void TryE()
     {
         if (!Ready(2)) return;
+        // ★WASD 로 가려는 방향으로 구른다 (입력 없으면 바라보는 쪽)
+        var rollDir = move != null && move.InputDir.sqrMagnitude > 0.01f ? move.InputDir : AimDir();
+        StartDash(rollDir, rollDist, rollTime, false, 0f, 0f);
+        FX.Burst(transform.position, new Color(0.9f, 0.95f, 1.1f, 0.8f), 12, 0.25f, 4f);
+        Use(2, rollCooldown);
+    }
+
+    /// (보류) 펫 특성별 이동기 — 나중에 세분화할 때 되살릴 코드
+    void TryPetMove()
+    {
         var mount = move != null ? move.Mount : null;
         var dir = AimDir();
         switch (CurMoveSkill())
@@ -409,15 +412,7 @@ public class SkillSystem : MonoBehaviour
                     default: lineLen = biteRange; lineWidth = 2.2f; break;
                 }
                 break;
-            case 2:
-                switch (CurMoveSkill())
-                {
-                    case MoveSkill.Bash: lineLen = bashDist; lineWidth = 3.0f; break;
-                    case MoveSkill.Break: lineLen = breakDist; lineWidth = 3.4f; break;
-                    case MoveSkill.Hop: lineLen = hopDist; lineWidth = 1.2f; circleR = hopRadius; circleAt = body + dir * hopDist; break;
-                    default: lineLen = CurMoveSkill() == MoveSkill.Leap ? leapDist : rollDist; lineWidth = 1.0f; break;
-                }
-                break;
+            case 2: break;   // 구르기 — 영역 표시 없음
             default: circleR = rRadius; circleAt = body; break;
         }
 

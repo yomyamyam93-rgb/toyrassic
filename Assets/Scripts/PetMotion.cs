@@ -81,6 +81,15 @@ public class PetMotion : MonoBehaviour
 
     /// 공격 순간 호출
     public void Punch() { punch = 1f; }
+
+    /// 발광 즉시 끄기 — 죽을 때 붉은/흰 발광이 남지 않게 (모션 정지 전에 호출)
+    public void ClearEmission()
+    {
+        flashEmission = 0f; dangerGlow = 0f;
+        if (bendRends == null || bmpb == null) return;
+        bmpb.SetColor("_EmissionColor", Color.black);
+        foreach (var r in bendRends) if (r != null) r.SetPropertyBlock(bmpb);
+    }
     /// 맞은 순간 호출 — 움찔 스쿼시
     public void Flinch() { flinch = 1f; }
 
