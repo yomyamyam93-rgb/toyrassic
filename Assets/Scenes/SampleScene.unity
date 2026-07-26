@@ -3183,6 +3183,8 @@ MonoBehaviour:
   rangeMul: 1
   basicOnly: 0
   biteHalfAngle: 55
+  windupTrack: 5
+  windupScale: 0.65
   rangedThreshold: 1.8
 --- !u!114 &107336121
 MonoBehaviour:
@@ -3350,6 +3352,19 @@ MonoBehaviour:
     blockRadius: 3.2
     isFloor: 0
     isBench: 0
+  - name: "\uC81C\uC791\uB300"
+    category: "\uC2DC\uC124"
+    desc: "\uC5EC\uAE30\uAC00 \uC788\uC5B4\uC57C \uCE7C\xB7\uD65C\uC744 \uB9CC\uB4E4
+      \uC218 \uC788\uB2E4."
+    icon: "\uAC74\uCD95_\uC81C\uC791\uB300"
+    woodCost: 12
+    stoneCost: 6
+    hp: 120
+    size: {x: 4.5, y: 3.2, z: 3}
+    color: {r: 0.52, g: 0.36, b: 0.2, a: 1}
+    blockRadius: 1.6
+    isFloor: 0
+    isBench: 1
   grid: 5
   reach: 24
   maxSlope: 22

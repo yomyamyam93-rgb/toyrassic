@@ -538,12 +538,14 @@ public class MenuUI : MonoBehaviour
             case 2: return (5, 2);     // 새총 — 제일 싸다. 초반 원거리
             case 3: return (12, 10);   // 칼
             case 4: return (16, 4);    // 활
-            default: return (20, 12);  // 부화기
+            default: return (10, 5);   // 둥지 — 첫 알을 바로 품을 수 있게 싸다
         }
     }
 
-    /// 제작대가 있어야 만들 수 있는 것 (칼·활·부화기)
-    static bool NeedsBench(int idx) => idx >= 3;
+    /// 제작대가 있어야 만들 수 있는 것 — 칼·활만.
+    /// ★둥지는 맨손으로 만들 수 있어야 한다. 알을 얻어놓고 부화를 못 하면
+    ///   게임의 핵심 루프가 막힌다 (제작대 12/6 + 둥지 20/12 는 초반에 너무 멀다).
+    static bool NeedsBench(int idx) => idx == 3 || idx == 4;
 
     void RefreshCraft()
     {
