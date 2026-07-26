@@ -931,7 +931,7 @@ MonoBehaviour:
   carryEuler: {x: 14, y: 8, z: 16}
   carrySway: 0.5
   bowModel: {fileID: 0}
-  bowModelEuler: {x: 0, y: -90, z: 0}
+  bowModelEuler: {x: 0, y: 0, z: 0}
   bowModelPos: {x: 0, y: 0, z: 0}
   bowModelScale: 1
   bowSize: 1.15
@@ -953,8 +953,8 @@ MonoBehaviour:
     hFlip: 1
   - id: "\uACE1\uAC31\uC774"
     model: {fileID: 7477283798205093626, guid: 7af4502715d004e44bdb1a48129b0078, type: 3}
-    modelEuler: {x: 4, y: 88.1, z: -16.5}
-    modelPos: {x: 0, y: 0.94, z: -1.3}
+    modelEuler: {x: 0, y: 0, z: 0}
+    modelPos: {x: 0, y: 0, z: 0}
     modelScale: 1
     style: 0
     hFlip: 0

@@ -348,7 +348,18 @@ public class PlayerBow : MonoBehaviour
             bowAutoRot = bowInst.localRotation;
             bowAutoPos = bowInst.localPosition;
             if (RootBounds(bowRoot, out var bb))
+            {
                 bowAutoScale = bowSize * 2f / Mathf.Max(0.01f, FarthestFromOrigin(bb) * 2f);
+                // 도구와 같은 정렬 — 활은 '휜 배'가 그립에서 뻗은 방향이라, 그걸 +Z 로
+                // 돌리면 배가 정면(화살 나가는 쪽), 활대 끝이 ±Y 가 되어 시위와 딱 맞는다
+                var belly = bb.center;
+                if (belly.sqrMagnitude > 1e-4f)
+                {
+                    var extra = Quaternion.FromToRotation(belly.normalized, Vector3.forward);
+                    bowAutoRot = extra * bowAutoRot;
+                    bowAutoPos = extra * bowAutoPos;
+                }
+            }
         }
         else
         {
@@ -691,8 +702,9 @@ public class PlayerBow : MonoBehaviour
         if (bowInst != null)
         {   // 활 모델 정렬 — 인스펙터 값 실시간 반영 (도구와 같은 방식)
             float bs = bowAutoScale * bowModelScale;
-            bowInst.localRotation = bowAutoRot * Quaternion.Euler(bowModelEuler);
-            bowInst.localPosition = bowAutoPos * bs + bowModelPos;
+            var bfix = Quaternion.Euler(bowModelEuler);   // 손 기준 축으로 보정 (도구와 동일)
+            bowInst.localRotation = bfix * bowAutoRot;
+            bowInst.localPosition = bfix * (bowAutoPos * bs) + bowModelPos;
             bowInst.localScale = Vector3.one * bs;
         }
         {
@@ -713,9 +725,12 @@ public class PlayerBow : MonoBehaviour
                 // 모델별 정렬 보정 — 무기 드롭다운에서 조절한 값 (실시간 반영)
                 if (rig.inst != null)
                 {
+                    // ★보정은 '손 기준' 축으로 — 모델 기준으로 곱하면 X 를 돌렸는데
+                    //   대각선으로 도는 것처럼 보여서 손으로 맞출 수가 없다
                     float s = rig.autoScale * setup.modelScale;
-                    rig.inst.localRotation = rig.autoRot * Quaternion.Euler(setup.modelEuler);
-                    rig.inst.localPosition = rig.autoPos * s + setup.modelPos;   // 그립 기준으로 같이 축소
+                    var fix = Quaternion.Euler(setup.modelEuler);
+                    rig.inst.localRotation = fix * rig.autoRot;
+                    rig.inst.localPosition = fix * (rig.autoPos * s) + setup.modelPos;
                     rig.inst.localScale = Vector3.one * s;
                 }
 
