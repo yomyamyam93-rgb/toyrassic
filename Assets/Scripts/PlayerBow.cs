@@ -101,6 +101,34 @@ public class PlayerBow : MonoBehaviour
         public float modelScale = 1f;
         public SwingStyle style = SwingStyle.Vertical;
         [Tooltip("가로 긁기 방향 반전 (왼↔오)")] public bool hFlip = false;
+        [Tooltip("쏘는 무기 — 휘두르지 않고 발사한다 (새총 등)")] public bool ranged = false;
+
+        // ── 아래는 전부 무기별 값 ── 예전엔 전부 공통이라 하나 고치면 다 바뀌었다
+        [Tooltip("손에서 잡는 위치")] public Vector3 gripPos = Vector3.zero;
+        [Tooltip("손에 쥔 각도")] public Vector3 gripEuler = Vector3.zero;
+        [Tooltip("무기 크기")] public float scale = 2.05f;
+
+        [Tooltip("들고 다닐 때 위치 (스윙 중엔 무시)")] public Vector3 carryPos = Vector3.zero;
+        [Tooltip("들고 다닐 때 각도")] public Vector3 carryEuler = Vector3.zero;
+        [Tooltip("들고 다닐 때 흔들리는 각도")] public float carrySway = 4f;
+        [Tooltip("흔들리는 빠르기")] public float carrySwaySpeed = 2.2f;
+
+        [Tooltip("칠 때 부푸는 정도 (0=끔)")] public float impactPop = 0.35f;
+        [Tooltip("부풀었다 돌아오는 구간")] public float impactPopSpan = 0.45f;
+        [Tooltip("길이 방향 억제 (낮을수록 옆으로만 뚱뚱)")] public float impactPopLong = 0.4f;
+
+        [Tooltip("잔상 색")] public Color trailColor = new Color(1.8f, 1.7f, 1.2f);
+        [Range(0f, 1f)] public float trailAlpha = 0.95f;
+        public float trailWidth = 0.9f;
+        [Tooltip("잔상이 남는 시간")] public float trailTime = 0.24f;
+
+        // 쏘는 무기 전용 — 활 수치 대비 배수
+        [Range(0.2f, 2f)] public float shotDamageMul = 0.45f;
+        [Range(0.2f, 2f)] public float shotRangeMul = 0.5f;
+        [Range(0.2f, 2f)] public float shotSpeedMul = 0.6f;
+        [Range(0.3f, 3f)] public float shotCooldownMul = 1.5f;
+
+        [HideInInspector] public bool tuned;   // 공통값에서 한 번 옮겨왔나 (마이그레이션)
     }
     [HideInInspector] public System.Collections.Generic.List<WeaponDef> weapons
         = new System.Collections.Generic.List<WeaponDef>();
@@ -223,6 +251,25 @@ public class PlayerBow : MonoBehaviour
         // 새총 — 손에 드는 모델만 (쏘는 건 활 쪽 코드가 처리)
         var sl = Ensure("새총");
         if (sl.model == null) sl.model = Resources.Load<GameObject>("Tools/tool_sling");
+        sl.ranged = true;
+
+        // ★설정을 무기별로 옮긴 뒤 첫 실행 — 쓰던 공통값을 각 무기에 복사해 그대로 유지
+        foreach (var w in weapons)
+        {
+            if (w.tuned) continue;
+            w.tuned = true;
+            w.gripPos = gripPosOffset; w.gripEuler = gripEuler; w.scale = toolScale;
+            w.carryPos = toolCarryPos; w.carryEuler = toolCarryEuler;
+            w.carrySway = toolCarrySway; w.carrySwaySpeed = toolCarrySwaySpeed;
+            w.impactPop = impactPop; w.impactPopSpan = impactPopSpan; w.impactPopLong = impactPopLong;
+            w.trailColor = trailColor; w.trailAlpha = trailAlpha;
+            w.trailWidth = trailWidth; w.trailTime = trailTime;
+            if (w.id == "새총")
+            {
+                w.shotDamageMul = slingDamageMul; w.shotRangeMul = slingRangeMul;
+                w.shotSpeedMul = slingSpeedMul; w.shotCooldownMul = slingCooldownMul;
+            }
+        }
         // 칼 — 모션은 도끼와 같다 (정렬값도 도끼에서 물려받고, 이후 무기 탭에서 따로 조절)
         var sw = Ensure("칼");
         if (sw.model == null)
@@ -635,7 +682,8 @@ public class PlayerBow : MonoBehaviour
         else if (gear == GearKind.Bow || gear == GearKind.Sling)
         {   // 활·새총: 조준해서 쏜다 (새총은 사거리·위력이 낮고 느리다)
             bool sling = gear == GearKind.Sling;
-            float range = sling ? arrowRange * slingRangeMul : arrowRange;
+            var shot = sling ? weapons.Find(x => x.id == "새총") : null;   // 수치는 그 무기 것
+            float range = shot != null ? arrowRange * shot.shotRangeMul : arrowRange;
             if (pressed)
             {
                 drawing = true;
@@ -644,8 +692,8 @@ public class PlayerBow : MonoBehaviour
             }
             if (released && drawing && cd <= 0f)
             {
-                Fire(Mathf.Max(10f, aimLen), sling);
-                cd = sling ? fireCooldown * slingCooldownMul : fireCooldown;
+                Fire(Mathf.Max(10f, aimLen), shot);
+                cd = shot != null ? fireCooldown * shot.shotCooldownMul : fireCooldown;
             }
         }
         else { drawing = false; drawT = 0f; aimLen = 0f; }   // 맨손
@@ -677,15 +725,16 @@ public class PlayerBow : MonoBehaviour
         if (Hotbar.I != null) Hotbar.I.RemoveKind(GearKind.Incubator);
     }
 
-    void Fire(float range, bool sling = false)
+    /// shot 이 있으면 그 무기(새총 등)의 배수로 쏜다. null 이면 활.
+    void Fire(float range, WeaponDef shot = null)
     {
         var from = StableFrom();
-        float spd = sling ? arrowSpeed * slingSpeedMul : arrowSpeed;
-        float dmg = sling ? arrowDamage * slingDamageMul : arrowDamage;
+        float spd = shot != null ? arrowSpeed * shot.shotSpeedMul : arrowSpeed;
+        float dmg = shot != null ? arrowDamage * shot.shotDamageMul : arrowDamage;
         ArrowProj.Throw(from, aimDir, spd, dmg, range);   // 관통은 추후 스킬로
-        FX.Burst(from, sling ? new Color(1.4f, 1.3f, 1.1f, 0.85f)      // 새총 — 돌멩이 튀는 느낌
-                             : new Color(2.2f, 1.9f, 0.8f, 0.9f),
-                 sling ? 6 : 10, 0.14f, 2f, 0.2f);
+        FX.Burst(from, shot != null ? new Color(1.4f, 1.3f, 1.1f, 0.85f)   // 새총 — 돌멩이 튀는 느낌
+                                    : new Color(2.2f, 1.9f, 0.8f, 0.9f),
+                 shot != null ? 6 : 10, 0.14f, 2f, 0.2f);
     }
 
     void LateUpdate()
@@ -787,9 +836,9 @@ public class PlayerBow : MonoBehaviour
             if (toolHeld != null && setup != null)
             {
                 // 잡기 — 인스펙터 값 그대로 (손 기준)
-                toolHeld.localPosition = gripPosOffset;
-                toolHeld.localRotation = Quaternion.Euler(gripEuler);
-                toolHeld.localScale = Vector3.one * toolScale;
+                toolHeld.localPosition = setup.gripPos;
+                toolHeld.localRotation = Quaternion.Euler(setup.gripEuler);
+                toolHeld.localScale = Vector3.one * setup.scale;
 
                 // 모델별 정렬 보정 — 무기 드롭다운에서 조절한 값 (실시간 반영)
                 if (rig.inst != null)
@@ -804,19 +853,19 @@ public class PlayerBow : MonoBehaviour
                     // ★타격 팝 — 치는 순간 부풀었다 돌아온다. 회전축이 손잡이라
                     //   전체를 키워도 머리 쪽이 크게 부푸는 것처럼 보인다
                     float pop = 0f;
-                    if (gather != null && gather.SwingT > 0f && impactPop > 0.001f)
+                    if (gather != null && gather.SwingT > 0f && setup.impactPop > 0.001f)
                     {
                         float sk0 = 1f - gather.SwingT;
-                        float from = gather.ImpactAt01 - impactPopSpan * 0.25f;
-                        float u = (sk0 - from) / Mathf.Max(0.05f, impactPopSpan);
-                        if (u > 0f && u < 1f) pop = Mathf.Sin(u * Mathf.PI) * impactPop;
+                        float from = gather.ImpactAt01 - setup.impactPopSpan * 0.25f;
+                        float u = (sk0 - from) / Mathf.Max(0.05f, setup.impactPopSpan);
+                        if (u > 0f && u < 1f) pop = Mathf.Sin(u * Mathf.PI) * setup.impactPop;
                     }
                     // 모델의 긴 축(=손잡이에서 머리로 가는 쪽)만 덜 늘려 옆으로 뚱뚱하게
                     var lengthAxis = (Quaternion.Inverse(rig.autoRot) * Vector3.forward);
                     var popScale = new Vector3(
-                        1f + pop * Mathf.Lerp(1f, impactPopLong, Mathf.Abs(lengthAxis.x)),
-                        1f + pop * Mathf.Lerp(1f, impactPopLong, Mathf.Abs(lengthAxis.y)),
-                        1f + pop * Mathf.Lerp(1f, impactPopLong, Mathf.Abs(lengthAxis.z)));
+                        1f + pop * Mathf.Lerp(1f, setup.impactPopLong, Mathf.Abs(lengthAxis.x)),
+                        1f + pop * Mathf.Lerp(1f, setup.impactPopLong, Mathf.Abs(lengthAxis.y)),
+                        1f + pop * Mathf.Lerp(1f, setup.impactPopLong, Mathf.Abs(lengthAxis.z)));
                     rig.inst.localScale = popScale * s;
                 }
 
@@ -878,10 +927,10 @@ public class PlayerBow : MonoBehaviour
                     if (trail != null)
                     {
                         // 잔상 세부설정 실시간 반영
-                        trail.time = trailTime;
-                        trail.startWidth = trailWidth; trail.endWidth = trailWidth * 0.06f;
-                        trail.startColor = new Color(trailColor.r, trailColor.g, trailColor.b, trailAlpha);
-                        trail.endColor = new Color(trailColor.r, trailColor.g, trailColor.b, 0f);
+                        trail.time = setup.trailTime;
+                        trail.startWidth = setup.trailWidth; trail.endWidth = setup.trailWidth * 0.06f;
+                        trail.startColor = new Color(setup.trailColor.r, setup.trailColor.g, setup.trailColor.b, setup.trailAlpha);
+                        trail.endColor = new Color(setup.trailColor.r, setup.trailColor.g, setup.trailColor.b, 0f);
                         if (gather.SwingT > prevSwingT) trail.Clear();
                         // ★뒤로 빼는 동안(p<0)엔 잔상을 끈다 — 켜두면 궤적이 몸 뒤쪽으로 그려진다.
                         //   진행도(sk)로 자르면 곡선을 바꿀 때마다 어긋나므로 실제 방향으로 판단
@@ -894,12 +943,12 @@ public class PlayerBow : MonoBehaviour
                 {   // 휴대 — 손 방향만 전방으로 (자세는 gripEuler, 위치는 toolCarryPos)
                     handR.rotation = Quaternion.Slerp(handR.rotation,
                         Quaternion.LookRotation(fwd, Vector3.up), 10f * Time.deltaTime);
-                    toolHeld.localPosition = gripPosOffset + toolCarryPos;
+                    toolHeld.localPosition = setup.gripPos + setup.carryPos;
                     // 들고 다닐 때 살짝 흔들림 — 완전히 굳어 있으면 인형 같다
-                    float tsw = (Mathf.Sin(Time.time * toolCarrySwaySpeed) * 0.7f
-                               + Mathf.Sin(Time.time * toolCarrySwaySpeed * 1.6f + 0.9f) * 0.3f) * toolCarrySway;
+                    float tsw = (Mathf.Sin(Time.time * setup.carrySwaySpeed) * 0.7f
+                               + Mathf.Sin(Time.time * setup.carrySwaySpeed * 1.6f + 0.9f) * 0.3f) * setup.carrySway;
                     // ★휴대 각도는 여기서만 — 스윙 때 섞이면 무기가 비틀린 채 휘둘러진다
-                    toolHeld.localRotation = Quaternion.Euler(gripEuler + toolCarryEuler + new Vector3(tsw, 0f, tsw * 0.6f));
+                    toolHeld.localRotation = Quaternion.Euler(setup.gripEuler + setup.carryEuler + new Vector3(tsw, 0f, tsw * 0.6f));
                     if (trail != null) trail.emitting = false;
                 }
                 prevSwingT = gather != null ? gather.SwingT : 0f;

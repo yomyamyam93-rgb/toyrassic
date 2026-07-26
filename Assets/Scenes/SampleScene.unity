@@ -408,6 +408,7 @@ MonoBehaviour:
     atkSpeed: 1
     moveSpeed: 1
     range: 1
+  nestModelScale: 4
 --- !u!1 &29189847
 GameObject:
   m_ObjectHideFlags: 0
@@ -2634,6 +2635,10 @@ MonoBehaviour:
   impactPop: 0.35
   impactPopSpan: 0.45
   impactPopLong: 0.4
+  slingDamageMul: 0.45
+  slingRangeMul: 0.5
+  slingSpeedMul: 0.6
+  slingCooldownMul: 1.5
   carryEuler: {x: 29.7, y: 17.8, z: 16}
   bowCarryPos: {x: 0, y: 0, z: -1.18}
   carrySway: 0.5
@@ -2662,6 +2667,26 @@ MonoBehaviour:
     modelScale: 1
     style: 1
     hFlip: 1
+    ranged: 0
+    gripPos: {x: 0, y: 0, z: 0}
+    gripEuler: {x: 0, y: 0, z: 0}
+    scale: 3.76
+    carryPos: {x: 0, y: 0, z: 0}
+    carryEuler: {x: 275.2749, y: 106.97716, z: 298.37494}
+    carrySway: 4
+    carrySwaySpeed: 2.2
+    impactPop: 0.35
+    impactPopSpan: 0.45
+    impactPopLong: 0.4
+    trailColor: {r: 1.8, g: 1.7, b: 1.2, a: 1}
+    trailAlpha: 0.95
+    trailWidth: 0.9
+    trailTime: 0.24
+    shotDamageMul: 0.45
+    shotRangeMul: 0.5
+    shotSpeedMul: 0.6
+    shotCooldownMul: 1.5
+    tuned: 1
   - id: "\uACE1\uAC31\uC774"
     model: {fileID: 3120901869392202509, guid: 7af4502715d004e44bdb1a48129b0078, type: 3}
     modelEuler: {x: 0, y: 0, z: 0}
@@ -2669,6 +2694,26 @@ MonoBehaviour:
     modelScale: 1
     style: 0
     hFlip: 0
+    ranged: 0
+    gripPos: {x: 0, y: 0, z: 0}
+    gripEuler: {x: 0, y: 0, z: 0}
+    scale: 3.76
+    carryPos: {x: 0, y: 0, z: 0}
+    carryEuler: {x: 275.2749, y: 106.97716, z: 298.37494}
+    carrySway: 4
+    carrySwaySpeed: 2.2
+    impactPop: 0.35
+    impactPopSpan: 0.45
+    impactPopLong: 0.4
+    trailColor: {r: 1.8, g: 1.7, b: 1.2, a: 1}
+    trailAlpha: 0.95
+    trailWidth: 0.9
+    trailTime: 0.24
+    shotDamageMul: 0.45
+    shotRangeMul: 0.5
+    shotSpeedMul: 0.6
+    shotCooldownMul: 1.5
+    tuned: 1
   - id: "\uCE7C"
     model: {fileID: -644553451335163050, guid: 222e5b506af2c254fb37813d82200b87, type: 3}
     modelEuler: {x: 0, y: 0, z: 0}
@@ -2676,6 +2721,53 @@ MonoBehaviour:
     modelScale: 1
     style: 1
     hFlip: 1
+    ranged: 0
+    gripPos: {x: 0, y: 0, z: 0}
+    gripEuler: {x: 0, y: 0, z: 0}
+    scale: 3.76
+    carryPos: {x: 0, y: 0, z: 0}
+    carryEuler: {x: 275.2749, y: 106.97716, z: 298.37494}
+    carrySway: 4
+    carrySwaySpeed: 2.2
+    impactPop: 0.35
+    impactPopSpan: 0.45
+    impactPopLong: 0.4
+    trailColor: {r: 1.8, g: 1.7, b: 1.2, a: 1}
+    trailAlpha: 0.95
+    trailWidth: 0.9
+    trailTime: 0.24
+    shotDamageMul: 0.45
+    shotRangeMul: 0.5
+    shotSpeedMul: 0.6
+    shotCooldownMul: 1.5
+    tuned: 1
+  - id: "\uC0C8\uCD1D"
+    model: {fileID: 5344298359089349504, guid: adf9c97db484d4645a7480e3c888cdd0, type: 3}
+    modelEuler: {x: 0, y: 0, z: 0}
+    modelPos: {x: 0, y: 0, z: 0}
+    modelScale: 1
+    style: 0
+    hFlip: 0
+    ranged: 1
+    gripPos: {x: 0, y: 0, z: 0}
+    gripEuler: {x: 0, y: 0, z: 0}
+    scale: 3.76
+    carryPos: {x: 0, y: 0, z: 0}
+    carryEuler: {x: 275.2749, y: 106.97716, z: 298.37494}
+    carrySway: 4
+    carrySwaySpeed: 2.2
+    impactPop: 0.35
+    impactPopSpan: 0.45
+    impactPopLong: 0.4
+    trailColor: {r: 1.8, g: 1.7, b: 1.2, a: 1}
+    trailAlpha: 0.95
+    trailWidth: 0.9
+    trailTime: 0.24
+    shotDamageMul: 0.45
+    shotRangeMul: 0.5
+    shotSpeedMul: 0.6
+    shotCooldownMul: 1.5
+    tuned: 1
   weaponsMigrated: 1
   axeSetup:
     modelEuler: {x: 0, y: 0, z: 0}
@@ -2840,6 +2932,8 @@ MonoBehaviour:
   swordVsNode: 2
   arrowVsNode: 4
   arrowBlockRadius: 1.6
+  mountedRangeBonus: 0.6
+  mountedAngleMul: 1.25
 --- !u!114 &107336123
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -2902,6 +2996,7 @@ MonoBehaviour:
     color: {r: 0.58, g: 0.42, b: 0.24, a: 1}
     blockRadius: 0
     isFloor: 1
+    isBench: 0
   - name: "\uB3CC \uBC14\uB2E5"
     category: "\uBC14\uB2E5"
     desc: "\uD2BC\uD2BC\uD55C \uAE30\uCD08. \uC798 \uBD80\uC11C\uC9C0\uC9C0 \uC54A\uB294\uB2E4."
@@ -2913,6 +3008,7 @@ MonoBehaviour:
     color: {r: 0.6, g: 0.58, b: 0.54, a: 1}
     blockRadius: 0
     isFloor: 1
+    isBench: 0
   - name: "\uB098\uBB34 \uC6B8\uD0C0\uB9AC"
     category: "\uBC29\uC5B4"
     desc: "\uC57C\uC0DD\uC758 \uAE38\uC744 \uB9C9\uB294 \uAE30\uBCF8 \uBCBD. \uC2F8\uC9C0\uB9CC
@@ -2925,6 +3021,7 @@ MonoBehaviour:
     color: {r: 0.55, g: 0.38, b: 0.2, a: 1}
     blockRadius: 4.5
     isFloor: 0
+    isBench: 0
   - name: "\uB3CC \uB2F4\uC7A5"
     category: "\uBC29\uC5B4"
     desc: "\uD2BC\uD2BC\uD55C \uBC29\uBCBD. \uD070 \uC57C\uC0DD\uB3C4 \uD55C\uB3D9\uC548
@@ -2937,6 +3034,7 @@ MonoBehaviour:
     color: {r: 0.62, g: 0.6, b: 0.55, a: 1}
     blockRadius: 5
     isFloor: 0
+    isBench: 0
   - name: "\uB9D0\uB69D \uBC29\uBCBD"
     category: "\uBC29\uC5B4"
     desc: "\uB192\uACE0 \uC881\uC740 \uB9D0\uB69D. \uC881\uC740 \uAE38\uBAA9\uC744
@@ -2949,6 +3047,7 @@ MonoBehaviour:
     color: {r: 0.48, g: 0.33, b: 0.17, a: 1}
     blockRadius: 3.2
     isFloor: 0
+    isBench: 0
   grid: 5
   reach: 24
   maxSlope: 22
@@ -2972,6 +3071,10 @@ MonoBehaviour:
   qArrowPierce: 5
   qSpinRadius: 8
   qSpinDamage: 40
+  qSlingShots: 5
+  qSlingInterval: 0.07
+  qSlingSpread: 7
+  qSlingDamageMul: 1.2
   qAxeTurns: 1
   qAxeSpinTime: 0.35
   qAxeArcTail: 240
@@ -6021,6 +6124,7 @@ MonoBehaviour:
     atkSpeed: 1
     moveSpeed: 1
     range: 1
+  nestModelScale: 4
 --- !u!1 &258306690
 GameObject:
   m_ObjectHideFlags: 0
@@ -6459,6 +6563,7 @@ MonoBehaviour:
     atkSpeed: 1
     moveSpeed: 1
     range: 1
+  nestModelScale: 4
 --- !u!1 &267370100
 GameObject:
   m_ObjectHideFlags: 0
@@ -6928,6 +7033,7 @@ MonoBehaviour:
     atkSpeed: 1
     moveSpeed: 1
     range: 1
+  nestModelScale: 4
 --- !u!1 &283437114
 GameObject:
   m_ObjectHideFlags: 0
@@ -7735,6 +7841,7 @@ MonoBehaviour:
     atkSpeed: 1
     moveSpeed: 1
     range: 1
+  nestModelScale: 4
 --- !u!1 &327370317
 GameObject:
   m_ObjectHideFlags: 0
@@ -8191,6 +8298,7 @@ MonoBehaviour:
     atkSpeed: 1
     moveSpeed: 1
     range: 1
+  nestModelScale: 4
 --- !u!1 &357142637
 GameObject:
   m_ObjectHideFlags: 0
@@ -9112,6 +9220,7 @@ MonoBehaviour:
     atkSpeed: 1
     moveSpeed: 1
     range: 1
+  nestModelScale: 4
 --- !u!1 &410087039
 GameObject:
   m_ObjectHideFlags: 0
@@ -9407,6 +9516,7 @@ MonoBehaviour:
     atkSpeed: 1
     moveSpeed: 1
     range: 1
+  nestModelScale: 4
 --- !u!21 &414173269
 Material:
   serializedVersion: 8
@@ -18983,6 +19093,7 @@ MonoBehaviour:
     atkSpeed: 1
     moveSpeed: 1
     range: 1
+  nestModelScale: 4
 --- !u!1 &633296858
 GameObject:
   m_ObjectHideFlags: 0
@@ -21015,6 +21126,7 @@ MonoBehaviour:
     atkSpeed: 1
     moveSpeed: 1
     range: 1
+  nestModelScale: 4
 --- !u!1 &712506141
 GameObject:
   m_ObjectHideFlags: 0
@@ -21273,6 +21385,7 @@ MonoBehaviour:
     atkSpeed: 1
     moveSpeed: 1
     range: 1
+  nestModelScale: 4
 --- !u!1 &733754384
 GameObject:
   m_ObjectHideFlags: 0
@@ -24417,6 +24530,7 @@ MonoBehaviour:
     atkSpeed: 1
     moveSpeed: 1
     range: 1
+  nestModelScale: 4
 --- !u!1 &847094270
 GameObject:
   m_ObjectHideFlags: 0
@@ -25918,6 +26032,7 @@ MonoBehaviour:
     atkSpeed: 1
     moveSpeed: 1
     range: 1
+  nestModelScale: 4
 --- !u!1 &912497716
 GameObject:
   m_ObjectHideFlags: 0
@@ -27718,6 +27833,7 @@ MonoBehaviour:
     atkSpeed: 1
     moveSpeed: 1
     range: 1
+  nestModelScale: 4
 --- !u!1 &994067640
 GameObject:
   m_ObjectHideFlags: 0
@@ -29397,6 +29513,7 @@ MonoBehaviour:
     atkSpeed: 1
     moveSpeed: 1
     range: 1
+  nestModelScale: 4
 --- !u!1 &1060652414
 GameObject:
   m_ObjectHideFlags: 0
@@ -33825,6 +33942,7 @@ MonoBehaviour:
     atkSpeed: 1
     moveSpeed: 1
     range: 1
+  nestModelScale: 4
 --- !u!1 &1259111415
 GameObject:
   m_ObjectHideFlags: 0
@@ -35729,6 +35847,7 @@ MonoBehaviour:
     atkSpeed: 1
     moveSpeed: 1
     range: 1
+  nestModelScale: 4
 --- !u!1 &1358273100
 GameObject:
   m_ObjectHideFlags: 0
@@ -37015,6 +37134,7 @@ MonoBehaviour:
     atkSpeed: 1
     moveSpeed: 1
     range: 1
+  nestModelScale: 4
 --- !u!1 &1411887275
 GameObject:
   m_ObjectHideFlags: 0
@@ -37214,6 +37334,7 @@ MonoBehaviour:
     atkSpeed: 1
     moveSpeed: 1
     range: 1
+  nestModelScale: 4
 --- !u!1 &1426080286
 GameObject:
   m_ObjectHideFlags: 0
@@ -37593,6 +37714,7 @@ MonoBehaviour:
     atkSpeed: 1
     moveSpeed: 1
     range: 1
+  nestModelScale: 4
 --- !u!1 &1445617858
 GameObject:
   m_ObjectHideFlags: 0
@@ -39088,6 +39210,7 @@ MonoBehaviour:
     atkSpeed: 1
     moveSpeed: 1
     range: 1
+  nestModelScale: 4
 --- !u!1 &1499861499
 GameObject:
   m_ObjectHideFlags: 0
@@ -39830,6 +39953,7 @@ MonoBehaviour:
     atkSpeed: 1
     moveSpeed: 1
     range: 1
+  nestModelScale: 4
 --- !u!1 &1540250675
 GameObject:
   m_ObjectHideFlags: 0
@@ -39908,6 +40032,7 @@ MonoBehaviour:
     atkSpeed: 1
     moveSpeed: 1
     range: 1
+  nestModelScale: 4
 --- !u!1 &1542384062
 GameObject:
   m_ObjectHideFlags: 0
@@ -43152,6 +43277,7 @@ MonoBehaviour:
     atkSpeed: 1
     moveSpeed: 1
     range: 1
+  nestModelScale: 4
 --- !u!1 &1684043301
 GameObject:
   m_ObjectHideFlags: 0
@@ -43410,6 +43536,7 @@ MonoBehaviour:
     atkSpeed: 1
     moveSpeed: 1
     range: 1
+  nestModelScale: 4
 --- !u!1 &1701273836
 GameObject:
   m_ObjectHideFlags: 0
@@ -45481,6 +45608,7 @@ MonoBehaviour:
     atkSpeed: 1
     moveSpeed: 1
     range: 1
+  nestModelScale: 4
 --- !u!1 &1814931582
 GameObject:
   m_ObjectHideFlags: 0

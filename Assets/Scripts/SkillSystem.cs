@@ -240,9 +240,13 @@ public class SkillSystem : MonoBehaviour
     System.Collections.IEnumerator QSlingBurst(Vector3 dir)
     {
         SquadHUD.Toast("연발 사격!");
-        float spd = bow != null ? bow.arrowSpeed * bow.slingSpeedMul : 90f;
-        float dmg = (bow != null ? bow.arrowDamage * bow.slingDamageMul : 11f) * qSlingDamageMul;
-        float rng = bow != null ? bow.arrowRange * bow.slingRangeMul : 35f;
+        var sl = bow != null ? bow.weapons.Find(x => x.id == "새총") : null;   // 수치는 새총 것
+        float sD = sl != null ? sl.shotDamageMul : 0.45f;
+        float sS = sl != null ? sl.shotSpeedMul : 0.6f;
+        float sR = sl != null ? sl.shotRangeMul : 0.5f;
+        float spd = bow != null ? bow.arrowSpeed * sS : 90f;
+        float dmg = (bow != null ? bow.arrowDamage * sD : 11f) * qSlingDamageMul;
+        float rng = bow != null ? bow.arrowRange * sR : 35f;
         for (int i = 0; i < qSlingShots; i++)
         {
             float off = (i - (qSlingShots - 1) * 0.5f) * qSlingSpread;

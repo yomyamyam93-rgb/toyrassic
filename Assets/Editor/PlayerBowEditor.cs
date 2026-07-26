@@ -106,65 +106,21 @@ public partial class PlayerBowEditor : Editor
             P(serializedObject, "swingCurve", "가속·감속 그래프");
             EditorGUI.indentLevel--;
         }
-        if (Fold("grip", "  도구 잡기 · 휴대"))
-        {
-            EditorGUI.indentLevel++;
-            P(serializedObject, "gripPosOffset", "잡는 위치 (공통)");
-            P(serializedObject, "gripEuler", "잡는 각도 (공통)");
-            P(serializedObject, "toolScale", "무기 크기");
-            P(serializedObject, "toolLength", "길이 기준");
-            P(serializedObject, "toolCarryPos", "휴대 위치");
-            P(serializedObject, "toolCarryEuler", "휴대 각도");
-            P(serializedObject, "toolCarrySway", "휴대 흔들림");
-            P(serializedObject, "toolCarrySwaySpeed", "흔들림 속도");
-            EditorGUI.indentLevel--;
-        }
-        if (Fold("impact", "  타격감 · 잔상"))
-        {
-            EditorGUI.indentLevel++;
-            P(serializedObject, "impactPop", "타격 팝");
-            P(serializedObject, "impactPopSpan", "팝 구간");
-            P(serializedObject, "impactPopLong", "길이 방향 억제");
-            P(serializedObject, "trailColor", "잔상 색");
-            P(serializedObject, "trailAlpha", "잔상 진하기");
-            P(serializedObject, "trailWidth", "잔상 굵기");
-            P(serializedObject, "trailTime", "잔상 시간");
-            EditorGUI.indentLevel--;
-        }
-        if (Fold("sling", "  새총 성능 (활 대비 배수)"))
-        {
-            EditorGUI.indentLevel++;
-            P(serializedObject, "slingDamageMul", "위력");
-            P(serializedObject, "slingRangeMul", "사거리");
-            P(serializedObject, "slingSpeedMul", "탄속");
-            P(serializedObject, "slingCooldownMul", "재사용 대기");
-            EditorGUI.indentLevel--;
-        }
-        if (Fold("hand", "  손 · 조준 · 커서"))
+        if (Fold("hand", "  캐릭터 손 (모든 무기 공통)"))
         {
             EditorGUI.indentLevel++;
             P(serializedObject, "handRadius", "손 크기");
             P(serializedObject, "handSide", "손 간격");
             P(serializedObject, "handUp", "손 높이");
             P(serializedObject, "handColor", "손 색");
-            P(serializedObject, "drawReach", "당길 때 뻗는 거리");
-            P(serializedObject, "drawUp", "당길 때 높이");
-            P(serializedObject, "aimFillTime", "조준 차는 시간");
-            P(serializedObject, "drawTime", "당기는 시간");
-            P(serializedObject, "arrowUp", "화살 높이");
-            P(serializedObject, "cursorNormal", "커서 (평소)");
-            P(serializedObject, "cursorAim", "커서 (조준)");
+            P(serializedObject, "toolLength", "무기 길이 기준");
             EditorGUI.indentLevel--;
         }
-        if (Fold("bowvis", "  절차 활대 (모델 없을 때만 쓰임)"))
+        if (Fold("outline", "  외곽선 재질"))
         {
             EditorGUI.indentLevel++;
-            P(serializedObject, "bowSize", "활 크기");
-            P(serializedObject, "bowThick", "활대 굵기");
-            P(serializedObject, "bowColor", "활 색");
-            P(serializedObject, "stringColor", "시위 색");
-            P(serializedObject, "outlineHull", "외곽선 재질");
-            P(serializedObject, "outlineMask", "외곽선 마스크");
+            P(serializedObject, "outlineHull", "외곽선");
+            P(serializedObject, "outlineMask", "마스크");
             EditorGUI.indentLevel--;
         }
 
@@ -365,7 +321,7 @@ public partial class PlayerBowEditor : Editor
         }
 
         // 오른손 기준 값은 손 크기만큼 축소돼 적용되고, gripPosOffset 이 더해진다
-        Vector3 localPos = slot.a.space == PoseSpace.오른손 ? (pb.gripPosOffset + shownVal) * handDia : shownVal;
+        Vector3 localPos = slot.a.space == PoseSpace.오른손 ? ((w != null ? w.gripPos : Vector3.zero) + shownVal) * handDia : shownVal;
         var cur = origin + (slot.a.space == PoseSpace.왼손 ? baseRot : frame) * localPos;
         var poseRot = slot.a.space == PoseSpace.왼손 ? baseRot : frame * Quaternion.Euler(shownEul);
 
@@ -376,9 +332,9 @@ public partial class PlayerBowEditor : Editor
             // 스윙(캐릭터)일 땐 gripEuler 만 적용된다 — 런타임과 같게.
             var gripM = slot.a.space == PoseSpace.왼손
                 ? Matrix4x4.TRS(cur, poseRot, Vector3.one * pScale)
-                : Matrix4x4.TRS(cur, poseRot * Quaternion.Euler(pb.gripEuler),
-                                Vector3.one * (handDia * pb.toolScale))
-                  * (slot.a.space == PoseSpace.캐릭터 ? Matrix4x4.Translate(pb.gripPosOffset) : Matrix4x4.identity);
+                : Matrix4x4.TRS(cur, poseRot * Quaternion.Euler(w != null ? w.gripEuler : Vector3.zero),
+                                Vector3.one * (handDia * (w != null ? w.scale : 2.05f)))
+                  * (slot.a.space == PoseSpace.캐릭터 ? Matrix4x4.Translate(w != null ? w.gripPos : Vector3.zero) : Matrix4x4.identity);
             var fix = slot.a.space == PoseSpace.왼손 ? Quaternion.Euler(pb.bowModelEuler)
                     : w != null ? Quaternion.Euler(w.modelEuler) : Quaternion.identity;
             float extra = slot.a.space == PoseSpace.왼손 ? pb.bowModelScale : (w != null ? w.modelScale : 1f);
@@ -394,7 +350,7 @@ public partial class PlayerBowEditor : Editor
             np =>
             {
                 var l = Quaternion.Inverse(slot.a.space == PoseSpace.왼손 ? baseRot : frame) * (np - origin);
-                if (slot.a.space == PoseSpace.오른손) l = l / Mathf.Max(0.001f, handDia) - pb.gripPosOffset;
+                if (slot.a.space == PoseSpace.오른손) l = l / Mathf.Max(0.001f, handDia) - (w != null ? w.gripPos : Vector3.zero);
                 if (flip) l.x = -l.x;
                 slot.posField.SetValue(pb, l);
             },
@@ -403,8 +359,8 @@ public partial class PlayerBowEditor : Editor
                 if (flip) { e.y = -e.y; e.z = -e.z; }
                 slot.eulerField.SetValue(pb, e);
             },
-            () => slot.a.space == PoseSpace.왼손 ? pb.bowModelScale : pb.toolScale,
-            v => { if (slot.a.space == PoseSpace.왼손) pb.bowModelScale = v; else pb.toolScale = v; },
+            () => slot.a.space == PoseSpace.왼손 ? pb.bowModelScale : (w != null ? w.scale : 2.05f),
+            v => { if (slot.a.space == PoseSpace.왼손) pb.bowModelScale = v; else if (w != null) w.scale = v; },
             slot.a.label);
     }
 }
