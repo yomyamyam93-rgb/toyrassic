@@ -44,10 +44,30 @@ public class SkillSystem : MonoBehaviour
     Camera cam;
 
     // HUD
-    Image[] icons; Image[] fills; Text[] labels;
+    Image[] icons; Image[] fills; Text[] labels; Image[] iconImgs; Text[] lockTexts;
     GameObject canvasRoot;
     Font font;
     UIStyle St => UIStyle.I;
+
+    /// 슬롯별 현재 스킬 정보 — 장비·탑승 상태에 따라 바뀐다.
+    /// 아이콘 파일은 Resources/Icons/<이름>.png (아이템 아이콘과 같은 방식, 없으면 글자 표시)
+    (string icon, string label, bool usable) SkillInfo(int slot)
+    {
+        bool hasPet = move != null && move.Mount != null;
+        var gear = Hotbar.I != null ? Hotbar.I.Current : GearKind.Bow;
+        switch (slot)
+        {
+            case 0:
+                return gear == GearKind.Bow
+                    ? ("스킬_관통사격", "관통 사격", true)
+                    : (gear == GearKind.Axe || gear == GearKind.Pick)
+                        ? ("스킬_회전베기", "회전 베기", true)
+                        : ("스킬_관통사격", "무기 필요", false);
+            case 1: return ("스킬_돌진", hasPet ? "펫 돌진" : "펫 필요", hasPet);
+            case 2: return ("스킬_구르기", "구르기", true);
+            default: return ("스킬_협동", hasPet ? "협동기" : "펫 필요", hasPet);
+        }
+    }
 
     void Start()
     {
@@ -237,9 +257,9 @@ public class SkillSystem : MonoBehaviour
         panel.anchoredPosition = new Vector2(0, bottom);
         panel.sizeDelta = new Vector2(4 * size + 3 * gap, size);
 
-        string[] keys = { "Q", "W", "E", "R" };
-        string[] names = { "무기", "펫", "이동", "협동" };
+        string[] keys = { "Q", "F", "Space", "R" };   // 실제 입력 키
         icons = new Image[4]; fills = new Image[4]; labels = new Text[4];
+        iconImgs = new Image[4]; lockTexts = new Text[4];
         var round = St != null ? St.Round() : null;
         for (int i = 0; i < 4; i++)
         {
@@ -261,6 +281,16 @@ public class SkillSystem : MonoBehaviour
             iimg.sprite = round; iimg.type = Image.Type.Sliced;
             iimg.color = St != null ? St.slotBg : new Color(0.9f, 0.86f, 0.78f);
 
+            // 스킬 아이콘 (Resources/Icons/스킬_*.png — 있으면 그림, 없으면 아래 글자)
+            var ic = new GameObject("icon", typeof(RectTransform)).GetComponent<RectTransform>();
+            ic.SetParent(inner, false);
+            ic.anchorMin = Vector2.zero; ic.anchorMax = Vector2.one;
+            ic.offsetMin = new Vector2(5, 5); ic.offsetMax = new Vector2(-5, -5);
+            iconImgs[i] = ic.gameObject.AddComponent<Image>();
+            iconImgs[i].preserveAspect = true;
+            iconImgs[i].raycastTarget = false;
+            iconImgs[i].enabled = false;
+
             // 쿨다운 오버레이 (아래→위로 차오름)
             var f = new GameObject("cd", typeof(RectTransform)).GetComponent<RectTransform>();
             f.SetParent(inner, false);
@@ -278,26 +308,49 @@ public class SkillSystem : MonoBehaviour
             var trt = t.rectTransform;
             trt.anchorMin = Vector2.zero; trt.anchorMax = Vector2.one;
             trt.offsetMin = trt.offsetMax = Vector2.zero;
-            t.font = font; t.fontSize = 18; t.fontStyle = FontStyle.Bold;
-            t.alignment = TextAnchor.MiddleCenter;
+            t.font = font; t.fontSize = 15; t.fontStyle = FontStyle.Bold;
+            t.alignment = TextAnchor.LowerCenter;
             t.color = St != null ? St.textMain : Color.black;
-            t.text = keys[i] + "\n<size=11>" + names[i] + "</size>";
             t.supportRichText = true;
             t.raycastTarget = false;
             labels[i] = t;
+
+            // 키 라벨 (좌상단 고정)
+            var kt = new GameObject("key", typeof(RectTransform)).AddComponent<Text>();
+            kt.transform.SetParent(inner, false);
+            var krt = kt.rectTransform;
+            krt.anchorMin = Vector2.zero; krt.anchorMax = Vector2.one;
+            krt.offsetMin = new Vector2(4, 0); krt.offsetMax = Vector2.zero;
+            kt.font = font; kt.fontSize = 13; kt.fontStyle = FontStyle.Bold;
+            kt.alignment = TextAnchor.UpperLeft;
+            kt.color = St != null ? St.textMain : Color.black;
+            kt.text = keys[i];
+            kt.raycastTarget = false;
+            lockTexts[i] = kt;
         }
     }
 
     void RefreshHUD()
     {
         if (fills == null) return;
+        var accent = St != null ? St.accent : new Color(0.95f, 0.81f, 0.29f);
+        var border = St != null ? St.slotBorder : new Color(0.71f, 0.64f, 0.53f);
+        var txt = St != null ? St.textMain : Color.black;
+        var txtDim = new Color(txt.r, txt.g, txt.b, 0.35f);
         for (int i = 0; i < 4; i++)
         {
+            var info = SkillInfo(i);
             float f = cdMax[i] > 0f ? cd[i] / cdMax[i] : 0f;
-            fills[i].fillAmount = f;
-            icons[i].color = cd[i] <= 0f
-                ? (St != null ? St.accent : new Color(0.95f, 0.81f, 0.29f))
-                : (St != null ? St.slotBorder : new Color(0.71f, 0.64f, 0.53f));
+            fills[i].fillAmount = info.usable ? f : 1f;                       // 못 쓰면 통째로 어둡게
+            fills[i].color = info.usable ? new Color(0f, 0f, 0f, 0.55f) : new Color(0f, 0f, 0f, 0.62f);
+            icons[i].color = (info.usable && cd[i] <= 0f) ? accent : border;   // 준비되면 금테
+
+            var sp = IconLib.Get(info.icon);
+            iconImgs[i].enabled = sp != null && info.usable;
+            if (sp != null) iconImgs[i].sprite = sp;
+            labels[i].text = sp != null && info.usable ? "" : $"<size=11>{info.label}</size>";
+            labels[i].color = info.usable ? txt : txtDim;
+            lockTexts[i].color = info.usable ? txt : txtDim;
         }
     }
 }
