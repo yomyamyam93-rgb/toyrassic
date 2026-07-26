@@ -40,6 +40,8 @@ public class PlayerBow : MonoBehaviour
     [Header("도구 휴대 — 도끼·곡괭이·칼 (스윙 중엔 무시)")]
     [Tooltip("손 기준 위치 보정 (각도는 아래 '잡기' 의 gripEuler)")]
     public Vector3 toolCarryPos = Vector3.zero;
+    [Tooltip("들고 다닐 때 흔들리는 각도 (0=고정)")] public float toolCarrySway = 4f;
+    [Tooltip("흔들리는 빠르기")] public float toolCarrySwaySpeed = 2.2f;
 
     [Header("활 모델 — 비우면 절차 생성 활대")]
     [Tooltip("3D 활 모델 (Resources/Tools/tool_bow 자동)")] public GameObject bowModel;
@@ -111,6 +113,11 @@ public class PlayerBow : MonoBehaviour
     [Tooltip("끝(내려찍은) 손 위치")] public Vector3 swingEndPos = new Vector3(0.1f, 0.9f, 2.5f);
     [Tooltip("끝 손 회전")] public Vector3 swingEndEuler = new Vector3(80f, 0f, 0f);
     [Tooltip("백스윙 — 시작 자세 너머로 더 들어올리는 비율")] public float backswingExtra = 0.22f;
+    [Tooltip("★가속·감속 그래프 — 클릭하면 곡선 편집기가 열린다.\n" +
+             "가로=스윙 진행(0→1), 세로=자세(0=시작, 1=끝, 음수=백스윙).\n" +
+             "가파를수록 빠르게 지나가고, 완만할수록 느리게 보인다")]
+    public AnimationCurve swingCurve = new AnimationCurve(
+        new Keyframe(0f, 0f), new Keyframe(0.30f, -1f), new Keyframe(1f, 1f));
 
     [Header("스윙 자세 — 가로 긁기 (무기 탭에서 '가로' 체크 시)")]
     public Vector3 hSwingStartPos = new Vector3(-2.4f, 1.6f, 0.5f);
@@ -771,9 +778,10 @@ public class PlayerBow : MonoBehaviour
                     var frame = Quaternion.LookRotation(aimDir, Vector3.up);
 
                     float sk = 1f - gather.SwingT;                      // 0→1
-                    float p;
-                    if (sk < 0.30f) p = -backswingExtra * Mathf.Sin(sk / 0.30f * Mathf.PI * 0.5f);   // 백스윙
-                    else { float u = (sk - 0.30f) / 0.70f; p = Mathf.Sin(Mathf.Pow(u, 1.9f) * Mathf.PI * 0.5f); }  // 슈웅! 가속→도달 감속
+                    // ★가속·감속은 그래프가 결정 (인스펙터에서 직접 그린다)
+                    //   음수 구간 = 백스윙, backswingExtra 로 깊이 조절
+                    float c = swingCurve != null ? swingCurve.Evaluate(sk) : sk;
+                    float p = c >= 0f ? c : c * backswingExtra;
 
                     // 동작 선택 — 세로 내려찍기 / 가로 긁기 (무기 탭에서 체크)
                     bool horiz = setup.style == SwingStyle.Horizontal;
@@ -809,6 +817,10 @@ public class PlayerBow : MonoBehaviour
                     handR.rotation = Quaternion.Slerp(handR.rotation,
                         Quaternion.LookRotation(fwd, Vector3.up), 10f * Time.deltaTime);
                     toolHeld.localPosition = gripPosOffset + toolCarryPos;
+                    // 들고 다닐 때 살짝 흔들림 — 완전히 굳어 있으면 인형 같다
+                    float tsw = (Mathf.Sin(Time.time * toolCarrySwaySpeed) * 0.7f
+                               + Mathf.Sin(Time.time * toolCarrySwaySpeed * 1.6f + 0.9f) * 0.3f) * toolCarrySway;
+                    toolHeld.localRotation = Quaternion.Euler(gripEuler + new Vector3(tsw, 0f, tsw * 0.6f));
                     if (trail != null) trail.emitting = false;
                 }
                 prevSwingT = gather != null ? gather.SwingT : 0f;
