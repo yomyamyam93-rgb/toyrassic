@@ -38,6 +38,7 @@ public class MapUI : MonoBehaviour
     Texture2D mapTex;
     readonly List<Image> markers = new List<Image>();
     int markerUsed;
+    int minePower; float minePowerAt = -99f;   // 내 전투력 캐시
 
     UIStyle St => UIStyle.I;
 
@@ -204,9 +205,26 @@ public class MapUI : MonoBehaviour
         mapImg.uvRect = view;
 
         markerUsed = 0;
-        // 알이 있는 둥지 — 이게 지도의 존재 이유
+        // 알이 있는 둥지 — 이게 지도의 존재 이유.
+        // ★난이도를 색으로: 초록(쉬움) → 노랑 → 주황 → 빨강(무모함)
+        // 내 전투력은 자주 안 바뀌므로 0.5초에 한 번만 (매 프레임 계산 방지)
+        if (Time.time - minePowerAt > 0.5f) { minePower = Power.OfPlayerTotal(); minePowerAt = Time.time; }
+        int mine = minePower;
         foreach (var n in NestSite.All)
-            if (n != null && n.HasEgg) Mark(n.transform.position, view, eggColor, IsFullOpen ? 15f : 11f);
+        {
+            if (n == null || !n.HasEgg) continue;
+            var c = eggColor;
+            if (mine > 0)
+            {
+                float r = n.EstimatePower() / (float)mine;
+                c = r < 0.6f ? new Color(0.45f, 0.95f, 0.5f)       // 쉬움
+                  : r < 0.9f ? new Color(0.95f, 0.9f, 0.35f)        // 해볼 만함
+                  : r < 1.3f ? new Color(1f, 0.7f, 0.25f)           // 팽팽함
+                  : r < 2f ? new Color(1f, 0.45f, 0.25f)            // 위험
+                           : new Color(1f, 0.25f, 0.3f);            // 무모함
+            }
+            Mark(n.transform.position, view, c, IsFullOpen ? 15f : 11f);
+        }
         // 부화기
         if (Incubator.Active != null) Mark(Incubator.Active.transform.position, view, incColor, IsFullOpen ? 15f : 11f);
         // 나 — 제일 위에

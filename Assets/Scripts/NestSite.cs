@@ -82,7 +82,7 @@ public class NestSite : MonoBehaviour
     /// 둥지를 처음 상태로 — 알을 다시 얹고 무리도 되살아난다
     void Respawn()
     {
-        triggered = false; cleared = false; bossSpawned = false;
+        triggered = false; cleared = false; bossSpawned = false; warned = false;
         spawned = 0; spawnT = 0f;
         swarm.Clear();
         if (egg == null)
@@ -99,6 +99,39 @@ public class NestSite : MonoBehaviour
             egg = e;
         }
         FX.Burst(transform.position + Vector3.up * 2f, new Color(1.7f, 1.5f, 0.6f, 0.95f), 24, 0.3f, 3f);
+    }
+
+    [Header("사전 경고")]
+    [Tooltip("발동 반경의 몇 배 거리에서 미리 알려주나")] public float warnRatio = 2.2f;
+    bool warned;
+
+    /// 이 둥지를 털려면 어느 정도가 필요한가 — 보스가 기준, 무리는 머릿수로 가산.
+    /// ★한 번만 계산하고 캐시한다 (지도가 매 프레임 26곳을 물어본다)
+    int powerCache = -1;
+    public int EstimatePower()
+    {
+        if (powerCache >= 0) return powerCache;
+        if (spawner == null) return 0;
+        if (eggEntry == null) eggEntry = PickEggEntry();
+        if (eggEntry == null) return 0;
+        // 임시 유닛으로 실제와 같은 계산 (보스 = 같은 종 · 크기 2배 · 체력 2.5배)
+        var go = new GameObject("~calc");
+        go.hideFlags = HideFlags.HideAndDontSave;
+        var u = go.AddComponent<PetUnit>();
+        u.team = PetUnit.Team.Wild; u.mat = PetUnit.Mat.Basic; u.species = eggEntry.species;
+        var t = eggEntry.tier;
+        if (t == PetScale.Tier.S) { u.str = 6; u.agi = 16; u.vit = 10; }
+        else if (t == PetScale.Tier.M) { u.str = 9; u.agi = 12; u.vit = 15; }
+        else if (t == PetScale.Tier.L) { u.str = 11; u.agi = 8; u.vit = 22; }
+        else { u.str = 15; u.agi = 5; u.vit = 32; }
+        u.str *= dmgMul * bossDmgMul; u.vit *= hpMul * bossHpMul;
+        PetSpawner.ApplyRole(u, PetSpawner.RoleOf(eggEntry.species, t), eggEntry);
+        u.SetWildLevel(spawner.WildLevelAt(transform.position, t));
+        int boss = Power.Of(u);
+        DestroyImmediate(go);
+        // 졸병 무리 — 한 마리는 약하지만 수가 압박이다
+        powerCache = boss + Mathf.RoundToInt(boss * 0.05f * swarmSize);
+        return powerCache;
     }
 
     bool triggered, cleared;
@@ -129,6 +162,18 @@ public class NestSite : MonoBehaviour
         float d = Vector3.Distance(
             new Vector3(player.position.x, 0, player.position.z),
             new Vector3(transform.position.x, 0, transform.position.z));
+
+        // ★가까워지면 미리 알려준다 — 붙기 전에 갈지 말지 고를 수 있게
+        if (!triggered && !warned && d < triggerRadius * warnRatio)
+        {
+            warned = true;
+            if (eggEntry == null) eggEntry = PickEggEntry();
+            int mine = Power.OfPlayerTotal();
+            int theirs = EstimatePower();
+            string v = Power.Verdict(mine, theirs);
+            SquadHUD.Toast($"{(eggEntry != null ? eggEntry.koreanName : "야생")}의 둥지 — {ItemDB.EggId(eggEntry != null ? eggEntry.tier : PetScale.Tier.M)}\n" +
+                           $"예상 전투력 {theirs}  (내 전투력 {mine})   →  {v}");
+        }
 
         // 발동 — 둥지 영역에 들어오면 분노 웨이브
         if (!triggered && d < triggerRadius)
