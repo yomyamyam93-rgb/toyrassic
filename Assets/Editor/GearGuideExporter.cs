@@ -52,12 +52,30 @@ public static class GearGuideExporter
 
         var obj = new StringBuilder();
         obj.AppendLine("# 토이라기 장비 모델링 가이드");
-        obj.AppendLine("# 게임에서 보이는 실제 크기. 캐릭터 중심이 원점(0,0,0), +Z 가 캐릭터 정면.");
-        obj.AppendLine("# ─ 무기는 '무기슬롯_도구' 안을 채우도록 만들고, 오브젝트 원점을");
-        obj.AppendLine("#   손잡이 끝(그립 표시 구)에 두세요. 자루 방향 = +Z.");
-        obj.AppendLine("# ─ 활은 '무기슬롯_활' — 활대는 세로, 그립이 +Z 쪽으로 볼록.");
-        obj.AppendLine("# ─ 다 만들면 가이드 오브젝트는 전부 지우고 무기만 남겨 glb 로 내보내세요.");
+        obj.AppendLine("# 캐릭터 몸 중심이 원점(0,0,0). 게임에서 보이는 실제 크기 그대로.");
+        obj.AppendLine("# 축_ 오브젝트로 방향을 확인하세요 — 무기는 반드시 이 축에 맞춰 만들 것.");
+        obj.AppendLine("# ─ 도구(도끼·곡괭이·칼): '무기슬롯_도구' 를 채우고, 모델 원점을 '기준_그립' 에.");
+        obj.AppendLine("# ─ 활: '무기슬롯_활' 을 채움. 활대는 세로, 휜 배가 정면(+Z) 쪽.");
+        obj.AppendLine("# ─ 다 만들면 가이드는 전부 지우고 무기만 남겨 glb 로 내보내세요.");
         int vbase = 1;
+        var cubeM = PrimMesh(PrimitiveType.Cube);
+
+        // ⓪ 월드 축 — 블렌더에서 방향을 눈으로 확인하는 기준 (이게 없어서 축이 어긋났다)
+        float axisLen = 3.2f, axisGirth = 0.10f;
+        void Axis(string name, Vector3 dir)
+        {
+            WriteMesh(obj, ref vbase, name, cubeM,
+                Matrix4x4.TRS(dir * axisLen * 0.5f, Quaternion.identity,
+                    new Vector3(Mathf.Abs(dir.x) > 0.5f ? axisLen : axisGirth,
+                                Mathf.Abs(dir.y) > 0.5f ? axisLen : axisGirth,
+                                Mathf.Abs(dir.z) > 0.5f ? axisLen : axisGirth)));
+            // 끝에 촉 — 어느 쪽이 +인지 표시
+            WriteMesh(obj, ref vbase, name + "_끝", PrimMesh(PrimitiveType.Sphere),
+                Matrix4x4.TRS(dir * axisLen, Quaternion.identity, Vector3.one * axisGirth * 2.6f));
+        }
+        Axis("축_X_플러스는_캐릭터의_오른손쪽", Vector3.right);
+        Axis("축_Y_플러스는_위", Vector3.up);
+        Axis("축_Z_플러스는_캐릭터_정면", Vector3.forward);
 
         // ① 캐릭터 몸통 — 실제 메시 그대로
         var bodyMf = t.GetComponent<MeshFilter>();
@@ -67,9 +85,9 @@ public static class GearGuideExporter
 
         // ② 양손
         var sphere = PrimMesh(PrimitiveType.Sphere);
-        WriteMesh(obj, ref vbase, "가이드_오른손_도구를_든다", sphere,
+        WriteMesh(obj, ref vbase, "가이드_오른손_도끼곡괭이칼을_든다", sphere,
                   Matrix4x4.TRS(handR, Quaternion.identity, Vector3.one * handDia));
-        WriteMesh(obj, ref vbase, "가이드_왼손_활을_든다", sphere,
+        WriteMesh(obj, ref vbase, "가이드_왼손_활을_든다_오른손은_시위를당김", sphere,
                   Matrix4x4.TRS(handL, Quaternion.identity, Vector3.one * handDia));
 
         // ③ 도구 슬롯 — 그립(원점)에서 +Z 로 뻗는다
@@ -86,20 +104,22 @@ public static class GearGuideExporter
                   Matrix4x4.TRS(toolOrigin + toolRot * new Vector3(0f, 0f, toolLen * 1.12f), toolRot,
                                 new Vector3(toolGirth * 2.2f, toolGirth * 0.5f, toolGirth * 2.2f)));
 
-        // ④ 활 슬롯 — 왼손 기준, 세로로 선 납작한 상자
-        WriteMesh(obj, ref vbase, "무기슬롯_활_세로로_서게", cube,
+        // ④ 활 슬롯 — 왼손(-X쪽)에 세로로. 활대는 ±Y, 휜 배가 +Z(정면)
+        WriteMesh(obj, ref vbase, "무기슬롯_활_활대는세로_배는정면쪽", cube,
                   Matrix4x4.TRS(handL + new Vector3(0f, 0f, bowLen * 0.09f), Quaternion.identity,
                                 new Vector3(bowLen * 0.07f, bowLen, bowLen * 0.36f)));
-        WriteMesh(obj, ref vbase, "기준_활_그립_볼록한쪽_플러스Z", sphere,
+        WriteMesh(obj, ref vbase, "기준_활_모델원점은_한가운데_그립", sphere,
+                  Matrix4x4.TRS(handL, Quaternion.identity, Vector3.one * bowLen * 0.10f));
+        WriteMesh(obj, ref vbase, "기준_활_배가_볼록한쪽_정면Z", sphere,
                   Matrix4x4.TRS(handL + new Vector3(0f, 0f, bowLen * 0.21f), Quaternion.identity,
-                                Vector3.one * bowLen * 0.09f));
+                                Vector3.one * bowLen * 0.07f));
 
         // ⑤ 바닥 — 캐릭터가 서는 높이 (크기 감 잡기용)
         float footY = bodyMf != null && bodyMf.sharedMesh != null
                     ? bodyMf.sharedMesh.bounds.min.y * pScale : -pScale;
-        WriteMesh(obj, ref vbase, "가이드_바닥", cube,
-                  Matrix4x4.TRS(new Vector3(0f, footY - 0.02f, 0f), Quaternion.identity,
-                                new Vector3(8f, 0.04f, 8f)));
+        WriteMesh(obj, ref vbase, "가이드_바닥_캐릭터가_서는_높이", cube,
+                  Matrix4x4.TRS(new Vector3(0f, footY - 0.03f, 0f), Quaternion.identity,
+                                new Vector3(5f, 0.06f, 5f)));
 
         System.IO.File.WriteAllText(path, obj.ToString(), new UTF8Encoding(false));
         string info = $"저장 완료: {path}\n  도구 길이 {toolLen:F2}m · 활 길이 {bowLen:F2}m\n" +
@@ -119,9 +139,15 @@ public static class GearGuideExporter
         return m;
     }
 
+    /// ★X 반전 — glTF(오른손 좌표계) → 유니티(왼손 좌표계) 변환에서 X 가 뒤집힌다.
+    /// 블렌더 왕복 실측으로 확인함: 축X 끝 (3.20,0,0) → (-3.20,0,0), Y·Z 는 보존.
+    /// 그래서 가이드를 미리 뒤집어 내보내면, 블렌더에서 만든 무기가 유니티에 제자리로 온다.
+    static readonly Matrix4x4 MirrorX = Matrix4x4.Scale(new Vector3(-1f, 1f, 1f));
+
     /// OBJ 한 덩어리 — 정점/법선/면. 정점 번호는 파일 전체 통산이라 offset 을 넘겨받는다.
     static void WriteMesh(StringBuilder sb, ref int vbase, string name, Mesh mesh, Matrix4x4 trs)
     {
+        trs = MirrorX * trs;
         var ci = CultureInfo.InvariantCulture;
         var verts = mesh.vertices;
         var norms = mesh.normals;

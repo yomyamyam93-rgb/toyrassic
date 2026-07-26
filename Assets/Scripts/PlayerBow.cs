@@ -24,6 +24,11 @@ public class PlayerBow : MonoBehaviour
     [Tooltip("화살이 나가는 높이 (활 위치 기준 위로)")] public float arrowUp = 1.5f;
     [Tooltip("비워두면 캐릭터 텍스처 평균색 자동")] public Color handColor = Color.clear;
 
+    [Header("활 휴대 자세 — 안 쏠 때 들고 다니는 각도")]
+    [Tooltip("기울기 (X=앞뒤 Y=좌우 Z=옆으로 눕힘). 예전 절차 활대는 Z=46 이었지만 실제 활 모델엔 과하다")]
+    public Vector3 carryEuler = new Vector3(14f, 8f, 16f);
+    [Tooltip("걸을 때 살랑거리는 정도 (0=고정)")] public float carrySway = 0.5f;
+
     [Header("활 모델 — 비우면 절차 생성 활대")]
     [Tooltip("3D 활 모델 (Resources/Tools/tool_bow 자동)")] public GameObject bowModel;
     public Vector3 bowModelEuler = Vector3.zero;
@@ -196,12 +201,23 @@ public class PlayerBow : MonoBehaviour
             var mf = inst.GetComponentInChildren<MeshFilter>();
             if (mf != null && mf.sharedMesh != null)
             {
-                var size = mf.sharedMesh.bounds.size;
-                // 파이프라인 원점=바닥 중앙 → 긴 축을 +Z 로 눕힘
-                if (size.y >= size.x && size.y >= size.z) autoRot = Quaternion.Euler(90f, 0f, 0f);
-                else if (size.x >= size.z) autoRot = Quaternion.Euler(0f, -90f, 0f);
-                float len = Mathf.Max(size.x, Mathf.Max(size.y, size.z));
-                autoScale = toolLength / Mathf.Max(0.01f, len);
+                var bounds = mf.sharedMesh.bounds;
+                // ★모델 원점(0,0,0)을 손잡이에 두고 만드는 게 규칙.
+                //   그러면 원점에서 몸통이 뻗어나간 방향이 곧 '날 방향'이라 정확히 세울 수 있다.
+                var dir = bounds.center;
+                float reach = FarthestFromOrigin(bounds);
+                if (dir.magnitude > reach * 0.15f)
+                {   // 원점이 손잡이 쪽에 치우쳐 있다 = 규칙대로 만든 모델
+                    autoRot = Quaternion.FromToRotation(dir.normalized, Vector3.forward);
+                    autoScale = toolLength / Mathf.Max(0.01f, reach);
+                }
+                else
+                {   // 원점이 한가운데인 옛 모델 — 예전처럼 제일 긴 축을 자루로 짐작
+                    var size = bounds.size;
+                    if (size.y >= size.x && size.y >= size.z) autoRot = Quaternion.Euler(90f, 0f, 0f);
+                    else if (size.x >= size.z) autoRot = Quaternion.Euler(0f, -90f, 0f);
+                    autoScale = toolLength / Mathf.Max(0.01f, Mathf.Max(size.x, Mathf.Max(size.y, size.z)));
+                }
                 inst.transform.localRotation = autoRot;
                 inst.transform.localScale = Vector3.one * autoScale;
             }
@@ -374,6 +390,20 @@ public class PlayerBow : MonoBehaviour
         AddOutline(na, na.GetComponent<MeshFilter>().sharedMesh);
         nockArrow = na.transform;
         nockArrow.gameObject.SetActive(false);
+    }
+
+    /// 원점에서 제일 먼 모서리까지 거리 = 손잡이에서 날 끝까지 길이
+    static float FarthestFromOrigin(Bounds b)
+    {
+        float far = 0f;
+        for (int i = 0; i < 8; i++)
+        {
+            var c = new Vector3((i & 1) == 0 ? b.min.x : b.max.x,
+                                (i & 2) == 0 ? b.min.y : b.max.y,
+                                (i & 4) == 0 ? b.min.z : b.max.z);
+            far = Mathf.Max(far, c.magnitude);
+        }
+        return far;
     }
 
     /// ★활 모델 자동 정렬 — 모델이 어떤 축으로 기울어 들어와도 알아서 세운다.
@@ -640,8 +670,8 @@ public class PlayerBow : MonoBehaviour
         }
         else
         {   // 휴대 자세 — 비스듬히 기울여 들고, 걸을수록 살랑살랑 각도가 흔들림
-            float sway = Mathf.Sin(Time.time * 2.6f) * 7f + Mathf.Sin(Time.time * 4.1f + 1.3f) * 3f;
-            var rest = Quaternion.LookRotation(fwd, Vector3.up) * Quaternion.Euler(24f, 8f, 46f + sway);
+            float sway = (Mathf.Sin(Time.time * 2.6f) * 7f + Mathf.Sin(Time.time * 4.1f + 1.3f) * 3f) * carrySway;
+            var rest = Quaternion.LookRotation(fwd, Vector3.up) * Quaternion.Euler(carryEuler + new Vector3(0f, 0f, sway));
             bowRoot.rotation = Quaternion.Slerp(bowRoot.rotation, rest, 6f * Time.deltaTime);
         }
 

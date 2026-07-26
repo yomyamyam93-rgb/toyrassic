@@ -10,7 +10,7 @@ using UnityEngine.InputSystem;
 public class FollowCam : MonoBehaviour
 {
     public Transform target;
-    public float distance = 22f, minDist = 6f, maxDist = 105f;
+    public float distance = 22f, minDist = 2.2f, maxDist = 105f;   // minDist 낮게 = 더 바짝 확대
     public float height = 4.5f;
     public float yaw = 35f, pitch = 28f;
 
