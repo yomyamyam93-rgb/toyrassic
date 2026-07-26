@@ -1079,6 +1079,8 @@ public class PetUnit : MonoBehaviour
     // ── HP 바 (둥근 모서리 + 롤식 지연 감소) ──
     // ★몸에 안 붙임 — 스쿼시·통통 바운스에 안 흔들리게 월드 공간에서 부드럽게 따라감
     float barY, barSmoothY, barBaseScale;
+    [Tooltip("탄 펫의 체력바를 캐릭터 머리 위로 얼마나 더 띄우나 (m)")]
+    public float mountedBarGap = 1.2f;
     /// 거리 보정 배율 상한 — 넘어가면 화면에서 자연히 작아진다 (숨기지는 않음)
     const float barMaxGrow = 2.0f;
     void MakeBar(Renderer r)
@@ -1139,6 +1141,13 @@ public class PetUnit : MonoBehaviour
         // 가로는 즉시, 세로는 스무딩 — 통통 튀어도 바는 차분하게
         var p = transform.position;
         float wantY = p.y + barY;
+        // ★내가 탄 펫은 등 위에 캐릭터가 앉아 있다 — 원래 높이면 바가 캐릭터와 겹친다.
+        //   실제 캐릭터 머리 꼭대기를 재서 그 위로 올린다 (덩치 짐작 대신 실측).
+        if (mounted && Avatar != null)
+        {
+            float headY = Avatar.transform.position.y + Avatar.body * 1.0f + mountedBarGap;
+            if (headY > wantY) wantY = headY;
+        }
         if (Mathf.Abs(wantY - barSmoothY) > 6f) barSmoothY = wantY;   // 순간이동·스폰 직후엔 스냅 (미끄러져 오는 버그 방지)
         else barSmoothY = Mathf.Lerp(barSmoothY, wantY, 7f * Time.deltaTime);
         barRoot.position = new Vector3(p.x, barSmoothY, p.z);
