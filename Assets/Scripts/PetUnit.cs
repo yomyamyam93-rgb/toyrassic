@@ -738,7 +738,9 @@ public class PetUnit : MonoBehaviour
     {
         ghostHp = hp;
         float top = r != null ? (r.bounds.max.y - transform.position.y) : 2f;
-        barY = top + body * (isAvatar ? 1.0f : 0.38f) + 1.2f;   // 머리 위 여유 간격 — 착붙 금지
+        // ★머리 위 = 실제 렌더러 최상단 + 고정 여유. 몸 크기 비례를 크게 잡으면
+        //   XL(브론토 등)에서 바가 하늘로 뜬다 — 비례는 아주 작게만.
+        barY = top + 1.4f + body * 0.03f;
         barBaseScale = 1.35f;   // ★전 유닛 동일 크기 (몸 크기 비례 폐지 — 제각각 버그 수정)
         barRoot = new GameObject(name + "_hpbar").transform;
         barRoot.SetParent(SceneBuckets.Bars);   // 하이라키 정리

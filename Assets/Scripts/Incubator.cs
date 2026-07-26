@@ -267,13 +267,14 @@ public class Incubator : MonoBehaviour
                 u.collectible = false;
                 u.followTarget = player;
                 // 기존 펫이 있으면 교체 — 레벨 이어받기
+                // ★기존 동행은 보관함에 남기고 몸만 치움 (수집한 펫은 사라지지 않는다)
                 var old = BlueprintPickup.MyPet();
                 if (old != null && old != u)
                 {
-                    u.ApplyLevels(old.level); u.xp = old.xp;
+                    PetBox.Sync(old);
                     Destroy(old.gameObject);
-                    SquadHUD.Toast($"{entry.koreanName}(으)로 교체 부화!  Lv.{u.level} 이어받음");
                 }
+                PetBox.Register(u, entry.species, entry.tier);   // 보관함 등록 + 동행 지정
                 PetNameUI.Show(u);   // 이름 짓기 창
             }
         }

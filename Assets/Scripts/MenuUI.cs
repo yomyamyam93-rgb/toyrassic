@@ -24,7 +24,10 @@ public class MenuUI : MonoBehaviour
 
     Font font;
     GameObject canvasRoot, win;
-    GameObject pageInv, pageStat, pageCraft;
+    GameObject pageInv, pagePet, pageStat, pageCraft;
+    Button[] petRows; Text[] petRowTexts;
+    Text petDetail, petUseLabel; Button petUseBtn;
+    int petSel;
     Image[] tabImgs; Text[] tabTexts;
     Text statText;
     Image[] slotIcons;
@@ -80,6 +83,7 @@ public class MenuUI : MonoBehaviour
         else if (esc && IsOpen) SetOpen(false);
         if (!IsOpen) return;
         RefreshInv();
+        RefreshPets();
         RefreshStat();
         RefreshCraft();
     }
@@ -193,15 +197,15 @@ public class MenuUI : MonoBehaviour
         wimg.sprite = Round; wimg.type = Image.Type.Sliced; wimg.color = PanelBg;
 
         // 탭 줄
-        string[] names = { "인벤토리", "스탯", "제작" };
-        tabImgs = new Image[3]; tabTexts = new Text[3];
-        for (int i = 0; i < 3; i++)
+        string[] names = { "인벤토리", "펫", "스탯", "제작" };
+        tabImgs = new Image[4]; tabTexts = new Text[4];
+        for (int i = 0; i < 4; i++)
         {
             int idx = i;
             var rt = RT("tab_" + names[i], w);
             rt.anchorMin = rt.anchorMax = rt.pivot = new Vector2(0, 1);
-            rt.anchoredPosition = new Vector2(Pad + i * 158f, -Pad);
-            rt.sizeDelta = new Vector2(150, 44);
+            rt.anchoredPosition = new Vector2(Pad + i * 128f, -Pad);
+            rt.sizeDelta = new Vector2(120, 44);
             var img = rt.gameObject.AddComponent<Image>();
             img.sprite = Round; img.type = Image.Type.Sliced;
             tabImgs[i] = img;
@@ -255,6 +259,38 @@ public class MenuUI : MonoBehaviour
             slotDrags[i].index = i;
             slotDrags[i].enabled = false;
         }
+
+        // ── 펫 보관함 ── (좌: 목록 / 우: 상세·동행 지정)
+        var pp = Page("Page_Pet");
+        pagePet = pp.gameObject;
+        petRows = new Button[12]; petRowTexts = new Text[12];
+        for (int i = 0; i < petRows.Length; i++)
+        {
+            int idx = i;
+            var row = RT("petrow" + i, pp);
+            row.anchorMin = row.anchorMax = row.pivot = new Vector2(0, 1);
+            row.anchoredPosition = new Vector2(8, -8 - i * 42f);
+            row.sizeDelta = new Vector2(330, 38);
+            var rimg = row.gameObject.AddComponent<Image>();
+            rimg.sprite = Round; rimg.type = Image.Type.Sliced; rimg.color = SlotBg;
+            petRows[i] = row.gameObject.AddComponent<Button>();
+            petRows[i].onClick.AddListener(() => { petSel = idx; });
+            petRowTexts[i] = MakeText("t", row, FontBody, TxtMain, false, TextAnchor.MiddleLeft);
+            Stretch(petRowTexts[i].rectTransform);
+            petRowTexts[i].rectTransform.offsetMin = new Vector2(14, 0);
+            petRowTexts[i].raycastTarget = false;
+            row.gameObject.SetActive(false);
+        }
+        petDetail = MakeText("PetDetail", pp, FontBody, TxtMain, false, TextAnchor.UpperLeft);
+        var pdrt = petDetail.rectTransform;
+        pdrt.anchorMin = pdrt.anchorMax = pdrt.pivot = new Vector2(0, 1);
+        pdrt.anchoredPosition = new Vector2(360, -8);
+        pdrt.sizeDelta = new Vector2(460, 300);
+        petUseBtn = MakeButton(pp, "데리고 다니기", new Vector2(200, 44), out petUseLabel);
+        var pubrt = (RectTransform)petUseBtn.transform;
+        pubrt.anchorMin = pubrt.anchorMax = pubrt.pivot = new Vector2(0, 1);
+        pubrt.anchoredPosition = new Vector2(360, -240);
+        petUseBtn.onClick.AddListener(UsePet);
 
         // ── 스탯 ──
         var st2 = Page("Page_Stat");
@@ -319,13 +355,64 @@ public class MenuUI : MonoBehaviour
     {
         curPage = idx;
         pageInv.SetActive(idx == 0);
-        pageStat.SetActive(idx == 1);
-        pageCraft.SetActive(idx == 2);
-        for (int i = 0; i < 3; i++)
+        pagePet.SetActive(idx == 1);
+        pageStat.SetActive(idx == 2);
+        pageCraft.SetActive(idx == 3);
+        for (int i = 0; i < 4; i++)
         {
             tabImgs[i].color = i == idx ? Accent : SlotBg;
             tabTexts[i].color = i == idx ? AccentText : TxtSub;
         }
+    }
+
+    // ── 펫 보관함 ──
+    void RefreshPets()
+    {
+        if (!pagePet.activeSelf) return;
+        var list = PetBox.All;
+        petSel = Mathf.Clamp(petSel, 0, Mathf.Max(0, list.Count - 1));
+        for (int i = 0; i < petRows.Length; i++)
+        {
+            bool has = i < list.Count;
+            petRows[i].gameObject.SetActive(has);
+            if (!has) continue;
+            var d = list[i];
+            petRowTexts[i].text = (d.active ? "▶ " : "   ") + $"{d.name}   Lv.{d.level}";
+            petRowTexts[i].color = i == petSel ? AccentText : TxtMain;
+            petRows[i].GetComponent<Image>().color = i == petSel ? Accent : SlotBg;
+        }
+        if (list.Count == 0)
+        {
+            petDetail.text = "아직 부화한 펫이 없다.\n둥지에서 알을 구해 부화기에서 부화시키자.";
+            petUseBtn.gameObject.SetActive(false);
+            return;
+        }
+        var s = list[petSel];
+        // 동행 중이면 실시간 값 반영
+        var live = BlueprintPickup.MyPet();
+        if (s.active && live != null) PetBox.Sync(live);
+        float need = 25f + 20f * (s.level - 1);
+        petDetail.text =
+            $"<b>{s.name}</b>   Lv.{s.level}\n" +
+            $"종류  {s.species}   ({s.tier})\n\n" +
+            $"경험치   {s.xp:F0} / {need:F0}\n" +
+            $"체력     {s.vit * 10f:F0}\n" +
+            $"힘       {s.str:F0}\n" +
+            $"민첩     {s.agi:F0}\n" +
+            $"지력     {s.intel:F0}\n\n" +
+            (s.active ? "<b>지금 데리고 다니는 중</b>" : "보관함에서 대기 중");
+        petUseBtn.gameObject.SetActive(!s.active);
+        petUseLabel.text = "데리고 다니기";
+    }
+
+    void UsePet()
+    {
+        var list = PetBox.All;
+        if (petSel < 0 || petSel >= list.Count) return;
+        var d = list[petSel];
+        if (d.active) return;
+        if (PetBox.SetActive(d, transform))
+            SquadHUD.Toast($"{d.name} 와(과) 함께!");
     }
 
     // ── 갱신 ──
