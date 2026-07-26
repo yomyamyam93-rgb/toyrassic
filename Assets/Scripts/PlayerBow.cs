@@ -30,16 +30,16 @@ public class PlayerBow : MonoBehaviour
     [Tooltip("부풀었다 돌아오는 구간 길이 (스윙 전체 대비 비율)")] public float impactPopSpan = 0.45f;
     [Tooltip("길이 방향은 덜 늘리기 (1=똑같이, 0.4=옆으로만 뚱뚱하게)")] public float impactPopLong = 0.4f;
 
-    [Header("도구 휴대 — 평소 들고 다닐 때 (스윙 중엔 무시)")]
+    [Header("활 휴대 자세 — 안 쏠 때 들고 다닐 때")]
+    [Tooltip("기울기 (X=앞뒤 Y=좌우 Z=옆으로 눕힘)")]
+    public Vector3 carryEuler = new Vector3(14f, 8f, 16f);
+    [Tooltip("★위치 (활 기준 — X=좌우 Y=위아래 Z=앞뒤)")]
+    public Vector3 bowCarryPos = Vector3.zero;
+    [Tooltip("걸을 때 살랑거리는 정도 (0=고정)")] public float carrySway = 0.5f;
+
+    [Header("도구 휴대 — 도끼·곡괭이·칼 (스윙 중엔 무시)")]
     [Tooltip("손 기준 위치 보정 (각도는 아래 '잡기' 의 gripEuler)")]
     public Vector3 toolCarryPos = Vector3.zero;
-    [Tooltip("활 휴대 위치 보정 — 왼손 기준")]
-    public Vector3 bowCarryPos = Vector3.zero;
-
-    [Header("활 휴대 자세 — 안 쏠 때 들고 다니는 각도")]
-    [Tooltip("기울기 (X=앞뒤 Y=좌우 Z=옆으로 눕힘). 예전 절차 활대는 Z=46 이었지만 실제 활 모델엔 과하다")]
-    public Vector3 carryEuler = new Vector3(14f, 8f, 16f);
-    [Tooltip("걸을 때 살랑거리는 정도 (0=고정)")] public float carrySway = 0.5f;
 
     [Header("활 모델 — 비우면 절차 생성 활대")]
     [Tooltip("3D 활 모델 (Resources/Tools/tool_bow 자동)")] public GameObject bowModel;
