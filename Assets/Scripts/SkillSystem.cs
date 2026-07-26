@@ -93,7 +93,7 @@ public class SkillSystem : MonoBehaviour
     (string icon, string label, bool usable) SkillInfo(int slot)
     {
         bool hasPet = move != null && move.Mount != null;
-        var gear = Hotbar.I != null ? Hotbar.I.Current : GearKind.Bow;
+        var gear = Hotbar.I != null ? Hotbar.I.Current : GearKind.None;
         switch (slot)
         {
             case 0:
@@ -177,7 +177,7 @@ public class SkillSystem : MonoBehaviour
     void TryQ()
     {
         if (!Ready(0)) return;
-        var gear = Hotbar.I != null ? Hotbar.I.Current : GearKind.Bow;
+        var gear = Hotbar.I != null ? Hotbar.I.Current : GearKind.None;
         var dir = AimDir();
         if (gear == GearKind.Bow)
         {   // 관통 강사 — 굵은 화살이 여럿을 꿰뚫음
@@ -191,7 +191,8 @@ public class SkillSystem : MonoBehaviour
         else if (gear == GearKind.Sling) StartCoroutine(QSlingBurst(dir));  // 새총 — 연발
         else if (gear == GearKind.Pick) StartCoroutine(QPickSlam(dir));    // 곡괭이 — 내리찍기
         else if (gear == GearKind.Sword) StartCoroutine(QSwordCombo(dir)); // 칼 — 연속 베기
-        else StartCoroutine(QAxeSpin(dir));                                // 도끼 — 기 모아 한 바퀴
+        else if (gear == GearKind.Axe) StartCoroutine(QAxeSpin(dir));      // 도끼 — 한 바퀴 긁기
+        else { SquadHUD.Toast("무기가 없다"); return; }                      // 맨손 — 스킬 없음
         Use(0, qCooldown);
     }
 
@@ -584,7 +585,7 @@ public class SkillSystem : MonoBehaviour
         var origin = transform.position;
         var mount = move != null ? move.Mount : null;
         var body = mount != null ? mount.transform.position : origin;
-        var gear = Hotbar.I != null ? Hotbar.I.Current : GearKind.Bow;
+        var gear = Hotbar.I != null ? Hotbar.I.Current : GearKind.None;
 
         float lineLen = 0f, lineWidth = 0f, circleR = 0f, circleIn = 0f;
         Vector3 circleAt = body;

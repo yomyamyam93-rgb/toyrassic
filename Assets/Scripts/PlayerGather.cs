@@ -30,8 +30,8 @@ public class PlayerGather : MonoBehaviour
     [Tooltip("스윙 시작 → 실제 타격까지 (모션 절정 동기)")] public float impactDelay = 0.24f;
 
     [Header("테스트")]
-    [Tooltip("시작할 때 도끼·곡괭이·칼 지급 (제작 없이 바로 확인용)")]
-    public bool startWithTools = true;
+    [Tooltip("시작할 때 도끼·곡괭이·칼 지급 (제작 없이 바로 확인용) — 실제 시작은 맨손")]
+    public bool startWithTools = false;
 
     [Header("타격 판정 — 전방 부채꼴 (긁고 지나가면 다 맞음)")]
     [Tooltip("스윙이 닿는 거리 (m)")] public float swingRange = 5.5f;
@@ -62,11 +62,17 @@ public class PlayerGather : MonoBehaviour
     float cd, swingT;
     Vector3 chopPos; bool chopIsRock;
     bool pendingImpact; float pendingAt; bool pendingIsPick, pendingIsSword; Vector3 pendingAim;
+    bool pendingBare;   // 맨손 스윙
+
+    [Header("맨손 (무기 없을 때)")]
+    [Tooltip("맨손 → 나무·바위 (아주 느리게라도 모을 수는 있게)")] public float bareVsNode = 2.5f;
+    [Tooltip("맨손 → 몹")] public float bareVsMob = 6f;
+    [Tooltip("맨손 휘두르는 간격")] public float bareCooldown = 0.85f;
 
     // 효율 표 — 든 도구에 따라 대상별 피해 (칼은 전투 특화, 채집은 형편없음)
-    float DmgMob => (pendingIsSword ? swordVsMob : pendingIsPick ? pickVsMob : axeVsMob) * skillDmgMul;
-    float DmgTree => (pendingIsSword ? swordVsNode : pendingIsPick ? pickVsTree : axeVsTree) * skillDmgMul;
-    float DmgRock => (pendingIsSword ? swordVsNode : pendingIsPick ? pickVsRock : axeVsRock) * skillDmgMul;
+    float DmgMob => (pendingBare ? bareVsMob : pendingIsSword ? swordVsMob : pendingIsPick ? pickVsMob : axeVsMob) * skillDmgMul;
+    float DmgTree => (pendingBare ? bareVsNode : pendingIsSword ? swordVsNode : pendingIsPick ? pickVsTree : axeVsTree) * skillDmgMul;
+    float DmgRock => (pendingBare ? bareVsNode : pendingIsSword ? swordVsNode : pendingIsPick ? pickVsRock : axeVsRock) * skillDmgMul;
     Camera cam;
 
     // 지형 트리 배열 캐시 — treeInstances 접근마다 전체 복사되는 것 방지 (프레임당 1회)
@@ -298,7 +304,9 @@ public class PlayerGather : MonoBehaviour
         if (terr == null) { terr = Terrain.activeTerrain; if (terr == null) return; }
         if (!force) { skillDmgMul = 1f; skillRangeMul = 1f; }   // 평타는 배율 없음
 
-        cd = isSword ? swordCooldown : isPick ? pickCooldown : axeCooldown;
+        // 맨손인지는 지금 든 장비로 판단 (무기 없이 치면 느리고 약하다)
+        pendingBare = !force && Hotbar.I != null && Hotbar.I.Current == GearKind.None;
+        cd = pendingBare ? bareCooldown : isSword ? swordCooldown : isPick ? pickCooldown : axeCooldown;
         swingT = 1f;
         chopIsRock = isPick;   // 트레일·도구 선택용
         chopPos = SwingOrigin + aimDir * 4f + Vector3.up * 1.8f;   // 탈 땐 펫 앞

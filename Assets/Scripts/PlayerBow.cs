@@ -665,8 +665,8 @@ public class PlayerBow : MonoBehaviour
         }
 
         // 커서 교체 — 활 조준 중엔 원형 타겟(중앙 핫스팟), 평소엔 화살표
-        bool wantAim = pressed && (Hotbar.I == null || Hotbar.I.Current == GearKind.Bow
-                                                    || Hotbar.I.Current == GearKind.Sling);
+        bool wantAim = pressed && Hotbar.I != null
+                    && (Hotbar.I.Current == GearKind.Bow || Hotbar.I.Current == GearKind.Sling);
         if (wantAim != cursorIsAim || !cursorSet)
         {
             cursorIsAim = wantAim; cursorSet = true;
@@ -687,7 +687,7 @@ public class PlayerBow : MonoBehaviour
         // ★장비 기반 행동 — 핫바(1~0)에서 든 것으로만 행동한다
         bool pressedNow = pressed && !prevPressed;
         prevPressed = pressed;
-        var gear = Hotbar.I != null ? Hotbar.I.Current : GearKind.Bow;
+        var gear = Hotbar.I != null ? Hotbar.I.Current : GearKind.None;
         if (gear == GearKind.Incubator)
         {   // 설치형: 클릭한 지점에 부화기 설치 (아이템 소모)
             if (pressedNow) TryPlaceIncubator(mp);
@@ -716,7 +716,11 @@ public class PlayerBow : MonoBehaviour
                 cd = shot != null ? fireCooldown * shot.shotCooldownMul : fireCooldown;
             }
         }
-        else { drawing = false; drawT = 0f; aimLen = 0f; }   // 맨손
+        else
+        {   // ★맨손 — 아주 느리고 약하지만 칠 수는 있다 (첫 나뭇가지를 못 모으면 시작을 못 한다)
+            if (pressed && gather != null) gather.TrySwing(mp, false, aimDir);
+            drawing = false; drawT = 0f; aimLen = 0f;
+        }
         if (released) { drawing = false; drawT = 0f; aimLen = 0f; }
     }
 
@@ -782,7 +786,7 @@ public class PlayerBow : MonoBehaviour
         float bobL = Mathf.Sin(Time.time * 3.2f) * 0.12f;            // 좌우 위상 다르게 — 살아있는 느낌
         float bobR = Mathf.Sin(Time.time * 3.2f + 1.7f) * 0.12f;
         // ★든 무기에 따라 손 위치를 옮긴다 (무기마다 자세가 달라야 자연스럽다)
-        var heldW = weapons.Find(x => x.id == GearId(Hotbar.I != null ? Hotbar.I.Current : GearKind.Bow));
+        var heldW = weapons.Find(x => x.id == GearId(Hotbar.I != null ? Hotbar.I.Current : GearKind.None));
         var hoL = heldW != null ? heldW.handOffsetL : Vector3.zero;
         var hoR = heldW != null ? heldW.handOffsetR : Vector3.zero;
         var idleL = transform.position - right * handSide * 0.92f + fwd * 0.5f + Vector3.up * (handUp + bobL)
@@ -853,7 +857,7 @@ public class PlayerBow : MonoBehaviour
         }
 
         // ── 장비 비주얼 — 든 것만 보인다 (weapons 리스트 기반) ──
-        var gearV = Hotbar.I != null ? Hotbar.I.Current : GearKind.Bow;
+        var gearV = Hotbar.I != null ? Hotbar.I.Current : GearKind.None;
         if (bowRoot != null) bowRoot.gameObject.SetActive(gearV == GearKind.Bow);
         if (bowInst != null)
         {   // 활 모델 정렬 — 인스펙터 값 실시간 반영 (도구와 같은 방식)

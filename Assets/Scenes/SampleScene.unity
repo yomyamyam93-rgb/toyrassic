@@ -2771,8 +2771,8 @@ MonoBehaviour:
     scale: 3.76
     handOffsetR: {x: 0, y: 0, z: 0}
     handOffsetL: {x: 0, y: 0, z: 0}
-    aimHandL: {x: -0.6, y: 0.3, z: 3.6}
-    aimHandR: {x: 0.5, y: 0.27, z: 1.2}
+    aimHandL: {x: -0.6, y: -1.5, z: 3.41}
+    aimHandR: {x: 0.5, y: 1.7, z: 1.69}
     carryPos: {x: 0, y: 0, z: 0}
     carryEuler: {x: 275.2749, y: 106.97716, z: 298.37494}
     carrySway: 4
@@ -2786,8 +2786,8 @@ MonoBehaviour:
     trailTime: 0.24
     shotOrigin: {x: -1.2, y: 3.17, z: 2.2}
     shotDamageMul: 0.45
-    shotRangeMul: 0.5
-    shotSpeedMul: 0.6
+    shotRangeMul: 1.035
+    shotSpeedMul: 0.356
     shotCooldownMul: 1.5
     tuned: 1
   weaponsMigrated: 1
@@ -2937,7 +2937,7 @@ MonoBehaviour:
   pickCooldown: 0.72
   swordCooldown: 0.38
   impactDelay: 0.24
-  startWithTools: 1
+  startWithTools: 0
   swingRange: 5.5
   swingAngle: 130
   maxNodesPerSwing: 2
@@ -2954,6 +2954,9 @@ MonoBehaviour:
   swordVsNode: 2
   arrowVsNode: 4
   arrowBlockRadius: 1.6
+  bareVsNode: 2.5
+  bareVsMob: 6
+  bareCooldown: 0.85
   mountedRangeBonus: 0.6
   mountedAngleMul: 1.25
 --- !u!114 &107336123
