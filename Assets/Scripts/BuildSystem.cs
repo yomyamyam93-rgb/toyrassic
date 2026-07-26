@@ -64,6 +64,7 @@ public class BuildSystem : MonoBehaviour
 
     int sel;
     float yaw;
+    bool demolishMode;   // X 로 켜는 철거 모드
     GameObject ghost;
     Renderer ghostRend;
     Camera cam;
@@ -111,9 +112,15 @@ public class BuildSystem : MonoBehaviour
             if (key.wasPressedThisFrame) sel = shown[i];
         }
 
+        // X = 철거 모드 토글 (우클릭은 카메라 회전 그대로 — 실수로 안 부서지게)
+        if (k.xKey.wasPressedThisFrame) demolishMode = !demolishMode;
+
         UpdateGhost(m.position.ReadValue(), out bool valid, out Vector3 pos);
-        if (m.leftButton.wasPressedThisFrame && valid) Place(pos);
-        if (m.rightButton.wasPressedThisFrame) Demolish(m.position.ReadValue());
+        if (m.leftButton.wasPressedThisFrame)
+        {
+            if (demolishMode) Demolish(m.position.ReadValue());
+            else if (valid) Place(pos);
+        }
 #endif
         RefreshHUD();
     }
@@ -126,7 +133,8 @@ public class BuildSystem : MonoBehaviour
         if (on)
         {
             if (ghost == null) MakeGhost();
-            SquadHUD.Toast("건축 모드 — 좌클릭 설치 · 우클릭 철거 · R 회전 · 휠/숫자 선택 · B 종료");
+            demolishMode = false;
+            SquadHUD.Toast("건축 모드 — 좌클릭 설치 · 휠 회전 · 숫자 선택 · X 철거 모드 · B 종료");
         }
     }
 
@@ -195,7 +203,7 @@ public class BuildSystem : MonoBehaviour
         }
         if (floorHere != null) pos.y = floorHere.TopY;
 
-        ghost.SetActive(true);
+        ghost.SetActive(!demolishMode);   // 철거 모드에선 고스트 숨김
         ghost.transform.position = pos + Vector3.up * p.size.y * 0.5f;
         ghost.transform.rotation = Quaternion.Euler(0f, yaw, 0f);
         ghost.transform.localScale = p.size;
@@ -415,7 +423,7 @@ public class BuildSystem : MonoBehaviour
         var hrt2 = hintText.rectTransform;
         hrt2.anchorMin = Vector2.zero; hrt2.anchorMax = Vector2.one;
         hrt2.offsetMin = hrt2.offsetMax = Vector2.zero;
-        hintText.text = "좌클릭 설치   ·   우클릭 철거(절반 회수)   ·   휠 회전(R 45°)   ·   숫자·카드 클릭 선택   ·   Tab 분류   ·   B·ESC 종료";
+        // 힌트는 모드에 따라 RefreshHUD 에서 갱신
 
         RebuildCards();
     }
@@ -470,6 +478,15 @@ public class BuildSystem : MonoBehaviour
                 : "";
             cardCost[i].text = $"🌲{wood}{stone}";
             cardCost[i].color = can ? txtMain : new Color(txtMain.r, txtMain.g, txtMain.b, 0.4f);
+        }
+
+        // 조작 힌트 — 모드에 따라
+        if (hintText != null)
+        {
+            string badHex2 = ColorUtility.ToHtmlStringRGB(St != null ? St.bad : Color.red);
+            hintText.text = demolishMode
+                ? $"<color=#{badHex2}><b>철거 모드</b></color>   좌클릭으로 구조물 철거(재료 절반 회수)   ·   X 로 건축 모드 복귀   ·   B·ESC 종료"
+                : "좌클릭 설치   ·   휠 회전(R 45°)   ·   숫자·카드 클릭 선택   ·   Tab 분류   ·   <b>X 철거 모드</b>   ·   B·ESC 종료";
         }
 
         // 선택 상세
