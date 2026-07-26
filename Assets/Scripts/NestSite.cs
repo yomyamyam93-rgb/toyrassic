@@ -152,6 +152,7 @@ public class NestSite : MonoBehaviour
         inst.transform.localPosition = Vector3.zero;
         inst.transform.localRotation = Quaternion.Euler(0f, Random.Range(0f, 360f), 0f);   // 방향은 제각각
         inst.transform.localScale = Vector3.one * nestModelScale;
+        ModelPlace.SitOnGround(inst.transform);   // 원점이 한가운데라 그냥 두면 반쯤 묻힌다
     }
 
     [Tooltip("둥지 모델 크기")] public float nestModelScale = 4f;

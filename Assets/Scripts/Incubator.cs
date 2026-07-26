@@ -96,6 +96,7 @@ public class Incubator : MonoBehaviour
             var inst = Instantiate(model, transform);
             inst.transform.localPosition = Vector3.zero;
             inst.transform.localScale = Vector3.one * nestModelScale;
+            ModelPlace.SitOnGround(inst.transform);   // 반쯤 묻히지 않게
             return;
         }
 

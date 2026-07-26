@@ -318,7 +318,8 @@ public class MenuUI : MonoBehaviour
             var b = MakeButton(st2, "＋ " + statNames[i % 3], new Vector2(120f, 36f), out statBtnLabel[i]);
             var brt = (RectTransform)b.transform;
             brt.anchorMin = brt.anchorMax = brt.pivot = new Vector2(0, 1);
-            brt.anchoredPosition = new Vector2(30f + (i % 3) * 132f, isPet ? -300f : -150f);
+            // 캐릭터 6줄 / 펫 5줄 아래에 놓는다 (글자와 안 겹치게)
+            brt.anchoredPosition = new Vector2(30f + (i % 3) * 132f, isPet ? -404f : -184f);
             b.onClick.AddListener(() =>
             {
                 if (idx < 3) PlayerLevel.Spend(idx);
@@ -476,7 +477,7 @@ public class MenuUI : MonoBehaviour
         sb.AppendLine(PlayerLevel.Points > 0
             ? $"  <b>남은 포인트 {PlayerLevel.Points}점</b>"
             : "  (남은 포인트 없음)");
-        sb.AppendLine();
+        sb.AppendLine();   // ↓ 여기 캐릭터 스탯 버튼이 놓인다 (2줄 비움)
         sb.AppendLine();
         sb.AppendLine();
 
@@ -491,6 +492,8 @@ public class MenuUI : MonoBehaviour
             sb.AppendLine(pet.points > 0
                 ? $"  <b>남은 포인트 {pet.points}점</b>"
                 : "  (남은 포인트 없음)");
+            sb.AppendLine();   // ↓ 펫 스탯 버튼 자리
+            sb.AppendLine();
         }
         else
         {
