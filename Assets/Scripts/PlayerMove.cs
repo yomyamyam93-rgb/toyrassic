@@ -78,6 +78,9 @@ public class PlayerMove : MonoBehaviour
 #endif
     }
 
+    /// 스킬 대시 중엔 이동 조작이 대시를 덮어쓰지 않게 (SkillSystem 이 설정)
+    public bool suppressMove;
+
     void Update()
     {
         // 내 펫이 있으면 자동 탑승 — 펫이 탈것
@@ -98,6 +101,7 @@ public class PlayerMove : MonoBehaviour
 
         float ix, iz;
         ReadInput(out ix, out iz);
+        if (suppressMove) { ix = 0f; iz = 0f; vel = Vector3.zero; }   // 대시 중엔 조작 무시
 
         var input = new Vector3(ix, 0f, iz);
         if (input.sqrMagnitude > 1f) input.Normalize();

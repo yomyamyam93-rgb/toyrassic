@@ -38,6 +38,7 @@ public class PetMotion : MonoBehaviour
 
     // ── 버텍스 벤드 (셰이더 구부리기) ──
     [HideInInspector] public float flashEmission;  // 피격 흰 번쩍 (PetUnit 이 넣음)
+    [HideInInspector] public float dangerGlow;     // 스킬 조준 대상 — 붉은 발광
     Renderer[] bendRends; MaterialPropertyBlock bmpb;
     float refLen = 1f, axisX, wobble, wobbleFreq = 2.5f;
 
@@ -132,7 +133,9 @@ public class PetMotion : MonoBehaviour
             bmpb.SetFloat("_AxisX", axisX);
             bmpb.SetFloat("_Wobble", wobble);
             bmpb.SetFloat("_WobbleFreq", wobbleFreq);
-            bmpb.SetColor("_EmissionColor", Color.white * flashEmission);        // 피격 번쩍도 여기서
+            // 피격 = 흰 번쩍 / 스킬 조준 = 붉은 발광
+            bmpb.SetColor("_EmissionColor",
+                Color.white * flashEmission + new Color(1.6f, 0.12f, 0.08f) * dangerGlow);
             foreach (var r in bendRends) if (r != null) r.SetPropertyBlock(bmpb);
         }
     }

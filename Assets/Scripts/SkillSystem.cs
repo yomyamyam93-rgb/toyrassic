@@ -123,13 +123,18 @@ public class SkillSystem : MonoBehaviour
 #if ENABLE_INPUT_SYSTEM
         var k = Keyboard.current;
         if (k == null) return;
-        // 누르고 있으면 영역 미리보기, 놓으면 발동 (짧게 톡 누르면 거의 즉시)
+        // 누르고 있으면 영역 미리보기, 놓으면 발동. 오래 누르면 자동 발동(답답함 방지)
+        int prevAim = aiming;
         aiming = k.qKey.isPressed ? 0 : k.fKey.isPressed ? 1 : k.eKey.isPressed ? 2 : k.rKey.isPressed ? 3 : -1;
+        if (aiming != prevAim) holdT = 0f;
+        if (aiming >= 0) holdT += Time.deltaTime;
         UpdatePreview();
-        if (k.qKey.wasReleasedThisFrame) TryQ();
-        if (k.eKey.wasReleasedThisFrame) TryE();                              // E = 이동기
-        if (k.rKey.wasReleasedThisFrame) TryR();
-        if (k.fKey.wasReleasedThisFrame) TryW();                              // 펫 스킬 = F (W는 이동키)
+
+        bool autoFire = aiming >= 0 && holdT > 0.6f;
+        if (k.qKey.wasReleasedThisFrame || (autoFire && aiming == 0)) { TryQ(); holdT = 0f; }
+        if (k.eKey.wasReleasedThisFrame || (autoFire && aiming == 2)) { TryE(); holdT = 0f; }   // E = 이동기
+        if (k.rKey.wasReleasedThisFrame || (autoFire && aiming == 3)) { TryR(); holdT = 0f; }
+        if (k.fKey.wasReleasedThisFrame || (autoFire && aiming == 1)) { TryW(); holdT = 0f; }   // 펫 스킬 = F
 #endif
     }
 
@@ -243,6 +248,7 @@ public class SkillSystem : MonoBehaviour
 
     // ── 조준 영역 미리보기 (활 에임 라인과 같은 결) ──
     int aiming = -1;
+    float holdT;
     LineRenderer previewLine;
     Transform previewCircle;
 
@@ -377,6 +383,7 @@ public class SkillSystem : MonoBehaviour
 
     void StartDash(Vector3 dir, float dist, float dur, bool damages, float dmg, float kb)
     {
+        if (move != null) move.suppressMove = true;   // 이동 조작이 대시를 덮어쓰지 않게
         dashDir = dir; dashDur = dur; dashT = dur;
         dashSpeed = dist / Mathf.Max(0.05f, dur);
         dashDamages = damages; dashDmg = dmg; dashKb = kb;
@@ -387,6 +394,7 @@ public class SkillSystem : MonoBehaviour
     {
         if (dashT <= 0f) return;
         dashT -= Time.deltaTime;
+        if (dashT <= 0f && move != null) move.suppressMove = false;   // 대시 끝 — 조작 복귀
         if (dashT <= 0f && hopLanding)
         {   // 도약 착지 — 쿵! 광역 충격
             hopLanding = false;

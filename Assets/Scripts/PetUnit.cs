@@ -113,50 +113,52 @@ public class PetUnit : MonoBehaviour
     float AggroRange => 13f + body * 1.2f;
     float TauntRange => 10f + body * 1.5f;           // 금속(탱커) 어그로
 
+    // ── 공격 토큰 (업계 표준: 동시에 덤비는 수 제한 — 다구리 방지) ──
+    static readonly HashSet<PetUnit> attackTokens = new HashSet<PetUnit>();
+    [Tooltip("한 번에 공격할 수 있는 야생 수")] public static int MaxSimultaneousAttackers = 2;
+    bool HasToken => attackTokens.Contains(this);
+    bool ClaimToken()
+    {
+        if (HasToken) return true;
+        attackTokens.RemoveWhere(u => u == null || !u.Alive);
+        if (attackTokens.Count >= MaxSimultaneousAttackers) return false;
+        attackTokens.Add(this);
+        return true;
+    }
+    void ReleaseToken() { attackTokens.Remove(this); }
+
+    // ── 공격 후 회복 경직 (강한 공격일수록 길게 = 반격 창구) ──
+    float recoverT;
+    float RecoverDur => mat != Mat.Basic ? 0.3f
+                      : pattern == Pattern.Bite ? 0.35f
+                      : pattern == Pattern.Charge ? 1.0f
+                      : pattern == Pattern.Slam ? 1.2f
+                      : 0.8f;
+    /// 장전 웅크림 깊이 — 큰 공격일수록 깊게 (모션 차등)
+    float ChargeDepth => pattern == Pattern.Bite ? 0.55f
+                       : pattern == Pattern.Charge ? 1.0f
+                       : pattern == Pattern.Slam ? 1.25f
+                       : 0.8f;
+
     public bool Alive => !dead;
 
     void OnEnable() { All.Add(this); }
-    void OnDisable() { All.Remove(this); }
+    void OnDisable() { All.Remove(this); ReleaseToken(); }
     void OnDestroy()
     {
         if (barRoot != null) Destroy(barRoot.gameObject);   // 바는 이제 몸의 자식이 아님
         if (tele != null) Destroy(tele.gameObject);
-        if (danger != null) Destroy(danger.gameObject);
     }
 
-    // ── 위험 마킹 — 스킬 조준 영역 안이면 발밑이 빨갛게 (매 프레임 호출로 유지) ──
-    Transform danger; float dangerT;
-    public void MarkDanger()
-    {
-        dangerT = 0.12f;
-        if (danger == null)
-        {
-            var q = GameObject.CreatePrimitive(PrimitiveType.Quad);
-            Destroy(q.GetComponent<Collider>());
-            q.name = "danger_" + name;
-            q.transform.SetParent(SceneBuckets.Fx);
-            q.transform.rotation = Quaternion.Euler(90f, 0f, 0f);
-            var mm = q.GetComponent<MeshRenderer>();
-            mm.material = new Material(Shader.Find("Toyrassic/GroundDecal"));
-            mm.material.mainTexture = FX.CircleTex();
-            mm.material.color = new Color(1f, 0.18f, 0.12f, 0.85f);
-            mm.sortingOrder = -8;
-            mm.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
-            danger = q.transform;
-        }
-        danger.gameObject.SetActive(true);
-    }
+    // ── 위험 마킹 — 스킬 조준 영역 안이면 ★몸 자체가 붉게 빛난다 (매 프레임 호출로 유지) ──
+    float dangerT;
+    public void MarkDanger() { dangerT = 0.12f; }
 
     void LateUpdate()
     {
-        if (danger == null) return;
-        dangerT -= Time.deltaTime;
-        if (dangerT <= 0f) { danger.gameObject.SetActive(false); return; }
-        var p = transform.position;
-        if (terrain != null) p.y = terrain.SampleHeight(p) + terrain.transform.position.y;
-        danger.position = p + Vector3.up * 0.3f;
-        float s = body * 0.9f * (1f + Mathf.Sin(Time.time * 9f) * 0.06f);   // 은은한 맥동
-        danger.localScale = new Vector3(s, s, 1f);
+        dangerT = Mathf.Max(0f, dangerT - Time.deltaTime);
+        if (motion != null)
+            motion.dangerGlow = dangerT > 0f ? 0.55f + Mathf.Sin(Time.time * 10f) * 0.18f : 0f;
     }
 
     void Start()
@@ -222,16 +224,19 @@ public class PetUnit : MonoBehaviour
 
     void Update()
     {
-        if (dead) { DeathAnim(); return; }
+        if (dead) { KillTele(); DeathAnim(); return; }
         if (isAvatar) { HitFlash(); Bar(); return; }             // 캐릭터: 피격·바만
         if (isStructure) { HitFlash(); Bar(); return; }          // 건물
-        if (mounted) { HitFlash(); Ground(false); Bar(); return; }   // 탑승 중: 이동은 주인이 조종
+        if (mounted) { KillTele(); HitFlash(); Ground(false); Bar(); return; }   // 탑승 중
+        // ★장전이 끊긴 상태(피격·에어본·다른 행동)에서 텔레그래프가 남지 않게
+        if (!winding && tele != null && dashT <= 0f) KillTele();
         atkCd -= Time.deltaTime;
         slowT = Mathf.Max(0f, slowT - Time.deltaTime);
 
-        // 에어본 — 붕 떴다 내려올 때까지 행동 불가
+        // 에어본 — 붕 떴다 내려올 때까지 행동 불가 (장전 취소)
         if (airT > 0f)
         {
+            if (winding) { winding = false; KillTele(); }
             airT -= Time.deltaTime;
             float k = 1f - Mathf.Clamp01(airT / airDur);
             airY = Mathf.Sin(k * Mathf.PI) * airHeight;
@@ -277,12 +282,23 @@ public class PetUnit : MonoBehaviour
         if (target == null || !target.Alive || Dist(target.transform.position) > AggroRange * 1.8f)
             target = FindTarget();
 
+        // 공격 후 회복 경직 — 그동안 못 움직이고 못 때린다 (반격 창구)
+        if (recoverT > 0f)
+        {
+            recoverT -= Time.deltaTime;
+            if (recoverT <= 0f) ReleaseToken();
+            curSpeed = Mathf.MoveTowards(curSpeed, 0f, MoveSpd * 3f * Time.deltaTime);
+            if (motion != null) motion.speed01 = 0f;
+            Separate(); Ground(false); LungeFx(); HitFlash(); Bar();
+            return;
+        }
+
         // 장전 (사전동작)
         if (winding)
         {
             windupT -= Time.deltaTime;
             float wp = 1f - Mathf.Clamp01(windupT / WindupDur);
-            if (motion != null) motion.charge = Mathf.Max(motion.charge, wp * wp);
+            if (motion != null) motion.charge = Mathf.Max(motion.charge, wp * wp * ChargeDepth);
             if (target == null || !target.Alive) { winding = false; KillTele(); }
             else
             {
@@ -380,6 +396,13 @@ public class PetUnit : MonoBehaviour
     {
         float d = Dist(target.transform.position);
         if (d > AtkRange) Step(target.transform.position - transform.position, MoveSpd);
+        else if (atkCd <= 0f && !ClaimToken())
+        {   // 공격 순번을 못 얻음 — 주변을 맴돌며 대기 (다구리 방지)
+            var toT = target.transform.position - transform.position; toT.y = 0;
+            var side = Vector3.Cross(Vector3.up, toT.normalized);
+            Step(side * (GetInstanceID() % 2 == 0 ? 1f : -1f) - toT.normalized * 0.25f, MoveSpd * 0.55f);
+            Face(toT);
+        }
         else if (atkCd <= 0f)
         {
             winding = true; windupT = WindupDur;
@@ -399,6 +422,7 @@ public class PetUnit : MonoBehaviour
     void ExecuteAttack()
     {
         atkCd = Mathf.Max(0.4f, AtkPeriod - WindupDur);
+        recoverT = RecoverDur;   // 공격 후 경직 — 이 동안이 반격 타이밍
         var dir = (target.transform.position - transform.position); dir.y = 0;
         Face(dir);
         if (motion != null) motion.Punch();
