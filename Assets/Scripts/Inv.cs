@@ -15,7 +15,16 @@ public static class Inv
 
     public static readonly Slot[] Slots = new Slot[Size];
 
-    static Inv() { Add("활", 1); }   // 기본 무기
+    // ★맨손으로 시작 — 활도 제작대에서 만들어야 한다.
+    //   여기서 기본 지급하면 '진짜 처음부터' 가 안 된다.
+
+    /// 새 게임 — 인벤토리를 비운다.
+    /// static 이라 도메인 리로드를 껐을 때 이전 세션 물건이 그대로 남는다.
+    /// 실행 시작에 한 번 지워야 매번 같은 상태로 시작한다.
+    public static void ResetAll()
+    {
+        for (int i = 0; i < Size; i++) { Slots[i].id = null; Slots[i].count = 0; }
+    }
 
     public static int Count(string id)
     {

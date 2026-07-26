@@ -109,6 +109,9 @@ public class PlayerGather : MonoBehaviour
     void Awake()
     {
         I = this;
+        // ★새 게임 초기화 — static 값들은 도메인 리로드를 껐을 때 이전 세션이 남는다
+        Inv.ResetAll();
+        PlayerLevel.Reset();
         if (startWithTools)
         {   // 테스트 지급 — 핫바 배치는 Hotbar.Start 가 보유 장비를 자동 복원
             if (Inv.Count("도끼") == 0) Inv.Add("도끼", 1);
