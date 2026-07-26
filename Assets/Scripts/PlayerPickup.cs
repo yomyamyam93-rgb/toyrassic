@@ -16,9 +16,9 @@ public class PlayerPickup : MonoBehaviour
         bool pressed = false;
 #if ENABLE_INPUT_SYSTEM
         var k = Keyboard.current;
-        if (k != null) pressed = k.eKey.isPressed;   // 꾹 누르면 연달아 줍기
+        if (k != null) pressed = k.fKey.isPressed;   // F = 상호작용(줍기), 꾹 누르면 연달아
 #else
-        pressed = Input.GetKey(KeyCode.E);
+        pressed = Input.GetKey(KeyCode.F);
 #endif
         if (!pressed || cd > 0f) return;
 

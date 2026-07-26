@@ -304,9 +304,12 @@ public class PetUnit : MonoBehaviour
             {
                 // 텔레그래프: 기 모을수록 원이 차오름 (터지기 직전 = 꽉 참)
                 if (tele != null)
-                {
+                {   // 차오르는 연출 — 모양(비율)은 유지하고 크기만 커진다
                     float wp2 = 1f - Mathf.Clamp01(windupT / WindupDur);
-                    tele.localScale = Vector3.one * teleRadius * (0.8f + 1.2f * wp2);
+                    float g = 0.75f + 0.35f * wp2;
+                    tele.localScale = new Vector3(teleW * g, teleH * g, 1f);
+                    if (pattern == Pattern.Sweep)   // 휩쓸기는 회전 예고
+                        tele.rotation = Quaternion.Euler(90f, teleYaw + wp2 * 220f, 0f);
                 }
                 // 기본 공격: 장전 시작 때 조준을 '고정' — 기 모으는 동안 방향 유지 (회피 여지)
                 Face((mat == Mat.Basic ? lockedAim : target.transform.position) - transform.position);
@@ -413,7 +416,7 @@ public class PetUnit : MonoBehaviour
                 var dd = lockedAim - transform.position; dd.y = 0;
                 float dl = Mathf.Min(dd.magnitude, AtkRange * 1.4f);
                 lockedDest = transform.position + (dd.sqrMagnitude > 1e-4f ? dd.normalized : transform.forward) * dl;
-                MakeTele(lockedDest, body * 0.95f);   // 빨간 범위 — 여길 피하면 안 맞는다
+                MakeTele(lockedDest, body * 0.95f);   // 공격 종류별 모양으로 표시
             }
         }
         else Face(target.transform.position - transform.position);
@@ -540,19 +543,45 @@ public class PetUnit : MonoBehaviour
         }
     }
 
-    // 빨간 범위 텔레그래프 — 기 모으는 동안 바닥에 표시, 보고 피하라고 있는 것
+    // 빨간 범위 텔레그래프 — 공격 종류마다 모양이 다르다 (보고 피하라고 있는 것)
+    float teleW, teleH; float teleYaw;
     void MakeTele(Vector3 center, float radius)
     {
         KillTele();
         teleRadius = radius;
+        // ★패턴별 모양: 물기=작은 원 / 돌진=경로 타원 / 내려찍기=큰 원 / 휩쓸기=자기 주변 대원
+        var dir = (lockedAim - transform.position); dir.y = 0f;
+        float dist = dir.magnitude;
+        if (dir.sqrMagnitude > 1e-4f) dir.Normalize(); else dir = transform.forward;
+        teleYaw = Quaternion.LookRotation(dir).eulerAngles.y;
+        switch (pattern)
+        {
+            case Pattern.Bite:      // 코앞을 문다 — 작은 원
+                teleW = teleH = body * 0.75f;
+                center = transform.position + dir * (body * 0.5f);
+                break;
+            case Pattern.Charge:    // 달려드는 경로 — 길쭉한 타원
+                teleW = body * 0.85f;
+                teleH = Mathf.Max(body * 1.2f, dist + body * 0.6f);
+                center = transform.position + dir * (teleH * 0.5f - body * 0.15f);
+                break;
+            case Pattern.Slam:      // 착지 지점 — 큰 원
+                teleW = teleH = body * 1.5f;
+                break;
+            default:                // 꼬리 휩쓸기 — 자기 주변 대원
+                teleW = teleH = body * 2.4f;
+                center = transform.position;
+                break;
+        }
+
         var q = GameObject.CreatePrimitive(PrimitiveType.Quad);
         Object.Destroy(q.GetComponent<Collider>());
         q.name = "tele_" + name;
         q.transform.SetParent(SceneBuckets.Fx);
         if (terrain != null) center.y = terrain.SampleHeight(center) + terrain.transform.position.y;
         q.transform.position = center + Vector3.up * 0.25f;
-        q.transform.rotation = Quaternion.Euler(90f, 0f, 0f);
-        q.transform.localScale = Vector3.one * radius * 0.8f;
+        q.transform.rotation = Quaternion.Euler(90f, teleYaw, 0f);
+        q.transform.localScale = new Vector3(teleW, teleH, 1f);
         var mm = q.GetComponent<MeshRenderer>();
         mm.material = new Material(Shader.Find("Toyrassic/GroundDecal"));   // 잔디가 못 가림 (ZTest Always)
         mm.material.mainTexture = FX.CircleTex();

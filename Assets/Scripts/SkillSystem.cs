@@ -15,16 +15,19 @@ public class SkillSystem : MonoBehaviour
     public float qSpinRadius = 8f;
     public float qSpinDamage = 40f;
 
-    [Header("W — 펫 스킬 (돌진 박치기)")]
-    public float wCooldown = 10f;
-    public float wDashDist = 16f;
-    public float wDashTime = 0.45f;
-    public float wDamage = 45f;
-    public float wKnockback = 4f;
+    [Header("F — 펫 공격기 (제자리 강공격, 펫 특성별)")]
+    public float wCooldown = 9f;
+    [Tooltip("물기형: 연속 물어뜯기 — 전방 좁게 3연타")] public float biteDamage = 22f, biteRange = 7f, biteAngle = 70f;
+    [Tooltip("돌진형: 뿔 올려치기 — 전방 부채꼴 + 띄우기")] public float goreDamage = 55f, goreRange = 9f, goreAngle = 110f;
+    [Tooltip("내려찍기형: 발구르기 — 주변 원형 광역")] public float stompDamage = 60f, stompRadius = 11f;
+    [Tooltip("휩쓸기형: 꼬리 회전 — 360° 광역 넉백")] public float tailDamage = 40f, tailRadius = 13f, tailKnock = 6f;
 
-    [Header("E — 이동기 (펫 특성별)")]
-    public float eCooldown = 5f;
-    [Tooltip("도보: 구르기 — 짧고 빠른 회피")] public float rollDist = 11f, rollTime = 0.26f;
+    [Header("Space — 구르기 (기본 회피, 항상 사용 가능)")]
+    public float rollCooldown = 3f;
+    public float rollDist = 11f, rollTime = 0.26f;
+
+    [Header("E — 펫 이동기 (펫 특성별)")]
+    public float eCooldown = 6f;
     [Tooltip("물기형(늑대·호랑이): 그림자 도약 — 길게 파고들기")] public float leapDist = 19f, leapTime = 0.3f;
     [Tooltip("돌진형(트리케라): 박치기 밀치기 — 적을 밀며 전진")] public float bashDist = 14f, bashTime = 0.4f;
     public float bashDamage = 18f, bashKnock = 6f;
@@ -39,8 +42,8 @@ public class SkillSystem : MonoBehaviour
     public float rDamage = 90f;
     public float rKnockback = 7f;
 
-    float[] cd = new float[4];
-    float[] cdMax = new float[4];
+    float[] cd = new float[5];      // 0=Q 1=F 2=E 3=R 4=Space(구르기)
+    float[] cdMax = new float[5];
     // 대시 진행
     float dashT, dashDur; Vector3 dashDir; float dashSpeed; bool dashDamages; float dashDmg, dashKb;
     bool hopLanding;   // 도약 착지 충격 예약
@@ -70,10 +73,18 @@ public class SkillSystem : MonoBehaviour
                     : (gear == GearKind.Axe || gear == GearKind.Pick)
                         ? ("스킬_회전베기", "회전 베기", true)
                         : ("스킬_관통사격", "무기 필요", false);
-            case 1: return ("스킬_돌진", hasPet ? "펫 돌진" : "펫 필요", hasPet);
+            case 1:
+                if (!hasPet) return ("스킬_물어뜯기", "펫 필요", false);
+                switch (CurPetAtk())
+                {   // 펫 공격기 — 제자리 강공격
+                    case PetAtk.Gore: return ("스킬_올려치기", "뿔 올려치기", true);
+                    case PetAtk.Stomp: return ("스킬_발구르기", "발구르기", true);
+                    case PetAtk.Tail: return ("스킬_꼬리치기", "꼬리 회전", true);
+                    default: return ("스킬_물어뜯기", "연속 물어뜯기", true);
+                }
             case 2:
                 switch (CurMoveSkill())
-                {   // 이동기는 탑승한 펫 특성에 따라 달라진다
+                {   // 유틸 — 도보는 구르기, 탑승 시 펫 특성별 이동기
                     case MoveSkill.Leap: return ("스킬_도약", "그림자 도약", true);
                     case MoveSkill.Bash: return ("스킬_박치기", "박치기", true);
                     case MoveSkill.Hop: return ("스킬_점프", "도약 착지", true);
@@ -115,7 +126,7 @@ public class SkillSystem : MonoBehaviour
 
     void Update()
     {
-        for (int i = 0; i < 4; i++) cd[i] = Mathf.Max(0f, cd[i] - Time.deltaTime);
+        for (int i = 0; i < cd.Length; i++) cd[i] = Mathf.Max(0f, cd[i] - Time.deltaTime);
         AdvanceDash();
         RefreshHUD();
 
@@ -123,18 +134,14 @@ public class SkillSystem : MonoBehaviour
 #if ENABLE_INPUT_SYSTEM
         var k = Keyboard.current;
         if (k == null) return;
-        // 누르고 있으면 영역 미리보기, 놓으면 발동. 오래 누르면 자동 발동(답답함 방지)
-        int prevAim = aiming;
-        aiming = k.qKey.isPressed ? 0 : k.fKey.isPressed ? 1 : k.eKey.isPressed ? 2 : k.rKey.isPressed ? 3 : -1;
-        if (aiming != prevAim) holdT = 0f;
-        if (aiming >= 0) holdT += Time.deltaTime;
+        // ★키 배치: Q 무기 / E 펫 / Space 유틸 / R 합동 (F 는 상호작용=줍기)
+        // 누르고 있는 동안 영역 미리보기 — 놓을 때 발동 (조준 시간 제한 없음)
+        aiming = k.qKey.isPressed ? 0 : k.eKey.isPressed ? 1 : k.spaceKey.isPressed ? 2 : k.rKey.isPressed ? 3 : -1;
         UpdatePreview();
-
-        bool autoFire = aiming >= 0 && holdT > 0.6f;
-        if (k.qKey.wasReleasedThisFrame || (autoFire && aiming == 0)) { TryQ(); holdT = 0f; }
-        if (k.eKey.wasReleasedThisFrame || (autoFire && aiming == 2)) { TryE(); holdT = 0f; }   // E = 이동기
-        if (k.rKey.wasReleasedThisFrame || (autoFire && aiming == 3)) { TryR(); holdT = 0f; }
-        if (k.fKey.wasReleasedThisFrame || (autoFire && aiming == 1)) { TryW(); holdT = 0f; }   // 펫 스킬 = F
+        if (k.qKey.wasReleasedThisFrame) TryQ();        // 무기 스킬
+        if (k.eKey.wasReleasedThisFrame) TryW();        // 펫 스킬 (제자리 강공격)
+        if (k.spaceKey.wasReleasedThisFrame) TryE();    // 유틸 (이동기·구르기)
+        if (k.rKey.wasReleasedThisFrame) TryR();        // 합동 스킬
 #endif
     }
 
@@ -167,25 +174,110 @@ public class SkillSystem : MonoBehaviour
         Use(0, qCooldown);
     }
 
-    // ── W: 펫 돌진 ──
+    /// 펫 공격기 종류 (제자리 강공격 — 이동 없음)
+    public enum PetAtk { Bite, Gore, Stomp, Tail }
+    PetAtk CurPetAtk()
+    {
+        var m = move != null ? move.Mount : null;
+        if (m == null) return PetAtk.Bite;
+        switch (m.pattern)
+        {
+            case PetUnit.Pattern.Bite: return PetAtk.Bite;
+            case PetUnit.Pattern.Charge: return PetAtk.Gore;
+            case PetUnit.Pattern.Slam: return PetAtk.Stomp;
+            default: return PetAtk.Tail;
+        }
+    }
+
+    // ── F: 펫 공격기 (제자리 — 이동기와 역할 분리) ──
     void TryW()
     {
         if (!Ready(1)) return;
         var mount = move != null ? move.Mount : null;
         if (mount == null) { SquadHUD.Toast("펫이 있어야 쓸 수 있다"); return; }
-        StartDash(AimDir(), wDashDist, wDashTime, true, wDamage, wKnockback);
-        FX.Burst(transform.position, new Color(1.2f, 1.1f, 0.9f, 0.9f), 20, 0.35f, 6f);
-        FollowCam.Shake(0.2f);
-        SquadHUD.Toast("돌진!");
+        var dir = AimDir();
+        var c = mount.transform.position;
+        switch (CurPetAtk())
+        {
+            case PetAtk.Bite:    // 연속 물어뜯기 — 전방 좁게 3연타
+                StartCoroutine(BiteCombo(dir));
+                break;
+            case PetAtk.Gore:    // 뿔 올려치기 — 전방 부채꼴 + 띄우기
+                FX.Sweep(c, Quaternion.LookRotation(dir).eulerAngles.y - goreAngle * 0.5f, goreAngle,
+                         goreRange, new Color(1.5f, 1.3f, 0.9f, 0.85f), 0.28f, 0.22f);
+                foreach (var u in InCone(c, dir, goreRange, goreAngle))
+                {
+                    u.TakeDamage(goreDamage, PetUnit.Avatar); u.OnHit();
+                    u.Airborne(0.5f, u.body * 0.18f);
+                    FX.Burst(u.transform.position + Vector3.up * u.body * 0.5f, Color.white, 14, u.body * 0.07f, u.body * 0.5f);
+                }
+                FollowCam.Shake(0.3f);
+                SquadHUD.Toast("뿔 올려치기!");
+                break;
+            case PetAtk.Stomp:   // 발구르기 — 주변 원형 광역
+                FX.Burst(c, new Color(0.9f, 0.82f, 0.65f, 0.95f), 40, 0.55f, 10f, 0.7f);
+                HitAround(c, stompRadius, stompDamage, 3f);
+                FollowCam.Shake(0.45f);
+                SquadHUD.Toast("발구르기!");
+                break;
+            default:             // 꼬리 회전 — 360° 광역 넉백
+                FX.Sweep(c, mount.transform.eulerAngles.y, 360f, tailRadius,
+                         new Color(1.4f, 1.3f, 1.0f, 0.8f), 0.4f, 0.3f);
+                HitAround(c, tailRadius, tailDamage, tailKnock);
+                FollowCam.Shake(0.35f);
+                SquadHUD.Toast("꼬리 회전!");
+                break;
+        }
         Use(1, wCooldown);
     }
 
-    /// 이동기 종류 — 탑승한 펫의 특성에 따라 달라진다
+    System.Collections.IEnumerator BiteCombo(Vector3 dir)
+    {
+        for (int i = 0; i < 3; i++)
+        {
+            var mount = move != null ? move.Mount : null;
+            var c = mount != null ? mount.transform.position : transform.position;
+            FX.Sweep(c, Quaternion.LookRotation(dir).eulerAngles.y - biteAngle * 0.5f, biteAngle,
+                     biteRange, new Color(1.5f, 1.2f, 1.0f, 0.8f), 0.15f, 0.12f);
+            foreach (var u in InCone(c, dir, biteRange, biteAngle))
+            {
+                u.TakeDamage(biteDamage, PetUnit.Avatar); u.OnHit();
+                FX.Burst(u.transform.position + Vector3.up * u.body * 0.4f, Color.white, 8, u.body * 0.05f, u.body * 0.4f);
+            }
+            FollowCam.Shake(0.12f);
+            yield return new WaitForSeconds(0.16f);
+        }
+    }
+
+    System.Collections.Generic.List<PetUnit> InCone(Vector3 c, Vector3 dir, float range, float angle)
+    {
+        var list = new System.Collections.Generic.List<PetUnit>();
+        foreach (var u in PetUnit.All)
+        {
+            if (u == null || !u.Alive || u.team != PetUnit.Team.Wild) continue;
+            var d = u.transform.position - c; d.y = 0f;
+            if (d.magnitude > range + u.body * 0.3f) continue;
+            if (Vector3.Angle(dir, d) > angle * 0.5f) continue;
+            list.Add(u);
+        }
+        return list;
+    }
+
+    // ── Space: 구르기 (기본 회피) ──
+    void TryRoll()
+    {
+        if (!Ready(4)) return;
+        StartDash(AimDir(), rollDist, rollTime, false, 0f, 0f);
+        FX.Burst(transform.position, new Color(0.9f, 0.95f, 1.1f, 0.8f), 12, 0.25f, 4f);
+        Use(4, rollCooldown);
+    }
+
+    /// 펫 이동기 종류 — 탑승한 펫의 특성에 따라 달라진다 (구르기는 Space 로 분리)
     public enum MoveSkill { Roll, Leap, Bash, Hop, Break }
     MoveSkill CurMoveSkill()
     {
         var m = move != null ? move.Mount : null;
-        if (m == null) return MoveSkill.Roll;               // 도보 = 구르기
+        if (m == null) return MoveSkill.Roll;               // 펫 없음 = 사용 불가 표시용
         switch (m.pattern)
         {
             case PetUnit.Pattern.Bite: return MoveSkill.Leap;    // 날렵 = 파고들기
@@ -199,8 +291,8 @@ public class SkillSystem : MonoBehaviour
     void TryE()
     {
         if (!Ready(2)) return;
-        var dir = AimDir();
         var mount = move != null ? move.Mount : null;
+        var dir = AimDir();
         switch (CurMoveSkill())
         {
             case MoveSkill.Leap:    // 그림자 도약 — 길고 빠르게 파고듦
@@ -308,7 +400,15 @@ public class SkillSystem : MonoBehaviour
                 if (gear == GearKind.Bow) { lineLen = bow != null ? bow.arrowRange : 70f; lineWidth = 1.4f; }
                 else { circleR = qSpinRadius; circleAt = body; }
                 break;
-            case 1: lineLen = wDashDist; lineWidth = 3.4f; break;
+            case 1:   // 펫 공격기 — 종류별 모양 (부채꼴은 원으로 근사)
+                switch (CurPetAtk())
+                {
+                    case PetAtk.Gore: lineLen = goreRange; lineWidth = 3.6f; break;
+                    case PetAtk.Stomp: circleR = stompRadius; circleAt = body; break;
+                    case PetAtk.Tail: circleR = tailRadius; circleAt = body; break;
+                    default: lineLen = biteRange; lineWidth = 2.2f; break;
+                }
+                break;
             case 2:
                 switch (CurMoveSkill())
                 {
@@ -451,7 +551,7 @@ public class SkillSystem : MonoBehaviour
         panel.anchoredPosition = new Vector2(0, bottom);
         panel.sizeDelta = new Vector2(4 * size + 3 * gap, size);
 
-        string[] keys = { "Q", "F", "E", "R" };   // 실제 입력 키 (펫 스킬은 F — W는 이동키)
+        string[] keys = { "Q", "E", "Space", "R" };   // 무기 / 펫 / 유틸 / 합동 (F=상호작용)
         icons = new Image[4]; fills = new Image[4]; labels = new Text[4];
         iconImgs = new Image[4]; lockTexts = new Text[4];
         var round = St != null ? St.Round() : null;
