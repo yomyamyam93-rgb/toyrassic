@@ -121,6 +121,42 @@ public class PetUnit : MonoBehaviour
     {
         if (barRoot != null) Destroy(barRoot.gameObject);   // 바는 이제 몸의 자식이 아님
         if (tele != null) Destroy(tele.gameObject);
+        if (danger != null) Destroy(danger.gameObject);
+    }
+
+    // ── 위험 마킹 — 스킬 조준 영역 안이면 발밑이 빨갛게 (매 프레임 호출로 유지) ──
+    Transform danger; float dangerT;
+    public void MarkDanger()
+    {
+        dangerT = 0.12f;
+        if (danger == null)
+        {
+            var q = GameObject.CreatePrimitive(PrimitiveType.Quad);
+            Destroy(q.GetComponent<Collider>());
+            q.name = "danger_" + name;
+            q.transform.SetParent(SceneBuckets.Fx);
+            q.transform.rotation = Quaternion.Euler(90f, 0f, 0f);
+            var mm = q.GetComponent<MeshRenderer>();
+            mm.material = new Material(Shader.Find("Toyrassic/GroundDecal"));
+            mm.material.mainTexture = FX.CircleTex();
+            mm.material.color = new Color(1f, 0.18f, 0.12f, 0.85f);
+            mm.sortingOrder = -8;
+            mm.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            danger = q.transform;
+        }
+        danger.gameObject.SetActive(true);
+    }
+
+    void LateUpdate()
+    {
+        if (danger == null) return;
+        dangerT -= Time.deltaTime;
+        if (dangerT <= 0f) { danger.gameObject.SetActive(false); return; }
+        var p = transform.position;
+        if (terrain != null) p.y = terrain.SampleHeight(p) + terrain.transform.position.y;
+        danger.position = p + Vector3.up * 0.3f;
+        float s = body * 0.9f * (1f + Mathf.Sin(Time.time * 9f) * 0.06f);   // 은은한 맥동
+        danger.localScale = new Vector3(s, s, 1f);
     }
 
     void Start()

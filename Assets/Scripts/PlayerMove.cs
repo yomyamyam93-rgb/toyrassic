@@ -13,6 +13,7 @@ public class PlayerMove : MonoBehaviour
     [Tooltip("단일 이속 — 달리기 개념 없음 (기존 달리기 17의 1.5배)")]
     public float moveSpeed = 25.5f;
     public float accel = 34f;   // 속도가 빨라진 만큼 가속도 같이 올림 (반응 유지)
+    [Tooltip("멈출 때 감속 — 클수록 즉시 선다 (밀려남 방지)")] public float brake = 110f;
 
     [Header("활 당김 이속 감소")]
     [Tooltip("최대로 당겼을 때 이속 배율 (0.35 = 35%까지 느려짐, 멈추진 않음)")]
@@ -121,7 +122,9 @@ public class PlayerMove : MonoBehaviour
         // ★방향은 즉시 전환, 속도 '크기'만 관성 — 꺾자마자 착착 도는 조작감
         bool hasInput = dir.sqrMagnitude > 1e-4f;
         float curSpd = vel.magnitude;
-        curSpd = Mathf.MoveTowards(curSpd, hasInput ? top : 0f, accel * Time.deltaTime);
+        // 가속은 부드럽게, 감속(정지)은 훨씬 빠르게 — 손 떼면 바로 선다
+        curSpd = Mathf.MoveTowards(curSpd, hasInput ? top : 0f,
+                                   (hasInput ? accel : brake) * Time.deltaTime);
         vel = hasInput ? dir.normalized * curSpd
                        : (curSpd > 0.01f && vel.sqrMagnitude > 1e-6f ? vel.normalized * curSpd : Vector3.zero);
         float sp = vel.magnitude;

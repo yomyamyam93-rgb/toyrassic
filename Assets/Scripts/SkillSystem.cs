@@ -22,10 +22,16 @@ public class SkillSystem : MonoBehaviour
     public float wDamage = 45f;
     public float wKnockback = 4f;
 
-    [Header("E — 유틸 (구르기·대시)")]
-    public float eCooldown = 4f;
-    public float eDashDist = 12f;
-    public float eDashTime = 0.28f;
+    [Header("E — 이동기 (펫 특성별)")]
+    public float eCooldown = 5f;
+    [Tooltip("도보: 구르기 — 짧고 빠른 회피")] public float rollDist = 11f, rollTime = 0.26f;
+    [Tooltip("물기형(늑대·호랑이): 그림자 도약 — 길게 파고들기")] public float leapDist = 19f, leapTime = 0.3f;
+    [Tooltip("돌진형(트리케라): 박치기 밀치기 — 적을 밀며 전진")] public float bashDist = 14f, bashTime = 0.4f;
+    public float bashDamage = 18f, bashKnock = 6f;
+    [Tooltip("내려찍기형(티라노): 도약 — 포물선으로 뛰어 착지 충격")] public float hopDist = 15f, hopTime = 0.5f;
+    public float hopDamage = 30f, hopRadius = 7f;
+    [Tooltip("휩쓸기형(브론토): 돌파 — 묵직하게 밀고 나감")] public float breakDist = 13f, breakTime = 0.5f;
+    public float breakDamage = 14f, breakKnock = 8f;
 
     [Header("R — 협동 기술 (탑승 시)")]
     public float rCooldown = 30f;
@@ -37,6 +43,7 @@ public class SkillSystem : MonoBehaviour
     float[] cdMax = new float[4];
     // 대시 진행
     float dashT, dashDur; Vector3 dashDir; float dashSpeed; bool dashDamages; float dashDmg, dashKb;
+    bool hopLanding;   // 도약 착지 충격 예약
     readonly System.Collections.Generic.HashSet<PetUnit> dashHit = new System.Collections.Generic.HashSet<PetUnit>();
 
     PlayerMove move;
@@ -64,7 +71,15 @@ public class SkillSystem : MonoBehaviour
                         ? ("스킬_회전베기", "회전 베기", true)
                         : ("스킬_관통사격", "무기 필요", false);
             case 1: return ("스킬_돌진", hasPet ? "펫 돌진" : "펫 필요", hasPet);
-            case 2: return ("스킬_구르기", "구르기", true);
+            case 2:
+                switch (CurMoveSkill())
+                {   // 이동기는 탑승한 펫 특성에 따라 달라진다
+                    case MoveSkill.Leap: return ("스킬_도약", "그림자 도약", true);
+                    case MoveSkill.Bash: return ("스킬_박치기", "박치기", true);
+                    case MoveSkill.Hop: return ("스킬_점프", "도약 착지", true);
+                    case MoveSkill.Break: return ("스킬_돌파", "돌파", true);
+                    default: return ("스킬_구르기", "구르기", true);
+                }
             default: return ("스킬_협동", hasPet ? "협동기" : "펫 필요", hasPet);
         }
     }
@@ -108,12 +123,13 @@ public class SkillSystem : MonoBehaviour
 #if ENABLE_INPUT_SYSTEM
         var k = Keyboard.current;
         if (k == null) return;
-        if (k.qKey.wasPressedThisFrame) TryQ();
-        if (k.wKey.wasPressedThisFrame && k.leftShiftKey.isPressed) TryW();   // W 는 이동키 — Shift+W
-        if (k.rKey.wasPressedThisFrame) TryR();
-        if (k.spaceKey.wasPressedThisFrame) TryE();                          // E 대신 Space (이동 중 편하게)
-        if (k.eKey.wasPressedThisFrame && k.leftShiftKey.isPressed) TryE();
-        if (k.fKey.wasPressedThisFrame) TryW();                              // F 로도 펫 스킬
+        // 누르고 있으면 영역 미리보기, 놓으면 발동 (짧게 톡 누르면 거의 즉시)
+        aiming = k.qKey.isPressed ? 0 : k.fKey.isPressed ? 1 : k.eKey.isPressed ? 2 : k.rKey.isPressed ? 3 : -1;
+        UpdatePreview();
+        if (k.qKey.wasReleasedThisFrame) TryQ();
+        if (k.eKey.wasReleasedThisFrame) TryE();                              // E = 이동기
+        if (k.rKey.wasReleasedThisFrame) TryR();
+        if (k.fKey.wasReleasedThisFrame) TryW();                              // 펫 스킬 = F (W는 이동키)
 #endif
     }
 
@@ -159,12 +175,54 @@ public class SkillSystem : MonoBehaviour
         Use(1, wCooldown);
     }
 
-    // ── E: 구르기 ──
+    /// 이동기 종류 — 탑승한 펫의 특성에 따라 달라진다
+    public enum MoveSkill { Roll, Leap, Bash, Hop, Break }
+    MoveSkill CurMoveSkill()
+    {
+        var m = move != null ? move.Mount : null;
+        if (m == null) return MoveSkill.Roll;               // 도보 = 구르기
+        switch (m.pattern)
+        {
+            case PetUnit.Pattern.Bite: return MoveSkill.Leap;    // 날렵 = 파고들기
+            case PetUnit.Pattern.Charge: return MoveSkill.Bash;  // 뿔 = 박치기 밀치기
+            case PetUnit.Pattern.Slam: return MoveSkill.Hop;     // 거구 = 도약 착지
+            default: return MoveSkill.Break;                     // 육중 = 돌파
+        }
+    }
+
+    // ── E: 이동기 (펫 특성별) ──
     void TryE()
     {
         if (!Ready(2)) return;
-        StartDash(AimDir(), eDashDist, eDashTime, false, 0f, 0f);
-        FX.Burst(transform.position, new Color(0.9f, 0.95f, 1.1f, 0.8f), 12, 0.25f, 4f);
+        var dir = AimDir();
+        var mount = move != null ? move.Mount : null;
+        switch (CurMoveSkill())
+        {
+            case MoveSkill.Leap:    // 그림자 도약 — 길고 빠르게 파고듦
+                StartDash(dir, leapDist, leapTime, false, 0f, 0f);
+                FX.Burst(transform.position, new Color(0.85f, 1.1f, 1.4f, 0.9f), 20, 0.3f, 7f, 0.35f);
+                break;
+            case MoveSkill.Bash:    // 박치기 밀치기 — 앞의 적을 밀며 전진
+                StartDash(dir, bashDist, bashTime, true, bashDamage, bashKnock);
+                FX.Burst(transform.position + dir * 2f, new Color(1.3f, 1.1f, 0.8f, 0.9f), 18, 0.35f, 6f);
+                FollowCam.Shake(0.15f);
+                break;
+            case MoveSkill.Hop:     // 도약 — 포물선으로 뛰어 착지 충격
+                StartDash(dir, hopDist, hopTime, false, 0f, 0f);
+                hopLanding = true;
+                if (mount != null) mount.Airborne(hopTime, mount.body * 0.55f);
+                FX.Burst(transform.position, new Color(0.9f, 0.85f, 0.7f, 0.9f), 16, 0.4f, 5f);
+                break;
+            case MoveSkill.Break:   // 돌파 — 묵직하게 밀고 나감
+                StartDash(dir, breakDist, breakTime, true, breakDamage, breakKnock);
+                FX.Burst(transform.position, new Color(1.1f, 1.0f, 0.85f, 0.9f), 22, 0.45f, 6f);
+                FollowCam.Shake(0.18f);
+                break;
+            default:                // 구르기 — 짧고 빠른 회피
+                StartDash(dir, rollDist, rollTime, false, 0f, 0f);
+                FX.Burst(transform.position, new Color(0.9f, 0.95f, 1.1f, 0.8f), 12, 0.25f, 4f);
+                break;
+        }
         Use(2, eCooldown);
     }
 
@@ -182,6 +240,125 @@ public class SkillSystem : MonoBehaviour
         SquadHUD.Toast($"협동기 — {mount.name} 와(과) 합동 공격!");
         Use(3, rCooldown);
     }
+
+    // ── 조준 영역 미리보기 (활 에임 라인과 같은 결) ──
+    int aiming = -1;
+    LineRenderer previewLine;
+    Transform previewCircle;
+
+    void MakePreview()
+    {
+        var lg = new GameObject("SkillAimLine");
+        lg.transform.SetParent(SceneBuckets.Fx);
+        previewLine = lg.AddComponent<LineRenderer>();
+        previewLine.useWorldSpace = true;
+        previewLine.positionCount = 2;
+        previewLine.material = new Material(Shader.Find("Sprites/Default"));
+        previewLine.startWidth = 1.6f; previewLine.endWidth = 1.0f;
+        previewLine.startColor = new Color(1f, 0.35f, 0.25f, 0.55f);
+        previewLine.endColor = new Color(1f, 0.35f, 0.25f, 0.25f);
+        previewLine.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+        previewLine.enabled = false;
+
+        var q = GameObject.CreatePrimitive(PrimitiveType.Quad);
+        Destroy(q.GetComponent<Collider>());
+        q.name = "SkillAimCircle";
+        q.transform.SetParent(SceneBuckets.Fx);
+        q.transform.rotation = Quaternion.Euler(90f, 0f, 0f);
+        var mr = q.GetComponent<MeshRenderer>();
+        mr.material = new Material(Shader.Find("Toyrassic/GroundDecal"));
+        mr.material.mainTexture = FX.CircleTex();
+        mr.material.color = new Color(1f, 0.3f, 0.2f, 0.5f);
+        mr.sortingOrder = -9;
+        mr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+        previewCircle = q.transform;
+        previewCircle.gameObject.SetActive(false);
+    }
+
+    /// 조준 중인 스킬의 영역 표시 + 그 안의 대상 빨갛게 마킹
+    void UpdatePreview()
+    {
+        if (previewLine == null) MakePreview();
+        bool on = aiming >= 0 && Ready(aiming) && SkillInfo(aiming).usable;
+        if (!on)
+        {
+            previewLine.enabled = false;
+            previewCircle.gameObject.SetActive(false);
+            return;
+        }
+
+        var dir = AimDir();
+        var origin = transform.position;
+        var mount = move != null ? move.Mount : null;
+        var body = mount != null ? mount.transform.position : origin;
+        var gear = Hotbar.I != null ? Hotbar.I.Current : GearKind.Bow;
+
+        float lineLen = 0f, lineWidth = 0f, circleR = 0f;
+        Vector3 circleAt = body;
+
+        switch (aiming)
+        {
+            case 0:
+                if (gear == GearKind.Bow) { lineLen = bow != null ? bow.arrowRange : 70f; lineWidth = 1.4f; }
+                else { circleR = qSpinRadius; circleAt = body; }
+                break;
+            case 1: lineLen = wDashDist; lineWidth = 3.4f; break;
+            case 2:
+                switch (CurMoveSkill())
+                {
+                    case MoveSkill.Bash: lineLen = bashDist; lineWidth = 3.0f; break;
+                    case MoveSkill.Break: lineLen = breakDist; lineWidth = 3.4f; break;
+                    case MoveSkill.Hop: lineLen = hopDist; lineWidth = 1.2f; circleR = hopRadius; circleAt = body + dir * hopDist; break;
+                    default: lineLen = CurMoveSkill() == MoveSkill.Leap ? leapDist : rollDist; lineWidth = 1.0f; break;
+                }
+                break;
+            default: circleR = rRadius; circleAt = body; break;
+        }
+
+        // 라인 (경로형)
+        previewLine.enabled = lineLen > 0f;
+        if (lineLen > 0f)
+        {
+            var from = body + Vector3.up * 0.6f;
+            previewLine.startWidth = lineWidth; previewLine.endWidth = lineWidth * 0.7f;
+            previewLine.SetPosition(0, from);
+            previewLine.SetPosition(1, from + dir * lineLen);
+        }
+        // 원 (광역형)
+        previewCircle.gameObject.SetActive(circleR > 0f);
+        if (circleR > 0f)
+        {
+            var c = circleAt;
+            if (terrainRef == null) terrainRef = Terrain.activeTerrain;
+            if (terrainRef != null) c.y = terrainRef.SampleHeight(c) + terrainRef.transform.position.y;
+            previewCircle.position = c + Vector3.up * 0.25f;
+            previewCircle.localScale = new Vector3(circleR * 2f, circleR * 2f, 1f);
+        }
+
+        // 영역 안 대상 빨갛게
+        foreach (var u in PetUnit.All)
+        {
+            if (u == null || !u.Alive || u.team != PetUnit.Team.Wild) continue;
+            var d = u.transform.position - body; d.y = 0f;
+            bool hit = false;
+            if (circleR > 0f)
+            {
+                var dc = u.transform.position - circleAt; dc.y = 0f;
+                hit = dc.magnitude <= circleR + u.body * 0.3f;
+            }
+            if (!hit && lineLen > 0f)
+            {
+                float along = Vector3.Dot(d, dir);
+                if (along >= -1f && along <= lineLen)
+                {
+                    float side = Vector3.Cross(dir, d).magnitude;
+                    hit = side <= lineWidth * 0.9f + u.body * 0.35f;
+                }
+            }
+            if (hit) u.MarkDanger();
+        }
+    }
+    Terrain terrainRef;
 
     void HitAround(Vector3 center, float radius, float dmg, float knock)
     {
@@ -210,6 +387,15 @@ public class SkillSystem : MonoBehaviour
     {
         if (dashT <= 0f) return;
         dashT -= Time.deltaTime;
+        if (dashT <= 0f && hopLanding)
+        {   // 도약 착지 — 쿵! 광역 충격
+            hopLanding = false;
+            var m2 = move != null ? move.Mount : null;
+            var c = m2 != null ? m2.transform.position : transform.position;
+            FX.Burst(c, new Color(0.85f, 0.78f, 0.62f, 0.95f), 30, 0.5f, 8f, 0.6f);
+            HitAround(c, hopRadius, hopDamage, 3f);
+            FollowCam.Shake(0.3f);
+        }
         float k = 1f - Mathf.Clamp01(dashT / Mathf.Max(0.05f, dashDur));
         float speed = dashSpeed * Mathf.Lerp(1.5f, 0.4f, k);   // 초반 빠르게 → 감속
         var mount = move != null ? move.Mount : null;
@@ -257,7 +443,7 @@ public class SkillSystem : MonoBehaviour
         panel.anchoredPosition = new Vector2(0, bottom);
         panel.sizeDelta = new Vector2(4 * size + 3 * gap, size);
 
-        string[] keys = { "Q", "F", "Space", "R" };   // 실제 입력 키
+        string[] keys = { "Q", "F", "E", "R" };   // 실제 입력 키 (펫 스킬은 F — W는 이동키)
         icons = new Image[4]; fills = new Image[4]; labels = new Text[4];
         iconImgs = new Image[4]; lockTexts = new Text[4];
         var round = St != null ? St.Round() : null;
