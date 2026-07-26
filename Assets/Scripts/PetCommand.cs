@@ -71,7 +71,10 @@ public class PetCommand : MonoBehaviour
     }
 
     // ── E: 소집 ─────────────────────────────────────────────
-    public void Gather()
+    /// ★마우스가 가리키는 지점을 중심으로 긁어 담는다.
+    /// 내 주변만 부르면 멀리 흩어진 애들을 못 챙긴다 — 조준해서 골라 담아야
+    /// "쓸어 담는" 맛이 난다.
+    public void Gather(Vector3 spot)
     {
         int added = 0, already = Followers.Count;
         foreach (var u in PetUnit.All)
@@ -80,7 +83,7 @@ public class PetCommand : MonoBehaviour
             if (u == null || !u.Alive || u.team != PetUnit.Team.Player) continue;
             if (u.isAvatar || u.isStructure || u.mounted) continue;
             if (Followers.Contains(u)) continue;
-            var d = u.transform.position - transform.position; d.y = 0f;
+            var d = u.transform.position - spot; d.y = 0f;
             if (d.magnitude > callRadius) continue;
             Followers.Add(u);
             u.following = true;
@@ -89,12 +92,13 @@ public class PetCommand : MonoBehaviour
             FX.Burst(u.transform.position + Vector3.up * u.body * 0.5f,
                      new Color(0.6f, 1.4f, 1.9f, 0.9f), 10, u.body * 0.05f, u.body * 0.4f);
         }
+        FX.Sweep(spot, 0f, 360f, callRadius, new Color(0.5f, 1.3f, 1.9f, 0.5f), 0.35f, 0.25f);
         if (added > 0)
             SquadHUD.Toast($"소집!  {Followers.Count}/{MaxFollowers}마리가 따라온다" + (Mount != null ? "  (+탑승 1)" : ""));
         else if (already >= MaxFollowers)
             SquadHUD.Toast($"더는 못 데려간다 (탄 펫 포함 최대 {maxParty}마리)");
         else
-            SquadHUD.Toast("근처에 부를 펫이 없다");
+            SquadHUD.Toast("그 범위에 부를 펫이 없다");
     }
 
     // ── R: 돌격 명령 ────────────────────────────────────────

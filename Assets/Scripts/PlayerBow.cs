@@ -135,8 +135,10 @@ public class PlayerBow : MonoBehaviour
 
         [Tooltip("잔상 색")] public Color trailColor = new Color(1.8f, 1.7f, 1.2f);
         [Range(0f, 1f)] public float trailAlpha = 0.95f;
-        public float trailWidth = 0.9f;
-        [Tooltip("잔상이 남는 시간")] public float trailTime = 0.24f;
+        public float trailWidth = 2.4f;
+        [Tooltip("잔상이 남는 시간")] public float trailTime = 0.36f;
+        [Tooltip("꼬리 끝 굵기 비율 (0에 가까우면 뾰족하게 사라짐)")]
+        [Range(0.02f, 0.6f)] public float trailTaper = 0.25f;
 
         // 쏘는 무기 전용
         [Tooltip("투사체가 나가는 지점 (조준 방향 기준 — x=옆 y=높이 z=앞)")]
@@ -151,6 +153,9 @@ public class PlayerBow : MonoBehaviour
     [HideInInspector] public System.Collections.Generic.List<WeaponDef> weapons
         = new System.Collections.Generic.List<WeaponDef>();
     [HideInInspector] public bool weaponsMigrated;   // 구버전 값 이전 1회 완료 플래그
+    // ★씬에 저장된 옛 잔상값(얇고 짧음)을 한 번만 키워준다. 스크립트 기본값만 올리면
+    //   씬 직렬화값이 덮어써서 아무 변화가 없다 — 이 프로젝트에서 여러 번 겪은 함정.
+    [HideInInspector] public bool trailBoosted;
 
     // ── 무기별 설정 (커스텀 인스펙터의 '무기 선택 탭'에서 편집) ──
     public enum SwingStyle { Vertical, Horizontal }
@@ -288,6 +293,16 @@ public class PlayerBow : MonoBehaviour
             {
                 w.shotDamageMul = slingDamageMul; w.shotRangeMul = slingRangeMul;
                 w.shotSpeedMul = slingSpeedMul; w.shotCooldownMul = slingCooldownMul;
+            }
+        }
+        if (!trailBoosted)
+        {
+            trailBoosted = true;
+            foreach (var w in weapons)
+            {
+                w.trailWidth = Mathf.Max(w.trailWidth, 2.4f);
+                w.trailTime = Mathf.Max(w.trailTime, 0.36f);
+                if (w.trailTaper < 0.02f) w.trailTaper = 0.25f;
             }
         }
         // 칼 — 모션은 도끼와 같다 (정렬값도 도끼에서 물려받고, 이후 무기 탭에서 따로 조절)
@@ -970,7 +985,8 @@ public class PlayerBow : MonoBehaviour
                     {
                         // 잔상 세부설정 실시간 반영
                         trail.time = setup.trailTime;
-                        trail.startWidth = setup.trailWidth; trail.endWidth = setup.trailWidth * 0.06f;
+                        trail.startWidth = setup.trailWidth;
+                        trail.endWidth = setup.trailWidth * setup.trailTaper;
                         trail.startColor = new Color(setup.trailColor.r, setup.trailColor.g, setup.trailColor.b, setup.trailAlpha);
                         trail.endColor = new Color(setup.trailColor.r, setup.trailColor.g, setup.trailColor.b, 0f);
                         if (gather.SwingT > prevSwingT) trail.Clear();

@@ -44,15 +44,43 @@ public static class PetBox
         return d;
     }
 
-    /// 동행 교체 — 지정한 펫을 소환하고 기존 동행은 보관함에 남긴다
+    /// ★여러 마리를 동시에 꺼낼 수 있다 — 예전엔 꺼낼 때마다 기존 펫을 지워서
+    /// 항상 한 마리뿐이었다. 부대를 데리고 다니려면 여럿이 나와 있어야 한다.
+    /// 상한은 PetCommand.maxParty 가 정한다.
     public static bool SetActive(PetData d, Transform player)
     {
         if (d == null || player == null) return false;
-        var cur = BlueprintPickup.MyPet();
-        if (cur != null) { Sync(cur); Object.Destroy(cur.gameObject); }
-        foreach (var p in All) p.active = false;
+        if (d.active) return false;                 // 이미 나와 있다
+
+        int outNow = 0;
+        foreach (var u in PetUnit.All)
+            if (u != null && u.Alive && u.team == PetUnit.Team.Player
+                && !u.isAvatar && !u.isStructure) outNow++;
+        int cap = PetCommand.I != null ? PetCommand.I.maxParty : 4;
+        if (outNow >= cap)
+        {
+            SquadHUD.Toast($"이미 {outNow}마리가 나와 있다 (최대 {cap}) — 보관함으로 돌려보내야 한다");
+            return false;
+        }
         d.active = true;
         return Summon(d, player) != null;
+    }
+
+    /// 보관함으로 돌려보내기
+    public static void Recall(PetData d)
+    {
+        if (d == null || !d.active) return;
+        foreach (var u in PetUnit.All)
+        {
+            if (u == null || u.isAvatar || u.isStructure) continue;
+            if (u.team != PetUnit.Team.Player || u.name != d.name) continue;
+            Sync(u);
+            if (Hotbar.MountPet == u && Hotbar.I != null) Hotbar.I.SetMount(null);
+            PetCommand.Followers.Remove(u);
+            Object.Destroy(u.gameObject);
+            break;
+        }
+        d.active = false;
     }
 
     /// 데이터 → 실제 펫 소환

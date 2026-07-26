@@ -91,8 +91,9 @@ public partial class PlayerBowEditor
             EditorGUILayout.LabelField("잔상", EditorStyles.miniBoldLabel);
             w.trailColor = EditorGUILayout.ColorField("색", w.trailColor);
             w.trailAlpha = EditorGUILayout.Slider("진하기", w.trailAlpha, 0f, 1f);
-            w.trailWidth = EditorGUILayout.Slider("굵기", w.trailWidth, 0f, 3f);
+            w.trailWidth = EditorGUILayout.Slider("굵기", w.trailWidth, 0f, 6f);
             w.trailTime = EditorGUILayout.Slider("남는 시간", w.trailTime, 0f, 1f);
+            w.trailTaper = EditorGUILayout.Slider("꼬리 뾰족함", w.trailTaper, 0.02f, 0.6f);
         }
 
         // 이 무기를 씬에서 바로 잡기

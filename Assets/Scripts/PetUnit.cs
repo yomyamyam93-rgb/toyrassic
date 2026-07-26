@@ -1121,6 +1121,14 @@ public class PetUnit : MonoBehaviour
     void Bar()
     {
         if (barRoot == null || Camera.main == null) return;
+        // ★탑승 중엔 바가 하나여야 한다 — 실제로 맞는 건 펫이니 내 바는 숨긴다
+        //   (안 그러면 캐릭터 바와 펫 바가 겹쳐서 둘로 보인다)
+        if (isAvatar && PetCommand.Mount != null && PetCommand.Mount.Alive)
+        {
+            if (barRoot.gameObject.activeSelf) barRoot.gameObject.SetActive(false);
+            return;
+        }
+        if (isAvatar && !barRoot.gameObject.activeSelf) barRoot.gameObject.SetActive(true);
         if (isStructure)
         {   // 구조물은 평소 숨김 — 피격·변화 때만 잠깐
             barShowT -= Time.deltaTime;

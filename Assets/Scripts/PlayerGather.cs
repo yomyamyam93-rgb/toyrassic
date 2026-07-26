@@ -172,13 +172,29 @@ public class PlayerGather : MonoBehaviour
     }
     float SwingSpread => swingAngle * (Mount != null ? mountedAngleMul : 1f);
 
+    [Header("판정 정밀도")]
+    [Tooltip("이보다 높이 차이가 나면 안 맞는다 (절벽 위/아래 헛맞음 방지, m)")]
+    public float swingHeightTolerance = 4f;
+    [Tooltip("휘두른 자리를 잠깐 보여준다 — 실제 판정 그대로")]
+    public bool showSwingArc = true;
+
     /// 부채꼴 판정: wp 가 스윙 범위 안인가
+    /// ★거리는 '표면'까지로 잰다 — 덩치 큰 놈은 중심이 멀어도 몸이 닿으면 맞아야 한다.
+    ///   각도도 덩치만큼 넓혀준다 (멀수록 같은 몸집이 좁은 각을 차지하므로).
     bool InArc(Vector3 wp, float extra)
     {
-        var d = wp - SwingOrigin; d.y = 0;
-        if (d.magnitude > SwingReach + extra) return false;
-        var a = pendingAim; a.y = 0;
-        return Vector3.Angle(a, d) <= SwingSpread * 0.5f;
+        var d = wp - SwingOrigin;
+        // 높이 차가 크면 제외 — 예전엔 y 를 아예 버려서 절벽 위 아래가 서로 맞았다
+        if (Mathf.Abs(d.y) > swingHeightTolerance + extra) return false;
+        d.y = 0f;
+        float dist = d.magnitude;
+        if (dist > SwingReach + extra) return false;
+        if (dist < 0.05f) return true;                  // 발밑은 무조건
+        var a = pendingAim; a.y = 0f;
+        if (a.sqrMagnitude < 1e-4f) return true;
+        // 덩치가 차지하는 각도만큼 여유 (asin) — 원기둥 대 부채꼴의 정확한 판정
+        float widen = extra > 0.01f ? Mathf.Asin(Mathf.Clamp01(extra / dist)) * Mathf.Rad2Deg : 0f;
+        return Vector3.Angle(a, d) <= SwingSpread * 0.5f + widen;
     }
 
     /// 임팩트 — 부채꼴 안의 몹·노드 전부 타격 (긁고 지나가면 다 맞음)
@@ -187,12 +203,25 @@ public class PlayerGather : MonoBehaviour
         bool isPick = pendingIsPick;
         bool hitAny = false;
 
+        // ★판정 방향은 '지금 보는 쪽' — 무기는 캐릭터에 붙어 도니까, 휘두르는 사이
+        //   마우스로 돌면 실제 궤적도 같이 돈다. 누를 때 방향으로 고정하면 눈과 판정이 어긋난다.
+        var face = transform.forward; face.y = 0f;
+        if (face.sqrMagnitude > 1e-4f) pendingAim = face.normalized;
+
+        if (showSwingArc)
+        {
+            float yaw = Quaternion.LookRotation(pendingAim, Vector3.up).eulerAngles.y;
+            FX.Sweep(SwingOrigin, yaw - SwingSpread * 0.5f, SwingSpread, SwingReach,
+                     new Color(1.9f, 1.75f, 1.2f, 0.5f), 0.1f, 0.16f);
+        }
+
         // ① 야생 몹 — 전부
         float mobDmg = DmgMob;
         foreach (var u in PetUnit.All)
         {
             if (u == null || !u.Alive || u.team != PetUnit.Team.Wild) continue;
-            if (!InArc(u.transform.position, u.body * 0.35f)) continue;
+            // 몸 반지름 그대로 — 보이는 덩치와 맞는 자리에서 맞는다
+            if (!InArc(u.transform.position, u.body * 0.5f)) continue;
             u.TakeDamage(mobDmg, PetUnit.Avatar);
             u.OnHit();
             FX.Burst(u.transform.position + Vector3.up * u.body * 0.4f,
@@ -205,7 +234,7 @@ public class PlayerGather : MonoBehaviour
         foreach (var u in PetUnit.All)
         {
             if (u == null || !u.Alive || !u.isStructure) continue;
-            if (!InArc(u.transform.position, u.body * 0.4f)) continue;
+            if (!InArc(u.transform.position, u.body * 0.5f)) continue;
             u.TakeDamage(structDmg, PetUnit.Avatar);
             u.OnHit();
             FX.Burst(u.transform.position + Vector3.up * 1.5f,

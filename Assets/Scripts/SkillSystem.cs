@@ -104,17 +104,16 @@ public class SkillSystem : MonoBehaviour
                      : gear == GearKind.Sword ? ("스킬_연속베기", "연속 베기", true)
                      : gear == GearKind.Axe ? ("스킬_회전베기", "회전 베기", true)
                      : ("스킬_관통사격", "무기 필요", false);
+            // ★E·R 은 공격이 아니라 부대 지휘다
             case 1:
-                if (!hasPet) return ("스킬_물어뜯기", "펫 필요", false);
-                switch (CurPetAtk())
-                {   // 펫 공격기 — 제자리 강공격
-                    case PetAtk.Gore: return ("스킬_올려치기", "뿔 올려치기", true);
-                    case PetAtk.Stomp: return ("스킬_발구르기", "발구르기", true);
-                    case PetAtk.Tail: return ("스킬_꼬리치기", "꼬리 회전", true);
-                    default: return ("스킬_물어뜯기", "연속 물어뜯기", true);
+                {
+                    int n = PetCommand.Followers.Count;
+                    return ("스킬_소집", n > 0 ? $"소집 {n}마리" : "소집 (지점)", true);
                 }
-            case 2: return ("스킬_구르기", "구르기", true);   // 지금은 전부 공통
-            default: return ("스킬_협동", hasPet ? "협동기" : "펫 필요", hasPet);
+            case 2: return ("스킬_구르기", "구르기", true);
+            default:
+                return ("스킬_돌격", PetCommand.Followers.Count > 0 ? "돌격 명령" : "데릴 펫 없음",
+                        PetCommand.Followers.Count > 0);
         }
     }
 
@@ -182,12 +181,13 @@ public class SkillSystem : MonoBehaviour
         if (k == null) return;
         // ★키 배치 — 공격은 평타·Q 뿐, E·R 은 부대 지휘
         //   Q 무기 스킬 / E 소집 / R 돌격 명령 / Space 구르기 / F 줍기
-        aiming = k.qKey.isPressed ? 0 : k.spaceKey.isPressed ? 2 : k.rKey.isPressed ? 3 : -1;
+        // E·R 은 누르고 있는 동안 조준 → 떼면 발동 (지점 지정)
+        aiming = k.qKey.isPressed ? 0 : k.eKey.isPressed ? 1 : k.spaceKey.isPressed ? 2 : k.rKey.isPressed ? 3 : -1;
         UpdatePreview();
         if (k.qKey.wasReleasedThisFrame) TryQ();        // 무기 스킬
         if (k.spaceKey.wasReleasedThisFrame) TryE();    // 구르기
-        if (k.eKey.wasPressedThisFrame && cmd != null) cmd.Gather();          // 소집
-        if (k.rKey.wasReleasedThisFrame && cmd != null) cmd.OrderTo(AimSpot()); // 돌격
+        if (k.eKey.wasReleasedThisFrame && cmd != null) cmd.Gather(AimSpot());  // 소집 (지점 범위)
+        if (k.rKey.wasReleasedThisFrame && cmd != null) cmd.OrderTo(AimSpot()); // 돌격 (지점)
 #endif
     }
 
@@ -618,17 +618,17 @@ public class SkillSystem : MonoBehaviour
                 // ★실제 판정과 똑같은 영역을 그대로 보여준다 (QArea 한 곳에서 나온다)
                 else QArea(gear, dir, out circleAt, out circleR, out circleIn);
                 break;
-            case 1:   // 펫 공격기 — 종류별 모양 (부채꼴은 원으로 근사)
-                switch (CurPetAtk())
-                {
-                    case PetAtk.Gore: lineLen = goreRange; lineWidth = 3.6f; break;
-                    case PetAtk.Stomp: circleR = stompRadius; circleAt = body; break;
-                    case PetAtk.Tail: circleR = tailRadius; circleAt = body; break;
-                    default: lineLen = biteRange; lineWidth = 2.2f; break;
-                }
+            // 소집 — 마우스가 가리키는 지점의 원. 이 안에 든 내 펫이 따라온다
+            case 1:
+                circleAt = AimSpot();
+                circleR = cmd != null ? cmd.callRadius : 20f;
                 break;
             case 2: break;   // 구르기 — 영역 표시 없음
-            default: circleR = rRadius; circleAt = body; break;
+            // 돌격 — 보낼 지점 표시
+            default:
+                circleAt = AimSpot();
+                circleR = 4f;
+                break;
         }
 
         // 라인 (경로형)
@@ -655,7 +655,8 @@ public class SkillSystem : MonoBehaviour
             if (pmr.material.mainTexture != want) pmr.material.mainTexture = want;
         }
 
-        // 영역 안 대상 빨갛게
+        // 영역 안 대상 빨갛게 — 공격 조준일 때만. 소집·돌격은 적을 겨누는 게 아니다
+        if (aiming != 0) return;
         foreach (var u in PetUnit.All)
         {
             if (u == null || !u.Alive || u.team != PetUnit.Team.Wild) continue;
