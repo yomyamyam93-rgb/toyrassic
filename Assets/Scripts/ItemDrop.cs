@@ -23,6 +23,9 @@ public class ItemDrop : MonoBehaviour
     void OnDisable() { All.Remove(this); }
     void OnDestroy() { if (beam != null) Destroy(beam.gameObject); }
 
+    /// 알처럼 등급이 있는 아이템은 여기에 실제 아이템 이름이 들어온다 (비면 기본값)
+    public string itemId;
+
     static string IconId(Kind k) => k == Kind.Wood ? "나뭇가지" : k == Kind.Stone ? "돌" : "알";
 
     // 부서질 때 통! 하고 퍼져나가는 연출
@@ -202,7 +205,10 @@ public class ItemDrop : MonoBehaviour
         {
             case Kind.Wood: Inv.Add("나뭇가지", amount); label = $"+{amount} 나뭇가지"; c = new Color(0.55f, 0.95f, 0.4f); break;
             case Kind.Stone: Inv.Add("돌", amount); label = $"+{amount} 돌"; c = new Color(0.9f, 0.9f, 0.9f); break;
-            default: Inv.Add("알", amount); label = $"+{amount} 알"; c = new Color(1f, 0.9f, 0.5f); break;
+            // ★알은 등급이 있다 — 어느 등급인지는 떨어뜨린 둥지가 정해준다
+            default:
+                string id = string.IsNullOrEmpty(itemId) ? "알" : itemId;
+                Inv.Add(id, amount); label = $"+{amount} {id}"; c = new Color(1f, 0.9f, 0.5f); break;
         }
         var pos = player != null ? player.position + Vector3.up * 3.5f : transform.position;
         FX.PopText(pos, label, c, 1.7f);

@@ -134,13 +134,40 @@ public class PlayerGather : MonoBehaviour
         }
     }
 
+    // ★탑승 중이면 펫 등 위에서 휘두른다 — 기준점도 펫이고, 펫 덩치만큼 팔이 짧아진 셈이라
+    //   그만큼 사거리를 늘려줘야 발밑의 적에게 닿는다 (안 늘리면 아무것도 안 맞는다)
+    PlayerMove moveRef;
+    PetUnit Mount
+    {
+        get
+        {
+            if (moveRef == null) moveRef = GetComponent<PlayerMove>();
+            return moveRef != null ? moveRef.Mount : null;
+        }
+    }
+    [Header("탑승 중 공격")]
+    [Tooltip("탄 펫 덩치의 몇 배만큼 사거리를 더 주나")] public float mountedRangeBonus = 0.6f;
+    [Tooltip("탑승 중 부채꼴 각도 배수 (넓게 쓸어야 발밑이 맞는다)")] public float mountedAngleMul = 1.25f;
+
+    /// 공격 기준점 — 걸을 땐 나, 탈 땐 펫
+    Vector3 SwingOrigin { get { var m = Mount; return m != null ? m.transform.position : transform.position; } }
+    float SwingReach
+    {
+        get
+        {
+            var m = Mount;
+            return swingRange * skillRangeMul + (m != null ? m.body * mountedRangeBonus : 0f);
+        }
+    }
+    float SwingSpread => swingAngle * (Mount != null ? mountedAngleMul : 1f);
+
     /// 부채꼴 판정: wp 가 스윙 범위 안인가
     bool InArc(Vector3 wp, float extra)
     {
-        var d = wp - transform.position; d.y = 0;
-        if (d.magnitude > swingRange * skillRangeMul + extra) return false;
+        var d = wp - SwingOrigin; d.y = 0;
+        if (d.magnitude > SwingReach + extra) return false;
         var a = pendingAim; a.y = 0;
-        return Vector3.Angle(a, d) <= swingAngle * 0.5f;
+        return Vector3.Angle(a, d) <= SwingSpread * 0.5f;
     }
 
     /// 임팩트 — 부채꼴 안의 몹·노드 전부 타격 (긁고 지나가면 다 맞음)
@@ -199,7 +226,7 @@ public class PlayerGather : MonoBehaviour
                 float ex = isRock ? trees[i].widthScale * 1.6f : 1.0f;
                 var wp = Vector3.Scale(trees[i].position, td.size) + to;
                 if (!InArc(wp, ex)) continue;
-                cands.Add((i, FlatDist(wp, transform.position), wp, isRock));
+                cands.Add((i, FlatDist(wp, SwingOrigin), wp, isRock));   // 탈 땐 펫 기준
             }
             if (cands.Count > 0)
             {
@@ -274,7 +301,7 @@ public class PlayerGather : MonoBehaviour
         cd = isSword ? swordCooldown : isPick ? pickCooldown : axeCooldown;
         swingT = 1f;
         chopIsRock = isPick;   // 트레일·도구 선택용
-        chopPos = transform.position + aimDir * 4f + Vector3.up * 1.8f;
+        chopPos = SwingOrigin + aimDir * 4f + Vector3.up * 1.8f;   // 탈 땐 펫 앞
         pendingIsPick = isPick;
         pendingIsSword = isSword;
         pendingAim = aimDir;

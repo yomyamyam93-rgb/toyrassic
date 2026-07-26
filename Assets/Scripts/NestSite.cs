@@ -207,7 +207,9 @@ public class NestSite : MonoBehaviour
                 {   // 알을 줍기 아이템으로 전환 (기존 알 비주얼 그대로, E로 획득)
                     FX.Burst(egg.position, new Color(1.8f, 1.6f, 0.5f, 0.95f), 20, 0.2f, 2f);
                     egg.SetParent(null, true);
-                    ItemDrop.Spawn(ItemDrop.Kind.Egg, egg.position, 1, egg.gameObject);
+                    // ★이 둥지 주인의 등급 = 알의 등급 (보스로 이미 보여준 그 종)
+                    var drop = ItemDrop.Spawn(ItemDrop.Kind.Egg, egg.position, 1, egg.gameObject);
+                    if (drop != null && eggEntry != null) drop.itemId = ItemDB.EggId(eggEntry.tier);
                     egg = null;
                 }
             }

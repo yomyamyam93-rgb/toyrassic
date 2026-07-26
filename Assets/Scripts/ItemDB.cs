@@ -32,7 +32,37 @@ public static class ItemDB
     public static Sprite Icon(string id)
     {
         Ensure();
-        return icons.TryGetValue(id, out var s) ? s : null;
+        if (icons.TryGetValue(id, out var s)) return s;
+        // ★등급별 알(작은 알·큰 알…)은 전용 그림이 없으면 기본 알 그림을 쓴다
+        if (id != null && id.EndsWith("알") && icons.TryGetValue("알", out var egg)) return egg;
+        return null;
+    }
+
+    // ── 알 등급 ── 펫 크기 티어가 곧 알 등급이다 (S 작은 알 → XL 거대한 알)
+    public static string EggId(PetScale.Tier t)
+        => t == PetScale.Tier.S ? "작은 알"
+         : t == PetScale.Tier.M ? "알"
+         : t == PetScale.Tier.L ? "큰 알"
+         : "거대한 알";
+
+    /// 아이템 이름 → 알 등급 (알이 아니면 null)
+    public static PetScale.Tier? EggTier(string id)
+        => id == "작은 알" ? PetScale.Tier.S
+         : id == "알" ? PetScale.Tier.M
+         : id == "큰 알" ? PetScale.Tier.L
+         : id == "거대한 알" ? PetScale.Tier.XL
+         : (PetScale.Tier?)null;
+
+    /// 가진 알 중 제일 좋은 것 (없으면 null) — 둥지가 이걸 품는다
+    public static string BestEggHeld()
+    {
+        string best = null;
+        foreach (var t in new[] { PetScale.Tier.XL, PetScale.Tier.L, PetScale.Tier.M, PetScale.Tier.S })
+        {
+            var id = EggId(t);
+            if (Inv.Count(id) > 0) { best = id; break; }
+        }
+        return best;
     }
 
     /// 보유 수량 — 전부 슬롯 인벤토리(Inv)에서

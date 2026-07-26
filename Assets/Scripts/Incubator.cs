@@ -65,6 +65,28 @@ public class Incubator : MonoBehaviour
 
     [Tooltip("둥지 모델 크기")] public float nestModelScale = 4f;
 
+    // ── 알 등급 → 판의 크기 ──
+    // 약한 알 하나에 큰 방어전을 치르는 건 과하다. 등급이 곧 난이도이자 보상.
+    [HideInInspector] public PetScale.Tier eggTier = PetScale.Tier.M;
+    void ApplyTier(PetScale.Tier t)
+    {
+        switch (t)
+        {
+            case PetScale.Tier.S:                     // 지나가다 주운 알 — 한 번 막고 끝
+                hatchDuration = 25f; totalWaves = 1; baseWaveSize = 6; waveSizeGrow = 0;
+                firstWaveDelay = 4f; break;
+            case PetScale.Tier.M:                     // 가벼운 한 판
+                hatchDuration = 45f; totalWaves = 2; baseWaveSize = 6; waveSizeGrow = 4;
+                firstWaveDelay = 5f; break;
+            case PetScale.Tier.L:                     // 제대로 된 방어전
+                hatchDuration = 75f; totalWaves = 3; baseWaveSize = 8; waveSizeGrow = 5;
+                firstWaveDelay = 6f; break;
+            default:                                  // 각오하고 거는 판
+                hatchDuration = 110f; totalWaves = 4; baseWaveSize = 10; waveSizeGrow = 6;
+                firstWaveDelay = 6f; break;
+        }
+    }
+
     void BuildVisual()
     {
         // ★둥지 모델이 있으면 그걸 쓴다 (야생 둥지와 같은 모델 — 내가 짓는 둥지)
@@ -179,15 +201,18 @@ public class Incubator : MonoBehaviour
         // ── 알 넣기 — 알을 들고 다가오면 품기 시작 (= 습격 시작) ──
         if (!incubating)
         {
-            if (NestSite.EggCount > 0 && d < 7f)
+            var eggId = ItemDB.BestEggHeld();
+            if (eggId != null && d < 7f)
             {
-                NestSite.EggCount--;
+                Inv.Consume(eggId, 1);
+                eggTier = ItemDB.EggTier(eggId) ?? PetScale.Tier.M;
+                ApplyTier(eggTier);          // ★알 등급이 곧 판의 크기
                 incubating = true;
                 hatchT = 0f; wavesSent = 0; wave = 0;
                 attackers.Clear();
                 MakeEggVisual();
                 MakeGauge();
-                SquadHUD.Toast("알을 품기 시작했다! 알의 공명에 야생들이 몰려온다…");
+                SquadHUD.Toast($"{eggId}을 품기 시작했다!  {hatchDuration:F0}초 · {totalWaves}차례 습격을 막아야 한다");
                 FollowCam.Shake(0.3f);
             }
             return;
@@ -278,7 +303,11 @@ public class Incubator : MonoBehaviour
 
         if (spawner != null && spawner.entries.Count > 0)
         {
-            var entry = spawner.entries[Random.Range(0, spawner.entries.Count)];
+            // ★알 등급대로 태어난다 — 큰 알을 걸고 큰 판을 치른 만큼 큰 펫이 나온다
+            var pool = new List<PetSpawner.Entry>();
+            foreach (var e in spawner.entries) if (e.tier == eggTier) pool.Add(e);
+            if (pool.Count == 0) pool.AddRange(spawner.entries);
+            var entry = pool[Random.Range(0, pool.Count)];
             var pos = transform.position + Vector3.right * 5f;
             var terr = Terrain.activeTerrain;
             if (terr != null) pos.y = terr.SampleHeight(pos) + terr.transform.position.y;
