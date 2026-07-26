@@ -115,8 +115,11 @@ public class BuildSystem : MonoBehaviour
             if (key.wasPressedThisFrame) sel = shown[i];
         }
 
-        UpdateGhost(m.position.ReadValue(), out bool valid, out Vector3 pos);
-        if (m.leftButton.wasPressedThisFrame && valid) Place(pos);
+        // ★팔레트(카드·탭) 위에 마우스가 있으면 설치하지 않는다 — UI 클릭이 설치로 새던 버그
+        bool overUI = UnityEngine.EventSystems.EventSystem.current != null
+                   && UnityEngine.EventSystems.EventSystem.current.IsPointerOverGameObject();
+        UpdateGhost(m.position.ReadValue(), out bool valid, out Vector3 pos, overUI);
+        if (m.leftButton.wasPressedThisFrame && valid && !overUI) Place(pos);
 #endif
         RefreshHUD();
     }
@@ -157,10 +160,11 @@ public class BuildSystem : MonoBehaviour
         return p;
     }
 
-    void UpdateGhost(Vector2 mp, out bool valid, out Vector3 pos)
+    void UpdateGhost(Vector2 mp, out bool valid, out Vector3 pos, bool overUI = false)
     {
         valid = false; pos = transform.position;
         if (ghost == null) MakeGhost();
+        if (overUI) { ghost.SetActive(false); return; }   // 팔레트 위 — 고스트도 숨긴다
         if (cam == null) { cam = Camera.main; if (cam == null) return; }
         if (terr == null) terr = Terrain.activeTerrain;
 
@@ -188,20 +192,21 @@ public class BuildSystem : MonoBehaviour
             }
         }
         if (snapTo != null)
-        {
-            yaw = snapTo.Yaw;                                   // 각도 통일
+        {   // 이어 붙이기 — 각도·높이를 그대로 물려받아 단차 없이 평평하게
+            yaw = snapTo.Yaw;
             var rot = Quaternion.Euler(0f, yaw, 0f);
             var local = Quaternion.Inverse(rot) * (hit - snapTo.BasePos);
-            // 마우스가 있는 쪽 한 칸 옆 (제자리면 그 위)
             int sx = Mathf.Abs(local.x) > Mathf.Abs(local.z) ? (local.x > 0 ? 1 : -1) : 0;
             int sz = Mathf.Abs(local.z) >= Mathf.Abs(local.x) ? (local.z > 0 ? 1 : -1) : 0;
             if (Mathf.Abs(local.x) < p.size.x * 0.35f && Mathf.Abs(local.z) < p.size.z * 0.35f) { sx = 0; sz = 0; }
             pos = snapTo.BasePos + rot * new Vector3(sx * p.size.x, 0f, sz * p.size.z);
+            pos.y = snapTo.BasePos.y;   // ★같은 높이 (단차 방지)
             valid = true;
         }
         else if (terr != null)
         {
             pos.y = terr.SampleHeight(pos) + terr.transform.position.y;
+            if (p.isFloor) pos.y += floorLift;   // 첫 바닥만 잔디 위로 올림
             var td = terr.terrainData; var to = terr.transform.position;
             float nx = (pos.x - to.x) / td.size.x, nz = (pos.z - to.z) / td.size.z;
             bool inside = nx >= 0f && nx <= 1f && nz >= 0f && nz <= 1f;
@@ -298,6 +303,17 @@ public class BuildSystem : MonoBehaviour
         float bw = St != null ? St.borderWidth : 3f;
         float card = St != null ? St.buildCardSize : 92f;
         float gap = St != null ? St.buildCardGap : 8f;
+
+        // ★EventSystem 이 없으면 카드 클릭이 UI 로 전달되지 않는다 (메뉴를 한 번도 안 열었을 때)
+        if (UnityEngine.Object.FindFirstObjectByType<UnityEngine.EventSystems.EventSystem>() == null)
+        {
+            var esgo = new GameObject("EventSystem", typeof(UnityEngine.EventSystems.EventSystem));
+#if ENABLE_INPUT_SYSTEM
+            esgo.AddComponent<UnityEngine.InputSystem.UI.InputSystemUIInputModule>();
+#else
+            esgo.AddComponent<UnityEngine.EventSystems.StandaloneInputModule>();
+#endif
+        }
 
         var cgo = new GameObject("Build_Canvas", typeof(Canvas), typeof(CanvasScaler), typeof(GraphicRaycaster));
         canvasRoot = cgo;
@@ -519,6 +535,9 @@ public class Structure : MonoBehaviour
     public Vector3 Size { get; private set; }
     PetUnit unit;
     float blockRadius;
+    // 피격 반짝 — 형태는 그대로 두고 색만 잠깐 밝아진다
+    MeshRenderer rend; MaterialPropertyBlock mpb;
+    Color baseColor; float lastHp = -1f, flashT;
 
     void OnEnable() { All.Add(this); }
     void OnDisable() { All.Remove(this); }
@@ -529,12 +548,14 @@ public class Structure : MonoBehaviour
         Object.Destroy(go.GetComponent<Collider>());
         go.name = "구조물_" + p.name;
         go.transform.SetParent(SceneBuckets.Drops.parent);   // 씬 루트 정리함 옆
-        if (p.isFloor) pos.y += BuildSystem.FloorLift;       // 바닥은 잔디 위로 올려 놓는다
+        // ※바닥 높이 보정(floorLift)은 UpdateGhost 에서 이미 적용됨 — 여기서 또 더하면 단차 생김
         go.transform.position = pos + Vector3.up * p.size.y * 0.5f;
         go.transform.rotation = Quaternion.Euler(0f, yaw, 0f);
         go.transform.localScale = p.size;
         var mat = new Material(Shader.Find("Universal Render Pipeline/Lit"));
         mat.color = p.color;
+        mat.EnableKeyword("_EMISSION");   // 피격 반짝용
+        mat.globalIlluminationFlags = MaterialGlobalIlluminationFlags.EmissiveIsBlack;
         go.GetComponent<MeshRenderer>().material = mat;
 
         var s = go.AddComponent<Structure>();
@@ -543,6 +564,7 @@ public class Structure : MonoBehaviour
         s.isFloor = p.isFloor;
         s.TopY = pos.y + p.size.y;   // 이 위에 다음 층을 올린다
         s.BasePos = pos; s.Yaw = yaw; s.Size = p.size;
+        s.rend = go.GetComponent<MeshRenderer>(); s.baseColor = p.color;
         if (p.blockRadius <= 0.01f) { /* 바닥은 통행 가능 — 충돌 등록 안 함 */ }
         var u = go.AddComponent<PetUnit>();
         u.isStructure = true; u.team = PetUnit.Team.Player;
@@ -556,7 +578,32 @@ public class Structure : MonoBehaviour
 
     void Update()
     {
-        if (unit != null && !unit.Alive) Demolish(true);   // 부서짐 = 자원 회수
+        if (unit == null) return;
+        // ★피격 반짝 — 체력이 줄어든 순간 흰빛, 형태(스케일)는 건드리지 않는다
+        if (lastHp < 0f) lastHp = unit.hp;
+        if (unit.hp < lastHp - 0.01f) { flashT = 0.16f; FX.Burst(transform.position, new Color(0.85f, 0.8f, 0.7f, 0.9f), 6, 0.2f, 3f); }
+        lastHp = unit.hp;
+        if (flashT > 0f)
+        {
+            flashT -= Time.deltaTime;
+            float k = Mathf.Clamp01(flashT / 0.16f);
+            SetTint(Color.Lerp(baseColor, Color.white, k * 0.85f), k * 0.9f);
+        }
+        else if (tinted) { SetTint(baseColor, 0f); tinted = false; }
+
+        if (!unit.Alive) Demolish(true);   // 부서짐 = 자원 회수
+    }
+
+    bool tinted;
+    void SetTint(Color c, float emis)
+    {
+        if (rend == null) return;
+        if (mpb == null) mpb = new MaterialPropertyBlock();
+        rend.GetPropertyBlock(mpb);
+        mpb.SetColor("_BaseColor", c);
+        mpb.SetColor("_EmissionColor", Color.white * emis);
+        rend.SetPropertyBlock(mpb);
+        tinted = true;
     }
 
     /// refundNow=true 면 재료 절반을 돌려준다 (부숴서 회수)
