@@ -182,10 +182,72 @@ public class PlayerBowEditor : Editor
             var meshLocal = root.worldToLocalMatrix * mf.transform.localToWorldMatrix;
             Graphics.DrawMeshNow(mf.sharedMesh, grip * local * meshLocal);
         }
+        // 단색이면 뭉개져 보이니 외곽선을 겹쳐 형태가 읽히게
+        GL.wireframe = true;
+        mat.color = new Color(0f, 0f, 0f, 1f);
+        mat.SetPass(0);
+        foreach (var mf in model.GetComponentsInChildren<MeshFilter>())
+        {
+            if (mf.sharedMesh == null) continue;
+            var meshLocal = root.worldToLocalMatrix * mf.transform.localToWorldMatrix;
+            Graphics.DrawMeshNow(mf.sharedMesh, grip * local * meshLocal);
+        }
+        GL.wireframe = false;
     }
 
-    /// 씬 뷰 핸들 — 화살표를 끌면 해당 위치값이 바로 들어간다.
-    /// 손 위치는 런타임에만 존재하므로, PlayerBow 의 계산식과 같은 식으로 여기서도 구한다.
+    /// 손 — 실행 전엔 없으므로 실제 크기의 원으로 표시
+    static void DrawHand(Vector3 pos, float dia, string label)
+    {
+        Handles.color = new Color(0.35f, 1f, 0.9f, 0.95f);
+        Handles.DrawWireDisc(pos, Vector3.up, dia * 0.5f);
+        Handles.DrawWireDisc(pos, Vector3.right, dia * 0.5f);
+        Handles.DrawWireDisc(pos, Vector3.forward, dia * 0.5f);
+        Handles.Label(pos + Vector3.up * (dia * 0.5f + 0.25f), label);
+    }
+
+    /// 이동·회전·크기 핸들을 유니티 표준(W/E/R)에 맞춰 하나만 띄운다.
+    /// 값 반영은 호출한 쪽이 넘긴 콜백이 한다.
+    static void PoseHandles(Object undoTarget, Vector3 pos, Quaternion rot, Quaternion frame,
+                            System.Action<Vector3> setPos, System.Action<Vector3> setEuler,
+                            System.Func<float> getScale, System.Action<float> setScale, string name)
+    {
+        if (Tools.current == Tool.Rotate && setEuler != null)
+        {
+            EditorGUI.BeginChangeCheck();
+            var nr = Handles.RotationHandle(rot, pos);
+            if (EditorGUI.EndChangeCheck())
+            {
+                Undo.RecordObject(undoTarget, name + " 각도");
+                setEuler((Quaternion.Inverse(frame) * nr).eulerAngles);
+                EditorUtility.SetDirty(undoTarget);
+            }
+        }
+        else if (Tools.current == Tool.Scale && setScale != null)
+        {
+            EditorGUI.BeginChangeCheck();
+            float ns = Handles.ScaleValueHandle(getScale(), pos, rot,
+                          HandleUtility.GetHandleSize(pos) * 1.5f, Handles.CubeHandleCap, 0.05f);
+            if (EditorGUI.EndChangeCheck())
+            {
+                Undo.RecordObject(undoTarget, name + " 크기");
+                setScale(Mathf.Max(0.05f, ns));
+                EditorUtility.SetDirty(undoTarget);
+            }
+        }
+        else if (setPos != null)
+        {
+            EditorGUI.BeginChangeCheck();
+            var np = Handles.PositionHandle(pos, rot);
+            if (EditorGUI.EndChangeCheck())
+            {
+                Undo.RecordObject(undoTarget, name + " 위치");
+                setPos(np);
+                EditorUtility.SetDirty(undoTarget);
+            }
+        }
+    }
+
+    /// 씬 뷰 편집 — W(이동)·E(회전)·R(크기). 손은 실행 전엔 없으므로 직접 그려준다.
     void OnSceneGUI()
     {
         if (grab == Grab.끄기) return;
@@ -193,110 +255,89 @@ public class PlayerBowEditor : Editor
         var t = pb.transform;
         float pScale = t.localScale.x;
         var fwd = t.forward; var right = t.right;
-        // 스윙 기준 프레임 = 바라보는 방향 (런타임의 LookRotation(aimDir) 과 동일)
-        var frame = Quaternion.LookRotation(fwd, Vector3.up);
-        bool isBow = grabBow;
+        var frame = Quaternion.LookRotation(fwd, Vector3.up);   // 런타임의 LookRotation(aimDir)
+        float handDia = pb.handRadius * 2f * pScale;
+
+        // 양손 (LateUpdate 의 idleL·idleR 식과 동일)
+        var handL = t.position - right * pb.handSide * 0.92f + fwd * 0.5f + Vector3.up * pb.handUp;
+        var handR = t.position + right * pb.handSide + fwd * 0.3f + Vector3.up * pb.handUp;
+        DrawHand(handL, handDia, "왼손 (활)");
+        DrawHand(handR, handDia, "오른손 (도구)");
+
+        const string keys = "   [W이동 E회전 R크기]";
+
+        if (grab == Grab.잡는위치 && grabBow)
+        {   // ── 활 휴대 ──
+            var rot = frame * Quaternion.Euler(pb.carryEuler);
+            var cur = handL + rot * pb.bowCarryPos;
+            DrawWeapon(pb.bowModel, Matrix4x4.TRS(cur, rot, Vector3.one * pScale),
+                       Quaternion.Euler(pb.bowModelEuler), pb.bowModelScale, pb.bowSize,
+                       new Color(0.55f, 0.8f, 1f));
+            Handles.color = Color.white; Handles.DrawDottedLine(handL, cur, 3f);
+            Handles.Label(cur + Vector3.up * 0.6f, "활 · 잡는 위치" + keys);
+            PoseHandles(pb, cur, rot, frame,
+                np => pb.bowCarryPos = Quaternion.Inverse(rot) * (np - handL),
+                e => pb.carryEuler = e,
+                () => pb.bowModelScale, v => pb.bowModelScale = v, "활 휴대");
+            return;
+        }
+
+        var w = sel < pb.weapons.Count ? pb.weapons[sel] : null;
+        if (w == null) return;
+        bool horiz = w.style == PlayerBow.SwingStyle.Horizontal;
+        string wname = string.IsNullOrEmpty(w.id) ? "무기" : w.id;
 
         if (grab == Grab.잡는위치)
-        {
-            if (isBow)
-            {   // 활 — 왼손 기준
-                var handL = t.position - right * pb.handSide * 0.92f + fwd * 0.5f + Vector3.up * pb.handUp;
-                var rot = frame * Quaternion.Euler(pb.carryEuler);
-                var cur = handL + rot * pb.bowCarryPos;
-                DrawWeapon(pb.bowModel, Matrix4x4.TRS(cur, rot, Vector3.one * pScale),
-                           Quaternion.Euler(pb.bowModelEuler), pb.bowModelScale, pb.bowSize,
-                           new Color(0.55f, 0.8f, 1f));
-                Handles.Label(cur + Vector3.up * 0.6f, "활 — 잡는 위치 (왼손)");
-                EditorGUI.BeginChangeCheck();
-                var np = Handles.PositionHandle(cur, rot);
-                if (EditorGUI.EndChangeCheck())
-                {
-                    Undo.RecordObject(pb, "활 잡는 위치");
-                    pb.bowCarryPos = Quaternion.Inverse(rot) * (np - handL);
-                    EditorUtility.SetDirty(pb);
-                }
-            }
-            else
-            {   // 도구 — 오른손 기준 (손 배율까지 반영해야 실제와 같다)
-                var handR = t.position + right * pb.handSide + fwd * 0.3f + Vector3.up * pb.handUp;
-                float handScale = pb.handRadius * 2f * pScale;
-                var rot = frame;
-                var cur = handR + rot * ((pb.gripPosOffset + pb.toolCarryPos) * handScale);
-                var w0 = sel < pb.weapons.Count ? pb.weapons[sel] : null;
-                if (w0 != null)
-                    DrawWeapon(w0.model,
-                        Matrix4x4.TRS(cur, rot * Quaternion.Euler(pb.gripEuler), Vector3.one * (handScale * pb.toolScale)),
-                        Quaternion.Euler(w0.modelEuler), w0.modelScale, pb.toolLength,
-                        new Color(1f, 0.85f, 0.45f));
-                Handles.Label(cur + Vector3.up * 0.6f, $"{(w0 != null ? w0.id : "도구")} — 잡는 위치 (오른손)");
-                EditorGUI.BeginChangeCheck();
-                var np = Handles.PositionHandle(cur, rot);
-                if (EditorGUI.EndChangeCheck())
-                {
-                    Undo.RecordObject(pb, "도구 잡는 위치");
-                    var local = (Quaternion.Inverse(rot) * (np - handR)) / Mathf.Max(0.001f, handScale);
-                    pb.toolCarryPos = local - pb.gripPosOffset;
-                    EditorUtility.SetDirty(pb);
-                }
-            }
+        {   // ── 도구 휴대 ──
+            var cur = handR + frame * ((pb.gripPosOffset + pb.toolCarryPos) * handDia);
+            var gripRot = frame * Quaternion.Euler(pb.gripEuler);
+            DrawWeapon(w.model, Matrix4x4.TRS(cur, gripRot, Vector3.one * (handDia * pb.toolScale)),
+                       Quaternion.Euler(w.modelEuler), w.modelScale, pb.toolLength,
+                       new Color(1f, 0.85f, 0.45f));
+            Handles.color = Color.white; Handles.DrawDottedLine(handR, cur, 3f);
+            Handles.Label(cur + Vector3.up * 0.6f, wname + " · 잡는 위치" + keys);
+            PoseHandles(pb, cur, gripRot, frame,
+                np => pb.toolCarryPos = (Quaternion.Inverse(frame) * (np - handR)) / Mathf.Max(0.001f, handDia) - pb.gripPosOffset,
+                e => pb.gripEuler = e,
+                () => pb.toolScale, v => pb.toolScale = v, "도구 휴대");
+            return;
         }
-        else
-        {   // 스윙 시작·끝 — 무기의 동작(세로/가로)에 맞는 값을 잡는다 (활은 스윙 없음)
-            if (isBow) return;
-            var w = sel < pb.weapons.Count ? pb.weapons[sel] : null;
-            bool horiz = w != null && w.style == PlayerBow.SwingStyle.Horizontal;
-            bool start = grab == Grab.스윙시작;
-            var val = start ? (horiz ? pb.hSwingStartPos : pb.swingStartPos)
-                            : (horiz ? pb.hSwingEndPos : pb.swingEndPos);
-            var cur = t.position + frame * val;
-            string label = $"{(w != null ? w.id : "도구")} · {(horiz ? "가로 긁기" : "세로 찍기")} · {(start ? "시작" : "끝")}";
-            // 그 자세로 무기를 실제로 그려준다 (손 회전까지 반영)
-            var eulNow = start ? (horiz ? pb.hSwingStartEuler : pb.swingStartEuler)
-                               : (horiz ? pb.hSwingEndEuler : pb.swingEndEuler);
-            float handScale2 = pb.handRadius * 2f * pScale;
-            if (w != null)
-                DrawWeapon(w.model,
-                    Matrix4x4.TRS(cur, frame * Quaternion.Euler(eulNow) * Quaternion.Euler(pb.gripEuler),
-                                  Vector3.one * (handScale2 * pb.toolScale))
-                    * Matrix4x4.Translate(pb.gripPosOffset),
-                    Quaternion.Euler(w.modelEuler), w.modelScale, pb.toolLength,
-                    start ? new Color(0.5f, 1f, 0.6f) : new Color(1f, 0.6f, 0.4f));
-            Handles.Label(cur + Vector3.up * 0.6f, label);
-            // 시작→끝 선으로 궤적을 보여준다
-            var other = start ? (horiz ? pb.hSwingEndPos : pb.swingEndPos)
-                              : (horiz ? pb.hSwingStartPos : pb.swingStartPos);
-            Handles.color = new Color(1f, 0.8f, 0.2f, 0.8f);
-            Handles.DrawDottedLine(cur, t.position + frame * other, 4f);
 
-            var eul = start ? (horiz ? pb.hSwingStartEuler : pb.swingStartEuler)
-                            : (horiz ? pb.hSwingEndEuler : pb.swingEndEuler);
-            var rot = frame * Quaternion.Euler(eul);
+        // ── 스윙 시작 / 끝 (활은 스윙 없음) ──
+        if (grabBow) return;
+        bool start = grab == Grab.스윙시작;
+        var val = start ? (horiz ? pb.hSwingStartPos : pb.swingStartPos)
+                        : (horiz ? pb.hSwingEndPos : pb.swingEndPos);
+        var eul = start ? (horiz ? pb.hSwingStartEuler : pb.swingStartEuler)
+                        : (horiz ? pb.hSwingEndEuler : pb.swingEndEuler);
+        var sPos = t.position + frame * val;
+        var sRot = frame * Quaternion.Euler(eul);
 
-            EditorGUI.BeginChangeCheck();
-            var np2 = Handles.PositionHandle(cur, rot);
-            if (EditorGUI.EndChangeCheck())
-            {
-                Undo.RecordObject(pb, label);
-                var local = Quaternion.Inverse(frame) * (np2 - t.position);
-                if (start) { if (horiz) pb.hSwingStartPos = local; else pb.swingStartPos = local; }
-                else       { if (horiz) pb.hSwingEndPos = local;   else pb.swingEndPos = local; }
-                EditorUtility.SetDirty(pb);
-            }
-            // 각도 — 위치 핸들 옆에서 돌린다 (겹치지 않게 조금 띄움)
-            var rotAt = cur + Vector3.up * 1.4f;
-            Handles.color = new Color(0.4f, 0.9f, 1f, 0.5f);
-            Handles.DrawDottedLine(cur, rotAt, 3f);
-            EditorGUI.BeginChangeCheck();
-            var nr = Handles.RotationHandle(rot, rotAt);
-            if (EditorGUI.EndChangeCheck())
-            {
-                Undo.RecordObject(pb, label + " 각도");
-                var le = (Quaternion.Inverse(frame) * nr).eulerAngles;
-                if (start) { if (horiz) pb.hSwingStartEuler = le; else pb.swingStartEuler = le; }
-                else       { if (horiz) pb.hSwingEndEuler = le;   else pb.swingEndEuler = le; }
-                EditorUtility.SetDirty(pb);
-            }
-        }
+        var other = start ? (horiz ? pb.hSwingEndPos : pb.swingEndPos)
+                          : (horiz ? pb.hSwingStartPos : pb.swingStartPos);
+        Handles.color = new Color(1f, 0.8f, 0.2f, 0.85f);
+        Handles.DrawDottedLine(sPos, t.position + frame * other, 4f);
+
+        DrawWeapon(w.model,
+            Matrix4x4.TRS(sPos, sRot * Quaternion.Euler(pb.gripEuler), Vector3.one * (handDia * pb.toolScale))
+            * Matrix4x4.Translate(pb.gripPosOffset),
+            Quaternion.Euler(w.modelEuler), w.modelScale, pb.toolLength,
+            start ? new Color(0.5f, 1f, 0.6f) : new Color(1f, 0.6f, 0.4f));
+        Handles.Label(sPos + Vector3.up * 0.6f,
+            wname + " · " + (horiz ? "가로 긁기" : "세로 찍기") + " · " + (start ? "시작" : "끝") + keys);
+
+        PoseHandles(pb, sPos, sRot, frame,
+            np => {
+                var l = Quaternion.Inverse(frame) * (np - t.position);
+                if (start) { if (horiz) pb.hSwingStartPos = l; else pb.swingStartPos = l; }
+                else       { if (horiz) pb.hSwingEndPos = l;   else pb.swingEndPos = l; }
+            },
+            e => {
+                if (start) { if (horiz) pb.hSwingStartEuler = e; else pb.swingStartEuler = e; }
+                else       { if (horiz) pb.hSwingEndEuler = e;   else pb.swingEndEuler = e; }
+            },
+            () => pb.toolScale, v => pb.toolScale = v,
+            wname + " 스윙" + (start ? " 시작" : " 끝"));
     }
 }
+
