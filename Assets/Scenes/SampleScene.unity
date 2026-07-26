@@ -982,7 +982,7 @@ MonoBehaviour:
   pickModelEuler: {x: 0, y: 0, z: 0}
   pickModelPos: {x: 0, y: 0, z: 0}
   pickModelScale: 1
-  gripPosOffset: {x: 0, y: -0.7, z: 1.76}
+  gripPosOffset: {x: 0, y: 0, z: 0}
   gripEuler: {x: 0, y: 0, z: 0}
   toolScale: 2.05
   swingStartPos: {x: 1.94, y: 2.12, z: 0.74}
