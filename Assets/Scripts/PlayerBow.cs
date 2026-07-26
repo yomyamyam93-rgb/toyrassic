@@ -4,6 +4,22 @@ using UnityEngine;
 using UnityEngine.InputSystem;
 #endif
 
+/// 자세값이 어느 기준으로 적힌 값인지 — 씬 편집기가 이걸 보고 알아서 다룬다
+public enum PoseSpace { 캐릭터, 오른손, 왼손 }
+
+/// ★자세 표식 — Vector3 위치 필드에 이걸 달아두면 씬 편집기 목록에 자동으로 뜬다.
+/// 새 자세를 추가할 때 편집기 코드를 고칠 필요가 없다 (필드에 표식만 달면 끝).
+[System.AttributeUsage(System.AttributeTargets.Field)]
+public class PoseAttribute : System.Attribute
+{
+    public readonly string label;        // 드롭다운에 뜰 이름
+    public readonly PoseSpace space;     // 무엇을 기준으로 한 값인가
+    public readonly string eulerField;   // 짝이 되는 각도 필드 (없으면 null)
+    public readonly bool mirrorable;     // 무기의 hFlip(좌우 반전)이 적용되는 자세인가
+    public PoseAttribute(string label, PoseSpace space, string eulerField = null, bool mirrorable = false)
+    { this.label = label; this.space = space; this.eulerField = eulerField; this.mirrorable = mirrorable; }
+}
+
 /// 캐릭터 활 공격 — 동그라미 양손(캐릭터 색·외곽선 포함) + 뭉뚝한 숏보우를 손에 듦.
 /// 마우스 왼클릭 누르면 시위를 당기고, 놓으면 마우스 방향으로 화살 발사.
 public class PlayerBow : MonoBehaviour
@@ -33,11 +49,13 @@ public class PlayerBow : MonoBehaviour
     [Header("활 휴대 자세 — 안 쏠 때 들고 다닐 때")]
     [Tooltip("기울기 (X=앞뒤 Y=좌우 Z=옆으로 눕힘)")]
     public Vector3 carryEuler = new Vector3(14f, 8f, 16f);
+    [Pose("활 · 잡는 위치", PoseSpace.왼손, "carryEuler")]
     [Tooltip("★위치 (활 기준 — X=좌우 Y=위아래 Z=앞뒤)")]
     public Vector3 bowCarryPos = Vector3.zero;
     [Tooltip("걸을 때 살랑거리는 정도 (0=고정)")] public float carrySway = 0.5f;
 
     [Header("도구 휴대 — 도끼·곡괭이·칼 (스윙 중엔 무시)")]
+    [Pose("도구 · 잡는 위치", PoseSpace.오른손, "gripEuler")]
     [Tooltip("손 기준 위치 보정 (각도는 아래 '잡기' 의 gripEuler)")]
     public Vector3 toolCarryPos = Vector3.zero;
     [Tooltip("들고 다닐 때 흔들리는 각도 (0=고정)")] public float toolCarrySway = 4f;
@@ -108,8 +126,10 @@ public class PlayerBow : MonoBehaviour
     [Tooltip("추가 크기 배율")] public float toolScale = 1f;
 
     [Header("스윙 자세 — 공통 (캐릭터 기준: x=옆, y=높이, z=앞)")]
+    [Pose("세로 찍기 · 시작", PoseSpace.캐릭터, "swingStartEuler")]
     [Tooltip("시작(들어올린) 손 위치")] public Vector3 swingStartPos = new Vector3(0.9f, 3.5f, 0.7f);
     [Tooltip("시작 손 회전")] public Vector3 swingStartEuler = new Vector3(-55f, 0f, 0f);
+    [Pose("세로 찍기 · 끝", PoseSpace.캐릭터, "swingEndEuler")]
     [Tooltip("끝(내려찍은) 손 위치")] public Vector3 swingEndPos = new Vector3(0.1f, 0.9f, 2.5f);
     [Tooltip("끝 손 회전")] public Vector3 swingEndEuler = new Vector3(80f, 0f, 0f);
     [Tooltip("백스윙 — 시작 자세 너머로 더 들어올리는 비율")] public float backswingExtra = 0.22f;
@@ -120,8 +140,10 @@ public class PlayerBow : MonoBehaviour
         new Keyframe(0f, 0f), new Keyframe(0.30f, -1f), new Keyframe(1f, 1f));
 
     [Header("스윙 자세 — 가로 긁기 (무기 탭에서 '가로' 체크 시)")]
+    [Pose("가로 긁기 · 시작", PoseSpace.캐릭터, "hSwingStartEuler", true)]
     public Vector3 hSwingStartPos = new Vector3(-2.4f, 1.6f, 0.5f);
     public Vector3 hSwingStartEuler = new Vector3(0f, -75f, 90f);
+    [Pose("가로 긁기 · 끝", PoseSpace.캐릭터, "hSwingEndEuler", true)]
     public Vector3 hSwingEndPos = new Vector3(2.4f, 1.4f, 1.0f);
     public Vector3 hSwingEndEuler = new Vector3(0f, 75f, 90f);
 
