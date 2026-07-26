@@ -554,7 +554,8 @@ public class MenuUI : MonoBehaviour
         string C(int need, int have) => have >= need ? need.ToString() : $"<color=#{badHex}>{need}</color>";
         var cs = new (int wood, int stone)[6];
         for (int i = 0; i < 6; i++) cs[i] = Cost(i);
-        bool bench = Workbench.Exists;
+        bool bench = Workbench.NearPlayer;              // ★근처에 있어야 만들 수 있다
+        float benchDist = Workbench.DistToNearest;
 
         // [0]돌도끼 [1]돌곡괭이 [2]새총 — 맨손 / [3]칼 [4]활 [5]부화기 — 제작대 필요
         string[] names = { "돌도끼", "돌곡괭이", "새총", "칼", "활", "둥지" };
@@ -577,7 +578,9 @@ public class MenuUI : MonoBehaviour
                           (cs[i].stone > 0 ? $" · 돌 {C(cs[i].stone, Stock.Stone)}" : "");
             craftInfo[i].text =
                 owned[i] ? $"{names[i]}  (보유)  —  {descs[i]}"
-              : locked   ? $"{names[i]}  —  <color=#{badHex}>제작대가 있어야 만들 수 있다</color>"
+              : locked   ? $"{names[i]}  —  <color=#{badHex}>" +
+                           (benchDist < 0f ? "제작대를 지어야 한다 (B → 시설)"
+                                           : $"제작대 근처로 가야 한다 ({benchDist:F0}m 떨어짐)") + "</color>"
                          : $"{names[i]}  —  {cost}   ({descs[i]})";
             craftBtn[i].interactable = !owned[i] && !locked
                                     && Stock.Wood >= cs[i].wood && Stock.Stone >= cs[i].stone
@@ -591,9 +594,11 @@ public class MenuUI : MonoBehaviour
         var c = Cost(idx);
         if (Stock.Wood < c.wood || Stock.Stone < c.stone) return;
         void Pay() { Inv.Consume("나뭇가지", c.wood); Inv.Consume("돌", c.stone); }
-        if (NeedsBench(idx) && !Workbench.Exists)
+        if (NeedsBench(idx) && !Workbench.NearPlayer)
         {
-            SquadHUD.Toast("제작대가 있어야 만들 수 있다 — 먼저 제작대를 지어라");
+            SquadHUD.Toast(Workbench.DistToNearest < 0f
+                ? "제작대를 지어야 한다 — B 건축 → 시설"
+                : $"제작대 근처로 가야 한다 ({Workbench.DistToNearest:F0}m 떨어짐)");
             return;
         }
         switch (idx)

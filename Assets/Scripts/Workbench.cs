@@ -11,9 +11,12 @@ public class ModelFollower : MonoBehaviour
 /// 설치물 모델 공용 도우미 — 모델 원점이 한가운데라 그냥 놓으면 절반이 땅에 묻힌다.
 public static class ModelPlace
 {
-    /// 모델의 제일 낮은 점이 부모 원점(=지면)에 닿도록 올려준다
+    /// 모델의 제일 낮은 점이 '자기 위치' 높이에 오도록 올려준다.
+    /// ★부모 원점 기준으로 재면 안 된다 — 부모가 씬 루트면 기준이 월드 0 이 되어
+    ///   지형(높이 77m) 위에 놓인 모델은 영영 안 올라간다 (= 땅에 박힘).
     public static void SitOnGround(Transform inst)
     {
+        float baseY = inst.position.y;
         float lowest = 0f; bool any = false;
         foreach (var mf in inst.GetComponentsInChildren<MeshFilter>())
         {
@@ -24,13 +27,11 @@ public static class ModelPlace
                 var c = new Vector3((i & 1) == 0 ? b.min.x : b.max.x,
                                     (i & 2) == 0 ? b.min.y : b.max.y,
                                     (i & 4) == 0 ? b.min.z : b.max.z);
-                float y = inst.parent != null
-                        ? inst.parent.InverseTransformPoint(mf.transform.TransformPoint(c)).y
-                        : mf.transform.TransformPoint(c).y;
+                float y = mf.transform.TransformPoint(c).y - baseY;   // 자기 위치 기준
                 if (!any || y < lowest) { lowest = y; any = true; }
             }
         }
-        if (any && lowest < 0f) inst.localPosition += Vector3.up * (-lowest);
+        if (any && lowest < 0f) inst.position += Vector3.up * (-lowest);
     }
 }
 
@@ -43,7 +44,10 @@ public class Workbench : MonoBehaviour
 {
     public static readonly List<Workbench> All = new List<Workbench>();
 
-    /// 세워둔 제작대가 하나라도 있나 — 제작창이 이걸 본다
+    [Tooltip("이 거리 안에 있어야 제작할 수 있다 (m)")]
+    public static float UseRange = 14f;
+
+    /// 세워둔 제작대가 하나라도 있나
     public static bool Exists
     {
         get
@@ -54,8 +58,60 @@ public class Workbench : MonoBehaviour
         }
     }
 
+    /// ★제작대 근처인가 — 멀리서도 만들어지면 제작대를 지을 이유도, 거점으로
+    /// 돌아올 이유도 없다. 가까이 가야 만들 수 있어야 '내 자리' 가 생긴다.
+    public static bool NearPlayer
+    {
+        get
+        {
+            var av = PetUnit.Avatar;
+            if (av == null) return Exists;
+            for (int i = All.Count - 1; i >= 0; i--)
+            {
+                if (All[i] == null) { All.RemoveAt(i); continue; }
+                var d = All[i].transform.position - av.transform.position; d.y = 0f;
+                if (d.magnitude <= UseRange) return true;
+            }
+            return false;
+        }
+    }
+
+    /// 제일 가까운 제작대까지 거리 (없으면 -1)
+    public static float DistToNearest
+    {
+        get
+        {
+            var av = PetUnit.Avatar;
+            if (av == null) return -1f;
+            float best = -1f;
+            foreach (var w in All)
+            {
+                if (w == null) continue;
+                var d = w.transform.position - av.transform.position; d.y = 0f;
+                if (best < 0f || d.magnitude < best) best = d.magnitude;
+            }
+            return best;
+        }
+    }
+
     void OnEnable() { if (!All.Contains(this)) All.Add(this); }
     void OnDisable() { All.Remove(this); }
+
+    // 다가가면 한 번 알려준다 — 뭘 할 수 있는 물건인지 모르면 그냥 장식이다
+    bool announced;
+    void Update()
+    {
+        var av = PetUnit.Avatar;
+        if (av == null) return;
+        var d = av.transform.position - transform.position; d.y = 0f;
+        bool near = d.magnitude <= UseRange;
+        if (near && !announced)
+        {
+            announced = true;
+            SquadHUD.Toast("제작대 — Tab 을 열면 칼·활을 만들 수 있다");
+        }
+        else if (!near && announced && d.magnitude > UseRange * 1.5f) announced = false;
+    }
 
     /// 설치된 구조물에 제작대 기능을 붙인다 (BuildSystem 이 호출)
     public static void Attach(GameObject go)
