@@ -2630,7 +2630,7 @@ MonoBehaviour:
   handUp: -0.28
   drawReach: 4
   drawUp: 0.3
-  arrowUp: 0.3
+  bowShotOrigin: {x: 0, y: 1.5, z: 4}
   handColor: {r: 0.99607843, g: 1, b: 0.99607843, a: 1}
   impactPop: 0.35
   impactPopSpan: 0.45
@@ -2671,6 +2671,8 @@ MonoBehaviour:
     gripPos: {x: 0, y: 0, z: 0}
     gripEuler: {x: 0, y: 0, z: 0}
     scale: 3.76
+    handOffsetR: {x: 0, y: 0, z: 0}
+    handOffsetL: {x: 0, y: 0, z: 0}
     carryPos: {x: 0, y: 0, z: 0}
     carryEuler: {x: 275.2749, y: 106.97716, z: 298.37494}
     carrySway: 4
@@ -2682,6 +2684,7 @@ MonoBehaviour:
     trailAlpha: 0.95
     trailWidth: 0.9
     trailTime: 0.24
+    shotOrigin: {x: 0, y: 0.3, z: 4}
     shotDamageMul: 0.45
     shotRangeMul: 0.5
     shotSpeedMul: 0.6
@@ -2698,6 +2701,8 @@ MonoBehaviour:
     gripPos: {x: 0, y: 0, z: 0}
     gripEuler: {x: 0, y: 0, z: 0}
     scale: 3.76
+    handOffsetR: {x: 0, y: 0, z: 0}
+    handOffsetL: {x: 0, y: 0, z: 0}
     carryPos: {x: 0, y: 0, z: 0}
     carryEuler: {x: 275.2749, y: 106.97716, z: 298.37494}
     carrySway: 4
@@ -2709,6 +2714,7 @@ MonoBehaviour:
     trailAlpha: 0.95
     trailWidth: 0.9
     trailTime: 0.24
+    shotOrigin: {x: 0, y: 0.3, z: 4}
     shotDamageMul: 0.45
     shotRangeMul: 0.5
     shotSpeedMul: 0.6
@@ -2725,6 +2731,8 @@ MonoBehaviour:
     gripPos: {x: 0, y: 0, z: 0}
     gripEuler: {x: 0, y: 0, z: 0}
     scale: 3.76
+    handOffsetR: {x: 0, y: 0, z: 0}
+    handOffsetL: {x: 0, y: 0, z: 0}
     carryPos: {x: 0, y: 0, z: 0}
     carryEuler: {x: 275.2749, y: 106.97716, z: 298.37494}
     carrySway: 4
@@ -2736,6 +2744,7 @@ MonoBehaviour:
     trailAlpha: 0.95
     trailWidth: 0.9
     trailTime: 0.24
+    shotOrigin: {x: 0, y: 0.3, z: 4}
     shotDamageMul: 0.45
     shotRangeMul: 0.5
     shotSpeedMul: 0.6
@@ -2752,6 +2761,8 @@ MonoBehaviour:
     gripPos: {x: 0, y: 0, z: 0}
     gripEuler: {x: 0, y: 0, z: 0}
     scale: 3.76
+    handOffsetR: {x: 0, y: 0, z: 0}
+    handOffsetL: {x: 0, y: 0, z: 0}
     carryPos: {x: 0, y: 0, z: 0}
     carryEuler: {x: 275.2749, y: 106.97716, z: 298.37494}
     carrySway: 4
@@ -2763,6 +2774,7 @@ MonoBehaviour:
     trailAlpha: 0.95
     trailWidth: 0.9
     trailTime: 0.24
+    shotOrigin: {x: -1.2, y: 1.4, z: 2.2}
     shotDamageMul: 0.45
     shotRangeMul: 0.5
     shotSpeedMul: 0.6
