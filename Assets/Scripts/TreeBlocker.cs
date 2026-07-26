@@ -31,13 +31,15 @@ public static class TreeBlocker
     static Vector2Int Key(Vector3 p) => new Vector2Int(Mathf.FloorToInt(p.x / Cell), Mathf.FloorToInt(p.z / Cell));
 
     /// 그 지점의 장애물만 제거 — 전체 재빌드(스파이크) 대신 (노드 파괴 시)
-    public static void RemovePoint(Vector3 wp)
+    /// tol = 이 거리 안의 점을 지운다. 구조물처럼 점을 촘촘히 깐 경우엔 작게 줘야
+    /// 옆의 나무 충돌까지 같이 지워지지 않는다
+    public static void RemovePoint(Vector3 wp, float tol = 1.5f)
     {
         if (grid == null) return;
         var k = Key(wp);
         if (!grid.TryGetValue(k, out var list)) return;
         for (int i = list.Count - 1; i >= 0; i--)
-            if (Mathf.Abs(list[i].x - wp.x) < 1.5f && Mathf.Abs(list[i].y - wp.z) < 1.5f)
+            if (Mathf.Abs(list[i].x - wp.x) < tol && Mathf.Abs(list[i].y - wp.z) < tol)
                 list.RemoveAt(i);
     }
 

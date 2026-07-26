@@ -535,6 +535,7 @@ public class Structure : MonoBehaviour
     public Vector3 Size { get; private set; }
     PetUnit unit;
     float blockRadius;
+    readonly List<Vector3> blockPts = new List<Vector3>();   // 통행 차단 점들 (철거 시 되돌림)
     // 피격 반짝 — 형태는 그대로 두고 색만 잠깐 밝아진다
     MeshRenderer rend; MaterialPropertyBlock mpb;
     Color baseColor; float lastHp = -1f, flashT;
@@ -571,8 +572,22 @@ public class Structure : MonoBehaviour
         u.mat = PetUnit.Mat.Basic; u.species = "structure";
         u.vit = p.hp / 10f; u.str = 0; u.agi = 0; u.intel = 0;
         s.unit = u;
+        // ★벽 통행 차단 — 길쭉한 벽을 원 하나로 막으면 옆구리가 뚫린다.
+        //   길이 방향으로 점을 촘촘히 깔아 '선'으로 막는다 (바닥은 지나갈 수 있음)
         if (p.blockRadius > 0.01f)
-            TreeBlocker.AddPoint(pos, p.blockRadius);   // 벽만 통행 차단 (바닥은 지나갈 수 있음)
+        {
+            float r = Mathf.Max(0.8f, p.size.z * 0.5f);          // 점 반경 = 벽 두께
+            float half = Mathf.Max(0f, p.size.x * 0.5f - r * 0.5f);
+            int n = Mathf.Max(1, Mathf.CeilToInt(half * 2f / r) + 1);
+            var q = Quaternion.Euler(0f, yaw, 0f);
+            for (int i = 0; i < n; i++)
+            {
+                float t = n == 1 ? 0f : Mathf.Lerp(-half, half, i / (float)(n - 1));
+                var wp = pos + q * new Vector3(t, 0f, 0f);
+                TreeBlocker.AddPoint(wp, r);
+                s.blockPts.Add(wp);
+            }
+        }
         return s;
     }
 
@@ -618,7 +633,7 @@ public class Structure : MonoBehaviour
             if (st > 0) Inv.Add("돌", st);
             if (w > 0 || st > 0) SquadHUD.Toast($"구조물 철거 — 나뭇가지 {w}·돌 {st} 회수");
         }
-        TreeBlocker.RemovePoint(transform.position);
+        foreach (var bp in blockPts) TreeBlocker.RemovePoint(bp, 0.05f);   // 내 점만 정확히
         FX.Burst(transform.position, new Color(0.75f, 0.68f, 0.55f, 0.9f), 20, 0.45f, 4f, 0.6f);
         Destroy(gameObject);
     }

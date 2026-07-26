@@ -471,8 +471,7 @@ public class SkillSystem : MonoBehaviour
             if (d.magnitude > radius + u.body * 0.3f) continue;
             u.TakeDamage(dmg, PetUnit.Avatar);
             u.OnHit();
-            if (knock > 0f && d.sqrMagnitude > 1e-4f)
-                u.transform.position += d.normalized * knock;
+            u.Knock(d, knock);
             FX.Burst(u.transform.position + Vector3.up * u.body * 0.4f, Color.white, 10, u.body * 0.06f, u.body * 0.4f);
         }
     }
@@ -504,8 +503,17 @@ public class SkillSystem : MonoBehaviour
         float speed = dashSpeed * Mathf.Lerp(1.5f, 0.4f, k);   // 초반 빠르게 → 감속
         var mount = move != null ? move.Mount : null;
         var body = mount != null ? mount.transform : transform;
-        var np = body.position + dashDir * speed * Time.deltaTime;
-        np = TreeBlocker.Resolve(np, mount != null ? mount.body * 0.32f : 1.5f);
+        // ★한 프레임에 크게 움직이면 벽 너머로 착지해 반대편으로 밀려난다(= 관통).
+        //   0.5m 씩 쪼개서 매 단계마다 충돌을 풀어 벽을 뚫지 못하게 한다
+        float bodyR = mount != null ? mount.body * 0.32f : 1.5f;
+        float total = speed * Time.deltaTime;
+        int steps = Mathf.Clamp(Mathf.CeilToInt(total / 0.5f), 1, 12);
+        var np = body.position;
+        for (int i = 0; i < steps; i++)
+        {
+            np += dashDir * (total / steps);
+            np = TreeBlocker.Resolve(np, bodyR);
+        }
         np.y = body.position.y;
         body.position = np;
 
@@ -519,7 +527,7 @@ public class SkillSystem : MonoBehaviour
                 dashHit.Add(u);
                 u.TakeDamage(dashDmg, PetUnit.Avatar);
                 u.OnHit();
-                if (d.sqrMagnitude > 1e-4f) u.transform.position += d.normalized * dashKb;
+                u.Knock(d, dashKb);
                 FX.Burst(u.transform.position + Vector3.up * u.body * 0.4f, Color.white, 14, u.body * 0.07f, u.body * 0.5f);
                 FollowCam.Shake(0.15f);
             }

@@ -528,8 +528,7 @@ public class PetUnit : MonoBehaviour
                 foreach (var u in EnemiesWithin(aoe))
                     if (TryHit(u, Damage))
                     {
-                        var push = u.transform.position - transform.position; push.y = 0;
-                        if (push.sqrMagnitude > 1e-4f) u.transform.position += push.normalized * body * 0.10f;
+                        u.Knock(u.transform.position - transform.position, body * 0.10f);
                     }
             }
             else if (target != null && target.Alive)
@@ -648,9 +647,7 @@ public class PetUnit : MonoBehaviour
             foreach (var u in EnemiesWithin(aoe))
                 if (TryHit(u, Damage))
                 {
-                    var push = (u.transform.position - transform.position); push.y = 0;
-                    if (push.sqrMagnitude > 1e-4f)
-                        u.transform.position += push.normalized * body * 0.12f;   // 약간 넉백
+                    u.Knock(u.transform.position - transform.position, body * 0.12f);   // 약간 넉백
                 }
         }
     }
@@ -717,8 +714,17 @@ public class PetUnit : MonoBehaviour
     /// 금속 광역의 에어본 — 붕 떴다 내려옴
     public void Airborne(float dur, float height)
     {
-        if (dead) return;
+        if (dead || isStructure) return;   // 구조물은 뜨지 않는다
         airT = airDur = dur; airHeight = height;
+    }
+
+    /// 넉백 — 밀려나는 처리는 전부 여기로. 구조물은 박혀 있으므로 밀리지 않는다
+    public void Knock(Vector3 dir, float dist)
+    {
+        if (dead || isStructure || dist <= 0f) return;
+        dir.y = 0f;
+        if (dir.sqrMagnitude < 1e-4f) return;
+        transform.position += dir.normalized * dist;
     }
 
     void Die()
@@ -1003,11 +1009,8 @@ public class PetProjectile : MonoBehaviour
             else if (Random.value >= Mathf.Min(0.35f, target.agi * 0.008f))
             {
                 target.TakeDamage(amt, owner); target.OnHit();
-                if (push > 0f)
-                {   // 💧물살 밀치기 — 날아온 방향으로
-                    var pd = (target.transform.position - from); pd.y = 0;
-                    if (pd.sqrMagnitude > 1e-4f) target.transform.position += pd.normalized * push;
-                }
+                // 💧물살 밀치기 — 날아온 방향으로
+                if (push > 0f) target.Knock(target.transform.position - from, push);
                 FX.Burst(transform.position, GetComponent<MeshRenderer>().material.color,
                          8, target.body * 0.06f, target.body * 0.4f);
             }
