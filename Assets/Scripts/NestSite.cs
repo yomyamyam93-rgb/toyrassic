@@ -41,8 +41,10 @@ public class NestSite : MonoBehaviour
         }
     }
 
-    /// 씬의 모든 둥지 — 알을 잃었을 때 어디로 돌려놓을지 고르는 데 쓴다
+    /// 씬의 모든 둥지 — 알을 잃었을 때 어디로 돌려놓을지, 지도에 어디를 찍을지
     public static readonly List<NestSite> All = new List<NestSite>();
+    /// 아직 알이 남아 있나 (지도 표시용)
+    public bool HasEgg => egg != null;
     void OnEnable() { if (!All.Contains(this)) All.Add(this); }
     void OnDisable() { All.Remove(this); }
 
