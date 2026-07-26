@@ -7,6 +7,7 @@ public static class Stock
     public static int Stone => Inv.Count("돌");
     public static bool HasAxe => Inv.Count("도끼") > 0;
     public static bool HasPick => Inv.Count("곡갱이") > 0;
+    public static bool HasSword => Inv.Count("칼") > 0;
     public static bool HasIncubator => Inv.Count("부화기") > 0;
     public static int ArrowLv = 1, BowLv = 1;      // 제작 창에서 강화
 
@@ -23,10 +24,11 @@ public class PlayerGather : MonoBehaviour
     [Header("공속 (초/스윙)")]
     [Tooltip("도끼 휘두르는 간격")] public float axeCooldown = 0.5f;
     [Tooltip("곡괭이 휘두르는 간격 (묵직하게)")] public float pickCooldown = 0.72f;
+    [Tooltip("칼 휘두르는 간격 (가볍고 빠르게)")] public float swordCooldown = 0.38f;
     [Tooltip("스윙 시작 → 실제 타격까지 (모션 절정 동기)")] public float impactDelay = 0.24f;
 
     [Header("테스트")]
-    [Tooltip("시작할 때 도끼·곡괭이 지급 (제작 없이 바로 확인용)")]
+    [Tooltip("시작할 때 도끼·곡괭이·칼 지급 (제작 없이 바로 확인용)")]
     public bool startWithTools = true;
 
     [Header("타격 판정 — 전방 부채꼴 (긁고 지나가면 다 맞음)")]
@@ -46,6 +48,8 @@ public class PlayerGather : MonoBehaviour
     [Tooltip("곡괭이→나무 (비효율)")] public float pickVsTree = 4f;
     [Tooltip("도끼→몹 근접딜")] public float axeVsMob = 20f;
     [Tooltip("곡괭이→몹 근접딜")] public float pickVsMob = 26f;
+    [Tooltip("칼→몹 근접딜 (전투 특화)")] public float swordVsMob = 38f;
+    [Tooltip("칼→나무·바위 (채집엔 형편없다)")] public float swordVsNode = 2f;
     [Tooltip("화살→노드 (저효율)")] public float arrowVsNode = 4f;
 
     [Header("화살 차단")]
@@ -55,7 +59,12 @@ public class PlayerGather : MonoBehaviour
     TreeInstance[] original;   // 종료 시 복구용 스냅샷
     float cd, swingT;
     Vector3 chopPos; bool chopIsRock;
-    bool pendingImpact; float pendingAt; bool pendingIsPick; Vector3 pendingAim;
+    bool pendingImpact; float pendingAt; bool pendingIsPick, pendingIsSword; Vector3 pendingAim;
+
+    // 효율 표 — 든 도구에 따라 대상별 피해 (칼은 전투 특화, 채집은 형편없음)
+    float DmgMob => pendingIsSword ? swordVsMob : pendingIsPick ? pickVsMob : axeVsMob;
+    float DmgTree => pendingIsSword ? swordVsNode : pendingIsPick ? pickVsTree : axeVsTree;
+    float DmgRock => pendingIsSword ? swordVsNode : pendingIsPick ? pickVsRock : axeVsRock;
     Camera cam;
 
     // 지형 트리 배열 캐시 — treeInstances 접근마다 전체 복사되는 것 방지 (프레임당 1회)
@@ -92,6 +101,7 @@ public class PlayerGather : MonoBehaviour
         {   // 테스트 지급 — 핫바 배치는 Hotbar.Start 가 보유 장비를 자동 복원
             if (Inv.Count("도끼") == 0) Inv.Add("도끼", 1);
             if (Inv.Count("곡갱이") == 0) Inv.Add("곡갱이", 1);
+            if (Inv.Count("칼") == 0) Inv.Add("칼", 1);
         }
     }
 
@@ -136,7 +146,7 @@ public class PlayerGather : MonoBehaviour
         bool hitAny = false;
 
         // ① 야생 몹 — 전부
-        float mobDmg = isPick ? pickVsMob : axeVsMob;
+        float mobDmg = DmgMob;
         foreach (var u in PetUnit.All)
         {
             if (u == null || !u.Alive || u.team != PetUnit.Team.Wild) continue;
@@ -149,7 +159,7 @@ public class PlayerGather : MonoBehaviour
         }
 
         // ①-b 내 구조물 — 때려서 부수면 재료 회수 (철거 방식)
-        float structDmg = isPick ? pickVsRock : axeVsTree;
+        float structDmg = pendingIsSword ? swordVsMob * 0.5f : isPick ? pickVsRock : axeVsTree;
         foreach (var u in PetUnit.All)
         {
             if (u == null || !u.Alive || !u.isStructure) continue;
@@ -167,7 +177,7 @@ public class PlayerGather : MonoBehaviour
             if (t == null) continue;
             float ex = t.IsRock ? t.transform.localScale.x * 1.6f : 1.2f;
             if (!InArc(t.transform.position, ex)) continue;
-            t.Hit(t.IsRock ? (isPick ? pickVsRock : axeVsRock) : (isPick ? pickVsTree : axeVsTree));
+            t.Hit(t.IsRock ? DmgRock : DmgTree);
             hitAny = true;
         }
 
@@ -201,7 +211,7 @@ public class PlayerGather : MonoBehaviour
                 {
                     var node = MaterializeInst(trees[c.i], c.wp, c.rock);
                     if (node == null) continue;
-                    node.Hit(c.rock ? (isPick ? pickVsRock : axeVsRock) : (isPick ? pickVsTree : axeVsTree));
+                    node.Hit(c.rock ? DmgRock : DmgTree);
                     hitAny = true;
                 }
             }
@@ -241,16 +251,17 @@ public class PlayerGather : MonoBehaviour
     }
 
     /// 한 번 휘두르기 — ★조준할 필요 없음. 스윙 절정에 전방 부채꼴 전부 타격
-    public void TrySwing(Vector2 mp, bool isPick, Vector3 aimDir)
+    public void TrySwing(Vector2 mp, bool isPick, Vector3 aimDir, bool isSword = false)
     {
         if (cd > 0f) return;
         if (terr == null) { terr = Terrain.activeTerrain; if (terr == null) return; }
 
-        cd = isPick ? pickCooldown : axeCooldown;
+        cd = isSword ? swordCooldown : isPick ? pickCooldown : axeCooldown;
         swingT = 1f;
         chopIsRock = isPick;   // 트레일·도구 선택용
         chopPos = transform.position + aimDir * 4f + Vector3.up * 1.8f;
         pendingIsPick = isPick;
+        pendingIsSword = isSword;
         pendingAim = aimDir;
         pendingImpact = true;
         pendingAt = Time.time + impactDelay;

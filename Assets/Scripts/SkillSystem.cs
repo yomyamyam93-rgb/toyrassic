@@ -61,6 +61,10 @@ public class SkillSystem : MonoBehaviour
 
     /// 슬롯별 현재 스킬 정보 — 장비·탑승 상태에 따라 바뀐다.
     /// 아이콘 파일은 Resources/Icons/<이름>.png (아이템 아이콘과 같은 방식, 없으면 글자 표시)
+    /// 근접 무기 — 도끼·곡괭이·칼은 같은 무기 스킬(회전 베기)을 쓴다
+    static bool IsMelee(GearKind g)
+        => g == GearKind.Axe || g == GearKind.Pick || g == GearKind.Sword;
+
     (string icon, string label, bool usable) SkillInfo(int slot)
     {
         bool hasPet = move != null && move.Mount != null;
@@ -70,7 +74,7 @@ public class SkillSystem : MonoBehaviour
             case 0:
                 return gear == GearKind.Bow
                     ? ("스킬_관통사격", "관통 사격", true)
-                    : (gear == GearKind.Axe || gear == GearKind.Pick)
+                    : IsMelee(gear)
                         ? ("스킬_회전베기", "회전 베기", true)
                         : ("스킬_관통사격", "무기 필요", false);
             case 1:

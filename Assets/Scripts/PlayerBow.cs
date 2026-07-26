@@ -24,6 +24,12 @@ public class PlayerBow : MonoBehaviour
     [Tooltip("화살이 나가는 높이 (활 위치 기준 위로)")] public float arrowUp = 1.5f;
     [Tooltip("비워두면 캐릭터 텍스처 평균색 자동")] public Color handColor = Color.clear;
 
+    [Header("활 모델 — 비우면 절차 생성 활대")]
+    [Tooltip("3D 활 모델 (Resources/Tools/tool_bow 자동)")] public GameObject bowModel;
+    public Vector3 bowModelEuler = Vector3.zero;
+    public Vector3 bowModelPos = Vector3.zero;
+    public float bowModelScale = 1f;
+
     [Header("활 — 뭉뚝 숏보우")]
     [Tooltip("활 크기 (반지름)")] public float bowSize = 1.15f;
     [Tooltip("활대 굵기")] public float bowThick = 0.16f;
@@ -105,7 +111,8 @@ public class PlayerBow : MonoBehaviour
     public Texture2D cursorNormal;   // 평소 화살표
     public Texture2D cursorAim;      // 조준 중 원형 타겟
 
-    Transform handL, handR, bowRoot;
+    Transform handL, handR, bowRoot, bowInst;
+    Quaternion bowAutoRot = Quaternion.identity; float bowAutoScale = 1f;
     LineRenderer bowString, aimLine;
     Transform nockArrow;
     float cd, drawT, aimLen; bool drawing;
@@ -131,7 +138,7 @@ public class PlayerBow : MonoBehaviour
 
     /// 핫바 장비 → 무기 ID
     static string GearId(GearKind k)
-        => k == GearKind.Axe ? "도끼" : k == GearKind.Pick ? "곡갱이" : null;
+        => k == GearKind.Axe ? "도끼" : k == GearKind.Pick ? "곡갱이" : k == GearKind.Sword ? "칼" : null;
     Vector3 aimDir = Vector3.forward;
     BlobMotion motion;
     Camera cam;
@@ -153,6 +160,14 @@ public class PlayerBow : MonoBehaviour
         if (ax.model == null) ax.model = toolAxeModel != null ? toolAxeModel : Resources.Load<GameObject>("Tools/tool_axe");
         var pk = Ensure("곡갱이");
         if (pk.model == null) pk.model = toolPickModel != null ? toolPickModel : Resources.Load<GameObject>("Tools/tool_pick");
+        // 칼 — 모션은 도끼와 같다 (정렬값도 도끼에서 물려받고, 이후 무기 탭에서 따로 조절)
+        var sw = Ensure("칼");
+        if (sw.model == null)
+        {
+            sw.model = Resources.Load<GameObject>("Tools/tool_sword");
+            sw.style = ax.style; sw.hFlip = ax.hFlip;
+            sw.modelEuler = ax.modelEuler; sw.modelPos = ax.modelPos; sw.modelScale = ax.modelScale;
+        }
         if (!weaponsMigrated)
         {   // 구버전 정렬값 1회만 이전 — 동작(style)은 절대 안 건드림 (덮어쓰기 버그 방지)
             weaponsMigrated = true;
@@ -310,13 +325,30 @@ public class PlayerBow : MonoBehaviour
         bowRoot = new GameObject("Bow").transform;
         bowRoot.SetParent(transform, false);
 
-        var limbGo = new GameObject("Limb");
-        limbGo.transform.SetParent(bowRoot, false);
-        var mesh = BuildLimbMesh();
-        limbGo.AddComponent<MeshFilter>().sharedMesh = mesh;
-        var lmr = limbGo.AddComponent<MeshRenderer>();
-        lmr.material = Unlit(bowColor);
-        AddOutline(limbGo, mesh);
+        if (bowModel == null) bowModel = Resources.Load<GameObject>("Tools/tool_bow");
+        if (bowModel != null)
+        {   // ★3D 활대 — 시위·화살은 그대로 절차 유지 (당기는 연출을 살리려고)
+            bowInst = Instantiate(bowModel, bowRoot).transform;
+            var mf = bowInst.GetComponentInChildren<MeshFilter>();
+            if (mf != null && mf.sharedMesh != null)
+            {   // 제일 긴 축을 활의 세로(+Y)로 세우고, 크기를 활 지름에 맞춘다
+                var size = mf.sharedMesh.bounds.size;
+                bowAutoRot = size.z >= size.x && size.z >= size.y ? Quaternion.Euler(-90f, 0f, 0f)
+                           : size.x > size.y ? Quaternion.Euler(0f, 0f, 90f)
+                           : Quaternion.identity;
+                bowAutoScale = bowSize * 2f / Mathf.Max(0.01f, Mathf.Max(size.x, Mathf.Max(size.y, size.z)));
+            }
+        }
+        else
+        {
+            var limbGo = new GameObject("Limb");
+            limbGo.transform.SetParent(bowRoot, false);
+            var mesh = BuildLimbMesh();
+            limbGo.AddComponent<MeshFilter>().sharedMesh = mesh;
+            var lmr = limbGo.AddComponent<MeshRenderer>();
+            lmr.material = Unlit(bowColor);
+            AddOutline(limbGo, mesh);
+        }
 
         var strGo = new GameObject("String");
         strGo.transform.SetParent(bowRoot, false);
@@ -451,9 +483,10 @@ public class PlayerBow : MonoBehaviour
             if (pressedNow) TryPlaceIncubator(mp);
             drawing = false; drawT = 0f; aimLen = 0f;
         }
-        else if (gear == GearKind.Axe || gear == GearKind.Pick)
+        else if (gear == GearKind.Axe || gear == GearKind.Pick || gear == GearKind.Sword)
         {   // 도구 장착: 클릭 = 그냥 휘두른다 — 노드·몹·허공 뭐든 (효율만 다름)
-            if (pressed && gather != null) gather.TrySwing(mp, gear == GearKind.Pick, aimDir);
+            if (pressed && gather != null)
+                gather.TrySwing(mp, gear == GearKind.Pick, aimDir, gear == GearKind.Sword);
             drawing = false; drawT = 0f; aimLen = 0f;
         }
         else if (gear == GearKind.Bow)
@@ -581,6 +614,12 @@ public class PlayerBow : MonoBehaviour
         // ── 장비 비주얼 — 든 것만 보인다 (weapons 리스트 기반) ──
         var gearV = Hotbar.I != null ? Hotbar.I.Current : GearKind.Bow;
         if (bowRoot != null) bowRoot.gameObject.SetActive(gearV == GearKind.Bow);
+        if (bowInst != null)
+        {   // 활 모델 정렬 — 인스펙터 값 실시간 반영 (도구와 같은 방식)
+            bowInst.localRotation = bowAutoRot * Quaternion.Euler(bowModelEuler);
+            bowInst.localPosition = bowModelPos;
+            bowInst.localScale = Vector3.one * (bowAutoScale * bowModelScale);
+        }
         {
             string curId = GearId(gearV);
             foreach (var kv in rigs)

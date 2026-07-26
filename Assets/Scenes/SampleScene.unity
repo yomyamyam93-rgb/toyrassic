@@ -952,13 +952,13 @@ MonoBehaviour:
     modelScale: 1
     style: 0
     hFlip: 0
-  - id: "\uAC80"
-    model: {fileID: 0}
+  - id: "\uCE7C"
+    model: {fileID: -2440650888640737177, guid: 222e5b506af2c254fb37813d82200b87, type: 3}
     modelEuler: {x: 0, y: 0, z: 0}
     modelPos: {x: 0, y: 0, z: 0}
     modelScale: 1
     style: 1
-    hFlip: 0
+    hFlip: 1
   weaponsMigrated: 0
   axeSetup:
     modelEuler: {x: 0, y: 0, z: 0}
@@ -1056,6 +1056,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::PlayerGather
   axeCooldown: 0.5
   pickCooldown: 0.72
+  swordCooldown: 0.38
   impactDelay: 0.24
   startWithTools: 1
   swingRange: 5.5
@@ -1070,6 +1071,8 @@ MonoBehaviour:
   pickVsTree: 4
   axeVsMob: 20
   pickVsMob: 26
+  swordVsMob: 38
+  swordVsNode: 2
   arrowVsNode: 4
   arrowBlockRadius: 1.6
 --- !u!114 &107336123
@@ -1185,6 +1188,8 @@ MonoBehaviour:
   reach: 24
   maxSlope: 22
   refund: 0.5
+  floorLift: 0.9
+  snapRange: 16
 --- !u!114 &107336127
 MonoBehaviour:
   m_ObjectHideFlags: 0

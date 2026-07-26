@@ -18,6 +18,7 @@ public class MenuUI : MonoBehaviour
     public Sprite icoEgg => ItemDB.Icon("알");
     public Sprite icoAxe => ItemDB.Icon("도끼");
     public Sprite icoPick => ItemDB.Icon("곡갱이");
+    public Sprite icoSword => ItemDB.Icon("칼");
 
     const int FontH1 = 26, FontBody = 18, FontCap = 14;
     const float Pad = 16f, Gap = 8f;
@@ -312,10 +313,10 @@ public class MenuUI : MonoBehaviour
         cv.padding = new RectOffset(8, 8, 8, 8);
         cv.childControlWidth = true; cv.childControlHeight = true;   // 행 높이는 LayoutElement 가 정확히 결정
         cv.childForceExpandWidth = true; cv.childForceExpandHeight = false;
-        int recipes = 5;
+        int recipes = 6;
         craftInfo = new Text[recipes]; craftBtn = new Button[recipes]; craftBtnLabel = new Text[recipes];
-        string[] btnLabels = { "제작", "제작", "설치", "강화", "강화" };
-        Sprite[] rowIcons = { icoAxe, icoPick, icoEgg, null, null };
+        string[] btnLabels = { "제작", "제작", "설치", "강화", "강화", "제작" };
+        Sprite[] rowIcons = { icoAxe, icoPick, icoEgg, null, null, icoSword };
         float rowH = St != null ? St.craftRowHeight : 60f;
         float btnW = St != null ? St.craftBtnWidth : 170f;
         float bh = St != null ? St.buttonHeight : 44f;
@@ -470,6 +471,7 @@ public class MenuUI : MonoBehaviour
             case 1: return (6, 4);
             case 2: return (20, 12);
             case 3: return (10 * Stock.ArrowLv, 8 * Stock.ArrowLv);
+            case 5: return (12, 10);   // 칼 — 전투용이라 도끼보다 비싸다
             default: return (14 * Stock.BowLv, 0);
         }
     }
@@ -479,7 +481,7 @@ public class MenuUI : MonoBehaviour
         if (!pageCraft.activeSelf) return;
         string badHex = ColorUtility.ToHtmlStringRGB(St != null ? St.bad : Color.red);
         string C(int need, int have) => have >= need ? need.ToString() : $"<color=#{badHex}>{need}</color>";
-        var c0 = Cost(0); var c1 = Cost(1); var c2 = Cost(2); var c3 = Cost(3); var c4 = Cost(4);
+        var c0 = Cost(0); var c1 = Cost(1); var c2 = Cost(2); var c3 = Cost(3); var c4 = Cost(4); var c5 = Cost(5);
         craftInfo[0].text = Stock.HasAxe
             ? "도끼  (보유)  —  나무를 클릭해 팰 수 있다"
             : $"도끼  —  나뭇가지 {C(c0.wood, Stock.Wood)}   (해금: 나무 패기)";
@@ -500,6 +502,11 @@ public class MenuUI : MonoBehaviour
         craftBtnLabel[1].text = Stock.HasPick ? "보유" : "제작";
         craftBtnLabel[3].text = Stock.ArrowLv >= 4 ? "최대" : "강화";
         craftBtnLabel[4].text = Stock.BowLv >= 4 ? "최대" : "강화";
+        craftInfo[5].text = Stock.HasSword
+            ? "칼  (보유)  —  몹 전투 특화 (빠른 공속·높은 피해, 채집엔 부적합)"
+            : $"칼  —  나뭇가지 {C(c5.wood, Stock.Wood)} · 돌 {C(c5.stone, Stock.Stone)}   (해금: 근접 전투)";
+        craftBtn[5].interactable = !Stock.HasSword && Stock.Wood >= c5.wood && Stock.Stone >= c5.stone;
+        craftBtnLabel[5].text = Stock.HasSword ? "보유" : "제작";
     }
 
     void DoCraft(int idx)
@@ -540,6 +547,12 @@ public class MenuUI : MonoBehaviour
                 Stock.BowLv++;
                 if (bow != null) { bow.fireCooldown *= 0.85f; bow.aimFillTime *= 0.9f; }
                 SquadHUD.Toast($"활 개량!  공속 상승 (Lv.{Stock.BowLv})");
+                break;
+            case 5:
+                if (Stock.HasSword) return;
+                Pay(); Inv.Add("칼", 1);
+                if (Hotbar.I != null) Hotbar.I.AutoAssign(GearKind.Sword);
+                SquadHUD.Toast("칼 제작!  핫바에 장착됨 — 몹 상대로 빠르고 아프게 벤다");
                 break;
         }
     }
