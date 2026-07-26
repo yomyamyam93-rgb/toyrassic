@@ -112,7 +112,7 @@ public class PlayerBow : MonoBehaviour
     public Texture2D cursorAim;      // 조준 중 원형 타겟
 
     Transform handL, handR, bowRoot, bowInst;
-    Quaternion bowAutoRot = Quaternion.identity; float bowAutoScale = 1f;
+    Quaternion bowAutoRot = Quaternion.identity; float bowAutoScale = 1f; Vector3 bowAutoPos;
     LineRenderer bowString, aimLine;
     Transform nockArrow;
     float cd, drawT, aimLen; bool drawing;
@@ -331,14 +331,7 @@ public class PlayerBow : MonoBehaviour
         {   // ★3D 활대 — 시위·화살은 그대로 절차 유지 (당기는 연출을 살리려고)
             bowInst = Instantiate(bowModel, bowRoot).transform;
             var mf = bowInst.GetComponentInChildren<MeshFilter>();
-            if (mf != null && mf.sharedMesh != null)
-            {   // 제일 긴 축을 활의 세로(+Y)로 세우고, 크기를 활 지름에 맞춘다
-                var size = mf.sharedMesh.bounds.size;
-                bowAutoRot = size.z >= size.x && size.z >= size.y ? Quaternion.Euler(-90f, 0f, 0f)
-                           : size.x > size.y ? Quaternion.Euler(0f, 0f, 90f)
-                           : Quaternion.identity;
-                bowAutoScale = bowSize * 2f / Mathf.Max(0.01f, Mathf.Max(size.x, Mathf.Max(size.y, size.z)));
-            }
+            if (mf != null && mf.sharedMesh != null) AlignBow(mf.sharedMesh);
         }
         else
         {
@@ -381,6 +374,59 @@ public class PlayerBow : MonoBehaviour
         AddOutline(na, na.GetComponent<MeshFilter>().sharedMesh);
         nockArrow = na.transform;
         nockArrow.gameObject.SetActive(false);
+    }
+
+    /// ★활 모델 자동 정렬 — 모델이 어떤 축으로 기울어 들어와도 알아서 세운다.
+    /// 바운딩 박스로는 판별이 안 돼서(활은 가로세로가 비슷) 정점 분포를 본다:
+    ///   제일 길게 퍼진 축 = 활대 끝~끝 → +Y,  볼록한(그립) 쪽 → +Z(화살 나가는 쪽)
+    /// 절차 활대 기준(끝 ±Y·시위 -Z)에 그대로 맞으므로 시위·화살이 어긋나지 않는다.
+    void AlignBow(Mesh mesh)
+    {
+        var v = mesh.vertices;
+        if (v.Length < 16) return;
+        int step = Mathf.Max(1, v.Length / 3000);   // 3천 점만 표본 — 정렬엔 충분
+
+        Vector3 mean = Vector3.zero; int cnt = 0;
+        for (int i = 0; i < v.Length; i += step) { mean += v[i]; cnt++; }
+        mean /= cnt;
+
+        float xx = 0, xy = 0, xz = 0, yy = 0, yz = 0, zz = 0;
+        for (int i = 0; i < v.Length; i += step)
+        {
+            var d = v[i] - mean;
+            xx += d.x * d.x; xy += d.x * d.y; xz += d.x * d.z;
+            yy += d.y * d.y; yz += d.y * d.z; zz += d.z * d.z;
+        }
+        Vector3 Mul(Vector3 p) => new Vector3(xx * p.x + xy * p.y + xz * p.z,
+                                              xy * p.x + yy * p.y + yz * p.z,
+                                              xz * p.x + yz * p.y + zz * p.z);
+        // 제일 크게 퍼진 축 → 활대 방향
+        var a = new Vector3(1f, 0.3f, 0.1f).normalized;
+        for (int i = 0; i < 60; i++) { var m = Mul(a); if (m.sqrMagnitude < 1e-12f) break; a = m.normalized; }
+        // 그 다음 축 → 활이 휜 평면 (a 성분을 빼가며 반복)
+        var b = new Vector3(0.2f, 1f, 0.3f); b = (b - Vector3.Dot(b, a) * a).normalized;
+        for (int i = 0; i < 60; i++)
+        {
+            var m = Mul(b); m -= Vector3.Dot(m, a) * a;
+            if (m.sqrMagnitude < 1e-12f) break;
+            b = m.normalized;
+        }
+        // 활대 중앙(그립)이 튀어나온 쪽을 +Z 로 — 시위는 반대쪽(-Z)으로 당겨진다
+        float half = 0f;
+        for (int i = 0; i < v.Length; i += step) half = Mathf.Max(half, Mathf.Abs(Vector3.Dot(v[i] - mean, a)));
+        float midB = 0f, tipB = 0f; int mc = 0, tc = 0;
+        for (int i = 0; i < v.Length; i += step)
+        {
+            var d = v[i] - mean;
+            float la = Mathf.Abs(Vector3.Dot(d, a)), lb = Vector3.Dot(d, b);
+            if (la < half * 0.2f) { midB += lb; mc++; }
+            else if (la > half * 0.8f) { tipB += lb; tc++; }
+        }
+        if (mc > 0 && tc > 0 && midB / mc < tipB / tc) b = -b;
+
+        bowAutoRot = Quaternion.Inverse(Quaternion.LookRotation(b, a));
+        bowAutoScale = bowSize * 2f / Mathf.Max(0.01f, half * 2f);
+        bowAutoPos = bowAutoRot * -mean * bowAutoScale;   // 활 중심을 손 위치로 (원점이 어디든)
     }
 
     /// 활대 튜브 메시 — 위아래로 짧은 아치, 단면 원형 (뭉뚝)
@@ -642,7 +688,7 @@ public class PlayerBow : MonoBehaviour
         if (bowInst != null)
         {   // 활 모델 정렬 — 인스펙터 값 실시간 반영 (도구와 같은 방식)
             bowInst.localRotation = bowAutoRot * Quaternion.Euler(bowModelEuler);
-            bowInst.localPosition = bowModelPos;
+            bowInst.localPosition = bowAutoPos + bowModelPos;
             bowInst.localScale = Vector3.one * (bowAutoScale * bowModelScale);
         }
         {
