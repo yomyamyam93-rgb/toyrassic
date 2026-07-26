@@ -100,8 +100,10 @@ public class Hotbar : MonoBehaviour
     {
         MountPet = pet;
         RefreshAll();
-        SquadHUD.Toast(pet != null ? $"{pet.name} 탑승!" : "내렸다");
     }
+
+    /// 탑승 칸 표시만 새로 그리기 (펫이 쓰러졌을 때 등)
+    public void RefreshMountSlot() { RefreshAll(); }
 
     /// 핫바 안 이동 — 목적지에 다른 장비가 있으면 서로 자리 교환
     public void Move(int from, int to, GearKind kind)

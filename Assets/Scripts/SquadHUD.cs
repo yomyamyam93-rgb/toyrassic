@@ -193,23 +193,40 @@ public class SquadHUD : MonoBehaviour
     {
         if (toastText == null) return;
 
-        // 내 체력
         var me = PetUnit.Avatar;
+        var mount = PetCommand.Mount;
+        bool riding = mount != null && mount.Alive;
+
+        // ★탑승 중엔 체력바를 하나로 — 실제로 맞는 건 펫이니 펫 체력만 보여준다.
+        //   두 개를 띄우면 어느 쪽이 닳는지 헷갈리고, 내 바는 안 줄어서 무의미하다.
         if (me != null)
         {
-            SetFill(myHpFill, me.maxHp > 0 ? me.hp / me.maxHp : 0f);
-            myHpLabel.text = $"나  {Mathf.CeilToInt(me.hp)} / {Mathf.CeilToInt(me.maxHp)}";
+            if (riding)
+            {
+                SetFill(myHpFill, mount.maxHp > 0 ? mount.hp / mount.maxHp : 0f);
+                myHpLabel.text = $"{mount.name} 탑승  {Mathf.CeilToInt(mount.hp)} / {Mathf.CeilToInt(mount.maxHp)}";
+            }
+            else
+            {
+                SetFill(myHpFill, me.maxHp > 0 ? me.hp / me.maxHp : 0f);
+                myHpLabel.text = $"나  {Mathf.CeilToInt(me.hp)} / {Mathf.CeilToInt(me.maxHp)}";
+            }
         }
 
-        // 펫 (없으면 블록 자체를 숨김 — 안내 문구 없음)
+        // 펫 블록 — 탑승 중엔 위에 합쳐 놨으므로 경험치만 남긴다
         var pet = BlueprintPickup.MyPet();
-        petBars.SetActive(pet != null);
+        petBars.SetActive(pet != null && !riding);
         petTitle.gameObject.SetActive(pet != null);
         if (pet != null)
         {
-            petTitle.text = $"{pet.name}   Lv.{pet.level}";
-            SetFill(petHpFill, pet.maxHp > 0 ? pet.hp / pet.maxHp : 0f);
-            petHpLabel.text = $"{Mathf.CeilToInt(pet.hp)} / {Mathf.CeilToInt(pet.maxHp)}";
+            petTitle.text = riding
+                ? $"{pet.name}   Lv.{pet.level}   (탑승 중 — 강화됨)"
+                : $"{pet.name}   Lv.{pet.level}";
+            if (!riding)
+            {
+                SetFill(petHpFill, pet.maxHp > 0 ? pet.hp / pet.maxHp : 0f);
+                petHpLabel.text = $"{Mathf.CeilToInt(pet.hp)} / {Mathf.CeilToInt(pet.maxHp)}";
+            }
             float need = 25f + 20f * (pet.level - 1);
             SetFill(petXpFill, pet.xp / need);
         }

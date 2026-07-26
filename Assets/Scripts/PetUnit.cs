@@ -839,8 +839,7 @@ public class PetUnit : MonoBehaviour
         //   펫이 쓰러지면 그때부터 주인이 맞는다 (PlayerMove 가 자동으로 내려준다)
         if (isAvatar)
         {
-            var mv = GetComponent<PlayerMove>();
-            var mnt = mv != null ? mv.Mount : null;
+            var mnt = PetCommand.Mount;
             if (mnt != null && mnt.Alive) { mnt.TakeDamage(dmg, attacker); return; }
         }
         hp -= dmg;

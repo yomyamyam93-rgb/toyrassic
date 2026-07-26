@@ -96,7 +96,7 @@ public class PlayerMove : MonoBehaviour
 
     void Update()
     {
-        // ★탑승은 내가 고른다 — 펫을 클릭해야 탄다 (PetCommand.Mount).
+        // ★탑승은 내가 고른다 — 핫바 마지막 칸에 올린 펫을 탄다 (PetCommand.Mount).
         //   예전엔 살아있는 첫 펫을 자동으로 탔는데, 여러 마리를 데리고 다니면
         //   어느 놈을 탈지 내가 정할 수 있어야 한다.
         var m = PetCommand.Mount;

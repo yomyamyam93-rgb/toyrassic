@@ -56,6 +56,13 @@ public class PetCommand : MonoBehaviour
     /// 핫바 탑승 칸에 올려둔 펫과 실제 탑승을 맞춘다
     void SyncMountFromHotbar()
     {
+        // ★탄 펫이 쓰러지면 탑승도 끝 — 칸을 비우고 내린다 (PlayerMove 가 퐁 떨어뜨린다)
+        if (Mount != null && !Mount.Alive)
+        {
+            Hotbar.MountPet = null;
+            Mount = null;
+            if (Hotbar.I != null) Hotbar.I.RefreshMountSlot();
+        }
         var want = Hotbar.MountPet;
         if (want != null && !want.Alive) { Hotbar.MountPet = null; want = null; }
         if (want == Mount) return;
