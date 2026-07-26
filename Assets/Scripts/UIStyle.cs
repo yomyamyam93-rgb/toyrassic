@@ -50,6 +50,11 @@ public class UIStyle : MonoBehaviour
     [Tooltip("행간")] public float statLineSpacing = 1.5f;
     [Tooltip("왼쪽 들여쓰기")] public float statIndent = 16f;
 
+    [Header("⑩ 건축 팔레트")]
+    [Tooltip("카드 크기")] public float buildCardSize = 92f;
+    [Tooltip("카드 간격")] public float buildCardGap = 8f;
+    [Tooltip("팔레트 폭")] public float buildPanelWidth = 1240f;
+
     [Header("⑨ 핫바 (하단 1~0)")]
     [Tooltip("칸 크기")] public float hotbarSlotSize = 58f;
     [Tooltip("칸 간격")] public float hotbarGap = 6f;
@@ -92,6 +97,8 @@ public class UIStyle : MonoBehaviour
         if (hud != null) hud.Rebuild();
         var hb = Object.FindFirstObjectByType<Hotbar>();
         if (hb != null) hb.Rebuild();
+        var bs = Object.FindFirstObjectByType<BuildSystem>();
+        if (bs != null) bs.RebuildUI();
     }
 
     void OnValidate()

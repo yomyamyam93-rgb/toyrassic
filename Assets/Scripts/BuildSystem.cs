@@ -17,6 +17,9 @@ public class BuildSystem : MonoBehaviour
     public class Piece
     {
         public string name = "울타리";
+        [Tooltip("팔레트 분류 탭")] public string category = "방어";
+        [TextArea(1, 2)] public string desc = "";
+        [Tooltip("아이콘 파일명 (Resources/Icons/) — 없으면 색 사각형")] public string icon = "";
         public int woodCost = 4, stoneCost = 0;
         public float hp = 60f;
         public Vector3 size = new Vector3(4f, 2.2f, 0.5f);   // 가로·높이·두께
@@ -27,11 +30,17 @@ public class BuildSystem : MonoBehaviour
     [Header("건축물 팔레트")]
     public List<Piece> pieces = new List<Piece>
     {
-        new Piece { name = "나무 울타리", woodCost = 4, stoneCost = 0, hp = 60f,
+        new Piece { name = "나무 울타리", category = "방어", icon = "건축_울타리",
+                    desc = "야생의 길을 막는 기본 벽. 싸지만 약하다.",
+                    woodCost = 4, stoneCost = 0, hp = 60f,
                     size = new Vector3(4f, 2.2f, 0.4f), color = new Color(0.55f, 0.38f, 0.20f), blockRadius = 1.8f },
-        new Piece { name = "돌 담장", woodCost = 2, stoneCost = 5, hp = 160f,
+        new Piece { name = "돌 담장", category = "방어", icon = "건축_돌담",
+                    desc = "튼튼한 방벽. 큰 야생도 한동안 버틴다.",
+                    woodCost = 2, stoneCost = 5, hp = 160f,
                     size = new Vector3(4f, 2.6f, 0.8f), color = new Color(0.62f, 0.60f, 0.55f), blockRadius = 2.0f },
-        new Piece { name = "말뚝 방벽", woodCost = 6, stoneCost = 1, hp = 90f,
+        new Piece { name = "말뚝 방벽", category = "방어", icon = "건축_말뚝",
+                    desc = "높고 좁은 말뚝. 좁은 길목을 틀어막기 좋다.",
+                    woodCost = 6, stoneCost = 1, hp = 90f,
                     size = new Vector3(2.2f, 3.2f, 0.6f), color = new Color(0.48f, 0.33f, 0.17f), blockRadius = 1.3f },
     };
 
@@ -50,7 +59,6 @@ public class BuildSystem : MonoBehaviour
 
     // HUD
     GameObject canvasRoot;
-    Text hudText;
     Font font;
     UIStyle St => UIStyle.I;
 
@@ -195,10 +203,58 @@ public class BuildSystem : MonoBehaviour
         best.Demolish();
     }
 
-    // ── HUD ──
+    // ── 건축 팔레트 UI (발헤임·팰월드식: 카테고리 탭 + 아이콘 카드 + 상세) ──
+    List<string> cats = new List<string>();
+    int catSel;
+    List<int> shown = new List<int>();          // 현재 탭에 보이는 pieces 인덱스
+    Image[] cardFrames; Image[] cardIcons; Image[] cardSwatch; Text[] cardCost; Text[] cardNum;
+    Image[] catTabs; Text[] catLabels;
+    Text detailName, detailDesc, detailCost, hintText;
+
+    RectTransform RT(string n, Transform parent)
+    {
+        var go = new GameObject(n, typeof(RectTransform));
+        go.transform.SetParent(parent, false);
+        return (RectTransform)go.transform;
+    }
+
+    Text MakeText(Transform parent, int size, Color c, bool bold, TextAnchor anchor)
+    {
+        var t = RT("t", parent).gameObject.AddComponent<Text>();
+        t.font = font; t.fontSize = size; t.color = c;
+        t.fontStyle = bold ? FontStyle.Bold : FontStyle.Normal;
+        t.alignment = anchor;
+        t.horizontalOverflow = HorizontalWrapMode.Wrap;
+        t.verticalOverflow = VerticalWrapMode.Overflow;
+        t.supportRichText = true;
+        t.raycastTarget = false;
+        return t;
+    }
+
+    /// UIStyle 값 바뀌면 팔레트 다시 그리기
+    public void RebuildUI()
+    {
+        if (font == null) return;
+        bool wasOn = IsBuilding;
+        if (canvasRoot != null) Destroy(canvasRoot);
+        BuildHUD();
+        if (canvasRoot != null) canvasRoot.SetActive(wasOn);
+    }
+
     void BuildHUD()
     {
-        var cgo = new GameObject("Build_Canvas", typeof(Canvas), typeof(CanvasScaler));
+        var round = St != null ? St.Round() : null;
+        var panelBg = St != null ? St.panelBg : new Color(0.94f, 0.91f, 0.86f);
+        var border = St != null ? St.panelBorder : new Color(0.63f, 0.55f, 0.46f);
+        var txtMain = St != null ? St.textMain : new Color(0.23f, 0.2f, 0.18f);
+        var txtSub = St != null ? St.textSub : new Color(0.23f, 0.2f, 0.18f, 0.62f);
+        var slotBg = St != null ? St.slotBg : new Color(0.9f, 0.86f, 0.78f);
+        var slotBorder = St != null ? St.slotBorder : new Color(0.71f, 0.64f, 0.53f);
+        float bw = St != null ? St.borderWidth : 3f;
+        float card = St != null ? St.buildCardSize : 92f;
+        float gap = St != null ? St.buildCardGap : 8f;
+
+        var cgo = new GameObject("Build_Canvas", typeof(Canvas), typeof(CanvasScaler), typeof(GraphicRaycaster));
         canvasRoot = cgo;
         var canvas = cgo.GetComponent<Canvas>();
         canvas.renderMode = RenderMode.ScreenSpaceOverlay;
@@ -208,42 +264,196 @@ public class BuildSystem : MonoBehaviour
         sc.referenceResolution = new Vector2(1920, 1080);
         sc.matchWidthOrHeight = 0.5f;
 
-        var rt = new GameObject("Panel", typeof(RectTransform)).GetComponent<RectTransform>();
-        rt.SetParent(cgo.transform, false);
-        rt.anchorMin = rt.anchorMax = rt.pivot = new Vector2(0.5f, 1f);
-        rt.anchoredPosition = new Vector2(0, -24);
-        rt.sizeDelta = new Vector2(760, 76);
-        var img = rt.gameObject.AddComponent<Image>();
-        img.sprite = St != null ? St.Round() : null; img.type = Image.Type.Sliced;
-        img.color = St != null ? new Color(St.panelBg.r, St.panelBg.g, St.panelBg.b, 0.92f) : new Color(0.94f, 0.91f, 0.86f, 0.92f);
+        // 카테고리 수집
+        cats.Clear();
+        foreach (var p in pieces) if (!cats.Contains(p.category)) cats.Add(p.category);
+        if (cats.Count == 0) cats.Add("방어");
 
-        hudText = new GameObject("t", typeof(RectTransform)).AddComponent<Text>();
-        hudText.transform.SetParent(rt, false);
-        var trt = hudText.rectTransform;
-        trt.anchorMin = Vector2.zero; trt.anchorMax = Vector2.one;
-        trt.offsetMin = new Vector2(16, 8); trt.offsetMax = new Vector2(-16, -8);
-        hudText.font = font; hudText.fontSize = 18;
-        hudText.color = St != null ? St.textMain : Color.black;
-        hudText.alignment = TextAnchor.MiddleCenter;
-        hudText.supportRichText = true;
+        // ── 하단 패널 (테두리 + 크림) ──
+        float panelW = St != null ? St.buildPanelWidth : 1040f;
+        float panelH = card + 150f;
+        var outer = RT("Panel", cgo.transform);
+        outer.anchorMin = outer.anchorMax = outer.pivot = new Vector2(0.5f, 0f);
+        outer.anchoredPosition = new Vector2(0, 20f);
+        outer.sizeDelta = new Vector2(panelW, panelH);
+        var oimg = outer.gameObject.AddComponent<Image>();
+        oimg.sprite = round; oimg.type = Image.Type.Sliced; oimg.color = border;
+        var win = RT("inner", outer);
+        win.anchorMin = Vector2.zero; win.anchorMax = Vector2.one;
+        win.offsetMin = new Vector2(bw, bw); win.offsetMax = new Vector2(-bw, -bw);
+        var wimg = win.gameObject.AddComponent<Image>();
+        wimg.sprite = round; wimg.type = Image.Type.Sliced; wimg.color = panelBg;
+
+        // ── 카테고리 탭 (좌상단) ──
+        catTabs = new Image[cats.Count]; catLabels = new Text[cats.Count];
+        for (int i = 0; i < cats.Count; i++)
+        {
+            int idx = i;
+            var trt = RT("cat" + i, win);
+            trt.anchorMin = trt.anchorMax = trt.pivot = new Vector2(0, 1);
+            trt.anchoredPosition = new Vector2(14 + i * 118f, -12);
+            trt.sizeDelta = new Vector2(110, 38);
+            catTabs[i] = trt.gameObject.AddComponent<Image>();
+            catTabs[i].sprite = round; catTabs[i].type = Image.Type.Sliced;
+            var b = trt.gameObject.AddComponent<Button>();
+            b.transition = Selectable.Transition.None;
+            b.onClick.AddListener(() => { catSel = idx; RebuildCards(); });
+            catLabels[i] = MakeText(trt, 17, txtMain, true, TextAnchor.MiddleCenter);
+            var lrt = catLabels[i].rectTransform;
+            lrt.anchorMin = Vector2.zero; lrt.anchorMax = Vector2.one;
+            lrt.offsetMin = lrt.offsetMax = Vector2.zero;
+            catLabels[i].text = cats[i];
+        }
+
+        // ── 카드 그리드 (탭 아래) ──
+        int maxCards = 8;
+        cardFrames = new Image[maxCards]; cardIcons = new Image[maxCards];
+        cardSwatch = new Image[maxCards]; cardCost = new Text[maxCards]; cardNum = new Text[maxCards];
+        for (int i = 0; i < maxCards; i++)
+        {
+            int idx = i;
+            var crt = RT("card" + i, win);
+            crt.anchorMin = crt.anchorMax = crt.pivot = new Vector2(0, 1);
+            crt.anchoredPosition = new Vector2(14 + i * (card + gap), -60);
+            crt.sizeDelta = new Vector2(card, card);
+            cardFrames[i] = crt.gameObject.AddComponent<Image>();
+            cardFrames[i].sprite = round; cardFrames[i].type = Image.Type.Sliced; cardFrames[i].color = slotBorder;
+            var cb = crt.gameObject.AddComponent<Button>();
+            cb.transition = Selectable.Transition.None;
+            cb.onClick.AddListener(() => { if (idx < shown.Count) sel = shown[idx]; });
+
+            var ci = RT("in", crt);
+            ci.anchorMin = Vector2.zero; ci.anchorMax = Vector2.one;
+            ci.offsetMin = new Vector2(bw, bw); ci.offsetMax = new Vector2(-bw, -bw);
+            var ciimg = ci.gameObject.AddComponent<Image>();
+            ciimg.sprite = round; ciimg.type = Image.Type.Sliced; ciimg.color = slotBg;
+
+            // 아이콘 (없으면 색 사각형 = 구조물 색 미리보기)
+            var irt = RT("icon", ci);
+            irt.anchorMin = new Vector2(0.5f, 1f); irt.anchorMax = new Vector2(0.5f, 1f);
+            irt.pivot = new Vector2(0.5f, 1f);
+            irt.anchoredPosition = new Vector2(0, -6);
+            irt.sizeDelta = new Vector2(card * 0.52f, card * 0.52f);
+            cardIcons[i] = irt.gameObject.AddComponent<Image>();
+            cardIcons[i].preserveAspect = true; cardIcons[i].raycastTarget = false; cardIcons[i].enabled = false;
+            cardSwatch[i] = RT("swatch", ci).gameObject.AddComponent<Image>();
+            var srt = cardSwatch[i].rectTransform;
+            srt.anchorMin = new Vector2(0.5f, 1f); srt.anchorMax = new Vector2(0.5f, 1f);
+            srt.pivot = new Vector2(0.5f, 1f);
+            srt.anchoredPosition = new Vector2(0, -10);
+            srt.sizeDelta = new Vector2(card * 0.44f, card * 0.44f);
+            cardSwatch[i].sprite = round; cardSwatch[i].type = Image.Type.Sliced;
+            cardSwatch[i].raycastTarget = false;
+
+            cardCost[i] = MakeText(ci, 13, txtMain, true, TextAnchor.LowerCenter);
+            var costRt = cardCost[i].rectTransform;
+            costRt.anchorMin = Vector2.zero; costRt.anchorMax = Vector2.one;
+            costRt.offsetMin = new Vector2(2, 4); costRt.offsetMax = new Vector2(-2, 0);
+
+            cardNum[i] = MakeText(ci, 12, txtSub, true, TextAnchor.UpperLeft);
+            var numRt = cardNum[i].rectTransform;
+            numRt.anchorMin = Vector2.zero; numRt.anchorMax = Vector2.one;
+            numRt.offsetMin = new Vector2(5, 0); numRt.offsetMax = Vector2.zero;
+            cardNum[i].text = (i + 1).ToString();
+        }
+
+        // ── 선택 상세 (카드 우측) ──
+        float detailX = 14 + maxCards * (card + gap) + 10;
+        var det = RT("Detail", win);
+        det.anchorMin = det.anchorMax = det.pivot = new Vector2(0, 1);
+        det.anchoredPosition = new Vector2(detailX, -60);
+        det.sizeDelta = new Vector2(panelW - detailX - 24, card);
+        detailName = MakeText(det, 20, txtMain, true, TextAnchor.UpperLeft);
+        var dnrt = detailName.rectTransform;
+        dnrt.anchorMin = new Vector2(0, 1); dnrt.anchorMax = new Vector2(1, 1); dnrt.pivot = new Vector2(0, 1);
+        dnrt.anchoredPosition = Vector2.zero; dnrt.sizeDelta = new Vector2(0, 26);
+        detailCost = MakeText(det, 15, txtMain, false, TextAnchor.UpperLeft);
+        var dcrt = detailCost.rectTransform;
+        dcrt.anchorMin = new Vector2(0, 1); dcrt.anchorMax = new Vector2(1, 1); dcrt.pivot = new Vector2(0, 1);
+        dcrt.anchoredPosition = new Vector2(0, -28); dcrt.sizeDelta = new Vector2(0, 22);
+        detailDesc = MakeText(det, 14, txtSub, false, TextAnchor.UpperLeft);
+        var ddrt = detailDesc.rectTransform;
+        ddrt.anchorMin = new Vector2(0, 1); ddrt.anchorMax = new Vector2(1, 1); ddrt.pivot = new Vector2(0, 1);
+        ddrt.anchoredPosition = new Vector2(0, -54); ddrt.sizeDelta = new Vector2(0, 44);
+
+        // ── 조작 힌트 (하단) ──
+        var hrt = RT("Hint", win);
+        hrt.anchorMin = new Vector2(0, 0); hrt.anchorMax = new Vector2(1, 0); hrt.pivot = new Vector2(0.5f, 0);
+        hrt.anchoredPosition = new Vector2(0, 8);
+        hrt.sizeDelta = new Vector2(-28, 24);
+        hintText = MakeText(hrt, 14, txtSub, false, TextAnchor.MiddleCenter);
+        var hrt2 = hintText.rectTransform;
+        hrt2.anchorMin = Vector2.zero; hrt2.anchorMax = Vector2.one;
+        hrt2.offsetMin = hrt2.offsetMax = Vector2.zero;
+        hintText.text = "좌클릭 설치   ·   우클릭 철거(재료 절반 회수)   ·   R 회전   ·   휠/숫자 선택   ·   B 또는 ESC 종료";
+
+        RebuildCards();
+    }
+
+    /// 현재 카테고리의 건축물로 카드 채우기
+    void RebuildCards()
+    {
+        shown.Clear();
+        string cat = cats.Count > 0 ? cats[Mathf.Clamp(catSel, 0, cats.Count - 1)] : "";
+        for (int i = 0; i < pieces.Count; i++)
+            if (pieces[i].category == cat && shown.Count < cardFrames.Length) shown.Add(i);
+        if (shown.Count > 0 && !shown.Contains(sel)) sel = shown[0];
     }
 
     void RefreshHUD()
     {
-        if (hudText == null) return;
-        var sb = new System.Text.StringBuilder();
-        sb.Append("<b>건축 모드</b>   ");
-        for (int i = 0; i < pieces.Count; i++)
+        if (cardFrames == null) return;
+        var accent = St != null ? St.accent : new Color(0.95f, 0.81f, 0.29f);
+        var slotBorder = St != null ? St.slotBorder : new Color(0.71f, 0.64f, 0.53f);
+        var slotBg = St != null ? St.slotBg : new Color(0.9f, 0.86f, 0.78f);
+        var txtMain = St != null ? St.textMain : Color.black;
+        string badHex = ColorUtility.ToHtmlStringRGB(St != null ? St.bad : Color.red);
+
+        // 카테고리 탭
+        for (int i = 0; i < catTabs.Length; i++)
         {
-            var p = pieces[i];
-            bool can = Stock.Wood >= p.woodCost && Stock.Stone >= p.stoneCost;
-            string body = $"[{i + 1}] {p.name} (나뭇가지{p.woodCost}" + (p.stoneCost > 0 ? $"·돌{p.stoneCost}" : "") + ")";
-            if (i == sel) sb.Append($"<b>▶{body}</b>   ");
-            else if (!can) sb.Append($"<color=#00000055>{body}</color>   ");
-            else sb.Append(body + "   ");
+            catTabs[i].color = i == catSel ? accent : slotBg;
+            catLabels[i].color = i == catSel ? (St != null ? St.accentText : Color.black) : txtMain;
         }
-        sb.Append("\n<size=14>좌클릭 설치 · 우클릭 철거 · R 회전 · 휠 선택 · B/ESC 종료</size>");
-        hudText.text = sb.ToString();
+
+        // 카드
+        for (int i = 0; i < cardFrames.Length; i++)
+        {
+            bool has = i < shown.Count;
+            cardFrames[i].transform.parent.gameObject.SetActive(true);
+            cardFrames[i].gameObject.SetActive(has);
+            if (!has) continue;
+            var p = pieces[shown[i]];
+            bool can = Stock.Wood >= p.woodCost && Stock.Stone >= p.stoneCost;
+            bool isSel = shown[i] == sel;
+            cardFrames[i].color = isSel ? accent : slotBorder;
+
+            var sp = string.IsNullOrEmpty(p.icon) ? null : IconLib.Get(p.icon);
+            cardIcons[i].enabled = sp != null;
+            if (sp != null) cardIcons[i].sprite = sp;
+            cardSwatch[i].enabled = sp == null;      // 아이콘 없으면 구조물 색 미리보기
+            cardSwatch[i].color = can ? p.color : new Color(p.color.r, p.color.g, p.color.b, 0.35f);
+
+            string wood = Stock.Wood >= p.woodCost ? $"{p.woodCost}" : $"<color=#{badHex}>{p.woodCost}</color>";
+            string stone = p.stoneCost > 0
+                ? (Stock.Stone >= p.stoneCost ? $" · 돌{p.stoneCost}" : $" · 돌<color=#{badHex}>{p.stoneCost}</color>")
+                : "";
+            cardCost[i].text = $"🌲{wood}{stone}";
+            cardCost[i].color = can ? txtMain : new Color(txtMain.r, txtMain.g, txtMain.b, 0.4f);
+        }
+
+        // 선택 상세
+        if (sel >= 0 && sel < pieces.Count)
+        {
+            var p = pieces[sel];
+            detailName.text = p.name;
+            string w = Stock.Wood >= p.woodCost ? $"{p.woodCost}" : $"<color=#{badHex}>{p.woodCost}</color>";
+            string s2 = p.stoneCost > 0
+                ? (Stock.Stone >= p.stoneCost ? $"   돌 {p.stoneCost}" : $"   돌 <color=#{badHex}>{p.stoneCost}</color>")
+                : "";
+            detailCost.text = $"나뭇가지 {w}{s2}      내구 {p.hp:F0}";
+            detailDesc.text = p.desc;
+        }
     }
 }
 
