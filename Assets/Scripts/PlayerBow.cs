@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 #if ENABLE_INPUT_SYSTEM
 using UnityEngine.InputSystem;
@@ -133,7 +134,8 @@ public class PlayerBow : MonoBehaviour
     class ToolRig
     {
         public Transform root, inst;
-        public Quaternion autoRot = Quaternion.identity;
+        public Quaternion autoRot = Quaternion.identity;   // 모델에 저작된 각도
+        public Vector3 autoPos;                            // 모델에 저작된 위치 (그립 기준)
         public float autoScale = 1f;
         public TrailRenderer trail;
     }
@@ -196,30 +198,23 @@ public class PlayerBow : MonoBehaviour
             var root = new GameObject(n).transform;
             root.SetParent(handR, false);
             var inst = Instantiate(model, root);
-            inst.transform.localPosition = Vector3.zero;
-            autoRot = Quaternion.identity; autoScale = 1f;
-            var mf = inst.GetComponentInChildren<MeshFilter>();
-            if (mf != null && mf.sharedMesh != null)
+            // ★블렌더에서 잡아둔 배치(위치·각도)를 그대로 쓴다 — 원점(0,0,0)이 손잡이라는
+            //   규칙만 지키면, 손에 든 자세는 사장님이 모델링에서 정한 그대로가 된다.
+            //   (축을 짐작하지 않으므로 무기마다 결과가 달라지는 일이 없다)
+            autoRot = inst.transform.localRotation;
+            autoScale = 1f;
+            if (RootBounds(root, out var bounds))
             {
-                var bounds = mf.sharedMesh.bounds;
-                // ★모델 원점(0,0,0)을 손잡이에 두고 만드는 게 규칙.
-                //   그러면 원점에서 몸통이 뻗어나간 방향이 곧 '날 방향'이라 정확히 세울 수 있다.
-                var dir = bounds.center;
-                float reach = FarthestFromOrigin(bounds);
-                if (dir.magnitude > reach * 0.15f)
-                {   // 원점이 손잡이 쪽에 치우쳐 있다 = 규칙대로 만든 모델
-                    autoRot = Quaternion.FromToRotation(dir.normalized, Vector3.forward);
-                    autoScale = toolLength / Mathf.Max(0.01f, reach);
+                autoScale = toolLength / Mathf.Max(0.01f, FarthestFromOrigin(bounds));   // 그립 기준 크기 정규화
+                // 스윙 모션은 '무기가 앞(+Z)을 향한다'는 전제로 짜여 있다. 그립에서 날이
+                // 뻗은 방향만 +Z 로 돌려주고, 저작한 기울기·회전은 그 위에 그대로 얹는다.
+                var blade = bounds.center;
+                if (blade.sqrMagnitude > 1e-4f)
+                {
+                    var extra = Quaternion.FromToRotation(blade.normalized, Vector3.forward);
+                    autoRot = extra * autoRot;
+                    inst.transform.localPosition = extra * inst.transform.localPosition;
                 }
-                else
-                {   // 원점이 한가운데인 옛 모델 — 예전처럼 제일 긴 축을 자루로 짐작
-                    var size = bounds.size;
-                    if (size.y >= size.x && size.y >= size.z) autoRot = Quaternion.Euler(90f, 0f, 0f);
-                    else if (size.x >= size.z) autoRot = Quaternion.Euler(0f, -90f, 0f);
-                    autoScale = toolLength / Mathf.Max(0.01f, Mathf.Max(size.x, Mathf.Max(size.y, size.z)));
-                }
-                inst.transform.localRotation = autoRot;
-                inst.transform.localScale = Vector3.one * autoScale;
             }
             instOut = inst.transform;
             root.gameObject.SetActive(false);
@@ -254,7 +249,10 @@ public class PlayerBow : MonoBehaviour
             if (rigs.ContainsKey(w.id)) continue;
             var rig = new ToolRig();
             if (w.model != null)
+            {
                 rig.root = MountModel(w.id, w.model, out rig.inst, out rig.autoRot, out rig.autoScale);
+                rig.autoPos = rig.inst.localPosition;   // 저작된 위치 보관 (크기 정규화 때 같이 줄인다)
+            }
             else
                 rig.root = w.id == "곡갱이"
                     ? MakeTool(w.id, new Color(0.46f, 0.45f, 0.43f), new Vector3(0.9f, 0.16f, 0.22f), out rig.inst)
@@ -346,8 +344,11 @@ public class PlayerBow : MonoBehaviour
         if (bowModel != null)
         {   // ★3D 활대 — 시위·화살은 그대로 절차 유지 (당기는 연출을 살리려고)
             bowInst = Instantiate(bowModel, bowRoot).transform;
-            var mf = bowInst.GetComponentInChildren<MeshFilter>();
-            if (mf != null && mf.sharedMesh != null) AlignBow(mf.sharedMesh);
+            // 도구와 같은 규칙 — 저작된 배치 그대로, 크기만 활 길이에 맞춘다
+            bowAutoRot = bowInst.localRotation;
+            bowAutoPos = bowInst.localPosition;
+            if (RootBounds(bowRoot, out var bb))
+                bowAutoScale = bowSize * 2f / Mathf.Max(0.01f, FarthestFromOrigin(bb) * 2f);
         }
         else
         {
@@ -392,6 +393,31 @@ public class PlayerBow : MonoBehaviour
         nockArrow.gameObject.SetActive(false);
     }
 
+    /// ★모델 루트 기준 전체 바운즈 — 블렌더에서 오브젝트를 옮겨 놓으면 그 위치가
+    /// 노드 오프셋으로 들어오므로, 메시 자체 바운즈만 보면 '원점=손잡이'를 놓친다.
+    /// 파츠가 여러 개인 모델도 전부 합쳐서 본다.
+    static bool RootBounds(Transform root, out Bounds bounds)
+    {
+        bounds = new Bounds();
+        bool any = false;
+        foreach (var mf in root.GetComponentsInChildren<MeshFilter>())
+        {
+            if (mf.sharedMesh == null) continue;
+            var b = mf.sharedMesh.bounds;
+            for (int i = 0; i < 8; i++)
+            {
+                var c = new Vector3((i & 1) == 0 ? b.min.x : b.max.x,
+                                    (i & 2) == 0 ? b.min.y : b.max.y,
+                                    (i & 4) == 0 ? b.min.z : b.max.z);
+                // 메시 로컬 → 모델 루트
+                var p = root.InverseTransformPoint(mf.transform.TransformPoint(c));
+                if (!any) { bounds = new Bounds(p, Vector3.zero); any = true; }
+                else bounds.Encapsulate(p);
+            }
+        }
+        return any;
+    }
+
     /// 원점에서 제일 먼 모서리까지 거리 = 손잡이에서 날 끝까지 길이
     static float FarthestFromOrigin(Bounds b)
     {
@@ -404,59 +430,6 @@ public class PlayerBow : MonoBehaviour
             far = Mathf.Max(far, c.magnitude);
         }
         return far;
-    }
-
-    /// ★활 모델 자동 정렬 — 모델이 어떤 축으로 기울어 들어와도 알아서 세운다.
-    /// 바운딩 박스로는 판별이 안 돼서(활은 가로세로가 비슷) 정점 분포를 본다:
-    ///   제일 길게 퍼진 축 = 활대 끝~끝 → +Y,  볼록한(그립) 쪽 → +Z(화살 나가는 쪽)
-    /// 절차 활대 기준(끝 ±Y·시위 -Z)에 그대로 맞으므로 시위·화살이 어긋나지 않는다.
-    void AlignBow(Mesh mesh)
-    {
-        var v = mesh.vertices;
-        if (v.Length < 16) return;
-        int step = Mathf.Max(1, v.Length / 3000);   // 3천 점만 표본 — 정렬엔 충분
-
-        Vector3 mean = Vector3.zero; int cnt = 0;
-        for (int i = 0; i < v.Length; i += step) { mean += v[i]; cnt++; }
-        mean /= cnt;
-
-        float xx = 0, xy = 0, xz = 0, yy = 0, yz = 0, zz = 0;
-        for (int i = 0; i < v.Length; i += step)
-        {
-            var d = v[i] - mean;
-            xx += d.x * d.x; xy += d.x * d.y; xz += d.x * d.z;
-            yy += d.y * d.y; yz += d.y * d.z; zz += d.z * d.z;
-        }
-        Vector3 Mul(Vector3 p) => new Vector3(xx * p.x + xy * p.y + xz * p.z,
-                                              xy * p.x + yy * p.y + yz * p.z,
-                                              xz * p.x + yz * p.y + zz * p.z);
-        // 제일 크게 퍼진 축 → 활대 방향
-        var a = new Vector3(1f, 0.3f, 0.1f).normalized;
-        for (int i = 0; i < 60; i++) { var m = Mul(a); if (m.sqrMagnitude < 1e-12f) break; a = m.normalized; }
-        // 그 다음 축 → 활이 휜 평면 (a 성분을 빼가며 반복)
-        var b = new Vector3(0.2f, 1f, 0.3f); b = (b - Vector3.Dot(b, a) * a).normalized;
-        for (int i = 0; i < 60; i++)
-        {
-            var m = Mul(b); m -= Vector3.Dot(m, a) * a;
-            if (m.sqrMagnitude < 1e-12f) break;
-            b = m.normalized;
-        }
-        // 활대 중앙(그립)이 튀어나온 쪽을 +Z 로 — 시위는 반대쪽(-Z)으로 당겨진다
-        float half = 0f;
-        for (int i = 0; i < v.Length; i += step) half = Mathf.Max(half, Mathf.Abs(Vector3.Dot(v[i] - mean, a)));
-        float midB = 0f, tipB = 0f; int mc = 0, tc = 0;
-        for (int i = 0; i < v.Length; i += step)
-        {
-            var d = v[i] - mean;
-            float la = Mathf.Abs(Vector3.Dot(d, a)), lb = Vector3.Dot(d, b);
-            if (la < half * 0.2f) { midB += lb; mc++; }
-            else if (la > half * 0.8f) { tipB += lb; tc++; }
-        }
-        if (mc > 0 && tc > 0 && midB / mc < tipB / tc) b = -b;
-
-        bowAutoRot = Quaternion.Inverse(Quaternion.LookRotation(b, a));
-        bowAutoScale = bowSize * 2f / Mathf.Max(0.01f, half * 2f);
-        bowAutoPos = bowAutoRot * -mean * bowAutoScale;   // 활 중심을 손 위치로 (원점이 어디든)
     }
 
     /// 활대 튜브 메시 — 위아래로 짧은 아치, 단면 원형 (뭉뚝)
@@ -717,9 +690,10 @@ public class PlayerBow : MonoBehaviour
         if (bowRoot != null) bowRoot.gameObject.SetActive(gearV == GearKind.Bow);
         if (bowInst != null)
         {   // 활 모델 정렬 — 인스펙터 값 실시간 반영 (도구와 같은 방식)
+            float bs = bowAutoScale * bowModelScale;
             bowInst.localRotation = bowAutoRot * Quaternion.Euler(bowModelEuler);
-            bowInst.localPosition = bowAutoPos + bowModelPos;
-            bowInst.localScale = Vector3.one * (bowAutoScale * bowModelScale);
+            bowInst.localPosition = bowAutoPos * bs + bowModelPos;
+            bowInst.localScale = Vector3.one * bs;
         }
         {
             string curId = GearId(gearV);
@@ -739,9 +713,10 @@ public class PlayerBow : MonoBehaviour
                 // 모델별 정렬 보정 — 무기 드롭다운에서 조절한 값 (실시간 반영)
                 if (rig.inst != null)
                 {
+                    float s = rig.autoScale * setup.modelScale;
                     rig.inst.localRotation = rig.autoRot * Quaternion.Euler(setup.modelEuler);
-                    rig.inst.localPosition = setup.modelPos;
-                    rig.inst.localScale = Vector3.one * (rig.autoScale * setup.modelScale);
+                    rig.inst.localPosition = rig.autoPos * s + setup.modelPos;   // 그립 기준으로 같이 축소
+                    rig.inst.localScale = Vector3.one * s;
                 }
 
                 var trail = rig.trail;
