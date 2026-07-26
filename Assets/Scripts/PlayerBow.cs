@@ -826,8 +826,17 @@ public class PlayerBow : MonoBehaviour
 
                     handR.position = transform.position +
                         frame * Vector3.LerpUnclamped(sPos, ePos, p);
-                    handR.rotation = frame * Quaternion.Slerp(
-                        Quaternion.Euler(sEul), Quaternion.Euler(eEul), Mathf.Clamp01(p));
+                    // ★회전은 '무기가 향하는 축'을 직접 보간한다.
+                    //   시작·끝 각도를 쿼터니언으로 바로 이으면 지름길이 몸 뒤쪽으로 나서,
+                    //   앞을 긁어야 할 가로 스윙이 등 뒤를 긁고 지나갔다.
+                    var q0 = Quaternion.Euler(sEul);
+                    var q1 = Quaternion.Euler(eEul);
+                    float rk = Mathf.Clamp01(p);
+                    var aim0 = Vector3.Slerp(q0 * Vector3.forward, q1 * Vector3.forward, rk);
+                    var up0 = Vector3.Slerp(q0 * Vector3.up, q1 * Vector3.up, rk);
+                    handR.rotation = aim0.sqrMagnitude > 1e-6f && up0.sqrMagnitude > 1e-6f
+                        ? frame * Quaternion.LookRotation(aim0.normalized, up0)
+                        : frame * Quaternion.Slerp(q0, q1, rk);
 
                     if (trail != null)
                     {
