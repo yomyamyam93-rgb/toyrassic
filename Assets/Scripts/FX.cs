@@ -292,6 +292,109 @@ public static class FX
         mr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
         go.AddComponent<FxSweep>().Init(mesh, seg, c, sweepDur, fadeDur);
     }
+
+    /// ★지나가는 초승달 — 부채꼴이 한꺼번에 뜨는 Sweep 과 달리, 얇은 날이
+    /// 시작각에서 끝각으로 '지나간다'. 베는 맛이 나야 하는 칼·도끼용.
+    public static void SweepArc(Vector3 center, float startYaw, float sweepDeg, float radius, Color c,
+                                float travelDur = 0.22f, float fadeDur = 0.16f)
+    {
+        var go = new GameObject("fx_arc");
+        go.transform.SetParent(SceneBuckets.Fx);
+        go.transform.position = center + Vector3.up * 0.7f;
+        go.AddComponent<FxArc>().Init(startYaw, sweepDeg, radius, c, travelDur, fadeDur);
+    }
+
+    /// ★땅 갈라짐 — 착지 지점에서 금이 사방으로 쭉쭉 뻗는다. 내리찍기용.
+    public static void GroundCrack(Vector3 center, float radius, Color c, int spokes = 7, float dur = 0.5f)
+    {
+        for (int i = 0; i < spokes; i++)
+        {
+            float a = (360f / spokes) * i + Random.Range(-14f, 14f);
+            var dir = Quaternion.Euler(0f, a, 0f) * Vector3.forward;
+            float len = radius * Random.Range(0.6f, 1f);
+            var go = new GameObject("fx_crack");
+            go.transform.SetParent(SceneBuckets.Fx);
+            go.transform.position = center + Vector3.up * 0.12f;
+            go.AddComponent<FxCrack>().Init(dir, len, c, dur);
+        }
+    }
+}
+
+/// 지나가는 초승달 한 자루
+public class FxArc : MonoBehaviour
+{
+    LineRenderer lr; float startYaw, sweepDeg, radius, travel, fade, t;
+    Color col; const int Seg = 14;
+    /// 날이 훑고 지나간 각도 폭 (초승달 길이)
+    const float Span = 55f;
+
+    public void Init(float startYaw, float sweepDeg, float radius, Color c, float travel, float fade)
+    {
+        this.startYaw = startYaw; this.sweepDeg = sweepDeg; this.radius = radius;
+        this.travel = Mathf.Max(0.02f, travel); this.fade = Mathf.Max(0.02f, fade); col = c;
+        lr = gameObject.AddComponent<LineRenderer>();
+        lr.useWorldSpace = false;
+        lr.positionCount = Seg + 1;
+        lr.material = new Material(Shader.Find("Sprites/Default"));
+        lr.numCapVertices = 3;
+        lr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+        lr.widthCurve = AnimationCurve.EaseInOut(0f, 0.05f, 1f, 1f);   // 꼬리는 가늘게
+    }
+
+    void Update()
+    {
+        t += Time.deltaTime;
+        float k = Mathf.Clamp01(t / travel);
+        float head = sweepDeg * (1f - Mathf.Pow(1f - k, 2.5f));   // 확 나갔다 감속
+        for (int i = 0; i <= Seg; i++)
+        {
+            float a = head - Span * Mathf.Sign(sweepDeg) * i / Seg;   // 머리에서 꼬리로
+            float rad = Mathf.Deg2Rad * (startYaw + a);
+            var d = new Vector3(Mathf.Sin(rad), 0f, Mathf.Cos(rad));
+            lr.SetPosition(i, d * radius * (1f - 0.06f * i / Seg));
+        }
+        float alpha = t < travel ? 1f : Mathf.Clamp01(1f - (t - travel) / fade);
+        lr.startWidth = radius * 0.16f * alpha;
+        lr.endWidth = radius * 0.02f * alpha;
+        var c2 = col; c2.a = col.a * alpha;
+        lr.startColor = c2; lr.endColor = new Color(c2.r, c2.g, c2.b, 0f);
+        if (t > travel + fade) Destroy(gameObject);
+    }
+}
+
+/// 바닥에 뻗어나가는 금 한 줄
+public class FxCrack : MonoBehaviour
+{
+    LineRenderer lr; Vector3 dir; float len, dur, t; Color col;
+
+    public void Init(Vector3 dir, float len, Color c, float dur)
+    {
+        this.dir = dir; this.len = len; this.dur = Mathf.Max(0.05f, dur); col = c;
+        lr = gameObject.AddComponent<LineRenderer>();
+        lr.useWorldSpace = false;
+        lr.positionCount = 5;
+        lr.material = new Material(Shader.Find("Sprites/Default"));
+        lr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+    }
+
+    void Update()
+    {
+        t += Time.deltaTime;
+        float k = Mathf.Clamp01(t / (dur * 0.35f));            // 앞부분에 확 뻗고
+        float grow = len * (1f - Mathf.Pow(1f - k, 3f));
+        for (int i = 0; i < 5; i++)
+        {   // 지그재그로 갈라진 느낌
+            float f = i / 4f;
+            var side = Vector3.Cross(Vector3.up, dir) * Mathf.Sin(f * 9f) * len * 0.05f;
+            lr.SetPosition(i, dir * grow * f + side * f);
+        }
+        float alpha = Mathf.Clamp01(1f - t / dur);
+        lr.startWidth = len * 0.09f * alpha;
+        lr.endWidth = 0.01f;
+        var c2 = col; c2.a = col.a * alpha;
+        lr.startColor = c2; lr.endColor = new Color(c2.r, c2.g, c2.b, 0f);
+        if (t > dur) Destroy(gameObject);
+    }
 }
 
 /// 참격 파티클 잔상 — 스윙 궤적을 따라 촙촙한 조각이 촥 뿌려지고 짧게 흩어져 사라짐

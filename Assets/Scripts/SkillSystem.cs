@@ -16,9 +16,8 @@ public class SkillSystem : MonoBehaviour
     public float qSpinDamage = 40f;
 
     [Header("Q — 무기별 동작 (이펙트만이 아니라 실제로 휘두른다)")]
-    [Tooltip("도끼: 기 모았다가 몸째로 회전 — 모으는 시간·감는 각도·도는 바퀴수·도는 시간")]
-    public float qAxeCharge = 0.5f, qAxeWindup = 70f;
-    public float qAxeTurns = 1f, qAxeSpinTime = 0.35f;
+    [Tooltip("도끼: 멈춤 없이 몸째로 한 바퀴 — 바퀴수·도는 시간")]
+    public float qAxeTurns = 1f, qAxeSpinTime = 0.4f;
     public float qAxeDamageMul = 2.0f, qAxeRangeMul = 1.5f;
 
     [Tooltip("곡괭이: 뛰어올라 내리찍기 — 뜨는 시간·높이·정점 정지·낙하 시간")]
@@ -26,9 +25,11 @@ public class SkillSystem : MonoBehaviour
     [Tooltip("앞으로 나가는 거리 · 충격파 반경 · 피해 배율")]
     public float qSlamStep = 4f, qSlamRadius = 9f, qSlamDamageMul = 2.6f;
 
-    [Tooltip("칼: 좌우 교차 베기 — 타수·간격·한 타 전진 거리·한 타 피해 배율")]
+    [Tooltip("칼: 좌우 교차 베기 — 타수·베고 다음까지 간격·한 타 전진 거리·피해 배율")]
     public int qComboHits = 2;
-    public float qComboInterval = 0.16f, qComboStep = 2.6f, qComboDamageMul = 1.4f;
+    public float qComboInterval = 0.22f, qComboStep = 2.6f, qComboDamageMul = 1.4f;
+    [Tooltip("파고드는 시간(짧을수록 '싹' 하고 끊긴다) · 초승달이 지나가는 시간")]
+    public float qComboLunge = 0.07f, qComboSlashTime = 0.13f;
 
     [Header("F — 펫 공격기 (제자리 강공격, 펫 특성별)")]
     public float wCooldown = 9f;
@@ -210,30 +211,17 @@ public class SkillSystem : MonoBehaviour
         if (blob != null) blob.skillHoldFacing = true;   // 도는 동안 마우스 안 따라감
         if (move != null) move.suppressMove = true;
 
-        // ① 기 모으기 — 살짝 웅크리고 먼지가 빨려든다
-        float t = 0f;
-        while (t < qAxeCharge)
+        // 멈춤 없이 곧바로 한 바퀴 — 처음엔 확 돌고 끝에서 스르륵 멎는다
+        if (gather != null) gather.SkillSwing(dir, false, false, qAxeDamageMul, qAxeRangeMul);
+        FX.SweepArc(area, transform.eulerAngles.y, 360f, areaR,
+                    new Color(1.7f, 1.55f, 1.1f, 0.9f), qAxeSpinTime, 0.3f);
+        FollowCam.Shake(0.35f);
+        float t = 0f, total = 360f * qAxeTurns;
+        while (t < qAxeSpinTime)
         {
             t += Time.deltaTime;
-            float k = t / qAxeCharge;
-            if (blob != null) blob.skillYaw = -Mathf.Lerp(0f, qAxeWindup, k);   // 반대로 감는다
-            if (t % 0.12f < Time.deltaTime)
-                FX.Burst(transform.position + Vector3.up * 1.2f,
-                         new Color(1.4f, 1.3f, 0.9f, 0.7f), 4, 0.18f, 2.5f, 0.35f);
-            yield return null;
-        }
-
-        // ② 휙! — 한 바퀴 (여러 바퀴 가능) 돌면서 벤다
-        if (gather != null) gather.SkillSwing(dir, false, false, qAxeDamageMul, qAxeRangeMul);
-        FX.Sweep(area, transform.eulerAngles.y, 360f, areaR,
-                 new Color(1.6f, 1.5f, 1.1f, 0.85f), 0.35f, 0.25f);
-        FollowCam.Shake(0.35f);
-        float spun = 0f, total = 360f * qAxeTurns;
-        while (spun < total)
-        {
-            float step = Mathf.Max(total * Time.deltaTime / qAxeSpinTime, 1f);
-            spun += step;
-            if (blob != null) blob.skillYaw = -qAxeWindup + spun;
+            float k = Mathf.Clamp01(t / qAxeSpinTime);
+            if (blob != null) blob.skillYaw = total * (1f - Mathf.Pow(1f - k, 2.2f));   // 빠르게 → 감속
             yield return null;
         }
         HitAround(area, areaR, qSpinDamage * qAxeDamageMul, 4f);
@@ -277,8 +265,7 @@ public class SkillSystem : MonoBehaviour
 
         // ④ 쾅! — 미리보기로 보여준 그 자리에 충격파
         FX.Burst(area, new Color(0.75f, 0.68f, 0.55f, 0.95f), 34, 0.55f, 8f, 0.6f);
-        FX.Sweep(area, transform.eulerAngles.y, 360f, areaR,
-                 new Color(1.5f, 1.2f, 0.7f, 0.85f), 0.4f, 0.3f);
+        FX.GroundCrack(area, areaR, new Color(1.1f, 0.85f, 0.5f, 0.95f), 8, 0.55f);   // 땅이 쩍 갈라진다
         HitAround(area, areaR, qSpinDamage * qSlamDamageMul, 2f);
         FollowCam.Shake(0.5f);
         if (move != null) move.suppressMove = false;
@@ -294,13 +281,17 @@ public class SkillSystem : MonoBehaviour
         for (int i = 0; i < qComboHits; i++)
         {
             // ★한 번은 오른쪽에서, 한 번은 왼쪽에서 — 방향을 뒤집어 교차로 벤다
-            if (sword != null) sword.hFlip = (i % 2 == 0) ? baseFlip : !baseFlip;
-            StartDash(dir, qComboStep, 0.08f, false, 0f, 0f);
+            bool rightToLeft = (i % 2 == 0);
+            if (sword != null) sword.hFlip = rightToLeft ? baseFlip : !baseFlip;
+            // 벨 때만 확 파고들고 곧바로 멎는다 (질질 끌면 '싹' 하는 맛이 없다)
+            StartDash(dir, qComboStep, qComboLunge, false, 0f, 0f);
             if (gather != null) gather.SkillSwing(dir, false, true, qComboDamageMul, 1f);
-            FX.Sweep(area, transform.eulerAngles.y, 150f, areaR,
-                     new Color(1.7f, 1.6f, 1.2f, 0.85f), 0.28f, 0.2f);
+            // 한쪽에서 반대쪽으로 지나가는 초승달 — 방향도 번갈아
+            FX.SweepArc(area, transform.eulerAngles.y + (rightToLeft ? 80f : -80f),
+                        rightToLeft ? -160f : 160f, areaR,
+                        new Color(2.0f, 1.9f, 1.5f, 0.95f), qComboSlashTime, 0.16f);
             HitAround(area, areaR, qSpinDamage * qComboDamageMul, 2f);
-            FollowCam.Shake(0.16f);
+            FollowCam.Shake(0.22f);
             yield return new WaitForSeconds(qComboInterval);
         }
         if (sword != null) sword.hFlip = baseFlip;   // 원래대로 (평타가 안 바뀌게)
