@@ -24,29 +24,41 @@ public class BuildSystem : MonoBehaviour
         public float hp = 60f;
         public Vector3 size = new Vector3(4f, 2.2f, 0.5f);   // 가로·높이·두께
         public Color color = new Color(0.55f, 0.38f, 0.20f);
-        [Tooltip("이 구조물이 막는 반경 (m)")] public float blockRadius = 1.6f;
+        [Tooltip("이 구조물이 막는 반경 (m) — 바닥은 0")] public float blockRadius = 1.6f;
+        [Tooltip("바닥(플랫폼) — 그 위에 다른 걸 지을 수 있다")] public bool isFloor = false;
     }
 
     [Header("건축물 팔레트")]
     public List<Piece> pieces = new List<Piece>
     {
+        // ── 바닥: 먼저 깔고 그 위에 벽을 올린다 ──
+        new Piece { name = "나무 바닥", category = "바닥", icon = "건축_나무바닥", isFloor = true,
+                    desc = "거점의 기초. 이 위에 벽과 시설을 올릴 수 있다.",
+                    woodCost = 6, stoneCost = 0, hp = 80f,
+                    size = new Vector3(10f, 0.6f, 10f), color = new Color(0.58f, 0.42f, 0.24f), blockRadius = 0f },
+        new Piece { name = "돌 바닥", category = "바닥", icon = "건축_돌바닥", isFloor = true,
+                    desc = "튼튼한 기초. 잘 부서지지 않는다.",
+                    woodCost = 2, stoneCost = 8, hp = 220f,
+                    size = new Vector3(10f, 0.7f, 10f), color = new Color(0.60f, 0.58f, 0.54f), blockRadius = 0f },
+
+        // ── 방어: 바닥 위나 맨땅에 세운다 ──
         new Piece { name = "나무 울타리", category = "방어", icon = "건축_울타리",
                     desc = "야생의 길을 막는 기본 벽. 싸지만 약하다.",
                     woodCost = 4, stoneCost = 0, hp = 60f,
-                    size = new Vector3(4f, 2.2f, 0.4f), color = new Color(0.55f, 0.38f, 0.20f), blockRadius = 1.8f },
+                    size = new Vector3(10f, 5.5f, 1.0f), color = new Color(0.55f, 0.38f, 0.20f), blockRadius = 4.5f },
         new Piece { name = "돌 담장", category = "방어", icon = "건축_돌담",
                     desc = "튼튼한 방벽. 큰 야생도 한동안 버틴다.",
                     woodCost = 2, stoneCost = 5, hp = 160f,
-                    size = new Vector3(4f, 2.6f, 0.8f), color = new Color(0.62f, 0.60f, 0.55f), blockRadius = 2.0f },
+                    size = new Vector3(10f, 6.5f, 2.0f), color = new Color(0.62f, 0.60f, 0.55f), blockRadius = 5.0f },
         new Piece { name = "말뚝 방벽", category = "방어", icon = "건축_말뚝",
                     desc = "높고 좁은 말뚝. 좁은 길목을 틀어막기 좋다.",
                     woodCost = 6, stoneCost = 1, hp = 90f,
-                    size = new Vector3(2.2f, 3.2f, 0.6f), color = new Color(0.48f, 0.33f, 0.17f), blockRadius = 1.3f },
+                    size = new Vector3(5.5f, 8f, 1.5f), color = new Color(0.48f, 0.33f, 0.17f), blockRadius = 3.2f },
     };
 
     [Header("배치 규칙")]
-    [Tooltip("그리드 스냅 간격 (m)")] public float grid = 2f;
-    [Tooltip("배치 사거리 (m)")] public float reach = 18f;
+    [Tooltip("그리드 스냅 간격 (m) — 바닥 한 칸 크기")] public float grid = 5f;
+    [Tooltip("배치 사거리 (m)")] public float reach = 24f;
     [Tooltip("최대 경사 (°)")] public float maxSlope = 22f;
     [Tooltip("철거 시 재료 환급 비율")] [Range(0f, 1f)] public float refund = 0.5f;
 
@@ -81,14 +93,9 @@ public class BuildSystem : MonoBehaviour
         if (!IsBuilding) return;
         if (k.escapeKey.wasPressedThisFrame) { SetMode(false); return; }
         if (k.rKey.wasPressedThisFrame) yaw += 45f;
-        // 휠 = 현재 탭 안에서 건축물 넘기기 (건축 모드 동안 카메라 줌은 잠김)
+        // ★휠 = 설치 미리보기 회전 (건축물 선택은 숫자키·카드 클릭)
         float scroll = m.scroll.ReadValue().y;
-        if (Mathf.Abs(scroll) > 0.01f && shown.Count > 0)
-        {
-            int at = Mathf.Max(0, shown.IndexOf(sel));
-            at = (at + (scroll > 0 ? 1 : shown.Count - 1)) % shown.Count;
-            sel = shown[at];
-        }
+        if (Mathf.Abs(scroll) > 0.01f) yaw += (scroll > 0 ? 15f : -15f);
         // Tab / Q·E = 카테고리 전환 (탭이 여러 개일 때)
         if (cats.Count > 1 && k.tabKey.wasPressedThisFrame)
         {
@@ -172,11 +179,21 @@ public class BuildSystem : MonoBehaviour
             float slope = inside ? Vector3.Angle(td.GetInterpolatedNormal(nx, nz), Vector3.up) : 90f;
             valid = inside && slope <= maxSlope;
         }
-        // 재료 + 겹침 검사
+        // 재료
         if (Stock.Wood < p.woodCost || Stock.Stone < p.stoneCost) valid = false;
+
+        // ★같은 칸의 바닥 위에 올려 짓기 — 벽·시설은 바닥 상단 높이로
+        Structure floorHere = null;
         foreach (var s in Structure.All)
-            if (s != null && Vector3.Distance(new Vector3(s.transform.position.x, 0, s.transform.position.z),
-                                              new Vector3(pos.x, 0, pos.z)) < grid * 0.9f) valid = false;
+        {
+            if (s == null) continue;
+            float d2 = Vector3.Distance(new Vector3(s.transform.position.x, 0, s.transform.position.z),
+                                        new Vector3(pos.x, 0, pos.z));
+            if (d2 >= grid * 0.9f) continue;
+            if (s.isFloor && !p.isFloor) { floorHere = s; continue; }   // 바닥 위엔 올릴 수 있다
+            valid = false;                                              // 같은 종류끼리는 겹침 불가
+        }
+        if (floorHere != null) pos.y = floorHere.TopY;
 
         ghost.SetActive(true);
         ghost.transform.position = pos + Vector3.up * p.size.y * 0.5f;
@@ -398,7 +415,7 @@ public class BuildSystem : MonoBehaviour
         var hrt2 = hintText.rectTransform;
         hrt2.anchorMin = Vector2.zero; hrt2.anchorMax = Vector2.one;
         hrt2.offsetMin = hrt2.offsetMax = Vector2.zero;
-        hintText.text = "좌클릭 설치   ·   우클릭 철거(절반 회수)   ·   R 회전   ·   휠·숫자 건축물 선택   ·   Tab 분류 전환   ·   B·ESC 종료  (건축 중 카메라 줌·핫바 잠김)";
+        hintText.text = "좌클릭 설치   ·   우클릭 철거(절반 회수)   ·   휠 회전(R 45°)   ·   숫자·카드 클릭 선택   ·   Tab 분류   ·   B·ESC 종료";
 
         RebuildCards();
     }
@@ -475,6 +492,9 @@ public class Structure : MonoBehaviour
 {
     public static readonly List<Structure> All = new List<Structure>();
     public int woodCost, stoneCost;
+    public bool isFloor;
+    /// 이 구조물 윗면 높이 (바닥 위에 올려 지을 때 기준)
+    public float TopY { get; private set; }
     PetUnit unit;
     float blockRadius;
 
@@ -497,12 +517,16 @@ public class Structure : MonoBehaviour
         var s = go.AddComponent<Structure>();
         s.woodCost = p.woodCost; s.stoneCost = p.stoneCost;
         s.blockRadius = p.blockRadius;
+        s.isFloor = p.isFloor;
+        s.TopY = pos.y + p.size.y;   // 이 위에 다음 층을 올린다
+        if (p.blockRadius <= 0.01f) { /* 바닥은 통행 가능 — 충돌 등록 안 함 */ }
         var u = go.AddComponent<PetUnit>();
         u.isStructure = true; u.team = PetUnit.Team.Player;
         u.mat = PetUnit.Mat.Basic; u.species = "structure";
         u.vit = p.hp / 10f; u.str = 0; u.agi = 0; u.intel = 0;
         s.unit = u;
-        TreeBlocker.AddPoint(pos, p.blockRadius);   // 적·플레이어가 못 지나감
+        if (p.blockRadius > 0.01f)
+            TreeBlocker.AddPoint(pos, p.blockRadius);   // 벽만 통행 차단 (바닥은 지나갈 수 있음)
         return s;
     }
 

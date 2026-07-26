@@ -838,10 +838,12 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::PlayerMove
   moveSpeed: 25.5
   accel: 34
+  brake: 110
   fullDrawSpeed: 0.35
   waterY: 40
   wetFactor: 0.55
   cam: {fileID: 330585546}
+  suppressMove: 0
 --- !u!114 &107336110
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1006,6 +1008,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::PetUnit
   team: 0
   mat: 6
+  pattern: 0
   supply: 0
   collectible: 0
   species: player
@@ -1106,6 +1109,110 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 9346d7c451b431a4aa6c6685af78652f, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Hotbar
+--- !u!114 &107336126
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 107336108}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 9ae9563d3342bc54787da3cd1da041bc, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::BuildSystem
+  pieces:
+  - name: "\uB098\uBB34 \uC6B8\uD0C0\uB9AC"
+    category: "\uBC29\uC5B4"
+    desc: "\uC57C\uC0DD\uC758 \uAE38\uC744 \uB9C9\uB294 \uAE30\uBCF8 \uBCBD. \uC2F8\uC9C0\uB9CC
+      \uC57D\uD558\uB2E4."
+    icon: "\uAC74\uCD95_\uC6B8\uD0C0\uB9AC"
+    woodCost: 4
+    stoneCost: 0
+    hp: 60
+    size: {x: 4, y: 2.2, z: 0.4}
+    color: {r: 0.55, g: 0.38, b: 0.2, a: 1}
+    blockRadius: 1.8
+    isFloor: 0
+  - name: "\uB3CC \uB2F4\uC7A5"
+    category: "\uBC29\uC5B4"
+    desc: "\uD2BC\uD2BC\uD55C \uBC29\uBCBD. \uD070 \uC57C\uC0DD\uB3C4 \uD55C\uB3D9\uC548
+      \uBC84\uD2F4\uB2E4."
+    icon: "\uAC74\uCD95_\uB3CC\uB2F4"
+    woodCost: 2
+    stoneCost: 5
+    hp: 160
+    size: {x: 4, y: 2.6, z: 0.8}
+    color: {r: 0.62, g: 0.6, b: 0.55, a: 1}
+    blockRadius: 2
+    isFloor: 0
+  - name: "\uB9D0\uB69D \uBC29\uBCBD"
+    category: "\uBC29\uC5B4"
+    desc: "\uB192\uACE0 \uC881\uC740 \uB9D0\uB69D. \uC881\uC740 \uAE38\uBAA9\uC744
+      \uD2C0\uC5B4\uB9C9\uAE30 \uC88B\uB2E4."
+    icon: "\uAC74\uCD95_\uB9D0\uB69D"
+    woodCost: 6
+    stoneCost: 1
+    hp: 90
+    size: {x: 2.2, y: 3.2, z: 0.6}
+    color: {r: 0.48, g: 0.33, b: 0.17, a: 1}
+    blockRadius: 1.3
+    isFloor: 0
+  grid: 5
+  reach: 24
+  maxSlope: 22
+  refund: 0.5
+--- !u!114 &107336127
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 107336108}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 7f61bf3155779524e9df974189a466cf, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::SkillSystem
+  qCooldown: 6
+  qArrowDamageMul: 2.2
+  qArrowPierce: 5
+  qSpinRadius: 8
+  qSpinDamage: 40
+  wCooldown: 10
+  biteDamage: 22
+  biteRange: 7
+  biteAngle: 70
+  goreDamage: 55
+  goreRange: 9
+  goreAngle: 110
+  stompDamage: 60
+  stompRadius: 11
+  tailDamage: 40
+  tailRadius: 13
+  tailKnock: 6
+  rollCooldown: 3
+  rollDist: 11
+  rollTime: 0.26
+  eCooldown: 4
+  leapDist: 19
+  leapTime: 0.3
+  bashDist: 14
+  bashTime: 0.4
+  bashDamage: 18
+  bashKnock: 6
+  hopDist: 15
+  hopTime: 0.5
+  hopDamage: 30
+  hopRadius: 7
+  breakDist: 13
+  breakTime: 0.5
+  breakDamage: 14
+  breakKnock: 8
+  rCooldown: 30
+  rRadius: 16
+  rDamage: 90
+  rKnockback: 7
 --- !u!1 &123082802
 GameObject:
   m_ObjectHideFlags: 0
@@ -9547,6 +9654,9 @@ MonoBehaviour:
   statFontSize: 18
   statLineSpacing: 1.5
   statIndent: 16
+  buildCardSize: 92
+  buildCardGap: 8
+  buildPanelWidth: 1240
   hotbarSlotSize: 58
   hotbarGap: 6
   hotbarBottom: 16
@@ -14910,6 +15020,12 @@ PrefabInstance:
     - targetCorrespondingSourceObject: {fileID: 7477283798205093626, guid: a9f97bdace247ed49a6a0d1b04c63f3e, type: 3}
       insertIndex: -1
       addedObject: {fileID: 107336125}
+    - targetCorrespondingSourceObject: {fileID: 7477283798205093626, guid: a9f97bdace247ed49a6a0d1b04c63f3e, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 107336127}
+    - targetCorrespondingSourceObject: {fileID: 7477283798205093626, guid: a9f97bdace247ed49a6a0d1b04c63f3e, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 107336126}
   m_SourcePrefab: {fileID: -4161369568681901532, guid: a9f97bdace247ed49a6a0d1b04c63f3e, type: 3}
 --- !u!1 &1317216152
 GameObject:
