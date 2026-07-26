@@ -11,6 +11,8 @@ public class PlayerBowEditor : Editor
     // ★씬 뷰에서 직접 끌어 옮기기 — 수치를 타이핑하지 않고 위치를 잡는다
     enum Grab { 끄기, 잡는위치, 스윙시작, 스윙끝 }
     static Grab grab = Grab.끄기;
+    // 활은 weapons 목록이 아니라 별도 필드라 드롭다운으로 못 고른다 — 대상을 따로 둔다
+    static bool grabBow = false;
 
     public override void OnInspectorGUI()
     {
@@ -22,12 +24,25 @@ public class PlayerBowEditor : Editor
         var newGrab = (Grab)EditorGUILayout.EnumPopup("편집할 위치", grab);
         if (newGrab != grab) { grab = newGrab; SceneView.RepaintAll(); }
         if (grab != Grab.끄기)
+        {
+            var newBow = EditorGUILayout.Toggle("활을 편집 (아니면 아래 무기)", grabBow);
+            if (newBow != grabBow) { grabBow = newBow; SceneView.RepaintAll(); }
+            if (grabBow && grab != Grab.잡는위치)
+                EditorGUILayout.HelpBox("활은 스윙이 없습니다 — '잡는위치' 만 조절됩니다.", MessageType.Warning);
+
+            // 자세는 무기마다 다르다 (가로 긁기 / 세로 찍기 / 활) — 지금 뭘 편집 중인지 명시
+            var cw = sel < pb.weapons.Count ? pb.weapons[sel] : null;
+            string what = grabBow ? "활 (전용 자세)"
+                : cw == null ? "?"
+                : $"{cw.id} · {(cw.style == PlayerBow.SwingStyle.Horizontal ? "가로 긁기" : "세로 찍기")}";
             EditorGUILayout.HelpBox(
-                "씬 뷰에 화살표가 생깁니다. 끌어서 옮기면 값이 바로 들어갑니다.\n" +
-                "· 잡는위치 = 평소 들고 다닐 때 (도구는 오른손, 활은 왼손)\n" +
-                "· 스윙시작/끝 = 휘두르는 손의 시작·끝 지점\n" +
+                $"지금 편집 중 : {what}\n" +
+                "아래 '무기' 드롭다운에서 무기를 바꾸면 그 무기의 자세로 넘어갑니다.\n" +
+                "· 가로/세로는 값이 따로 저장되니, 같은 동작끼리는 값을 공유합니다.\n" +
+                "· 씬 뷰에 무기가 실제 모습으로 그려지니 보면서 맞추세요.\n" +
                 "플레이 중에 옮긴 값은 정지하면 사라집니다 — 정지 상태에서 잡으세요.",
                 MessageType.Info);
+        }
 
         EditorGUILayout.Space(8);
         EditorGUILayout.LabelField("🔧 무기 설정 — 드롭다운에서 골라 편집", EditorStyles.boldLabel);
@@ -88,6 +103,87 @@ public class PlayerBowEditor : Editor
         if (GUI.changed) EditorUtility.SetDirty(pb);
     }
 
+    // ── 무기 미리보기 ──────────────────────────────────────────────
+    // 무기는 실행할 때 생성되므로 정지 상태 씬엔 없다. 안 보이면 맞출 수가 없으니
+    // 런타임과 똑같은 계산으로 메시를 직접 그려준다.
+    static Material previewMat;
+    static Material PreviewMat()
+    {
+        if (previewMat == null)
+        {
+            var sh = Shader.Find("Unlit/Color") ?? Shader.Find("Hidden/Internal-Colored");
+            previewMat = new Material(sh) { hideFlags = HideFlags.HideAndDontSave };
+        }
+        return previewMat;
+    }
+
+    /// 모델에 저작된 배치 + 정렬 보정 (PlayerBow.MountModel 과 같은 계산)
+    static bool ModelFit(GameObject model, float targetLen, out Quaternion rot, out Vector3 pos, out float scale)
+    {
+        rot = Quaternion.identity; pos = Vector3.zero; scale = 1f;
+        if (model == null) return false;
+        var root = model.transform;
+        var authoredRot = root.localRotation;
+        var authoredPos = root.localPosition;
+
+        // 그립(모델 부모) 기준 바운즈
+        Vector3 mn = Vector3.one * 1e9f, mx = -Vector3.one * 1e9f;
+        bool any = false;
+        foreach (var mf in model.GetComponentsInChildren<MeshFilter>())
+        {
+            if (mf.sharedMesh == null) continue;
+            var b = mf.sharedMesh.bounds;
+            // 메시 로컬 → 모델 루트의 부모(=그립)
+            var m = Matrix4x4.TRS(authoredPos, authoredRot, root.localScale)
+                  * root.worldToLocalMatrix * mf.transform.localToWorldMatrix;
+            for (int i = 0; i < 8; i++)
+            {
+                var c = new Vector3((i & 1) == 0 ? b.min.x : b.max.x,
+                                    (i & 2) == 0 ? b.min.y : b.max.y,
+                                    (i & 4) == 0 ? b.min.z : b.max.z);
+                var p = m.MultiplyPoint3x4(c);
+                mn = Vector3.Min(mn, p); mx = Vector3.Max(mx, p); any = true;
+            }
+        }
+        if (!any) return false;
+
+        float far = 0f;
+        for (int i = 0; i < 8; i++)
+        {
+            var c = new Vector3((i & 1) == 0 ? mn.x : mx.x, (i & 2) == 0 ? mn.y : mx.y, (i & 4) == 0 ? mn.z : mx.z);
+            far = Mathf.Max(far, c.magnitude);
+        }
+        scale = targetLen / Mathf.Max(0.01f, far);
+        rot = authoredRot; pos = authoredPos;
+        var blade = (mn + mx) * 0.5f;
+        if (blade.sqrMagnitude > 1e-4f)
+        {
+            var extra = Quaternion.FromToRotation(blade.normalized, Vector3.forward);
+            rot = extra * rot; pos = extra * pos;
+        }
+        return true;
+    }
+
+    /// grip = 무기 뿌리의 월드 행렬. 그 아래로 모델을 실제 자세대로 그린다.
+    static void DrawWeapon(GameObject model, Matrix4x4 grip, Quaternion fix, float extraScale,
+                           float targetLen, Color color)
+    {
+        if (Event.current.type != EventType.Repaint) return;
+        if (!ModelFit(model, targetLen, out var mr, out var mp, out var ms)) return;
+        float s = ms * extraScale;
+        var local = Matrix4x4.TRS(fix * (mp * s), fix * mr, Vector3.one * s);
+        var mat = PreviewMat();
+        mat.color = color;
+        mat.SetPass(0);
+        var root = model.transform;
+        foreach (var mf in model.GetComponentsInChildren<MeshFilter>())
+        {
+            if (mf.sharedMesh == null) continue;
+            var meshLocal = root.worldToLocalMatrix * mf.transform.localToWorldMatrix;
+            Graphics.DrawMeshNow(mf.sharedMesh, grip * local * meshLocal);
+        }
+    }
+
     /// 씬 뷰 핸들 — 화살표를 끌면 해당 위치값이 바로 들어간다.
     /// 손 위치는 런타임에만 존재하므로, PlayerBow 의 계산식과 같은 식으로 여기서도 구한다.
     void OnSceneGUI()
@@ -99,7 +195,7 @@ public class PlayerBowEditor : Editor
         var fwd = t.forward; var right = t.right;
         // 스윙 기준 프레임 = 바라보는 방향 (런타임의 LookRotation(aimDir) 과 동일)
         var frame = Quaternion.LookRotation(fwd, Vector3.up);
-        bool isBow = pb.bowModel != null && sel < pb.weapons.Count && pb.weapons[sel].id == "활";
+        bool isBow = grabBow;
 
         if (grab == Grab.잡는위치)
         {
@@ -108,7 +204,10 @@ public class PlayerBowEditor : Editor
                 var handL = t.position - right * pb.handSide * 0.92f + fwd * 0.5f + Vector3.up * pb.handUp;
                 var rot = frame * Quaternion.Euler(pb.carryEuler);
                 var cur = handL + rot * pb.bowCarryPos;
-                Handles.Label(cur + Vector3.up * 0.6f, "활 잡는 위치");
+                DrawWeapon(pb.bowModel, Matrix4x4.TRS(cur, rot, Vector3.one * pScale),
+                           Quaternion.Euler(pb.bowModelEuler), pb.bowModelScale, pb.bowSize,
+                           new Color(0.55f, 0.8f, 1f));
+                Handles.Label(cur + Vector3.up * 0.6f, "활 — 잡는 위치 (왼손)");
                 EditorGUI.BeginChangeCheck();
                 var np = Handles.PositionHandle(cur, rot);
                 if (EditorGUI.EndChangeCheck())
@@ -124,7 +223,13 @@ public class PlayerBowEditor : Editor
                 float handScale = pb.handRadius * 2f * pScale;
                 var rot = frame;
                 var cur = handR + rot * ((pb.gripPosOffset + pb.toolCarryPos) * handScale);
-                Handles.Label(cur + Vector3.up * 0.6f, "도구 잡는 위치");
+                var w0 = sel < pb.weapons.Count ? pb.weapons[sel] : null;
+                if (w0 != null)
+                    DrawWeapon(w0.model,
+                        Matrix4x4.TRS(cur, rot * Quaternion.Euler(pb.gripEuler), Vector3.one * (handScale * pb.toolScale)),
+                        Quaternion.Euler(w0.modelEuler), w0.modelScale, pb.toolLength,
+                        new Color(1f, 0.85f, 0.45f));
+                Handles.Label(cur + Vector3.up * 0.6f, $"{(w0 != null ? w0.id : "도구")} — 잡는 위치 (오른손)");
                 EditorGUI.BeginChangeCheck();
                 var np = Handles.PositionHandle(cur, rot);
                 if (EditorGUI.EndChangeCheck())
@@ -137,14 +242,26 @@ public class PlayerBowEditor : Editor
             }
         }
         else
-        {   // 스윙 시작·끝 — 무기의 동작(세로/가로)에 맞는 값을 잡는다
+        {   // 스윙 시작·끝 — 무기의 동작(세로/가로)에 맞는 값을 잡는다 (활은 스윙 없음)
+            if (isBow) return;
             var w = sel < pb.weapons.Count ? pb.weapons[sel] : null;
             bool horiz = w != null && w.style == PlayerBow.SwingStyle.Horizontal;
             bool start = grab == Grab.스윙시작;
             var val = start ? (horiz ? pb.hSwingStartPos : pb.swingStartPos)
                             : (horiz ? pb.hSwingEndPos : pb.swingEndPos);
             var cur = t.position + frame * val;
-            string label = (horiz ? "가로" : "세로") + (start ? " 스윙 시작" : " 스윙 끝");
+            string label = $"{(w != null ? w.id : "도구")} · {(horiz ? "가로 긁기" : "세로 찍기")} · {(start ? "시작" : "끝")}";
+            // 그 자세로 무기를 실제로 그려준다 (손 회전까지 반영)
+            var eulNow = start ? (horiz ? pb.hSwingStartEuler : pb.swingStartEuler)
+                               : (horiz ? pb.hSwingEndEuler : pb.swingEndEuler);
+            float handScale2 = pb.handRadius * 2f * pScale;
+            if (w != null)
+                DrawWeapon(w.model,
+                    Matrix4x4.TRS(cur, frame * Quaternion.Euler(eulNow) * Quaternion.Euler(pb.gripEuler),
+                                  Vector3.one * (handScale2 * pb.toolScale))
+                    * Matrix4x4.Translate(pb.gripPosOffset),
+                    Quaternion.Euler(w.modelEuler), w.modelScale, pb.toolLength,
+                    start ? new Color(0.5f, 1f, 0.6f) : new Color(1f, 0.6f, 0.4f));
             Handles.Label(cur + Vector3.up * 0.6f, label);
             // 시작→끝 선으로 궤적을 보여준다
             var other = start ? (horiz ? pb.hSwingEndPos : pb.swingEndPos)
