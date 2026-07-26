@@ -139,7 +139,10 @@ public class PlayerBow : MonoBehaviour
              "가로=스윙 진행(0→1), 세로=자세(0=시작, 1=끝, 음수=백스윙).\n" +
              "가파를수록 빠르게 지나가고, 완만할수록 느리게 보인다")]
     public AnimationCurve swingCurve = new AnimationCurve(
-        new Keyframe(0f, 0f), new Keyframe(0.30f, -1f), new Keyframe(1f, 1f));
+        new Keyframe(0f, 0f),        // 시작
+        new Keyframe(0.18f, -1f),    // 뒤로 최대한 뺐다 (백스윙)
+        new Keyframe(0.34f, 0f),     // 여기서부터 앞으로 — 잔상도 이때 켜진다
+        new Keyframe(1f, 1f));       // 내리친 끝
 
     [Header("스윙 자세 — 가로 긁기 (무기 탭에서 '가로' 체크 시)")]
     [Pose("가로 긁기 · 시작", PoseSpace.캐릭터, "hSwingStartEuler", true)]
@@ -834,7 +837,11 @@ public class PlayerBow : MonoBehaviour
                         trail.startColor = new Color(trailColor.r, trailColor.g, trailColor.b, trailAlpha);
                         trail.endColor = new Color(trailColor.r, trailColor.g, trailColor.b, 0f);
                         if (gather.SwingT > prevSwingT) trail.Clear();
-                        trail.emitting = sk >= 0.30f && sk <= 0.92f;
+                        // ★뒤로 빼는 동안(p<0)엔 잔상을 끈다 — 켜두면 궤적이 몸 뒤쪽으로 그려진다.
+                        //   진행도(sk)로 자르면 곡선을 바꿀 때마다 어긋나므로 실제 방향으로 판단
+                        bool forward = p > 0.02f;
+                        if (!forward) trail.Clear();
+                        trail.emitting = forward && sk <= 0.94f;
                     }
                 }
                 else
