@@ -27,6 +27,10 @@ public class PlayerMove : MonoBehaviour
     public Transform cam;
 
     BlobMotion motion;
+    [Header("펫이 쓰러졌을 때 떨어지는 연출")]
+    [Tooltip("튕겨 올랐다 내려오는 시간")] public float dropTime = 0.45f;
+    [Tooltip("튕겨 오르는 높이 (m)")] public float dropHeight = 2.5f;
+    float dropT;
     PlayerBow bow;
     Vector3 vel;
     Terrain[] terrains;
@@ -90,6 +94,15 @@ public class PlayerMove : MonoBehaviour
         if (m != null && !m.Alive) m = null;
         if (m != mount)
         {
+            // ★펫이 쓰러져서 내리는 경우 — 퐁 하고 튕겨 떨어진다
+            if (mount != null && !mount.Alive)
+            {
+                var at = transform.position + Vector3.up * 1.2f;
+                FX.Burst(at, new Color(1f, 0.95f, 0.85f, 0.95f), 22, 0.35f, 6f, 0.5f);
+                FollowCam.Shake(0.25f);
+                dropT = dropTime;   // 잠깐 떴다가 착지
+                SquadHUD.Toast($"{mount.name} 쓰러짐! 이제 직접 맞습니다");
+            }
             if (mount != null) mount.mounted = false;
             mount = m;
             if (mount != null)
@@ -99,6 +112,14 @@ public class PlayerMove : MonoBehaviour
                 mountMotion = mount.GetComponent<PetMotion>();
                 SquadHUD.Toast($"{mount.name} 탑승!");
             }
+        }
+        // 낙하 연출 — 튕겨 올랐다 내려온다 (BlobMotion 의 스킬 훅 재사용)
+        if (dropT > 0f)
+        {
+            dropT -= Time.deltaTime;
+            float k = Mathf.Clamp01(dropT / dropTime);
+            if (motion != null) motion.skillHop = Mathf.Sin(k * Mathf.PI) * dropHeight;
+            if (dropT <= 0f && motion != null) motion.skillHop = 0f;
         }
 
         float ix, iz;

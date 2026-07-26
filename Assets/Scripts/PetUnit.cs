@@ -666,6 +666,14 @@ public class PetUnit : MonoBehaviour
     public void TakeDamage(float dmg, PetUnit attacker = null)
     {
         if (dead) return;
+        // ★탑승 중이면 펫이 대신 맞는다 — 타고 있는 동안 주인은 무적,
+        //   펫이 쓰러지면 그때부터 주인이 맞는다 (PlayerMove 가 자동으로 내려준다)
+        if (isAvatar)
+        {
+            var mv = GetComponent<PlayerMove>();
+            var mnt = mv != null ? mv.Mount : null;
+            if (mnt != null && mnt.Alive) { mnt.TakeDamage(dmg, attacker); return; }
+        }
         hp -= dmg;
         barShowT = 3f;   // 구조물 체력바 — 맞을 때만 잠깐 보인다
         // 피해 숫자 — 내 편이 맞으면 빨강, 적이 맞으면 밝은 노랑
