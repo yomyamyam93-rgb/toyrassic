@@ -356,8 +356,8 @@ public class SkillSystem : MonoBehaviour
         previewLine.positionCount = 2;
         previewLine.material = new Material(Shader.Find("Sprites/Default"));
         previewLine.startWidth = 1.6f; previewLine.endWidth = 1.0f;
-        previewLine.startColor = new Color(1f, 0.35f, 0.25f, 0.55f);
-        previewLine.endColor = new Color(1f, 0.35f, 0.25f, 0.25f);
+        previewLine.startColor = new Color(0.45f, 1.2f, 2.0f, 0.6f);   // 파란색 통일 (활 에임과 같은 계열)
+        previewLine.endColor = new Color(0.45f, 1.1f, 2.0f, 0.3f);
         previewLine.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
         previewLine.enabled = false;
 
@@ -369,7 +369,7 @@ public class SkillSystem : MonoBehaviour
         var mr = q.GetComponent<MeshRenderer>();
         mr.material = new Material(Shader.Find("Toyrassic/GroundDecal"));
         mr.material.mainTexture = FX.CircleTex();
-        mr.material.color = new Color(1f, 0.3f, 0.2f, 0.5f);
+        mr.material.color = new Color(0.4f, 1.1f, 1.9f, 0.5f);   // 파란색 통일 (내 스킬 영역)
         mr.sortingOrder = -9;
         mr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
         previewCircle = q.transform;

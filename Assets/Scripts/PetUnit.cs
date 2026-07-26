@@ -584,7 +584,10 @@ public class PetUnit : MonoBehaviour
         q.transform.localScale = new Vector3(teleW, teleH, 1f);
         var mm = q.GetComponent<MeshRenderer>();
         mm.material = new Material(Shader.Find("Toyrassic/GroundDecal"));   // 잔디가 못 가림 (ZTest Always)
-        mm.material.mainTexture = FX.CircleTex();
+        // 공격 종류마다 모양 자체가 다르다 — 경로=막대 / 휩쓸기=도넛 / 나머지=원
+        mm.material.mainTexture = pattern == Pattern.Charge ? FX.RectTex()
+                                : pattern == Pattern.Sweep ? FX.RingTex()
+                                : FX.CircleTex();
         mm.material.color = new Color(1f, 0.15f, 0.10f, 0.85f);
         mm.sortingOrder = -10;   // 투명체 중에선 제일 먼저 — 몸·이펙트가 원 위에 그려짐
         mm.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;

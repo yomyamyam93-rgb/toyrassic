@@ -94,6 +94,46 @@ public static class FX
         return m;
     }
 
+    // ── 경로형 텔레그래프용 막대 텍스처 (테두리 진한 직사각형) ──
+    static Texture2D rectTex;
+    public static Texture2D RectTex()
+    {
+        if (rectTex != null) return rectTex;
+        int w = 64, h = 128, b = 6;
+        rectTex = new Texture2D(w, h, TextureFormat.RGBA32, false);
+        for (int y = 0; y < h; y++)
+            for (int x = 0; x < w; x++)
+            {
+                bool edge = x < b || x >= w - b || y < b || y >= h - b;
+                rectTex.SetPixel(x, y, new Color(1f, 1f, 1f, edge ? 0.95f : 0.28f));
+            }
+        rectTex.Apply();
+        return rectTex;
+    }
+
+    // ── 휩쓸기용 도넛(링) 텍스처 ──
+    static Texture2D ringTex;
+    public static Texture2D RingTex()
+    {
+        if (ringTex != null) return ringTex;
+        int s = 128; float half = s * 0.5f;
+        ringTex = new Texture2D(s, s, TextureFormat.RGBA32, false);
+        for (int y = 0; y < s; y++)
+            for (int x = 0; x < s; x++)
+            {
+                float r = Mathf.Sqrt((x - half) * (x - half) + (y - half) * (y - half)) / half;
+                float a = 0f;
+                if (r < 0.98f && r > 0.42f)                       // 링 안쪽만
+                {
+                    a = 0.30f;
+                    if (r > 0.86f || r < 0.50f) a = 0.95f;        // 안팎 테두리 진하게
+                }
+                ringTex.SetPixel(x, y, new Color(1f, 1f, 1f, a));
+            }
+        ringTex.Apply();
+        return ringTex;
+    }
+
     /// 피해 숫자 — 일반: 흰→회색 그라디언트 / 치명타: 붉은 그라디언트 (c·scale 은 호환용)
     public static void DamageNum(Vector3 pos, float amount, Color c, float scale = 1f, bool crit = false)
         => Pop(pos, Mathf.Max(1, Mathf.RoundToInt(amount)).ToString(), crit ? PopStyle.Crit : PopStyle.Hit);

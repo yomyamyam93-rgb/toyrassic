@@ -566,6 +566,16 @@ public class PlayerBow : MonoBehaviour
             var from2 = StableFrom();
             aimLine.SetPosition(0, from2);
             aimLine.SetPosition(1, from2 + aimDir * aimLen);
+            // 조준선 위의 야생은 붉게 — 스킬 조준과 같은 표시
+            foreach (var u in PetUnit.All)
+            {
+                if (u == null || !u.Alive || u.team != PetUnit.Team.Wild) continue;
+                var d = u.transform.position - from2; d.y = 0f;
+                float along = Vector3.Dot(d, aimDir);
+                if (along < 0f || along > aimLen) continue;
+                if (Vector3.Cross(aimDir, d).magnitude > 1.2f + u.body * 0.45f) continue;
+                u.MarkDanger();
+            }
         }
 
         // ── 장비 비주얼 — 든 것만 보인다 (weapons 리스트 기반) ──
