@@ -174,18 +174,11 @@ public class PetUnit : MonoBehaviour
     float AggroRange => 13f + body * 1.2f;
     float TauntRange => 10f + body * 1.5f;           // 금속(탱커) 어그로
 
-    // ── 공격 토큰 (업계 표준: 동시에 덤비는 수 제한 — 다구리 방지) ──
+    // ★공격 인원 제한 폐기 — 사거리에 닿으면 그냥 친다.
+    //   둘만 덤비게 막아두니 한 마리씩 상대하게 돼서 걷기만 해도 다 피해졌다.
+    //   떼로 몰려오는 게임이니 각자 자기 타이밍에 들어오는 게 맞다.
     static readonly HashSet<PetUnit> attackTokens = new HashSet<PetUnit>();
-    [Tooltip("한 번에 공격할 수 있는 야생 수")] public static int MaxSimultaneousAttackers = 2;
-    bool HasToken => attackTokens.Contains(this);
-    bool ClaimToken()
-    {
-        if (HasToken) return true;
-        attackTokens.RemoveWhere(u => u == null || !u.Alive);
-        if (attackTokens.Count >= MaxSimultaneousAttackers) return false;
-        attackTokens.Add(this);
-        return true;
-    }
+    bool ClaimToken() { attackTokens.Add(this); return true; }
     void ReleaseToken() { attackTokens.Remove(this); }
 
     // ── 공격 후 회복 경직 (강한 공격일수록 길게 = 반격 창구) ──
@@ -288,7 +281,8 @@ public class PetUnit : MonoBehaviour
                     : pattern == Pattern.Charge ? body * 2.4f          // 멀리서 달려든다
                     : pattern == Pattern.Slam ? body * 1.5f
                     : body * 1.2f + 1f;                                 // 꼬리
-    float WindupDur => mat == Mat.Metal ? 0.85f      // 우우우웅
+    float WindupDur => WindupRaw * windupScale;      // 배수로 한 번에 조절
+    float WindupRaw => mat == Mat.Metal ? 0.85f      // 우우우웅
                      : mat == Mat.Fire ? 0.85f       // 기 모으기
                      : mat == Mat.Stone ? 0.45f
                      : mat == Mat.Wood ? 0.35f
@@ -388,8 +382,22 @@ public class PetUnit : MonoBehaviour
                     if (pattern == Pattern.Sweep)   // 휩쓸기는 회전 예고
                         tele.rotation = Quaternion.Euler(90f, teleYaw + wp2 * 220f, 0f);
                 }
-                // 기본 공격: 장전 시작 때 조준을 '고정' — 기 모으는 동안 방향 유지 (회피 여지)
-                Face((mat == Mat.Basic ? lockedAim : target.transform.position) - transform.position);
+                // ★기 모으는 동안 조준을 '조금씩' 따라간다.
+                //   완전히 고정하면 옆으로 걷기만 해도 다 빗나가고, 완전히 따라가면
+                //   피할 수가 없다. 천천히 따라가야 '제때' 피하는 판단이 생긴다.
+                if (mat == Mat.Basic)
+                {
+                    lockedAim = Vector3.MoveTowards(lockedAim, target.transform.position,
+                                                    windupTrack * Time.deltaTime);
+                    Face(lockedAim - transform.position);
+                    // 예고 표시도 같이 옮긴다 — 보이는 자리와 맞는 자리가 어긋나면 안 된다
+                    var dd2 = lockedAim - transform.position; dd2.y = 0f;
+                    float dl2 = Mathf.Min(dd2.magnitude, AtkRange * 1.4f);
+                    lockedDest = transform.position
+                               + (dd2.sqrMagnitude > 1e-4f ? dd2.normalized : transform.forward) * dl2;
+                    if (tele != null) tele.position = lockedDest + Vector3.up * 0.15f;
+                }
+                else Face(target.transform.position - transform.position);
                 if (windupT <= 0f) { winding = false; ExecuteAttack(); }
             }
         }
@@ -618,8 +626,13 @@ public class PetUnit : MonoBehaviour
         }
     }
 
-    [Tooltip("평타(물기)가 닿는 좌우 각도 (°) — 이 밖으로 피하면 빗나간다")]
-    public float biteHalfAngle = 55f;
+    [Header("난이도 — 회피가 너무 쉬우면 여기를 올린다")]
+    [Tooltip("평타가 닿는 좌우 각도 (°) — 좁을수록 피하기 쉽다")]
+    public float biteHalfAngle = 70f;
+    [Tooltip("예고 중 조준이 따라오는 속도 (m/s) — 0이면 완전 고정, 크면 못 피한다")]
+    public float windupTrack = 5f;
+    [Tooltip("예고 시간 배수 — 낮출수록 반응 시간이 짧아진다")]
+    [Range(0.3f, 1.5f)] public float windupScale = 0.65f;
     [Tooltip("사거리 배수가 이 값 이상이면 원거리 종 — 붙지 않고 뱉는다")]
     public float rangedThreshold = 1.8f;
 
