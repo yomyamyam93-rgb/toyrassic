@@ -26,6 +26,7 @@ public class BuildSystem : MonoBehaviour
         public Color color = new Color(0.55f, 0.38f, 0.20f);
         [Tooltip("이 구조물이 막는 반경 (m) — 바닥은 0")] public float blockRadius = 1.6f;
         [Tooltip("바닥(플랫폼) — 그 위에 다른 걸 지을 수 있다")] public bool isFloor = false;
+        [Tooltip("제작대 — 지으면 상위 장비 제작이 열린다")] public bool isBench = false;
     }
 
     [Header("건축물 팔레트")]
@@ -54,6 +55,12 @@ public class BuildSystem : MonoBehaviour
                     desc = "높고 좁은 말뚝. 좁은 길목을 틀어막기 좋다.",
                     woodCost = 6, stoneCost = 1, hp = 90f,
                     size = new Vector3(5.5f, 8f, 1.5f), color = new Color(0.48f, 0.33f, 0.17f), blockRadius = 3.2f },
+
+        // ── 시설: 기능을 여는 설치물 ──
+        new Piece { name = "제작대", category = "시설", icon = "건축_제작대", isBench = true,
+                    desc = "여기가 있어야 칼·활 같은 상위 장비를 만들 수 있다.",
+                    woodCost = 12, stoneCost = 6, hp = 120f,
+                    size = new Vector3(4.5f, 3.2f, 3f), color = new Color(0.52f, 0.36f, 0.20f), blockRadius = 1.6f },
     };
 
     [Header("배치 규칙")]
@@ -566,6 +573,7 @@ public class Structure : MonoBehaviour
         s.TopY = pos.y + p.size.y;   // 이 위에 다음 층을 올린다
         s.BasePos = pos; s.Yaw = yaw; s.Size = p.size;
         s.rend = go.GetComponent<MeshRenderer>(); s.baseColor = p.color;
+        if (p.isBench) Workbench.Attach(go);   // 제작대 — 있으면 상위 장비 제작이 열린다
         if (p.blockRadius <= 0.01f) { /* 바닥은 통행 가능 — 충돌 등록 안 함 */ }
         var u = go.AddComponent<PetUnit>();
         u.isStructure = true; u.team = PetUnit.Team.Player;

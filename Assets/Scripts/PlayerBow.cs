@@ -46,6 +46,12 @@ public class PlayerBow : MonoBehaviour
     [Tooltip("부풀었다 돌아오는 구간 길이 (스윙 전체 대비 비율)")] public float impactPopSpan = 0.45f;
     [Tooltip("길이 방향은 덜 늘리기 (1=똑같이, 0.4=옆으로만 뚱뚱하게)")] public float impactPopLong = 0.4f;
 
+    [Header("새총 — 활 이전의 초급 무기 (활 수치 대비 배수)")]
+    [Tooltip("위력")] [Range(0.2f, 1f)] public float slingDamageMul = 0.45f;
+    [Tooltip("사거리")] [Range(0.2f, 1f)] public float slingRangeMul = 0.5f;
+    [Tooltip("탄속 (느릴수록 예측 사격이 필요)")] [Range(0.2f, 1f)] public float slingSpeedMul = 0.6f;
+    [Tooltip("재사용 대기 (1보다 크면 활보다 느리다)")] [Range(0.5f, 3f)] public float slingCooldownMul = 1.5f;
+
     [Header("활 휴대 자세 — 안 쏠 때 들고 다닐 때")]
     [Tooltip("기울기 (X=앞뒤 Y=좌우 Z=옆으로 눕힘)")]
     public Vector3 carryEuler = new Vector3(14f, 8f, 16f);
@@ -587,7 +593,8 @@ public class PlayerBow : MonoBehaviour
         }
 
         // 커서 교체 — 활 조준 중엔 원형 타겟(중앙 핫스팟), 평소엔 화살표
-        bool wantAim = pressed && (Hotbar.I == null || Hotbar.I.Current == GearKind.Bow);
+        bool wantAim = pressed && (Hotbar.I == null || Hotbar.I.Current == GearKind.Bow
+                                                    || Hotbar.I.Current == GearKind.Sling);
         if (wantAim != cursorIsAim || !cursorSet)
         {
             cursorIsAim = wantAim; cursorSet = true;
@@ -620,15 +627,21 @@ public class PlayerBow : MonoBehaviour
                 gather.TrySwing(mp, gear == GearKind.Pick, aimDir, gear == GearKind.Sword);
             drawing = false; drawT = 0f; aimLen = 0f;
         }
-        else if (gear == GearKind.Bow)
-        {   // 활 장착: 기존 조준·발사
+        else if (gear == GearKind.Bow || gear == GearKind.Sling)
+        {   // 활·새총: 조준해서 쏜다 (새총은 사거리·위력이 낮고 느리다)
+            bool sling = gear == GearKind.Sling;
+            float range = sling ? arrowRange * slingRangeMul : arrowRange;
             if (pressed)
             {
                 drawing = true;
                 drawT = Mathf.Min(drawTime, drawT + Time.deltaTime);
-                aimLen = Mathf.MoveTowards(aimLen, arrowRange, arrowRange / Mathf.Max(0.05f, aimFillTime) * Time.deltaTime);
+                aimLen = Mathf.MoveTowards(aimLen, range, range / Mathf.Max(0.05f, aimFillTime) * Time.deltaTime);
             }
-            if (released && drawing && cd <= 0f) { Fire(Mathf.Max(10f, aimLen)); cd = fireCooldown; }
+            if (released && drawing && cd <= 0f)
+            {
+                Fire(Mathf.Max(10f, aimLen), sling);
+                cd = sling ? fireCooldown * slingCooldownMul : fireCooldown;
+            }
         }
         else { drawing = false; drawT = 0f; aimLen = 0f; }   // 맨손
         if (released) { drawing = false; drawT = 0f; aimLen = 0f; }
@@ -655,15 +668,19 @@ public class PlayerBow : MonoBehaviour
         if (d.magnitude < 6f)   // 발밑 설치 방지 — 최소 6m 앞에
             pos = transform.position + (d.sqrMagnitude > 0.01f ? d.normalized : aimDir) * 6f;
         PlayerBuild.PlaceAt(pos);
-        Inv.Consume("부화기", 1);
+        Inv.Consume("둥지", 1);
         if (Hotbar.I != null) Hotbar.I.RemoveKind(GearKind.Incubator);
     }
 
-    void Fire(float range)
+    void Fire(float range, bool sling = false)
     {
         var from = StableFrom();
-        ArrowProj.Throw(from, aimDir, arrowSpeed, arrowDamage, range);   // 관통은 추후 스킬로
-        FX.Burst(from, new Color(2.2f, 1.9f, 0.8f, 0.9f), 10, 0.16f, 2.4f, 0.2f);   // 반짝! 총구 화염
+        float spd = sling ? arrowSpeed * slingSpeedMul : arrowSpeed;
+        float dmg = sling ? arrowDamage * slingDamageMul : arrowDamage;
+        ArrowProj.Throw(from, aimDir, spd, dmg, range);   // 관통은 추후 스킬로
+        FX.Burst(from, sling ? new Color(1.4f, 1.3f, 1.1f, 0.85f)      // 새총 — 돌멩이 튀는 느낌
+                             : new Color(2.2f, 1.9f, 0.8f, 0.9f),
+                 sling ? 6 : 10, 0.14f, 2f, 0.2f);
     }
 
     void LateUpdate()

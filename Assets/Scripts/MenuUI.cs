@@ -19,6 +19,8 @@ public class MenuUI : MonoBehaviour
     public Sprite icoAxe => ItemDB.Icon("도끼");
     public Sprite icoPick => ItemDB.Icon("곡갱이");
     public Sprite icoSword => ItemDB.Icon("칼");
+    public Sprite icoSling => ItemDB.Icon("새총");
+    public Sprite icoBow => ItemDB.Icon("활");
 
     const int FontH1 = 26, FontBody = 18, FontCap = 14;
     const float Pad = 16f, Gap = 8f;
@@ -313,10 +315,11 @@ public class MenuUI : MonoBehaviour
         cv.padding = new RectOffset(8, 8, 8, 8);
         cv.childControlWidth = true; cv.childControlHeight = true;   // 행 높이는 LayoutElement 가 정확히 결정
         cv.childForceExpandWidth = true; cv.childForceExpandHeight = false;
+        // 레시피: [0]돌도끼 [1]돌곡괭이 [2]새총 — 맨손 제작 / [3]칼 [4]활 [5]부화기 — 제작대 필요
         int recipes = 6;
         craftInfo = new Text[recipes]; craftBtn = new Button[recipes]; craftBtnLabel = new Text[recipes];
-        string[] btnLabels = { "제작", "제작", "설치", "강화", "강화", "제작" };
-        Sprite[] rowIcons = { icoAxe, icoPick, icoEgg, null, null, icoSword };
+        string[] btnLabels = { "제작", "제작", "제작", "제작", "제작", "설치" };
+        Sprite[] rowIcons = { icoAxe, icoPick, icoSling, icoSword, icoBow, icoEgg };
         float rowH = St != null ? St.craftRowHeight : 60f;
         float btnW = St != null ? St.craftBtnWidth : 170f;
         float bh = St != null ? St.buttonHeight : 44f;
@@ -445,8 +448,8 @@ public class MenuUI : MonoBehaviour
         if (me != null) sb.AppendLine($"  체력  {Mathf.CeilToInt(me.hp)} / {Mathf.CeilToInt(me.maxHp)}");
         if (bow != null)
         {
-            sb.AppendLine($"  화살 피해  {bow.arrowDamage:F0}   (화살촉 Lv.{Stock.ArrowLv})");
-            sb.AppendLine($"  공속  {1f / Mathf.Max(0.05f, bow.fireCooldown):F1}발/초   (활 Lv.{Stock.BowLv})");
+            sb.AppendLine($"  화살 피해  {bow.arrowDamage:F0}");
+            sb.AppendLine($"  공속  {1f / Mathf.Max(0.05f, bow.fireCooldown):F1}발/초");
             sb.AppendLine($"  사거리  {bow.arrowRange:F0} m");
         }
         sb.AppendLine();
@@ -462,51 +465,60 @@ public class MenuUI : MonoBehaviour
         statText.text = sb.ToString();
     }
 
-    // 레시피: [0]도끼 [1]곡괭이 [2]부화기 [3]화살촉 강화 [4]활 개량
+    // 레시피: [0]돌도끼 [1]돌곡괭이 [2]새총 (맨손) / [3]칼 [4]활 [5]부화기 (제작대 필요)
     (int wood, int stone) Cost(int idx)
     {
         switch (idx)
         {
-            case 0: return (8, 0);
-            case 1: return (6, 4);
-            case 2: return (20, 12);
-            case 3: return (10 * Stock.ArrowLv, 8 * Stock.ArrowLv);
-            case 5: return (12, 10);   // 칼 — 전투용이라 도끼보다 비싸다
-            default: return (14 * Stock.BowLv, 0);
+            case 0: return (8, 3);     // 돌도끼
+            case 1: return (6, 4);     // 돌곡괭이
+            case 2: return (5, 2);     // 새총 — 제일 싸다. 초반 원거리
+            case 3: return (12, 10);   // 칼
+            case 4: return (16, 4);    // 활
+            default: return (20, 12);  // 부화기
         }
     }
+
+    /// 제작대가 있어야 만들 수 있는 것 (칼·활·부화기)
+    static bool NeedsBench(int idx) => idx >= 3;
 
     void RefreshCraft()
     {
         if (!pageCraft.activeSelf) return;
         string badHex = ColorUtility.ToHtmlStringRGB(St != null ? St.bad : Color.red);
         string C(int need, int have) => have >= need ? need.ToString() : $"<color=#{badHex}>{need}</color>";
-        var c0 = Cost(0); var c1 = Cost(1); var c2 = Cost(2); var c3 = Cost(3); var c4 = Cost(4); var c5 = Cost(5);
-        craftInfo[0].text = Stock.HasAxe
-            ? "도끼  (보유)  —  나무를 클릭해 팰 수 있다"
-            : $"도끼  —  나뭇가지 {C(c0.wood, Stock.Wood)}   (해금: 나무 패기)";
-        craftInfo[1].text = Stock.HasPick
-            ? "곡괭이  (보유)  —  바위를 클릭해 캘 수 있다"
-            : $"곡괭이  —  나뭇가지 {C(c1.wood, Stock.Wood)} · 돌 {C(c1.stone, Stock.Stone)}   (해금: 바위 캐기)";
-        craftInfo[2].text = $"부화기  —  나뭇가지 {C(c2.wood, Stock.Wood)} · 돌 {C(c2.stone, Stock.Stone)}" +
-                            (Incubator.Active != null ? "   (설치됨)"
-                             : Stock.HasIncubator ? "   (제작됨 — 핫바에서 설치)" : "");
-        craftInfo[3].text = $"화살촉 강화 Lv.{Stock.ArrowLv}→{Stock.ArrowLv + 1}  (+6 피해)  —  나뭇가지 {C(c3.wood, Stock.Wood)} · 돌 {C(c3.stone, Stock.Stone)}";
-        craftInfo[4].text = $"활 개량 Lv.{Stock.BowLv}→{Stock.BowLv + 1}  (공속↑)  —  나뭇가지 {C(c4.wood, Stock.Wood)}";
-        craftBtn[0].interactable = !Stock.HasAxe && Stock.Wood >= c0.wood;
-        craftBtn[1].interactable = !Stock.HasPick && Stock.Wood >= c1.wood && Stock.Stone >= c1.stone;
-        craftBtn[2].interactable = !Stock.HasIncubator && Incubator.Active == null && Stock.Wood >= c2.wood && Stock.Stone >= c2.stone;
-        craftBtn[3].interactable = Stock.ArrowLv < 4 && Stock.Wood >= c3.wood && Stock.Stone >= c3.stone;
-        craftBtn[4].interactable = Stock.BowLv < 4 && Stock.Wood >= c4.wood;
-        craftBtnLabel[0].text = Stock.HasAxe ? "보유" : "제작";
-        craftBtnLabel[1].text = Stock.HasPick ? "보유" : "제작";
-        craftBtnLabel[3].text = Stock.ArrowLv >= 4 ? "최대" : "강화";
-        craftBtnLabel[4].text = Stock.BowLv >= 4 ? "최대" : "강화";
-        craftInfo[5].text = Stock.HasSword
-            ? "칼  (보유)  —  몹 전투 특화 (빠른 공속·높은 피해, 채집엔 부적합)"
-            : $"칼  —  나뭇가지 {C(c5.wood, Stock.Wood)} · 돌 {C(c5.stone, Stock.Stone)}   (해금: 근접 전투)";
-        craftBtn[5].interactable = !Stock.HasSword && Stock.Wood >= c5.wood && Stock.Stone >= c5.stone;
-        craftBtnLabel[5].text = Stock.HasSword ? "보유" : "제작";
+        var cs = new (int wood, int stone)[6];
+        for (int i = 0; i < 6; i++) cs[i] = Cost(i);
+        bool bench = Workbench.Exists;
+
+        // [0]돌도끼 [1]돌곡괭이 [2]새총 — 맨손 / [3]칼 [4]활 [5]부화기 — 제작대 필요
+        string[] names = { "돌도끼", "돌곡괭이", "새총", "칼", "활", "둥지" };
+        string[] descs = {
+            "나무를 팬다",
+            "바위를 캔다",
+            "초급 원거리 — 약하지만 멀리서 때린다",
+            "몹 전투 특화 — 빠르고 아프다 (채집엔 부적합)",
+            "제대로 된 원거리 — 새총보다 멀고 세다",
+            "알을 품는다. 품기 시작하면 야생이 몰려온다",
+        };
+        bool[] owned = { Stock.HasAxe, Stock.HasPick, Stock.HasSling,
+                         Stock.HasSword, Stock.HasBow, Stock.HasIncubator };
+
+        for (int i = 0; i < 6; i++)
+        {
+            bool need = NeedsBench(i);
+            bool locked = need && !bench;
+            string cost = $"나뭇가지 {C(cs[i].wood, Stock.Wood)}" +
+                          (cs[i].stone > 0 ? $" · 돌 {C(cs[i].stone, Stock.Stone)}" : "");
+            craftInfo[i].text =
+                owned[i] ? $"{names[i]}  (보유)  —  {descs[i]}"
+              : locked   ? $"{names[i]}  —  <color=#{badHex}>제작대가 있어야 만들 수 있다</color>"
+                         : $"{names[i]}  —  {cost}   ({descs[i]})";
+            craftBtn[i].interactable = !owned[i] && !locked
+                                    && Stock.Wood >= cs[i].wood && Stock.Stone >= cs[i].stone
+                                    && (i != 5 || Incubator.Active == null);
+            craftBtnLabel[i].text = owned[i] ? "보유" : locked ? "잠김" : (i == 5 ? "제작" : "제작");
+        }
     }
 
     void DoCraft(int idx)
@@ -514,45 +526,48 @@ public class MenuUI : MonoBehaviour
         var c = Cost(idx);
         if (Stock.Wood < c.wood || Stock.Stone < c.stone) return;
         void Pay() { Inv.Consume("나뭇가지", c.wood); Inv.Consume("돌", c.stone); }
+        if (NeedsBench(idx) && !Workbench.Exists)
+        {
+            SquadHUD.Toast("제작대가 있어야 만들 수 있다 — 먼저 제작대를 지어라");
+            return;
+        }
         switch (idx)
         {
             case 0:
                 if (Stock.HasAxe) return;
                 Pay(); Inv.Add("도끼", 1);
                 if (Hotbar.I != null) Hotbar.I.AutoAssign(GearKind.Axe);
-                SquadHUD.Toast("도끼 제작!  핫바에 장착됨 — 숫자키로 바꿔 들고 나무를 패자");
+                SquadHUD.Toast("돌도끼 제작!  핫바에 장착됨 — 나무를 패자");
                 break;
             case 1:
                 if (Stock.HasPick) return;
                 Pay(); Inv.Add("곡갱이", 1);
                 if (Hotbar.I != null) Hotbar.I.AutoAssign(GearKind.Pick);
-                SquadHUD.Toast("곡괭이 제작!  핫바에 장착됨 — 숫자키로 바꿔 들고 바위를 캐자");
+                SquadHUD.Toast("돌곡괭이 제작!  핫바에 장착됨 — 바위를 캐자");
                 break;
             case 2:
-                if (Stock.HasIncubator || Incubator.Active != null) return;
-                Pay(); Inv.Add("부화기", 1);
-                if (Hotbar.I != null) Hotbar.I.AutoAssign(GearKind.Incubator);
-                SquadHUD.Toast("부화기 제작!  핫바에서 들고 원하는 곳을 클릭해 설치");
+                if (Stock.HasSling) return;
+                Pay(); Inv.Add("새총", 1);
+                if (Hotbar.I != null) Hotbar.I.AutoAssign(GearKind.Sling);
+                SquadHUD.Toast("새총 제작!  멀리서 돌을 날린다 — 초반 사냥용");
                 break;
             case 3:
-                if (Stock.ArrowLv >= 4) return;
-                Pay();
-                Stock.ArrowLv++;
-                if (bow != null) bow.arrowDamage += 6f;
-                SquadHUD.Toast($"화살촉 강화!  피해 +6 (Lv.{Stock.ArrowLv})");
-                break;
-            case 4:
-                if (Stock.BowLv >= 4) return;
-                Pay();
-                Stock.BowLv++;
-                if (bow != null) { bow.fireCooldown *= 0.85f; bow.aimFillTime *= 0.9f; }
-                SquadHUD.Toast($"활 개량!  공속 상승 (Lv.{Stock.BowLv})");
-                break;
-            case 5:
                 if (Stock.HasSword) return;
                 Pay(); Inv.Add("칼", 1);
                 if (Hotbar.I != null) Hotbar.I.AutoAssign(GearKind.Sword);
-                SquadHUD.Toast("칼 제작!  핫바에 장착됨 — 몹 상대로 빠르고 아프게 벤다");
+                SquadHUD.Toast("칼 제작!  몹 상대로 빠르고 아프게 벤다");
+                break;
+            case 4:
+                if (Stock.HasBow) return;
+                Pay(); Inv.Add("활", 1);
+                if (Hotbar.I != null) Hotbar.I.AutoAssign(GearKind.Bow);
+                SquadHUD.Toast("활 제작!  새총보다 멀고 세다");
+                break;
+            case 5:
+                if (Stock.HasIncubator || Incubator.Active != null) return;
+                Pay(); Inv.Add("둥지", 1);
+                if (Hotbar.I != null) Hotbar.I.AutoAssign(GearKind.Incubator);
+                SquadHUD.Toast("부화기 제작!  핫바에서 들고 원하는 곳을 클릭해 설치");
                 break;
         }
     }

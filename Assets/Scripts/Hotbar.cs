@@ -6,7 +6,7 @@ using UnityEngine.InputSystem;
 #endif
 
 /// 장비 종류 — 핫바에 장착하는 것들 (Incubator=설치형 아이템)
-public enum GearKind { None, Bow, Axe, Pick, Incubator, Sword }
+public enum GearKind { None, Bow, Axe, Pick, Incubator, Sword, Sling }
 
 /// 하단 핫바 (1~0) — 인벤토리에서 드래그해 장착, 숫자키로 바꿔 든다.
 /// 스타일은 UIStyle 을 읽는다. 플레이어에 부착.
@@ -38,6 +38,7 @@ public class Hotbar : MonoBehaviour
         if (Stock.HasAxe) AutoAssign(GearKind.Axe);
         if (Stock.HasPick) AutoAssign(GearKind.Pick);
         if (Stock.HasSword) AutoAssign(GearKind.Sword);
+        if (Stock.HasSling) AutoAssign(GearKind.Sling);
         if (Stock.HasIncubator) AutoAssign(GearKind.Incubator);
         Build();
         RefreshAll();
@@ -121,12 +122,13 @@ public class Hotbar : MonoBehaviour
              : k == GearKind.Axe ? ItemDB.Icon("도끼")
              : k == GearKind.Pick ? ItemDB.Icon("곡갱이")
              : k == GearKind.Sword ? ItemDB.Icon("칼")
-             : k == GearKind.Incubator ? ItemDB.Icon("부화기")   // 아이콘 파일 넣으면 자동 연결
+             : k == GearKind.Sling ? ItemDB.Icon("새총")
+             : k == GearKind.Incubator ? ItemDB.Icon("둥지")   // 아이콘 파일 넣으면 자동 연결
              : null;
     }
 
     static string KindFallback(GearKind k)
-        => k == GearKind.Bow ? "활" : k == GearKind.Incubator ? "부화기" : "";
+        => k == GearKind.Bow ? "활" : k == GearKind.Incubator ? "둥지" : "";
 
     /// 특정 장비를 핫바에서 제거 (설치 소모 등)
     public void RemoveKind(GearKind kind)

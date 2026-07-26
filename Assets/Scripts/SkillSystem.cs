@@ -16,6 +16,9 @@ public class SkillSystem : MonoBehaviour
     public float qSpinDamage = 40f;
 
     [Header("Q — 무기별 동작 (이펙트만이 아니라 실제로 휘두른다)")]
+    [Tooltip("새총: 연발 — 발수·간격·부채꼴 각도·발당 피해 배수")]
+    public int qSlingShots = 5;
+    public float qSlingInterval = 0.07f, qSlingSpread = 7f, qSlingDamageMul = 1.2f;
     [Tooltip("도끼: 멈춤 없이 몸째로 한 바퀴 — 바퀴수·도는 시간")]
     public float qAxeTurns = 1f, qAxeSpinTime = 0.4f;
     [Tooltip("긁는 궤적 — 꼬리 길이(°, 길수록 '긁는' 느낌)·굵기")]
@@ -95,7 +98,8 @@ public class SkillSystem : MonoBehaviour
         {
             case 0:
                 // 무기마다 동작이 다르다 — 이름·아이콘도 각각 (아이콘 없으면 회전베기로 대체)
-                return gear == GearKind.Bow ? ("스킬_관통사격", "관통 사격", true)
+                return gear == GearKind.Sling ? ("스킬_관통사격", "연발 사격", true)
+                     : gear == GearKind.Bow ? ("스킬_관통사격", "관통 사격", true)
                      : gear == GearKind.Pick ? ("스킬_내리찍기", "내리찍기", true)
                      : gear == GearKind.Sword ? ("스킬_연속베기", "연속 베기", true)
                      : gear == GearKind.Axe ? ("스킬_회전베기", "회전 베기", true)
@@ -184,6 +188,7 @@ public class SkillSystem : MonoBehaviour
             FX.Burst(from, new Color(2.4f, 2.0f, 1.0f, 1f), 18, 0.22f, 5f, 0.3f);
             SquadHUD.Toast("관통 강사!");
         }
+        else if (gear == GearKind.Sling) StartCoroutine(QSlingBurst(dir));  // 새총 — 연발
         else if (gear == GearKind.Pick) StartCoroutine(QPickSlam(dir));    // 곡괭이 — 내리찍기
         else if (gear == GearKind.Sword) StartCoroutine(QSwordCombo(dir)); // 칼 — 연속 베기
         else StartCoroutine(QAxeSpin(dir));                                // 도끼 — 기 모아 한 바퀴
@@ -231,7 +236,26 @@ public class SkillSystem : MonoBehaviour
         }
     }
 
-    /// 도끼 — 0.5초 기를 모았다가 몸째로 한 바퀴 확 돌아버린다
+    /// 새총 — 돌멩이를 부채꼴로 여러 발. 한 발은 약하지만 수로 민다
+    System.Collections.IEnumerator QSlingBurst(Vector3 dir)
+    {
+        SquadHUD.Toast("연발 사격!");
+        float spd = bow != null ? bow.arrowSpeed * bow.slingSpeedMul : 90f;
+        float dmg = (bow != null ? bow.arrowDamage * bow.slingDamageMul : 11f) * qSlingDamageMul;
+        float rng = bow != null ? bow.arrowRange * bow.slingRangeMul : 35f;
+        for (int i = 0; i < qSlingShots; i++)
+        {
+            float off = (i - (qSlingShots - 1) * 0.5f) * qSlingSpread;
+            var d = Quaternion.Euler(0f, off, 0f) * dir;
+            var from = transform.position + Vector3.up * 1.8f + d * 1.5f;
+            ArrowProj.Throw(from, d, spd, dmg, rng);
+            FX.Burst(from, new Color(1.5f, 1.4f, 1.2f, 0.9f), 5, 0.12f, 2f, 0.2f);
+            yield return new WaitForSeconds(qSlingInterval);
+        }
+        FollowCam.Shake(0.12f);
+    }
+
+    /// 도끼 — 멈춤 없이 몸째로 한 바퀴 긁는다
     System.Collections.IEnumerator QAxeSpin(Vector3 dir)
     {
         SquadHUD.Toast("회전 베기!");

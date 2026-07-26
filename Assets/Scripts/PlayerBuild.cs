@@ -22,16 +22,16 @@ public class PlayerBuild : MonoBehaviour
         if (!pressed) return;
     }
 
-    /// 부화기 설치 — 지정 위치에
+    /// 내 둥지 설치 — 여기에 알을 넣으면 품기 시작한다
     public static void PlaceAt(Vector3 pos)
     {
         var terr = Terrain.activeTerrain;
         if (terr != null) pos.y = terr.SampleHeight(pos) + terr.transform.position.y;
-        var go = new GameObject("부화기");
+        var go = new GameObject("내 둥지");
         go.transform.position = pos;
         var inc = go.AddComponent<Incubator>();
         inc.spawner = Object.FindFirstObjectByType<PetSpawner>();
-        SquadHUD.Toast("부화기 설치! 알을 가지고 다가가면 품기 시작");
+        SquadHUD.Toast("둥지 설치! 알을 가지고 다가가면 품기 시작");
         FX.Burst(pos + Vector3.up, new Color(0.9f, 0.85f, 0.7f, 0.9f), 16, 0.4f, 3f);
     }
 }

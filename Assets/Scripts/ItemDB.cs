@@ -47,7 +47,8 @@ public static class ItemDB
             case "도끼": return GearKind.Axe;
             case "곡갱이": return GearKind.Pick;
             case "칼": return GearKind.Sword;
-            case "부화기": return GearKind.Incubator;
+            case "새총": return GearKind.Sling;
+            case "둥지": return GearKind.Incubator;
             default: return GearKind.None;
         }
     }

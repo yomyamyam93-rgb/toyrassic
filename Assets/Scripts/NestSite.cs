@@ -108,6 +108,21 @@ public class NestSite : MonoBehaviour
     Transform player;
     float bobT;
 
+    void Start()
+    {
+        // ★둥지 모델 — Resources/Build/둥지.glb 가 있으면 그걸 세운다 (없으면 기존 모습 그대로)
+        var model = Resources.Load<GameObject>("Build/둥지");
+        if (model == null) return;
+        foreach (var r in GetComponentsInChildren<MeshRenderer>())
+            if (egg == null || !r.transform.IsChildOf(egg)) r.enabled = false;   // 알 빼고 기존 그림 숨김
+        var inst = Instantiate(model, transform);
+        inst.transform.localPosition = Vector3.zero;
+        inst.transform.localRotation = Quaternion.Euler(0f, Random.Range(0f, 360f), 0f);   // 방향은 제각각
+        inst.transform.localScale = Vector3.one * nestModelScale;
+    }
+
+    [Tooltip("둥지 모델 크기")] public float nestModelScale = 4f;
+
     void Update()
     {
         if (player == null) { var p = GameObject.Find("Player"); if (p != null) player = p.transform; else return; }

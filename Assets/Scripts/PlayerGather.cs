@@ -8,8 +8,10 @@ public static class Stock
     public static bool HasAxe => Inv.Count("도끼") > 0;
     public static bool HasPick => Inv.Count("곡갱이") > 0;
     public static bool HasSword => Inv.Count("칼") > 0;
-    public static bool HasIncubator => Inv.Count("부화기") > 0;
-    public static int ArrowLv = 1, BowLv = 1;      // 제작 창에서 강화
+    public static bool HasSling => Inv.Count("새총") > 0;
+    public static bool HasBow => Inv.Count("활") > 0;
+    public static bool HasIncubator => Inv.Count("둥지") > 0;
+    // ※무기 강화(화살촉·활 개량)는 폐기 — 제작대에서 상위 무기를 만드는 방식으로 간다
 
     public static void Add(string id, int n) => Inv.Add(id, n);
 }

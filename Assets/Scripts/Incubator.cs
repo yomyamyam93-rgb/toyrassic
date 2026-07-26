@@ -63,8 +63,20 @@ public class Incubator : MonoBehaviour
 
     Material Lit(Color c) { var m = new Material(Shader.Find("Universal Render Pipeline/Lit")); m.color = c; return m; }
 
+    [Tooltip("둥지 모델 크기")] public float nestModelScale = 4f;
+
     void BuildVisual()
     {
+        // ★둥지 모델이 있으면 그걸 쓴다 (야생 둥지와 같은 모델 — 내가 짓는 둥지)
+        var model = Resources.Load<GameObject>("Build/둥지");
+        if (model != null)
+        {
+            var inst = Instantiate(model, transform);
+            inst.transform.localPosition = Vector3.zero;
+            inst.transform.localScale = Vector3.one * nestModelScale;
+            return;
+        }
+
         var ped = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
         Destroy(ped.GetComponent<Collider>());
         ped.name = "받침돌"; ped.transform.SetParent(transform, false);
