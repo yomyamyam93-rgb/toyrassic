@@ -48,6 +48,10 @@ public partial class PlayerBowEditor
         w.gripEuler = EditorGUILayout.Vector3Field("잡는 각도", w.gripEuler);
         w.scale = EditorGUILayout.Slider("무기 크기", w.scale, 0.2f, 6f);
 
+        EditorGUILayout.LabelField("손 위치 — 이 무기를 들었을 때 (0 = 기본)", EditorStyles.miniBoldLabel);
+        w.handOffsetR = EditorGUILayout.Vector3Field("오른손", w.handOffsetR);
+        w.handOffsetL = EditorGUILayout.Vector3Field("왼손", w.handOffsetL);
+
         EditorGUILayout.LabelField("휴대 — 들고 다닐 때", EditorStyles.miniBoldLabel);
         w.carryPos = EditorGUILayout.Vector3Field("위치", w.carryPos);
         w.carryEuler = EditorGUILayout.Vector3Field("각도", w.carryEuler);
@@ -57,6 +61,8 @@ public partial class PlayerBowEditor
         w.ranged = EditorGUILayout.Toggle("쏘는 무기", w.ranged);
         if (w.ranged)
         {   // 새총류 — 활 수치 대비 배수
+            EditorGUILayout.LabelField("발사", EditorStyles.miniBoldLabel);
+            w.shotOrigin = EditorGUILayout.Vector3Field("나가는 지점 (옆·높이·앞)", w.shotOrigin);
             EditorGUILayout.LabelField("성능 — 활 수치 대비 배수", EditorStyles.miniBoldLabel);
             w.shotDamageMul = EditorGUILayout.Slider("위력", w.shotDamageMul, 0.2f, 2f);
             w.shotRangeMul = EditorGUILayout.Slider("사거리", w.shotRangeMul, 0.2f, 2f);
@@ -122,12 +128,12 @@ public partial class PlayerBowEditor
         P(so, "arrowSpeed", "탄속");
         P(so, "arrowRange", "사거리");
         P(so, "fireCooldown", "재사용 대기");
-        EditorGUILayout.LabelField("조준", EditorStyles.miniBoldLabel);
+        EditorGUILayout.LabelField("발사·조준", EditorStyles.miniBoldLabel);
+        P(so, "bowShotOrigin", "화살 나가는 지점");
         P(so, "aimFillTime", "조준 차는 시간");
         P(so, "drawTime", "당기는 시간");
-        P(so, "drawReach", "당길 때 뻗는 거리");
-        P(so, "drawUp", "당길 때 높이");
-        P(so, "arrowUp", "화살 높이");
+        P(so, "drawReach", "당길 때 손 뻗는 거리");
+        P(so, "drawUp", "당길 때 손 높이");
         P(so, "cursorNormal", "커서 (평소)");
         P(so, "cursorAim", "커서 (조준)");
         if (EditorGUILayout.Foldout(EditorPrefs.GetBool("toyrassic.pbfold.bowvis2", false),

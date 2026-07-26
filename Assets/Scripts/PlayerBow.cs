@@ -5,7 +5,7 @@ using UnityEngine.InputSystem;
 #endif
 
 /// 자세값이 어느 기준으로 적힌 값인지 — 씬 편집기가 이걸 보고 알아서 다룬다
-public enum PoseSpace { 캐릭터, 오른손, 왼손 }
+public enum PoseSpace { 캐릭터, 오른손, 왼손, 조준 }
 
 /// ★자세 표식 — Vector3 위치 필드에 이걸 달아두면 씬 편집기 목록에 자동으로 뜬다.
 /// 새 자세를 추가할 때 편집기 코드를 고칠 필요가 없다 (필드에 표식만 달면 끝).
@@ -38,7 +38,9 @@ public class PlayerBow : MonoBehaviour
     [Tooltip("손 높이 — 낮게 늘어뜨려야 자연스러움")] public float handUp = 0.5f;
     [Tooltip("당길 때 왼손이 앞으로 뻗는 거리 (몸 밖)")] public float drawReach = 3.6f;
     [Tooltip("당길 때 활 높이")] public float drawUp = 1.5f;
-    [Tooltip("화살이 나가는 높이 (활 위치 기준 위로)")] public float arrowUp = 1.5f;
+    [Pose("활 · 화살 나가는 지점", PoseSpace.조준)]
+    [Tooltip("활에서 화살이 나가는 지점 (조준 방향 기준)")]
+    public Vector3 bowShotOrigin = new Vector3(0f, 1.5f, 3.6f);
     [Tooltip("비워두면 캐릭터 텍스처 평균색 자동")] public Color handColor = Color.clear;
 
     [Header("타격감 — 치는 순간 앞부분이 뭉뚝하게 부풀었다 돌아온다")]
@@ -108,6 +110,10 @@ public class PlayerBow : MonoBehaviour
         [Tooltip("손에 쥔 각도")] public Vector3 gripEuler = Vector3.zero;
         [Tooltip("무기 크기")] public float scale = 2.05f;
 
+        [Tooltip("★이 무기를 들었을 때 손 위치 (0 이면 캐릭터 기본값)")]
+        public Vector3 handOffsetR = Vector3.zero;   // 오른손
+        public Vector3 handOffsetL = Vector3.zero;   // 왼손
+
         [Tooltip("들고 다닐 때 위치 (스윙 중엔 무시)")] public Vector3 carryPos = Vector3.zero;
         [Tooltip("들고 다닐 때 각도")] public Vector3 carryEuler = Vector3.zero;
         [Tooltip("들고 다닐 때 흔들리는 각도")] public float carrySway = 4f;
@@ -122,7 +128,9 @@ public class PlayerBow : MonoBehaviour
         public float trailWidth = 0.9f;
         [Tooltip("잔상이 남는 시간")] public float trailTime = 0.24f;
 
-        // 쏘는 무기 전용 — 활 수치 대비 배수
+        // 쏘는 무기 전용
+        [Tooltip("투사체가 나가는 지점 (조준 방향 기준 — x=옆 y=높이 z=앞)")]
+        public Vector3 shotOrigin = new Vector3(0f, 0.3f, 4f);
         [Range(0.2f, 2f)] public float shotDamageMul = 0.45f;
         [Range(0.2f, 2f)] public float shotRangeMul = 0.5f;
         [Range(0.2f, 2f)] public float shotSpeedMul = 0.6f;
@@ -635,7 +643,7 @@ public class PlayerBow : MonoBehaviour
         // 마우스 → '에임 라인과 같은 높이' 평면 교점 → 조준 방향
         // (캐릭터 발 높이로 계산하면 시차 때문에 라인이 포인터와 어긋난다)
         var ray = cam.ScreenPointToRay(mp);
-        float aimH = (stableY == 0f ? transform.position.y : stableY) + arrowUp;
+        float aimH = (stableY == 0f ? transform.position.y : stableY) + bowShotOrigin.y;
         var plane = new Plane(Vector3.up, new Vector3(0f, aimH, 0f));
         if (plane.Raycast(ray, out float enter))
         {
@@ -701,11 +709,17 @@ public class PlayerBow : MonoBehaviour
     }
 
     /// 통통 바운스를 걸러낸 안정 발사점 — 활 중앙 위치에서, 위아래로 안 떨림
-    Vector3 StableFrom()
+    /// 투사체가 나가는 지점. 조준 방향 기준(x=옆, y=높이, z=앞)이라
+    /// 어느 쪽을 보든 손 끝에서 나가는 것처럼 보인다.
+    /// shot 이 있으면 그 무기가 정한 지점, 없으면 활 기본값.
+    public Vector3 ShotFrom(WeaponDef shot = null)
     {
-        var p = transform.position + aimDir * drawReach;
-        return new Vector3(p.x, stableY + arrowUp, p.z);
+        var o = shot != null ? shot.shotOrigin : bowShotOrigin;
+        var right = Vector3.Cross(Vector3.up, aimDir).normalized;
+        var p = transform.position + right * o.x + aimDir * o.z;
+        return new Vector3(p.x, stableY + o.y, p.z);
     }
+    Vector3 StableFrom() => ShotFrom();
 
     /// 부화기 설치 — 클릭 지점 (사거리 16m 제한), 성공 시 아이템 소모
     void TryPlaceIncubator(Vector2 mp)
@@ -728,7 +742,7 @@ public class PlayerBow : MonoBehaviour
     /// shot 이 있으면 그 무기(새총 등)의 배수로 쏜다. null 이면 활.
     void Fire(float range, WeaponDef shot = null)
     {
-        var from = StableFrom();
+        var from = ShotFrom(shot);   // 무기마다 나가는 지점이 다르다
         float spd = shot != null ? arrowSpeed * shot.shotSpeedMul : arrowSpeed;
         float dmg = shot != null ? arrowDamage * shot.shotDamageMul : arrowDamage;
         ArrowProj.Throw(from, aimDir, spd, dmg, range);   // 관통은 추후 스킬로
@@ -755,8 +769,14 @@ public class PlayerBow : MonoBehaviour
         // 손 위치: 몸 옆에 자연스럽게 '늘어뜨림' (들고 다니는 느낌 X) + 둥실 흔들림
         float bobL = Mathf.Sin(Time.time * 3.2f) * 0.12f;            // 좌우 위상 다르게 — 살아있는 느낌
         float bobR = Mathf.Sin(Time.time * 3.2f + 1.7f) * 0.12f;
-        var idleL = transform.position - right * handSide * 0.92f + fwd * 0.5f + Vector3.up * (handUp + bobL);
-        var idleR = transform.position + right * handSide + fwd * 0.3f + Vector3.up * (handUp + bobR);
+        // ★든 무기에 따라 손 위치를 옮긴다 (무기마다 자세가 달라야 자연스럽다)
+        var heldW = weapons.Find(x => x.id == GearId(Hotbar.I != null ? Hotbar.I.Current : GearKind.Bow));
+        var hoL = heldW != null ? heldW.handOffsetL : Vector3.zero;
+        var hoR = heldW != null ? heldW.handOffsetR : Vector3.zero;
+        var idleL = transform.position - right * handSide * 0.92f + fwd * 0.5f + Vector3.up * (handUp + bobL)
+                  + right * hoL.x + Vector3.up * hoL.y + fwd * hoL.z;
+        var idleR = transform.position + right * handSide + fwd * 0.3f + Vector3.up * (handUp + bobR)
+                  + right * hoR.x + Vector3.up * hoR.y + fwd * hoR.z;
 
         // 당길 때: 왼손이 몸 밖으로 쭉 뻗어 활 '중앙'을 잡고, 오른손은 시위를 당김
         var aimL = transform.position + fwd * drawReach + Vector3.up * drawUp;

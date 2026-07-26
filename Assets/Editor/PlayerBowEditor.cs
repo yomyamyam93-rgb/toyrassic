@@ -313,6 +313,12 @@ public partial class PlayerBowEditor : Editor
                 weaponScale = handDia; model = w != null ? w.model : null; targetLen = pb.toolLength;
                 col = new Color(1f, 0.85f, 0.45f);
                 break;
+            case PoseSpace.조준:
+                // 투사체가 나가는 지점 — 무기는 안 그리고 점만 (조준 방향 기준)
+                origin = t.position; baseRot = frame;
+                weaponScale = 1f; model = null; targetLen = pb.toolLength;
+                col = new Color(1f, 0.5f, 0.9f);
+                break;
             default:   // 캐릭터
                 origin = t.position; baseRot = frame;
                 weaponScale = 1f; model = w != null ? w.model : null; targetLen = pb.toolLength;
@@ -322,7 +328,10 @@ public partial class PlayerBowEditor : Editor
 
         // 오른손 기준 값은 손 크기만큼 축소돼 적용되고, gripPosOffset 이 더해진다
         Vector3 localPos = slot.a.space == PoseSpace.오른손 ? ((w != null ? w.gripPos : Vector3.zero) + shownVal) * handDia : shownVal;
-        var cur = origin + (slot.a.space == PoseSpace.왼손 ? baseRot : frame) * localPos;
+        // 조준 기준은 y 를 캐릭터 발밑이 아니라 높이 그대로 쓴다 (런타임 ShotFrom 과 같게)
+        var cur = slot.a.space == PoseSpace.조준
+            ? origin + frame * new Vector3(shownVal.x, 0f, shownVal.z) + Vector3.up * shownVal.y
+            : origin + (slot.a.space == PoseSpace.왼손 ? baseRot : frame) * localPos;
         var poseRot = slot.a.space == PoseSpace.왼손 ? baseRot : frame * Quaternion.Euler(shownEul);
 
         // 무기를 그 자세로 그린다
@@ -349,7 +358,13 @@ public partial class PlayerBowEditor : Editor
         PoseHandles(pb, cur, poseRot, frame,
             np =>
             {
-                var l = Quaternion.Inverse(slot.a.space == PoseSpace.왼손 ? baseRot : frame) * (np - origin);
+                Vector3 l;
+                if (slot.a.space == PoseSpace.조준)
+                {   // 높이는 그대로, 앞뒤·좌우만 조준 방향 기준으로 되돌린다
+                    var flat = Quaternion.Inverse(frame) * new Vector3(np.x - origin.x, 0f, np.z - origin.z);
+                    l = new Vector3(flat.x, np.y - origin.y, flat.z);
+                }
+                else l = Quaternion.Inverse(slot.a.space == PoseSpace.왼손 ? baseRot : frame) * (np - origin);
                 if (slot.a.space == PoseSpace.오른손) l = l / Mathf.Max(0.001f, handDia) - (w != null ? w.gripPos : Vector3.zero);
                 if (flip) l.x = -l.x;
                 slot.posField.SetValue(pb, l);
