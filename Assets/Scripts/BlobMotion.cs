@@ -69,6 +69,14 @@ public class BlobMotion : MonoBehaviour
     /// 발밑 높이를 넘겨주면 그 위에서 튄다. 안 넘기면 현재 y 기준.
     public float GroundY { get; set; } = float.NaN;
 
+    // ── 스킬 동작용 훅 — 스킬이 캐릭터를 직접 띄우고 돌릴 때 쓴다 ──
+    /// 추가로 띄우는 높이 (m). 점프 내리찍기용
+    public float skillHop;
+    /// 추가로 돌리는 각도 (°). 한 바퀴 도는 스킬용
+    public float skillYaw;
+    /// true 면 마우스 쪽으로 몸을 돌리지 않는다 (스킬이 회전을 잡고 있는 동안)
+    public bool skillHoldFacing;
+
     void LateUpdate()
     {
         float rate, amp;
@@ -99,19 +107,20 @@ public class BlobMotion : MonoBehaviour
         {
             // 발바닥이 지면에 닿는 높이 + 도약. 스쿼시로 눌린 만큼도 따라 내려간다.
             float half = footOffset * (transform.localScale.y / Mathf.Max(1e-4f, baseScale.y));
-            var p = transform.position; p.y = GroundY + half + hop; transform.position = p;
+            var p = transform.position; p.y = GroundY + half + hop + skillHop; transform.position = p;
         }
 
         // 달릴수록 앞으로 기울기
         float wantLean = leanMax * speed01;
         lean = Mathf.Lerp(lean, wantLean, 8f * Time.deltaTime);
         var e = transform.localEulerAngles;
-        transform.localRotation = Quaternion.Euler(lean, e.y, 0f);
+        transform.localRotation = Quaternion.Euler(lean, e.y + skillYaw, 0f);
     }
 
     /// 진행 방향으로 부드럽게 돌린다 (수평 성분만)
     public void FaceTowards(Vector3 dir)
     {
+        if (skillHoldFacing) return;   // 스킬이 회전을 잡고 있는 동안엔 마우스를 안 따라간다
         dir.y = 0f;
         if (dir.sqrMagnitude < 1e-4f) return;
         var want = Quaternion.LookRotation(dir.normalized, Vector3.up);

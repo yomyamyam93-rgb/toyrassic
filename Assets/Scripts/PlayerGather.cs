@@ -62,9 +62,9 @@ public class PlayerGather : MonoBehaviour
     bool pendingImpact; float pendingAt; bool pendingIsPick, pendingIsSword; Vector3 pendingAim;
 
     // 효율 표 — 든 도구에 따라 대상별 피해 (칼은 전투 특화, 채집은 형편없음)
-    float DmgMob => pendingIsSword ? swordVsMob : pendingIsPick ? pickVsMob : axeVsMob;
-    float DmgTree => pendingIsSword ? swordVsNode : pendingIsPick ? pickVsTree : axeVsTree;
-    float DmgRock => pendingIsSword ? swordVsNode : pendingIsPick ? pickVsRock : axeVsRock;
+    float DmgMob => (pendingIsSword ? swordVsMob : pendingIsPick ? pickVsMob : axeVsMob) * skillDmgMul;
+    float DmgTree => (pendingIsSword ? swordVsNode : pendingIsPick ? pickVsTree : axeVsTree) * skillDmgMul;
+    float DmgRock => (pendingIsSword ? swordVsNode : pendingIsPick ? pickVsRock : axeVsRock) * skillDmgMul;
     Camera cam;
 
     // 지형 트리 배열 캐시 — treeInstances 접근마다 전체 복사되는 것 방지 (프레임당 1회)
@@ -136,7 +136,7 @@ public class PlayerGather : MonoBehaviour
     bool InArc(Vector3 wp, float extra)
     {
         var d = wp - transform.position; d.y = 0;
-        if (d.magnitude > swingRange + extra) return false;
+        if (d.magnitude > swingRange * skillRangeMul + extra) return false;
         var a = pendingAim; a.y = 0;
         return Vector3.Angle(a, d) <= swingAngle * 0.5f;
     }
@@ -253,10 +253,21 @@ public class PlayerGather : MonoBehaviour
     }
 
     /// 한 번 휘두르기 — ★조준할 필요 없음. 스윙 절정에 전방 부채꼴 전부 타격
-    public void TrySwing(Vector2 mp, bool isPick, Vector3 aimDir, bool isSword = false)
+    /// ★스킬용 — 쿨다운을 무시하고 즉시 휘두른다 (연속 베기처럼 몰아치는 동작에 쓴다).
+    /// dmgMul·rangeMul 로 그 한 번만 세게/넓게.
+    public void SkillSwing(Vector3 aimDir, bool isPick, bool isSword, float dmgMul, float rangeMul)
     {
-        if (cd > 0f) return;
+        skillDmgMul = Mathf.Max(0.1f, dmgMul);
+        skillRangeMul = Mathf.Max(0.1f, rangeMul);
+        TrySwing(Vector2.zero, isPick, aimDir, isSword, true);
+    }
+    float skillDmgMul = 1f, skillRangeMul = 1f;
+
+    public void TrySwing(Vector2 mp, bool isPick, Vector3 aimDir, bool isSword = false, bool force = false)
+    {
+        if (cd > 0f && !force) return;
         if (terr == null) { terr = Terrain.activeTerrain; if (terr == null) return; }
+        if (!force) { skillDmgMul = 1f; skillRangeMul = 1f; }   // 평타는 배율 없음
 
         cd = isSword ? swordCooldown : isPick ? pickCooldown : axeCooldown;
         swingT = 1f;

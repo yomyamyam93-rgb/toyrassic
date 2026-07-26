@@ -15,6 +15,21 @@ public class SkillSystem : MonoBehaviour
     public float qSpinRadius = 8f;
     public float qSpinDamage = 40f;
 
+    [Header("Q — 무기별 동작 (이펙트만이 아니라 실제로 휘두른다)")]
+    [Tooltip("도끼: 기 모았다가 몸째로 회전 — 모으는 시간·감는 각도·도는 바퀴수·도는 시간")]
+    public float qAxeCharge = 0.5f, qAxeWindup = 70f;
+    public float qAxeTurns = 1f, qAxeSpinTime = 0.35f;
+    public float qAxeDamageMul = 2.0f, qAxeRangeMul = 1.5f;
+
+    [Tooltip("곡괭이: 뛰어올라 내리찍기 — 뜨는 시간·높이·정점 정지·낙하 시간")]
+    public float qSlamRise = 0.22f, qSlamHeight = 4f, qSlamHang = 0.1f, qSlamFall = 0.14f;
+    [Tooltip("앞으로 나가는 거리 · 충격파 반경 · 피해 배율")]
+    public float qSlamStep = 4f, qSlamRadius = 9f, qSlamDamageMul = 2.6f;
+
+    [Tooltip("칼: 좌우 교차 베기 — 타수·간격·한 타 전진 거리·한 타 피해 배율")]
+    public int qComboHits = 2;
+    public float qComboInterval = 0.16f, qComboStep = 2.6f, qComboDamageMul = 1.4f;
+
     [Header("F — 펫 공격기 (제자리 강공격, 펫 특성별)")]
     public float wCooldown = 9f;
     [Tooltip("물기형: 연속 물어뜯기 — 전방 좁게 3연타")] public float biteDamage = 22f, biteRange = 7f, biteAngle = 70f;
@@ -51,6 +66,7 @@ public class SkillSystem : MonoBehaviour
 
     PlayerMove move;
     PlayerBow bow;
+    PlayerGather gather;   // 무기 스킬이 평타와 같은 스윙 모션을 쓴다
     Camera cam;
 
     // HUD
@@ -72,11 +88,12 @@ public class SkillSystem : MonoBehaviour
         switch (slot)
         {
             case 0:
-                return gear == GearKind.Bow
-                    ? ("스킬_관통사격", "관통 사격", true)
-                    : IsMelee(gear)
-                        ? ("스킬_회전베기", "회전 베기", true)
-                        : ("스킬_관통사격", "무기 필요", false);
+                // 무기마다 동작이 다르다 — 이름·아이콘도 각각 (아이콘 없으면 회전베기로 대체)
+                return gear == GearKind.Bow ? ("스킬_관통사격", "관통 사격", true)
+                     : gear == GearKind.Pick ? ("스킬_내리찍기", "내리찍기", true)
+                     : gear == GearKind.Sword ? ("스킬_연속베기", "연속 베기", true)
+                     : gear == GearKind.Axe ? ("스킬_회전베기", "회전 베기", true)
+                     : ("스킬_관통사격", "무기 필요", false);
             case 1:
                 if (!hasPet) return ("스킬_물어뜯기", "펫 필요", false);
                 switch (CurPetAtk())
@@ -95,6 +112,7 @@ public class SkillSystem : MonoBehaviour
     {
         move = GetComponent<PlayerMove>();
         bow = GetComponent<PlayerBow>();
+        gather = GetComponent<PlayerGather>();
         cam = Camera.main;
         font = (St != null && St.font != null) ? St.font : Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
         BuildHUD();
@@ -160,15 +178,132 @@ public class SkillSystem : MonoBehaviour
             FX.Burst(from, new Color(2.4f, 2.0f, 1.0f, 1f), 18, 0.22f, 5f, 0.3f);
             SquadHUD.Toast("관통 강사!");
         }
-        else
-        {   // 회전 베기 — 주변 광역 + 넉백
-            FX.Sweep(transform.position, transform.eulerAngles.y, 360f, qSpinRadius,
-                     new Color(1.6f, 1.5f, 1.1f, 0.85f), 0.35f, 0.25f);
-            HitAround(transform.position, qSpinRadius, qSpinDamage, 3f);
-            FollowCam.Shake(0.25f);
-            SquadHUD.Toast("회전 베기!");
-        }
+        else if (gear == GearKind.Pick) StartCoroutine(QPickSlam(dir));    // 곡괭이 — 내리찍기
+        else if (gear == GearKind.Sword) StartCoroutine(QSwordCombo(dir)); // 칼 — 연속 베기
+        else StartCoroutine(QAxeSpin(dir));                                // 도끼 — 기 모아 한 바퀴
         Use(0, qCooldown);
+    }
+
+    // ── 무기별 스킬 안무 ── 이펙트만 터뜨리지 않고 실제로 휘두른다.
+    //    PlayerGather.SkillSwing 을 써서 평타와 같은 스윙 모션·잔상·판정을 그대로 쓴다.
+
+    BlobMotion Blob => blobCache != null ? blobCache : (blobCache = GetComponent<BlobMotion>());
+    BlobMotion blobCache;
+
+    /// ★무기 스킬의 피격 영역 — 미리보기와 실제 판정이 여기 한 곳에서 나온다.
+    /// (따로 계산하면 보이는 범위와 맞는 범위가 어긋난다)
+    public void QArea(GearKind gear, Vector3 dir, out Vector3 center, out float radius)
+    {
+        var mount = move != null ? move.Mount : null;
+        var body = mount != null ? mount.transform.position : transform.position;
+        if (gear == GearKind.Pick)        { center = body + dir * qSlamStep; radius = qSlamRadius; }
+        else if (gear == GearKind.Sword)  { center = body + dir * (qComboStep * qComboHits * 0.5f); radius = qSpinRadius * 0.8f; }
+        else                              { center = body; radius = qSpinRadius; }
+    }
+
+    /// 도끼 — 0.5초 기를 모았다가 몸째로 한 바퀴 확 돌아버린다
+    System.Collections.IEnumerator QAxeSpin(Vector3 dir)
+    {
+        SquadHUD.Toast("회전 베기!");
+        QArea(GearKind.Axe, dir, out var area, out float areaR);   // 미리보기와 같은 영역
+        var blob = Blob;
+        if (blob != null) blob.skillHoldFacing = true;   // 도는 동안 마우스 안 따라감
+        if (move != null) move.suppressMove = true;
+
+        // ① 기 모으기 — 살짝 웅크리고 먼지가 빨려든다
+        float t = 0f;
+        while (t < qAxeCharge)
+        {
+            t += Time.deltaTime;
+            float k = t / qAxeCharge;
+            if (blob != null) blob.skillYaw = -Mathf.Lerp(0f, qAxeWindup, k);   // 반대로 감는다
+            if (t % 0.12f < Time.deltaTime)
+                FX.Burst(transform.position + Vector3.up * 1.2f,
+                         new Color(1.4f, 1.3f, 0.9f, 0.7f), 4, 0.18f, 2.5f, 0.35f);
+            yield return null;
+        }
+
+        // ② 휙! — 한 바퀴 (여러 바퀴 가능) 돌면서 벤다
+        if (gather != null) gather.SkillSwing(dir, false, false, qAxeDamageMul, qAxeRangeMul);
+        FX.Sweep(area, transform.eulerAngles.y, 360f, areaR,
+                 new Color(1.6f, 1.5f, 1.1f, 0.85f), 0.35f, 0.25f);
+        FollowCam.Shake(0.35f);
+        float spun = 0f, total = 360f * qAxeTurns;
+        while (spun < total)
+        {
+            float step = Mathf.Max(total * Time.deltaTime / qAxeSpinTime, 1f);
+            spun += step;
+            if (blob != null) blob.skillYaw = -qAxeWindup + spun;
+            yield return null;
+        }
+        HitAround(area, areaR, qSpinDamage * qAxeDamageMul, 4f);
+
+        if (blob != null) { blob.skillYaw = 0f; blob.skillHoldFacing = false; }
+        if (move != null) move.suppressMove = false;
+    }
+
+    /// 곡괭이 — 폴짝 뛰어올랐다가 내리찍는다. 착지 순간 땅이 갈라짐
+    System.Collections.IEnumerator QPickSlam(Vector3 dir)
+    {
+        SquadHUD.Toast("내리찍기!");
+        QArea(GearKind.Pick, dir, out var area, out float areaR);   // 미리보기와 같은 영역
+        var blob = Blob;
+        if (move != null) move.suppressMove = true;
+
+        // ① 도약 — 앞으로 살짝 나가며 떠오른다
+        float t = 0f;
+        while (t < qSlamRise)
+        {
+            t += Time.deltaTime;
+            float k = Mathf.Clamp01(t / qSlamRise);
+            if (blob != null) blob.skillHop = Mathf.Sin(k * Mathf.PI * 0.5f) * qSlamHeight;
+            transform.position += dir * (qSlamStep / qSlamRise) * Time.deltaTime;
+            yield return null;
+        }
+        // ② 정점에서 곡괭이를 치켜든 채 아주 잠깐 멈춤 (때리는 맛)
+        if (gather != null) gather.SkillSwing(dir, true, false, qSlamDamageMul, 1f);
+        yield return new WaitForSeconds(qSlamHang);
+
+        // ③ 낙하 — 점점 빨라진다
+        t = 0f;
+        while (t < qSlamFall)
+        {
+            t += Time.deltaTime;
+            float k = Mathf.Clamp01(t / qSlamFall);
+            if (blob != null) blob.skillHop = qSlamHeight * (1f - k * k);   // 가속 낙하
+            yield return null;
+        }
+        if (blob != null) blob.skillHop = 0f;
+
+        // ④ 쾅! — 미리보기로 보여준 그 자리에 충격파
+        FX.Burst(area, new Color(0.75f, 0.68f, 0.55f, 0.95f), 34, 0.55f, 8f, 0.6f);
+        FX.Sweep(area, transform.eulerAngles.y, 360f, areaR,
+                 new Color(1.5f, 1.2f, 0.7f, 0.85f), 0.4f, 0.3f);
+        HitAround(area, areaR, qSpinDamage * qSlamDamageMul, 2f);
+        FollowCam.Shake(0.5f);
+        if (move != null) move.suppressMove = false;
+    }
+
+    /// 칼 — 즉시 한 번, 곧바로 반대 방향으로 또 한 번 (좌우 교차 베기)
+    System.Collections.IEnumerator QSwordCombo(Vector3 dir)
+    {
+        SquadHUD.Toast("연속 베기!");
+        QArea(GearKind.Sword, dir, out var area, out float areaR);   // 미리보기와 같은 영역
+        var sword = bow != null ? bow.weapons.Find(x => x.id == "칼") : null;
+        bool baseFlip = sword != null && sword.hFlip;
+        for (int i = 0; i < qComboHits; i++)
+        {
+            // ★한 번은 오른쪽에서, 한 번은 왼쪽에서 — 방향을 뒤집어 교차로 벤다
+            if (sword != null) sword.hFlip = (i % 2 == 0) ? baseFlip : !baseFlip;
+            StartDash(dir, qComboStep, 0.08f, false, 0f, 0f);
+            if (gather != null) gather.SkillSwing(dir, false, true, qComboDamageMul, 1f);
+            FX.Sweep(area, transform.eulerAngles.y, 150f, areaR,
+                     new Color(1.7f, 1.6f, 1.2f, 0.85f), 0.28f, 0.2f);
+            HitAround(area, areaR, qSpinDamage * qComboDamageMul, 2f);
+            FollowCam.Shake(0.16f);
+            yield return new WaitForSeconds(qComboInterval);
+        }
+        if (sword != null) sword.hFlip = baseFlip;   // 원래대로 (평타가 안 바뀌게)
     }
 
     /// 펫 공격기 종류 (제자리 강공격 — 이동 없음)
@@ -373,8 +508,8 @@ public class SkillSystem : MonoBehaviour
         q.transform.rotation = Quaternion.Euler(90f, 0f, 0f);
         var mr = q.GetComponent<MeshRenderer>();
         mr.material = new Material(Shader.Find("Toyrassic/GroundDecal"));
-        mr.material.mainTexture = FX.CircleTex();
-        mr.material.color = new Color(0.4f, 1.1f, 1.9f, 0.5f);   // 파란색 통일 (내 스킬 영역)
+        mr.material.mainTexture = FX.CircleThinTex();            // 얇은 테두리
+        mr.material.color = new Color(0.35f, 1.15f, 2.1f, 0.95f); // 파란색 통일 · 진하게
         mr.sortingOrder = -9;
         mr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
         previewCircle = q.transform;
@@ -406,7 +541,8 @@ public class SkillSystem : MonoBehaviour
         {
             case 0:
                 if (gear == GearKind.Bow) { lineLen = bow != null ? bow.arrowRange : 70f; lineWidth = 1.4f; }
-                else { circleR = qSpinRadius; circleAt = body; }
+                // ★실제 판정과 똑같은 영역을 그대로 보여준다 (QArea 한 곳에서 나온다)
+                else QArea(gear, dir, out circleAt, out circleR);
                 break;
             case 1:   // 펫 공격기 — 종류별 모양 (부채꼴은 원으로 근사)
                 switch (CurPetAtk())

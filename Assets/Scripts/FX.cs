@@ -54,6 +54,32 @@ public static class FX
         return circleTex;
     }
 
+    /// ★스킬 영역용 — 테두리는 얇게, 대신 진하게. 속은 거의 비워 지형이 잘 보이게.
+    /// 표시된 원의 바깥 끝(r=1)이 곧 실제 피격 반경이다.
+    static Texture2D circleThinTex;
+    public static Texture2D CircleThinTex()
+    {
+        if (circleThinTex != null) return circleThinTex;
+        int s = 256; float half = s * 0.5f;
+        circleThinTex = new Texture2D(s, s, TextureFormat.RGBA32, false);
+        for (int y = 0; y < s; y++)
+            for (int x = 0; x < s; x++)
+            {
+                float r = Mathf.Sqrt((x - half) * (x - half) + (y - half) * (y - half)) / half;
+                float a = 0f;
+                if (r < 0.965f) a = 0.13f;                                  // 속: 아주 옅게
+                if (r > 0.955f && r < 1.0f)
+                {   // 테두리: 반경의 4.5% — 얇지만 완전 불투명. 양 끝만 살짝 부드럽게
+                    float e = Mathf.Min(r - 0.955f, 1.0f - r) / 0.008f;
+                    a = Mathf.Max(a, Mathf.Clamp01(e));
+                }
+                circleThinTex.SetPixel(x, y, new Color(1f, 1f, 1f, a));
+            }
+        circleThinTex.Apply();
+        circleThinTex.wrapMode = TextureWrapMode.Clamp;
+        return circleThinTex;
+    }
+
     // ── 월드 팝업 텍스트 (TMP) — 프리텐다드 Black + 그라디언트 + 두꺼운 검은 테두리 ──
     public enum PopStyle { Item, Hit, Crit }
     static TMPro.TMP_FontAsset popFont;
