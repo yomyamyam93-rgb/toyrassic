@@ -128,6 +128,10 @@ public static class TerrainTiler
                 // ★나무·풀 '종류'도 반드시 옮긴다 — 이걸 빼먹으면 ①번이 심을 게 없어
                 //   나무 0그루·풀 0칸으로 끝난다 (실제로 겪음)
                 td.treePrototypes = srcTd.treePrototypes;
+                // ★산포 모드 먼저 — 유니티 6 은 새 TerrainData 를 CoverageMode 로 만든다.
+                //   이러면 밀도 숫자가 '개수'가 아니라 '덮는 비율'로 해석돼 잔디가 몇 포기만 심긴다.
+                //   (모드를 나중에 바꾸면 디테일 데이터가 통째로 지워지므로 반드시 심기 전에)
+                td.SetDetailScatterMode(srcTd.detailScatterMode);
                 td.detailPrototypes = srcTd.detailPrototypes;
                 td.wavingGrassStrength = srcTd.wavingGrassStrength;
                 td.wavingGrassAmount = srcTd.wavingGrassAmount;
@@ -150,6 +154,22 @@ public static class TerrainTiler
                 ter.heightmapPixelError = src.heightmapPixelError;
                 ter.basemapDistance = src.basemapDistance;
                 ter.drawInstanced = src.drawInstanced;
+                // ★표시 거리·LOD 설정도 반드시 옮긴다. 유니티 기본값(풀LOD 50 · 빌보드 200m)으로
+                //   두면 114만 그루 중 50그루만 진짜 3D 라 나무가 전부 납작해 보인다 (실제로 겪음).
+                ter.treeDistance = src.treeDistance;
+                ter.treeBillboardDistance = src.treeBillboardDistance;
+                ter.treeCrossFadeLength = src.treeCrossFadeLength;
+                ter.treeMaximumFullLODCount = src.treeMaximumFullLODCount;
+                ter.detailObjectDistance = src.detailObjectDistance;
+                ter.detailObjectDensity = src.detailObjectDensity;
+                // ★그림자·정적 플래그도 원본을 따른다. 기본값(TwoSided·정적 없음)이면
+                //   그림자를 두 번 그리고 오클루전 컬링·라이트맵이 통째로 빠져 무거워진다.
+                ter.shadowCastingMode = src.shadowCastingMode;
+                ter.drawTreesAndFoliage = src.drawTreesAndFoliage;
+                ter.reflectionProbeUsage = src.reflectionProbeUsage;
+                ter.groupingID = src.groupingID;
+                UnityEditor.GameObjectUtility.SetStaticEditorFlags(go,
+                    UnityEditor.GameObjectUtility.GetStaticEditorFlags(src.gameObject));
                 ter.allowAutoConnect = true;
                 go.AddComponent<TerrainCollider>().terrainData = td;
                 go.layer = src.gameObject.layer;

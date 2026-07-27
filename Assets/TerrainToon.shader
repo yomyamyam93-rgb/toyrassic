@@ -52,6 +52,7 @@ Shader "Toyrassic/TerrainToon"
             TEXTURE2D(_L4); TEXTURE2D(_L5); TEXTURE2D(_L6); TEXTURE2D(_L7);
             float4 _TileA, _TileB;
             float4 _WorldMin;
+            float4 _Control0_TexelSize;      // (1/w, 1/h, w, h) — 이음매 보정에 쓴다
             float _WorldSize, _CliffTile, _CliffDark, _ShadowDark;
 
             V vert(A i)
@@ -67,7 +68,11 @@ Shader "Toyrassic/TerrainToon"
 
             half4 frag(V i) : SV_Target
             {
-                float2 cuv = saturate((i.wpos.xz - _WorldMin.xy) / _WorldSize);
+                // ★half-texel 보정 — 스플랫 텍스처를 0~1 로 그냥 매핑하면 가장자리가
+                //   반 픽셀 어긋나 타일 경계마다 줄이 생긴다 (지형 한 장일 땐 바깥이 바다라 안 보였다).
+                //   텍셀 중심에 맞춰 안쪽으로 밀어 넣는 것이 지형 셰이더의 표준 처리다.
+                float2 luv = saturate((i.wpos.xz - _WorldMin.xy) / _WorldSize);
+                float2 cuv = (luv * (_Control0_TexelSize.zw - 1.0) + 0.5) * _Control0_TexelSize.xy;
                 half4 c0 = SAMPLE_TEXTURE2D(_Control0, sampler_Control0, cuv);
                 half4 c1 = SAMPLE_TEXTURE2D(_Control1, sampler_Control0, cuv);
                 float2 xz = i.wpos.xz;

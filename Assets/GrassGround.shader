@@ -16,6 +16,11 @@ Shader "Toyrassic/GrassGround"
         _ShadowDark ("그림자 진하기", Range(0,1)) = 0.35
 
         // 지형 스플랫 (잔디 매니저가 자동 연결)
+        // ★타일 지형(4×4)에서는 스플랫이 타일마다 달라, 재질 3개를 공유하는 잔디로는
+        //   어느 타일 것을 써도 나머지가 틀린다. 그래서 세계 전체 땅색을 한 장으로 구워 쓴다.
+        //   (⑤ 지형 타일 굽기 → ① 다시 짓기 가 자동으로 구워 연결한다)
+        _GroundTex ("땅색 맵 (세계 전체를 구운 것)", 2D) = "black" {}
+        _UseGroundTex ("땅색 맵 쓰기", Float) = 0
         _Control0 ("스플랫 0-3", 2D) = "red" {}
         _Control1 ("스플랫 4-7", 2D) = "black" {}
         _L0 ("레이어0", 2D) = "white" {}
@@ -50,12 +55,15 @@ Shader "Toyrassic/GrassGround"
             struct Varyings { float4 positionCS:SV_POSITION; float2 uv:TEXCOORD0; float3 wpos:TEXCOORD1; float uvY:TEXCOORD2; };
 
             TEXTURE2D(_MainTex);  SAMPLER(sampler_MainTex);
+            TEXTURE2D(_GroundTex); SAMPLER(sampler_GroundTex); // clamp
             TEXTURE2D(_Control0); SAMPLER(sampler_Control0);   // clamp
             TEXTURE2D(_Control1);
             TEXTURE2D(_L0); SAMPLER(sampler_L0);               // repeat — 레이어 8장 공용
             TEXTURE2D(_L1); TEXTURE2D(_L2); TEXTURE2D(_L3);
             TEXTURE2D(_L4); TEXTURE2D(_L5); TEXTURE2D(_L6); TEXTURE2D(_L7);
             float4 _WorldMin;
+            float4 _Control0_TexelSize;      // 이음매 보정용 (TerrainToon 과 같은 이유)
+            float _UseGroundTex;
             float _WorldSize, _Cutoff, _BaseDark, _TipBoost, _ShadowDark;
             half4 _Tint;
             float4 _TileA, _TileB;
@@ -77,12 +85,21 @@ Shader "Toyrassic/GrassGround"
                 half a = SAMPLE_TEXTURE2D(_MainTex, sampler_MainTex, i.uv).a;
                 clip(a - _Cutoff);
 
-                // 지형과 동일: 스플랫 가중치 × 반복 타일 레이어색
-                float2 cuv = saturate((i.wpos.xz - _WorldMin.xy) / _WorldSize);
+                float2 luv = saturate((i.wpos.xz - _WorldMin.xy) / _WorldSize);
+                half3 g;
+                if (_UseGroundTex > 0.5)
+                {
+                    // 세계 전체를 구운 땅색 한 장 — 타일이 몇 장이든 이 길이 맞다
+                    g = SAMPLE_TEXTURE2D(_GroundTex, sampler_GroundTex, luv).rgb;
+                }
+                else
+                {
+                // 지형과 동일: 스플랫 가중치 × 반복 타일 레이어색 (지형 한 장일 때의 옛 길)
+                float2 cuv = (luv * (_Control0_TexelSize.zw - 1.0) + 0.5) * _Control0_TexelSize.xy;
                 half4 c0 = SAMPLE_TEXTURE2D(_Control0, sampler_Control0, cuv);
                 half4 c1 = SAMPLE_TEXTURE2D(_Control1, sampler_Control0, cuv);
                 float2 xz = i.wpos.xz;
-                half3 g = c0.r * SAMPLE_TEXTURE2D(_L0, sampler_L0, xz / _TileA.x).rgb
+                g = c0.r * SAMPLE_TEXTURE2D(_L0, sampler_L0, xz / _TileA.x).rgb
                         + c0.g * SAMPLE_TEXTURE2D(_L1, sampler_L0, xz / _TileA.y).rgb
                         + c0.b * SAMPLE_TEXTURE2D(_L2, sampler_L0, xz / _TileA.z).rgb
                         + c0.a * SAMPLE_TEXTURE2D(_L3, sampler_L0, xz / _TileA.w).rgb
@@ -92,6 +109,7 @@ Shader "Toyrassic/GrassGround"
                         + c1.a * SAMPLE_TEXTURE2D(_L7, sampler_L0, xz / _TileB.w).rgb;
                 half wsum = c0.r + c0.g + c0.b + c0.a + c1.r + c1.g + c1.b + c1.a;
                 g /= max(wsum, 0.001);
+                }
 
                 // 지면과 같은 조명 (위 방향 노멀) + 그림자 수신 (나무 그늘이 잔디에도 진다)
                 float4 shadowCoord = TransformWorldToShadowCoord(i.wpos);

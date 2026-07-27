@@ -58,6 +58,17 @@ public static class WorldBuilder
 
     const float EdgeFade = 0.5f, StepM = 6f;
 
+    /// ★노이즈 무늬를 세계 크기에 비례시킨다 (2026-07-27).
+    ///   숲/평야를 나누던 노이즈가 고정 주파수(무늬 ~1.6km)라, 6km 세계에선 큼직한
+    ///   숲·벌판이었는데 24km 에선 같은 1.6km 가 잘게 흩뿌린 점이 돼 균등해 보였다.
+    ///   기준 크기(6km) 대비 배율을 주파수에 곱하면 지형을 또 키워도 자동으로 맞는다.
+    static float NoiseScale => WidthRefSize / Mathf.Max(1f, _wSize.x);   // 24km 면 0.25
+
+    // 바탕칠 기준 — 원본 지형(최고 430m·해수면 12m)에서 튜닝한 값을 높이 비례로 환산해 쓴다
+    const float SeaFrac = 12f / HeightRef;        // 해수면
+    const float BeachFrac = 30f / HeightRef;      // 해변 띠 두께
+    const float SnowFrac = 0.70f;                 // 이 위는 눈 (최고높이 대비)
+
     // ══════════════════════════════════════════════════════════
     //  ① 전부 다시 짓기
     // ══════════════════════════════════════════════════════════
@@ -87,6 +98,7 @@ public static class WorldBuilder
                 EditorUtility.DisplayProgressBar("월드 다시 짓기",
                     $"타일 {i + 1}/{tiles.Length} — {t.name}", i / (float)tiles.Length);
 
+                DoGround(t);                              // ★바탕칠 먼저 — 길은 그 위에 덧칠한다
                 var (r, c) = DoRoads(t, lines, cell, grid);
                 roads = Mathf.Max(roads, r);              // 구간 수는 타일마다 같다(칠한 칸만 다름)
                 cells += c;
@@ -115,6 +127,45 @@ public static class WorldBuilder
                   $"바위 {rocks}칸 · 나무 {trees} · 풀 {grass}칸 · 꽃 {flowers}\n" +
                   $"세계 {_wSize.x:F0}×{_wSize.z:F0}m · 격자 {grid} → 칸 {_wSize.x / grid:F1}m " +
                   $"(계획서 {cell}m 기준, 비례 환산)");
+    }
+
+    // ══════════════════════════════════════════════════════════
+    //  ⑥ 잔디만 다시 심기 — 길·나무·바탕칠은 그대로 두고 풀만
+    // ══════════════════════════════════════════════════════════
+    /// 잔디 산포 모드(InstanceCountMode ↔ CoverageMode)를 바꾸면 디테일 데이터가
+    /// 통째로 지워진다. 그때 ①번을 통째로 돌리면 길·나무까지 다시 만드느라 오래 걸려서,
+    /// 풀만 다시 심는 길을 따로 둔다.
+    [MenuItem("Tools/토이라기/⑥ 잔디만 다시 심기", priority = 6)]
+    public static void RegrassMenu()
+    {
+        if (!EditorUtility.DisplayDialog("잔디 다시 심기",
+            "길·나무·바탕칠은 그대로 두고 풀·꽃만 다시 심는다.", "심기", "취소")) return;
+        RegrassNow();
+    }
+
+    /// 확인 창 없이 (원격 실행용)
+    public static void RegrassNow()
+    {
+        var tiles = FindTiles();
+        if (tiles == null) return;
+        _tiles = tiles;
+        _dirtCache = -2; _sandCache = -2;
+        int grass = 0, flowers = 0;
+        try
+        {
+            for (int i = 0; i < tiles.Length; i++)
+            {
+                EditorUtility.DisplayProgressBar("잔디 다시 심기",
+                    $"타일 {i + 1}/{tiles.Length} — {tiles[i].name}", i / (float)tiles.Length);
+                grass += DoGrass(tiles[i]);
+                flowers += DoFlowers(tiles[i]);
+                tiles[i].Flush();
+                EditorUtility.SetDirty(tiles[i].terrainData);
+            }
+        }
+        finally { EditorUtility.ClearProgressBar(); }
+        AssetDatabase.SaveAssets();
+        Debug.Log($"[월드] 잔디 다시 심기 완료 — 지형 {tiles.Length}장 · 풀 {grass}칸 · 꽃 {flowers}");
     }
 
     // ══════════════════════════════════════════════════════════
@@ -307,6 +358,73 @@ public static class WorldBuilder
     // ══════════════════════════════════════════════════════════
     //  절벽 = 바위 — 경사 급한 알파맵 칸에 L_rock 을 칠한다 (정공법 ①)
     // ══════════════════════════════════════════════════════════
+    /// 바탕칠 — 높이·경사로 모래·잔디·자갈·눈을 **섞어서** 깐다.
+    ///
+    /// ★칸마다 한 레이어를 100% 로 박으면 경계가 칼같이 끊겨 계단처럼 보인다.
+    ///   가중치를 겹쳐 주고 마지막에 합이 1 이 되게 나눠서 자연스럽게 녹인다.
+    /// ★잔디/짙은잔디 얼룩도 노이즈로 — 주파수는 NoiseScale 로 세계 크기에 맞춘다.
+    static int DoGround(Terrain terrain)
+    {
+        var td = terrain.terrainData;
+        var origin = terrain.transform.position;
+        int sand = FindLayer(td, "sand", "beach");
+        int grass = FindLayer(td, "grass");
+        int dark = FindLayer(td, "darkgrass");
+        int gravel = FindLayer(td, "gravel");
+        int rock = FindLayer(td, "rock", "cliff", "stone");
+        int snow = FindLayer(td, "snow");
+        if (grass < 0) { Debug.LogWarning("[월드] 잔디 레이어가 없어 바탕칠 건너뜀."); return 0; }
+        if (dark < 0) dark = grass;
+
+        // 다시 칠하므로 옛 백업은 버린다 — 안 그러면 ②번이 예전 하드 경계를 되살린다
+        string bp = SplatPath(terrain);
+        if (File.Exists(bp)) File.Delete(bp);
+
+        int aw = td.alphamapWidth, ah = td.alphamapHeight, al = td.alphamapLayers;
+        var a = new float[ah, aw, al];
+        float maxY = td.size.y;
+        float seaY = maxY * SeaFrac, beach = maxY * BeachFrac, snowY = maxY * SnowFrac;
+        float nf = NoiseScale;
+        int painted = 0;
+
+        for (int y = 0; y < ah; y++)
+        for (int x = 0; x < aw; x++)
+        {
+            float fx = (float)x / (aw - 1), fz = (float)y / (ah - 1);
+            float h = td.GetInterpolatedHeight(fx, fz);
+            float st = Vector3.Angle(td.GetInterpolatedNormal(fx, fz), Vector3.up);
+            float wx = origin.x + fx * td.size.x, wz = origin.z + fz * td.size.z;
+
+            // ── 가중치를 겹쳐 쌓는다 (0~1, 서로 합쳐질 수 있음) ──
+            // 해변: 해수면부터 beach 두께까지 서서히 사라진다
+            float wSand = sand < 0 ? 0f : 1f - Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(seaY, seaY + beach, h));
+            // 눈: 높이 올라갈수록. 급경사엔 눈이 안 쌓인다
+            float wSnow = snow < 0 ? 0f : Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(snowY, snowY + maxY * 0.12f, h))
+                                        * (1f - Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(40f, 58f, st)));
+            // 자갈: 완만한 비탈. 더 가파르면 바위(DoRocks 가 따로 얹는다)
+            float wGravel = gravel < 0 ? 0f : Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(22f, 34f, st));
+            // 잔디: 나머지 전부. 짙은잔디는 노이즈로 얼룩덜룩하게
+            float patch = Mathf.PerlinNoise(wx * 0.0016f * nf + 21f, wz * 0.0016f * nf + 21f);
+            float darkW = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0.48f, 0.62f, patch));
+            float wGreen = Mathf.Max(0f, 1f - wSand - wSnow - wGravel * 0.8f);
+
+            if (sand >= 0) a[y, x, sand] += wSand;
+            if (snow >= 0) a[y, x, snow] += wSnow;
+            if (gravel >= 0) a[y, x, gravel] += wGravel;
+            a[y, x, grass] += wGreen * (1f - darkW);
+            a[y, x, dark] += wGreen * darkW;
+
+            // 합이 1 이 되게 정규화 — 안 하면 색이 뜨거나 검게 나온다
+            float sum = 0f;
+            for (int l = 0; l < al; l++) sum += a[y, x, l];
+            if (sum < 1e-4f) { a[y, x, grass] = 1f; }
+            else for (int l = 0; l < al; l++) a[y, x, l] /= sum;
+            painted++;
+        }
+        td.SetAlphamaps(0, 0, a);
+        return painted;
+    }
+
     static int DoRocks(Terrain terrain)
     {
         var td = terrain.terrainData;
@@ -412,10 +530,16 @@ public static class WorldBuilder
         //   plains = 거의 빈 벌판(홑나무 1~2%), forest = 빽빽, 사이는 그라데이션.
         //   ★군집 중심은 **세계 전체** 기준(0~1)이고 씨앗을 고정한다 — 타일마다 다시 뽑으면
         //     똑같은 숲 무늬가 16번 반복된다. 잔가지 난수(rnd)와 분리해야 하는 이유.
-        const int NCLUST = 18 * 4;
+        //   ★개수는 면적에 비례 — 18개는 6km 세계 기준이라 24km 에선 16배(288개)가 있어야
+        //     같은 밀도가 된다. 반지름도 세계 크기로 환산해 실제 숲 크기(180~480m)를 유지한다.
+        float areaK = (_wSize.x / WidthRefSize) * (_wSize.z / WidthRefSize);
+        int NCLUST = Mathf.Clamp(Mathf.RoundToInt(18 * areaK), 18, 600);
         var crnd = new System.Random(20260724);
         var ccx = new float[NCLUST]; var ccz = new float[NCLUST]; var ccr = new float[NCLUST];
-        for (int c = 0; c < NCLUST; c++) { ccx[c] = (float)crnd.NextDouble(); ccz[c] = (float)crnd.NextDouble(); ccr[c] = (0.03f + (float)crnd.NextDouble() * 0.05f) * 0.5f; }
+        for (int c = 0; c < NCLUST; c++) {
+            ccx[c] = (float)crnd.NextDouble(); ccz[c] = (float)crnd.NextDouble();
+            ccr[c] = (0.03f + (float)crnd.NextDouble() * 0.05f) * NoiseScale;   // 미터 기준 크기 유지
+        }
 
         float spacing = TreeSpacing * 0.5f;   // 격자 곱게 → 셀당 여러 그루와 합쳐 진짜 빽빽
         int cols = Mathf.Max(1, (int)(size.x / spacing)), rows = Mathf.Max(1, (int)(size.z / spacing));
@@ -449,12 +573,14 @@ public static class WorldBuilder
             // ── 내륙: 숲/평야 대비 + '빽빽 속 더 빽빽' ──
             if (landIdx.Count == 0) continue;
             // ① 바이옴(저주파) — 숲/평야 큰 구분. smoothstep 으로 대비 세게.
-            float biomeN = Mathf.PerlinNoise(wx * 0.0006f + 40f, wz * 0.0006f + 40f);
+            //   ★주파수에 NoiseScale — 세계가 4배 커지면 무늬도 4배 커져야 숲·벌판이 큼직하게 남는다
+            float nf = NoiseScale;
+            float biomeN = Mathf.PerlinNoise(wx * 0.0006f * nf + 40f, wz * 0.0006f * nf + 40f);
             float forest = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0.42f, 0.60f, biomeN));
             // ② 다중 옥타브 얼룩 — 숲 안에서도 더 빽빽/성긴 데가 갈리게
-            float lump = Mathf.PerlinNoise(wx * 0.0025f + 7f, wz * 0.0025f + 7f) * 0.55f
-                       + Mathf.PerlinNoise(wx * 0.008f + 3f, wz * 0.008f + 3f) * 0.30f
-                       + Mathf.PerlinNoise(wx * 0.02f + 11f, wz * 0.02f + 11f) * 0.20f;
+            float lump = Mathf.PerlinNoise(wx * 0.0025f * nf + 7f, wz * 0.0025f * nf + 7f) * 0.55f
+                       + Mathf.PerlinNoise(wx * 0.008f * nf + 3f, wz * 0.008f * nf + 3f) * 0.30f
+                       + Mathf.PerlinNoise(wx * 0.02f * nf + 11f, wz * 0.02f * nf + 11f) * 0.20f;
             lump = Mathf.Clamp01(lump / 1.05f);
             // ③ 빽빽한 군집 중심
             float clust = 0f;
@@ -497,8 +623,13 @@ public static class WorldBuilder
             }
         }
         td.SetTreeInstances(list.ToArray(), true);
+        // ★표시 거리·LOD — 기본값(빌보드 200m · 풀LOD 50)이면 나무가 거의 다 납작한 판때기로
+        //   보여 크기·모양 차이가 사라진다. 원본 지형에서 쓰던 값이 기준이다.
         terrain.treeDistance = Mathf.Max(terrain.treeDistance, 3000f);
-        terrain.treeBillboardDistance = Mathf.Max(terrain.treeBillboardDistance, 200f);
+        terrain.treeBillboardDistance = Mathf.Max(terrain.treeBillboardDistance, 600f);
+        terrain.treeCrossFadeLength = Mathf.Max(terrain.treeCrossFadeLength, 40f);
+        terrain.treeMaximumFullLODCount = Mathf.Max(terrain.treeMaximumFullLODCount, 4000);
+        terrain.detailObjectDistance = Mathf.Max(terrain.detailObjectDistance, 300f);
         return list.Count;
     }
 
@@ -564,39 +695,73 @@ public static class WorldBuilder
         }
 
         // ② 스플랫맵 × 레이어색 = 땅 표면색 맵 굽기
-        int aw = td.alphamapWidth, ah = td.alphamapHeight, al = td.alphamapLayers;
-        var splat = td.GetAlphamaps(0, 0, aw, ah);
+        //    ★타일이 여러 장이면 세계 전체를 한 장으로 굽는다. 잔디 재질은 3개뿐이라
+        //      타일마다 다른 스플랫을 붙일 수 없기 때문이다(붙이면 한 타일만 맞는다).
+        var tiles = _tiles != null && _tiles.Length > 0 ? _tiles : FindTiles();
+        if (tiles == null || tiles.Length == 0) tiles = new[] { terrain };
+        if (_wSize.x <= 0f) FindTiles();
+        // 세계가 커진 만큼 해상도도 올린다 (원본 6km·2048 = 2.9m/px 기준 유지, 상한 8192)
+        int wantR = Mathf.Clamp(Mathf.NextPowerOfTwo(Mathf.CeilToInt(_wSize.x / 2.93f)), R, 8192);
+        R = wantR;
+
+        var splatCache = new Dictionary<Terrain, float[,,]>();
         var tex2 = new Texture2D(R, R, TextureFormat.RGBA32, false);
         var pix2 = new Color[R * R];
         for (int py = 0; py < R; py++)
         for (int px2 = 0; px2 < R; px2++)
         {
-            int ax = Mathf.Clamp(px2 * (aw - 1) / (R - 1), 0, aw - 1);
-            int az = Mathf.Clamp(py * (ah - 1) / (R - 1), 0, ah - 1);
+            // 픽셀 → 월드 좌표 → 그 자리를 담당하는 타일의 스플랫
+            float wx = _wOrigin.x + (px2 + 0.5f) / R * _wSize.x;
+            float wz = _wOrigin.z + (py + 0.5f) / R * _wSize.z;
             Color c = Color.black;
-            for (int l = 0; l < al && l < lcol.Length; l++) c += splat[az, ax, l] * lcol[l];
+            foreach (var t in tiles)
+            {
+                var o = t.transform.position; var s = t.terrainData.size;
+                if (wx < o.x || wx > o.x + s.x || wz < o.z || wz > o.z + s.z) continue;
+                if (!splatCache.TryGetValue(t, out var sp))
+                {
+                    var ttd = t.terrainData;
+                    sp = ttd.GetAlphamaps(0, 0, ttd.alphamapWidth, ttd.alphamapHeight);
+                    splatCache[t] = sp;
+                }
+                int taw = t.terrainData.alphamapWidth, tah = t.terrainData.alphamapHeight;
+                int ax = Mathf.Clamp(Mathf.RoundToInt((wx - o.x) / s.x * (taw - 1)), 0, taw - 1);
+                int az = Mathf.Clamp(Mathf.RoundToInt((wz - o.z) / s.z * (tah - 1)), 0, tah - 1);
+                int tal = t.terrainData.alphamapLayers;
+                for (int l = 0; l < tal && l < lcol.Length; l++) c += sp[az, ax, l] * lcol[l];
+                break;
+            }
             c.a = 1f;
             pix2[py * R + px2] = c;
         }
         tex2.SetPixels(pix2); tex2.Apply();
         System.IO.File.WriteAllBytes("Assets/World/ground_baked.png", tex2.EncodeToPNG());
         AssetDatabase.ImportAsset("Assets/World/ground_baked.png");
+        // ★임포트 상한을 안 올리면 유니티가 2048 로 줄여버린다 (24km 면 11.7m/px 로 뭉갬)
+        var gimp = AssetImporter.GetAtPath("Assets/World/ground_baked.png") as TextureImporter;
+        if (gimp != null && gimp.maxTextureSize < R)
+        {
+            gimp.maxTextureSize = Mathf.Min(8192, Mathf.NextPowerOfTwo(R));
+            gimp.wrapMode = TextureWrapMode.Clamp;
+            gimp.SaveAndReimport();
+        }
         var baked = AssetDatabase.LoadAssetAtPath<Texture2D>("Assets/World/ground_baked.png");
 
-        // ③ GrassCross 재질에 연결 + 월드 크기 바로잡기
-        var origin = terrain.transform.position;
+        // ③ GrassCross 재질에 연결 — ★기준은 타일 하나가 아니라 세계 전체다
         int wired = 0;
         foreach (var mp in new[] { "Assets/Models/GrassCross_a.mat", "Assets/Models/GrassCross_b.mat", "Assets/Models/GrassCross_c.mat" })
         {
             var mat = AssetDatabase.LoadAssetAtPath<Material>(mp);
             if (mat == null) continue;
             if (mat.HasProperty("_GroundTex")) mat.SetTexture("_GroundTex", baked);
-            if (mat.HasProperty("_WorldMin")) mat.SetVector("_WorldMin", new Vector4(origin.x, origin.z, 0f, 0f));
-            if (mat.HasProperty("_WorldSize")) mat.SetFloat("_WorldSize", td.size.x);
+            if (mat.HasProperty("_UseGroundTex")) mat.SetFloat("_UseGroundTex", baked != null ? 1f : 0f);
+            if (mat.HasProperty("_WorldMin")) mat.SetVector("_WorldMin", new Vector4(_wOrigin.x, _wOrigin.z, 0f, 0f));
+            if (mat.HasProperty("_WorldSize")) mat.SetFloat("_WorldSize", _wSize.x);
             EditorUtility.SetDirty(mat);
             wired++;
         }
-        Debug.Log($"[월드] 땅색 bake 완료 → GrassCross 재질 {wired}개 연결 (WorldSize {td.size.x:F0}m). 이제 잔디가 발밑 땅색과 일치.");
+        Debug.Log($"[월드] 땅색 bake 완료 — 세계 {_wSize.x:F0}m 를 {R}px 한 장으로 " +
+                  $"({_wSize.x / R:F1} m/px, 지형 {tiles.Length}장) → GrassCross 재질 {wired}개 연결.");
     }
 
     static int DoGrass(Terrain terrain)

@@ -77,11 +77,13 @@ Material:
     - _Cutoff: 0.4
     - _ShadowDark: 0.35
     - _TipBoost: 1.565
+    - _UseGroundTex: 1
     - _WorldMin: 18000
-    - _WorldSize: 6000
+    - _WorldSize: 24000
     m_Colors:
     - _TileA: {r: 20, g: 20, b: 20, a: 20}
     - _TileB: {r: 24, g: 20, b: 84.7, a: 20}
     - _Tint: {r: 1, g: 1, b: 1, a: 1}
+    - _WorldMin: {r: 0, g: 0, b: 0, a: 0}
   m_BuildTextureStacks: []
   m_AllowLocking: 1
