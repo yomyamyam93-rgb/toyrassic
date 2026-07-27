@@ -321,7 +321,8 @@ public class PlayerBow : MonoBehaviour
             trailBoosted = true;
             foreach (var w in weapons)
             {
-                w.trailWidth = Mathf.Max(w.trailWidth, 2.4f);
+                // ★세계 스케일 (2026-07-28). 2.4m 는 키 0.42m 캐릭터의 5.7배짜리 띠다.
+                w.trailWidth = Mathf.Max(w.trailWidth, 2.4f * WorldScale.K);
                 w.trailTime = Mathf.Max(w.trailTime, 0.36f);
                 if (w.trailTaper < 0.02f) w.trailTaper = 0.25f;
             }
@@ -344,6 +345,13 @@ public class PlayerBow : MonoBehaviour
         }
         Build();
         BuildTools();
+
+        // ★애니메이터를 다시 묶는다 (2026-07-28). Build/BuildTools 가 손 밑에 외곽선·무기·
+        //   잔상을 새로 붙이는데, 애니메이터는 그 전(OnEnable)에 계층을 캐시해 둔다.
+        //   그대로 두면 클립은 '재생'되는데 손에 값이 안 실린다 — 진행도만 흐르고 자세는
+        //   씬 값에 고정. 실제로 그렇게 막혔고, Rebind 한 번으로 풀렸다.
+        var rigAnim = HandRig.I != null ? HandRig.I.GetComponent<Animator>() : null;
+        if (rigAnim != null) rigAnim.Rebind();
     }
 
     /// 도끼(나무)·곡괭이(바위) — 패는 순간에만 오른손에 등장
@@ -936,7 +944,12 @@ public class PlayerBow : MonoBehaviour
         var gearHeld = Hotbar.I != null ? Hotbar.I.Current : GearKind.None;
         bool clipOwnsHandR = gearHeld == GearKind.Axe || gearHeld == GearKind.Pick || gearHeld == GearKind.Sword;
         var handAnim = HandRig.I != null ? HandRig.I.GetComponent<Animator>() : null;
-        if (handAnim != null && handAnim.enabled != clipOwnsHandR) handAnim.enabled = clipOwnsHandR;
+        if (handAnim != null && handAnim.enabled != clipOwnsHandR)
+        {
+            handAnim.enabled = clipOwnsHandR;
+            // 켤 때도 다시 묶는다 — 꺼져 있는 동안 계층이 바뀌었을 수 있다
+            if (clipOwnsHandR) handAnim.Rebind();
+        }
         // 타격 시점도 같이 넘긴다 — 클립이 그리면 클립의 이벤트가 때린다
         if (gather != null) gather.animDrivesImpact = clipOwnsHandR;
         float rigScale = motion != null ? motion.BaseScale.x : transform.localScale.x;
