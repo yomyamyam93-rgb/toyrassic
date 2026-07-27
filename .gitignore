@@ -44,3 +44,11 @@ Assets/World/splat_backup.bytes
 Assets/World/splat_backup.bytes.meta
 Assets/World/terrain_export.bytes
 Assets/World/terrain_export.bytes.meta
+
+# 지형 중간 데이터 — 128MB 씩이라 깃허브 100MB 한도를 넘는다.
+# 코드가 참조하지 않는다 (지형은 TerrainData 에서 알파맵을 읽는다).
+# 로컬에는 남아 있고 깃에서만 뺀다. (2026-07-28)
+Assets/World/splat_Tile_*.bytes
+Assets/World/splat_Tile_*.bytes.meta
+Assets/World/splat_Island.bytes
+Assets/World/splat_Island.bytes.meta
