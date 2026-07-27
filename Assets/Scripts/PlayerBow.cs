@@ -528,7 +528,17 @@ public class PlayerBow : MonoBehaviour
         if (bowModel == null) bowModel = Resources.Load<GameObject>("Tools/tool_bow");
         if (bowModel != null)
         {   // ★3D 활대 — 시위·화살은 그대로 절차 유지 (당기는 연출을 살리려고)
-            bowInst = Instantiate(bowModel, bowRoot).transform;
+            //   무기와 같은 규칙: 씬에 있으면 찾아 쓴다. 그래야 에디터에서 활이 보이고
+            //   조준 자세를 만들 수 있다.
+            var existing = bowRoot.Find(bowModel.name);
+            bowInst = existing != null ? existing : Instantiate(bowModel, bowRoot).transform;
+            bowInst.name = bowModel.name;
+            // ★계산 전에 모델 원본 자세로 되돌린다 — 아래가 인스턴스의 '현재' 값을 읽는데
+            //   런타임이 그 값을 덮어쓰므로, 씬에 저장되면 실행마다 누적된다 (무기와 동일)
+            bowInst.localPosition = bowModel.transform.localPosition;
+            bowInst.localRotation = bowModel.transform.localRotation;
+            bowInst.localScale = bowModel.transform.localScale;
+
             // 도구와 같은 규칙 — 저작된 배치 그대로, 크기만 활 길이에 맞춘다
             bowAutoRot = bowInst.localRotation;
             bowAutoPos = bowInst.localPosition;
