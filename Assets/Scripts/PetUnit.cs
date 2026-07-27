@@ -356,7 +356,7 @@ public class PetUnit : MonoBehaviour
             {   // 멀수록 빨리 (뒤처지면 뛴다)
                 float sp = MoveSpd * (far > 9f ? 1.6f : 1f);
                 var np = transform.position + to.normalized * Mathf.Min(sp * Time.deltaTime, far);
-                np = TreeBlocker.Resolve(np, body * 0.3f);
+                np = TreeBlocker.Resolve(np, body * 0.3f * WorldScale.K);
                 transform.position = new Vector3(np.x, transform.position.y, np.z);
                 Face(to);
                 if (motion != null) motion.speed01 = Mathf.Clamp01(sp / 12f);
@@ -1043,7 +1043,7 @@ public class PetUnit : MonoBehaviour
         if (terrain == null) return;
         var p = transform.position;
         if (!dead && !isStructure && !isAvatar)
-            p = TreeBlocker.Resolve(p, Mathf.Min(body * 0.3f, 2.4f));   // 나무·바위 못 뚫음
+            p = TreeBlocker.Resolve(p, Mathf.Min(body * 0.3f, 2.4f) * WorldScale.K);   // 나무·바위 못 뚫음
         float footNow = footOff * (baseScale.y > 1e-4f ? transform.localScale.y / baseScale.y : 1f);
         float g = terrain.SampleHeight(p) + terrain.transform.position.y + footNow;
         p.y = dead ? p.y : g;
@@ -1096,8 +1096,16 @@ public class PetUnit : MonoBehaviour
         // 머리 위 = 렌더러 최상단 + 여유.
         //  · 펫: 비례를 크게 잡으면 XL(브론토)이 하늘로 뜨므로 고정값 위주
         //  · 캐릭터: 몸이 작고 카메라가 가까워 넉넉히 띄워야 잘 보인다
-        barY = top + (isAvatar ? body * 1.0f + 1.2f : 1.4f + body * 0.03f) * WorldScale.K;
-        barBaseScale = 1.35f;   // ★전 유닛 동일 크기 (몸 크기 비례 폐지 — 제각각 버그 수정)
+        // ★띄우는 간격도 바 크기에 맞춰야 한다 (2026-07-28). 바를 ×2 로 키워놨으므로
+        //   간격만 비례(×1)로 두면 바가 머리에 딱 붙어 보인다. 같은 ×2 를 곱한다.
+        barY = top + (isAvatar ? body * 1.0f + 1.2f : 1.4f + body * 0.03f) * WorldScale.K * 2f;
+        // ★전 유닛 동일 크기 (몸 크기 비례 폐지 — 제각각 버그 수정)
+        // ★바는 몸의 자식이 아니라 월드에 따로 있으므로 세계 스케일을 직접 곱한다 (2026-07-27)
+        // ★1/10 스케일에서는 '비율'과 '가독성'을 동시에 만족할 수 없다 (2026-07-28).
+        //   ×1 = 원본 비율(바 너비 ÷ 캐릭터 높이 = 1.15배)이지만 읽을 수 없을 만큼 작다.
+        //   ×4 = 읽히지만 4.6배로 넓어져 납작하게 눌려 보인다. ×2 를 타협값으로 쓴다.
+        //   ★근본 해결은 월드 스페이스가 아니라 화면 스페이스(항상 같은 픽셀 크기)로 바꾸는 것.
+        barBaseScale = 1.35f * WorldScale.K * 2.6f;
         barRoot = new GameObject(name + "_hpbar").transform;
         barRoot.SetParent(SceneBuckets.Bars);   // 하이라키 정리
         barRoot.localScale = Vector3.one * barBaseScale;
@@ -1118,7 +1126,10 @@ public class PetUnit : MonoBehaviour
             return q;
         }
         var bg = Quad("bg", new Color(0.08f, 0.08f, 0.10f, 0.92f), 0.02f, 10);
-        bg.localScale = new Vector3(1.9f, 0.42f, 1f);                     // 두껍게
+        // ★가로비(1.9:0.42)는 건드리지 말 것 (2026-07-28). 폭만 1.25 로 줄였더니 안쪽
+        //   채움(1.78)과 바깥 박스의 정렬이 깨져 빨간 게 테두리를 벗어났다. 채움 위치를
+        //   계산하는 쪽이 원래 폭을 전제한다. 크기는 barBaseScale 로만 조절한다.
+        bg.localScale = new Vector3(1.9f, 0.42f, 1f);                    // 두껍게
         barGhost = Quad("ghost", new Color(1f, 0.55f, 0.25f, 0.95f), 0.01f, 11);   // 깎인 체력 잔상
         barGhost.localScale = new Vector3(1.78f, 0.30f, 1f);
         barFill = Quad("fill", team == Team.Player ? new Color(0.35f, 0.9f, 0.4f) : new Color(0.95f, 0.4f, 0.35f), 0f, 12);
@@ -1167,6 +1178,9 @@ public class PetUnit : MonoBehaviour
         // ★화면 크기 고정 — 단 배율 상한을 낮게 잡는다.
         //   예전엔 상한이 6배라 줌아웃 때 먼 적의 바가 월드 15m 판때기가 돼 화면을 덮었다.
         //   상한을 넘으면 더 안 커지므로 멀수록 화면에서 자연히 작아진다 (숨기지는 않는다)
+        // ★42 를 K 로 나눠봤더니(2026-07-28) dist/4.2 가 늘 상한에 걸려 바가 너무 커졌다.
+        //   원래대로 42 를 쓰면 1/10 세계에서는 dist/42 가 늘 하한 0.85 에 걸리는데,
+        //   그게 오히려 **모든 유닛이 같은 크기**가 되어 일관성에는 맞다. 되돌린다.
         barRoot.localScale = Vector3.one * barBaseScale * Mathf.Clamp(dist / 42f, 0.85f, barMaxGrow);
         // 롤식: 실체력은 즉시, 잔상 바는 잠깐 머물다 스르륵 따라 내려옴
         ghostHp = hp > ghostHp ? hp : Mathf.MoveTowards(ghostHp, hp, maxHp * 0.45f * Time.deltaTime);

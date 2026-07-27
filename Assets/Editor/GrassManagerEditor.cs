@@ -73,7 +73,8 @@ public class GrassManagerEditor : Editor
                 GUI.backgroundColor = Color.white;
                 EditorGUILayout.EndHorizontal();
                 t.weight = EditorGUILayout.Slider("  Weight", t.weight, 0f, 2f);
-                t.size = EditorGUILayout.Slider("  Size", t.size, 0.5f, 5f);
+                // ★하한 0.05 — 1/10 스케일에서 잔디를 더 줄일 수 있게 (2026-07-28)
+                t.size = EditorGUILayout.Slider("  Size", t.size, 0.05f, 5f);
                 t.spacing = EditorGUILayout.Slider("  간격(m) — 0=Weight, >0=몇 m마다 하나", t.spacing, 0f, 50f);
             }
             if (removeIdx >= 0) RemoveType(gm, td, removeIdx);

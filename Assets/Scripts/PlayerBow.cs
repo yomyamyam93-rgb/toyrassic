@@ -798,20 +798,23 @@ public class PlayerBow : MonoBehaviour
         if ((handL.localScale - hs).sqrMagnitude > 1e-6f) { handL.localScale = hs; handR.localScale = hs; }
 
         // 손 위치: 몸 옆에 자연스럽게 '늘어뜨림' (들고 다니는 느낌 X) + 둥실 흔들림
-        float bobL = Mathf.Sin(Time.time * 3.2f) * 0.12f;            // 좌우 위상 다르게 — 살아있는 느낌
-        float bobR = Mathf.Sin(Time.time * 3.2f + 1.7f) * 0.12f;
+        // ★리터럴 오프셋도 세계 스케일을 곱한다 (2026-07-28). 몸만 1/10 로 줄이고 이 값들을
+        //   그대로 두면 손이 몸에서 떨어져 허공에 뜬다 — 실제로 그렇게 망가졌다.
+        const float S = WorldScale.K;
+        float bobL = Mathf.Sin(Time.time * 3.2f) * 0.12f * S;        // 좌우 위상 다르게 — 살아있는 느낌
+        float bobR = Mathf.Sin(Time.time * 3.2f + 1.7f) * 0.12f * S;
         // ★든 무기에 따라 손 위치를 옮긴다 (무기마다 자세가 달라야 자연스럽다)
         var heldW = weapons.Find(x => x.id == GearId(Hotbar.I != null ? Hotbar.I.Current : GearKind.None));
         var hoL = heldW != null ? heldW.handOffsetL : Vector3.zero;
         var hoR = heldW != null ? heldW.handOffsetR : Vector3.zero;
-        var idleL = transform.position - right * handSide * 0.92f + fwd * 0.5f + Vector3.up * (handUp + bobL)
-                  + right * hoL.x + Vector3.up * hoL.y + fwd * hoL.z;
-        var idleR = transform.position + right * handSide + fwd * 0.3f + Vector3.up * (handUp + bobR)
-                  + right * hoR.x + Vector3.up * hoR.y + fwd * hoR.z;
+        var idleL = transform.position - right * handSide * 0.92f + fwd * 0.5f * S + Vector3.up * (handUp + bobL)
+                  + (right * hoL.x + Vector3.up * hoL.y + fwd * hoL.z) * S;
+        var idleR = transform.position + right * handSide + fwd * 0.3f * S + Vector3.up * (handUp + bobR)
+                  + (right * hoR.x + Vector3.up * hoR.y + fwd * hoR.z) * S;
 
         // ★쏠 때 손 위치 — 무기별로 따로 (활은 활 값, 새총은 새총 값)
         var ahL = heldW != null ? heldW.aimHandL : bowAimHandL;
-        var aimL = transform.position + right * ahL.x + fwd * ahL.z + Vector3.up * ahL.y;
+        var aimL = transform.position + (right * ahL.x + fwd * ahL.z + Vector3.up * ahL.y) * S;
         float k = 13f * Time.deltaTime;
         handL.position = Vector3.Lerp(handL.position, drawing ? aimL : idleL, k);
 

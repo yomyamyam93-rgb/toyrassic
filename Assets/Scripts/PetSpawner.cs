@@ -262,6 +262,9 @@ public class PetSpawner : MonoBehaviour
             if (cur > 0.01f) unit.transform.localScale *= wantSize / cur;
         }
         unit.transform.localScale *= sizeMul;
+        // ★세계 스케일 (2026-07-27) — 펫 크기는 프리팹/실측 바운즈에서 오므로 여기서 곱해야
+        //   한다. PetUnit 의 baseScale 은 이 값을 그대로 기억하니 스쿼시 연출도 따라온다.
+        unit.transform.localScale *= WorldScale.K;
 
         // 접지
         unit.transform.position = pos;

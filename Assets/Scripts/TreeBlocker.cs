@@ -21,7 +21,9 @@ public static class TreeBlocker
             var wp = Vector3.Scale(t.position, td.size) + to;
             var pf = t.prototypeIndex < protos.Length ? protos[t.prototypeIndex].prefab : null;
             bool rock = pf != null && pf.name.ToLower().Contains("rock");
-            float r = (rock ? 2.0f : 0.8f) * Mathf.Max(0.4f, t.widthScale);   // 바위=덩어리, 나무=줄기
+            // ★하한 0.4 도 세계 스케일을 따라야 한다 (2026-07-28). 나무를 1/10 로 줄였는데
+            //   하한이 그대로면 widthScale(0.303)이 0.4 에 막혀 충돌 반경만 안 줄어든다.
+            float r = (rock ? 2.0f : 0.8f) * Mathf.Max(0.4f * WorldScale.K, t.widthScale);   // 바위=덩어리, 나무=줄기
             var key = Key(wp);
             if (!grid.TryGetValue(key, out var list)) grid[key] = list = new List<Vector3>();
             list.Add(new Vector3(wp.x, wp.z, r));
@@ -57,7 +59,7 @@ public static class TreeBlocker
     {
         if (grid == null) Rebuild();
         if (grid == null) return pos;
-        radius = Mathf.Min(radius, 2.6f);   // 초대형도 나무 사이는 지나가게 (끼임 방지)
+        radius = Mathf.Min(radius, 2.6f * WorldScale.K);   // 초대형도 나무 사이는 지나가게 (끼임 방지)
         var k = Key(pos);
         for (int dx = -1; dx <= 1; dx++)
             for (int dz = -1; dz <= 1; dz++)

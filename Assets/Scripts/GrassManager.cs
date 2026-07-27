@@ -13,7 +13,9 @@ public class GrassManager : MonoBehaviour
         public string name;                       // 프로토타입 이름 (자동 채움)
         public bool active = true;                // OFF = 이 종류는 안 심음
         [Range(0f, 2f)] public float weight = 1f; // 출현량 배율
-        [Range(0.5f, 5f)] public float size = 1f; // 크기 배율
+        // ★하한을 0.05 로 내렸다 (2026-07-28). 세계 스케일을 1/10 로 줄인 뒤 잔디를 더
+        //   작게 해야 하는데 하한 0.5 에 막혀 조절이 불가능했다.
+        [Range(0.05f, 5f)] public float size = 1f; // 크기 배율
         [Tooltip("0보다 크면 '평균 몇 m마다 하나' 모드 — 꽃처럼 아주 드문드문 심을 때. 0=Weight 방식")]
         [Range(0f, 50f)] public float spacing = 0f;
     }

@@ -62,8 +62,12 @@ public static class WorldBuilder
         var (roads, cells) = DoRoads(terrain, lines, cell, grid);
         int rocks = DoRocks(terrain);
         int trees = DoTrees(terrain);
-        int grass = DoGrass(terrain);
-        int flowers = DoFlowers(terrain);
+        // ★잔디·꽃은 여기서 심지 않는다 (2026-07-28). GrassManager 가 단일 기준이다.
+        //   둘 다 디테일 레이어에 쓰기 때문에 나중에 실행된 쪽이 상대를 덮어썼고, 그래서
+        //   GrassManager 인스펙터에서 값을 바꿔도 반영이 안 되는 것처럼 보였다.
+        //   게다가 DoGrass 는 프로토타입 크기를 0.85~1.15 로 되돌려 스케일 조정을 날린다.
+        //   → 잔디는 GrassManager 의 '적용' 버튼으로만 심는다.
+        int grass = 0, flowers = 0;
         DoWater(terrain);
 
         var td = terrain.terrainData;
