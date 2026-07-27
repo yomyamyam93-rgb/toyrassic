@@ -463,23 +463,33 @@ public class PlayerBow : MonoBehaviour
 
     void Build()
     {
+        // ★부모 = HandRig (2026-07-28). 플레이어의 자식이면 BlobMotion 의 비균등
+        //   스쿼시·기울임을 그대로 먹어 손이 찌그러진다.
+        // ★static I 에 의존하지 않는다 — HandRig 의 실행 순서를 1000 으로 미뤄놨기
+        //   때문에 Awake 가 언제 도는지에 기대면 안 된다. 직접 찾는다.
+        var rig = HandRig.I != null ? HandRig.I : FindFirstObjectByType<HandRig>();
+        var rigT = rig != null ? rig.transform : transform;
+        if (rig == null) Debug.LogError("[PlayerBow] 씬에 HandRig 이 없다 — 손이 플레이어 밑에 붙는다");
+
         // 동그라미 손 (캐릭터 색 + 외곽선)
         foreach (var (n, side) in new[] { ("HandL", -1f), ("HandR", 1f) })
         {
             var g = GameObject.CreatePrimitive(PrimitiveType.Sphere);
             Destroy(g.GetComponent<Collider>());
             g.name = n;
-            g.transform.SetParent(transform, false);
+            g.transform.SetParent(rigT, false);
             g.transform.localScale = Vector3.one * handRadius * 2f;
             var mr = g.GetComponent<MeshRenderer>();
             mr.material = Unlit(handColor);
             AddOutline(g, g.GetComponent<MeshFilter>().sharedMesh);
             if (side < 0) handL = g.transform; else handR = g.transform;
         }
+        if (rig != null) { rig.HandL = handL; rig.HandR = handR; }
 
         // 활 — 뭉뚝한 튜브 아치 메시 (외곽선 가능)
         bowRoot = new GameObject("Bow").transform;
-        bowRoot.SetParent(transform, false);
+        bowRoot.SetParent(rigT, false);
+        if (rig != null) rig.BowRoot = bowRoot;
 
         if (bowModel == null) bowModel = Resources.Load<GameObject>("Tools/tool_bow");
         if (bowModel != null)

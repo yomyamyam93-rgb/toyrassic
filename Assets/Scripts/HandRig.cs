@@ -35,10 +35,15 @@ public class HandRig : MonoBehaviour
 
     BlobMotion blob;
 
-    void Awake() { I = this; }
+    // ★Awake 에서도 한 번 맞춘다 (2026-07-28). 씬의 리그는 월드 원점에 있고 손은
+    //   PlayerBow.Start 에서 이 밑에 생긴다. 안 맞춰두면 손이 원점에서 태어나 섬
+    //   반대편(4.6km)에서 날아오는 게 보인다 — 예전엔 플레이어 자식이라 없던 현상이다.
+    void Awake() { I = this; Sync(); }
     void OnEnable() { I = this; }
 
-    void LateUpdate()
+    void LateUpdate() => Sync();
+
+    void Sync()
     {
         if (player == null)
         {
