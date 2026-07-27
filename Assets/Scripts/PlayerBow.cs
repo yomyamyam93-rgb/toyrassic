@@ -818,6 +818,18 @@ public class PlayerBow : MonoBehaviour
                  shot != null ? 6 : 10, 0.14f, 2f, 0.2f);
     }
 
+    /// 조준 방향이 몸 정면에서 몇 도 벌어져 있나 (리그 로컬 회전으로 바로 쓴다).
+    /// ★리그 트랜스폼을 읽지 않는 이유: 리그는 LateUpdate 맨 뒤에서 갱신되므로 지금
+    ///   읽으면 한 프레임 묵은 값이다. 리그 회전 = 몸의 yaw 이므로 몸에서 직접 구한다.
+    /// always=false 면 조준 중이 아닐 때 0 (평소 자세는 몸 기준).
+    float AimYawFromBody(bool use)
+    {
+        if (!use) return 0f;
+        var flat = new Vector3(aimDir.x, 0f, aimDir.z);
+        if (flat.sqrMagnitude < 1e-6f) return 0f;
+        return Mathf.DeltaAngle(transform.eulerAngles.y, Quaternion.LookRotation(flat).eulerAngles.y);
+    }
+
     void LateUpdate()
     {
         // 항상 마우스 방향을 바라봄 (이동 방향과 무관 — 무빙샷 가능)
@@ -825,47 +837,55 @@ public class PlayerBow : MonoBehaviour
         // 발사 기준 높이는 바운스를 강하게 걸러서 차분하게
         stableY = stableY == 0f ? transform.position.y : Mathf.Lerp(stableY, transform.position.y, 5f * Time.deltaTime);
 
-        var fwd = drawing ? aimDir : transform.forward;
-        var right = Vector3.Cross(Vector3.up, fwd).normalized;
         float pull = drawing ? Mathf.Clamp01(drawT / drawTime) : 0f;
 
         // 손 크기 — 인스펙터 조절 즉시 반영
         var hs = Vector3.one * handRadius * 2f;
         if ((handL.localScale - hs).sqrMagnitude > 1e-6f) { handL.localScale = hs; handR.localScale = hs; }
 
-        // 손 위치: 몸 옆에 자연스럽게 '늘어뜨림' (들고 다니는 느낌 X) + 둥실 흔들림
-        // ★리터럴 오프셋도 세계 스케일을 곱한다 (2026-07-28). 몸만 1/10 로 줄이고 이 값들을
-        //   그대로 두면 손이 몸에서 떨어져 허공에 뜬다 — 실제로 그렇게 망가졌다.
+        // ★여기부터 손·활 위치는 전부 'HandRig 로컬 좌표' 다 (2026-07-28).
+        //   리그는 LateUpdate 맨 뒤(실행순서 1000)에서 갱신되므로, 리그 트랜스폼을 읽어
+        //   역변환하면 한 프레임 묵은 값을 쓰게 된다. 그래서 리그가 '이번 프레임에 갖게 될'
+        //   값에서 직접 계산한다 — 회전은 몸의 yaw, 크기는 BaseScale(찌그러지기 전).
+        //   로컬 축: x=옆, y=높이, z=앞. 크기는 리그에 이미 들어 있으므로 toLocal 로 나눈다.
         const float S = WorldScale.K;
+        float rigScale = motion != null ? motion.BaseScale.x : transform.localScale.x;
+        float toLocal = 1f / Mathf.Max(1e-6f, rigScale);
+        // 조준 방향을 리그(=몸) 기준 각도로. 평소엔 몸이 곧 리그라 0 이다.
+        var localAim = Quaternion.Euler(0f, AimYawFromBody(drawing), 0f);
+
+        // 손 위치: 몸 옆에 자연스럽게 '늘어뜨림' (들고 다니는 느낌 X) + 둥실 흔들림
         float bobL = Mathf.Sin(Time.time * 3.2f) * 0.12f * S;        // 좌우 위상 다르게 — 살아있는 느낌
         float bobR = Mathf.Sin(Time.time * 3.2f + 1.7f) * 0.12f * S;
         // ★든 무기에 따라 손 위치를 옮긴다 (무기마다 자세가 달라야 자연스럽다)
         var heldW = weapons.Find(x => x.id == GearId(Hotbar.I != null ? Hotbar.I.Current : GearKind.None));
         var hoL = heldW != null ? heldW.handOffsetL : Vector3.zero;
         var hoR = heldW != null ? heldW.handOffsetR : Vector3.zero;
-        var idleL = transform.position - right * handSide * 0.92f + fwd * 0.5f * S + Vector3.up * (handUp + bobL)
-                  + (right * hoL.x + Vector3.up * hoL.y + fwd * hoL.z) * S;
-        var idleR = transform.position + right * handSide + fwd * 0.3f * S + Vector3.up * (handUp + bobR)
-                  + (right * hoR.x + Vector3.up * hoR.y + fwd * hoR.z) * S;
+        var idleL = new Vector3(-handSide * 0.92f + hoL.x * S,
+                                 handUp + bobL + hoL.y * S,
+                                 0.5f * S + hoL.z * S) * toLocal;
+        var idleR = new Vector3( handSide + hoR.x * S,
+                                 handUp + bobR + hoR.y * S,
+                                 0.3f * S + hoR.z * S) * toLocal;
 
         // ★쏠 때 손 위치 — 무기별로 따로 (활은 활 값, 새총은 새총 값)
         var ahL = heldW != null ? heldW.aimHandL : bowAimHandL;
-        var aimL = transform.position + (right * ahL.x + fwd * ahL.z + Vector3.up * ahL.y) * S;
+        var aimL = localAim * (new Vector3(ahL.x, ahL.y, ahL.z) * S * toLocal);
         float k = 13f * Time.deltaTime;
-        handL.position = Vector3.Lerp(handL.position, drawing ? aimL : idleL, k);
+        handL.localPosition = Vector3.Lerp(handL.localPosition, drawing ? aimL : idleL, k);
 
         // 활 그립 = 왼손 정중앙. 자세는 상황에 따라:
-        bowRoot.position = handL.position;
+        bowRoot.localPosition = handL.localPosition;
         if (drawing)
         {   // 조준 자세 — 시위가 조준 방향과 일직선
-            bowRoot.rotation = Quaternion.Slerp(bowRoot.rotation, Quaternion.LookRotation(fwd, Vector3.up), 18f * Time.deltaTime);
+            bowRoot.localRotation = Quaternion.Slerp(bowRoot.localRotation, localAim, 18f * Time.deltaTime);
         }
         else
         {   // 휴대 자세 — 비스듬히 기울여 들고, 걸을수록 살랑살랑 각도가 흔들림
             float sway = (Mathf.Sin(Time.time * 2.6f) * 7f + Mathf.Sin(Time.time * 4.1f + 1.3f) * 3f) * carrySway;
-            var rest = Quaternion.LookRotation(fwd, Vector3.up) * Quaternion.Euler(carryEuler + new Vector3(0f, 0f, sway));
-            bowRoot.rotation = Quaternion.Slerp(bowRoot.rotation, rest, 6f * Time.deltaTime);
-            bowRoot.position += bowRoot.rotation * bowCarryPos * S;   // 휴대 위치 보정 (활 기준). ★×S 누락이었다 — 활이 손에서 1.18m 떨어져 있었다 (2026-07-28)
+            var rest = localAim * Quaternion.Euler(carryEuler + new Vector3(0f, 0f, sway));
+            bowRoot.localRotation = Quaternion.Slerp(bowRoot.localRotation, rest, 6f * Time.deltaTime);
+            bowRoot.localPosition += bowRoot.localRotation * bowCarryPos * S * toLocal;   // 휴대 위치 보정 (활 기준)
         }
 
         float back = -0.85f * pull * bowSize;
@@ -877,10 +897,11 @@ public class PlayerBow : MonoBehaviour
         // 절차 활대(모델 없는 활)일 때만 시위 지점에 정확히 붙인다
         bool useString = heldW == null && bowInst == null;
         var ahR = heldW != null ? heldW.aimHandR : bowAimHandR;
+        // 활(bowRoot)도 리그의 자식이라 시위 지점이 리그 로컬로 바로 나온다
         var aimR = useString
-            ? bowRoot.TransformPoint(new Vector3(0f, 0f, back))
-            : transform.position + (right * ahR.x + fwd * ahR.z + Vector3.up * ahR.y) * S;   // ★aimL 과 같은 규칙 (2026-07-28)
-        handR.position = Vector3.Lerp(handR.position, drawing ? aimR : idleR, drawing ? 22f * Time.deltaTime : k);
+            ? bowRoot.localPosition + bowRoot.localRotation * new Vector3(0f, 0f, back)
+            : localAim * (new Vector3(ahR.x, ahR.y, ahR.z) * S * toLocal);
+        handR.localPosition = Vector3.Lerp(handR.localPosition, drawing ? aimR : idleR, drawing ? 22f * Time.deltaTime : k);
 
         nockArrow.gameObject.SetActive(drawing);
         if (drawing)
@@ -969,8 +990,9 @@ public class PlayerBow : MonoBehaviour
                 bool chopping = gather != null && gather.SwingT > 0f;
                 if (chopping)
                 {   // 스윙: 시작·끝 자세는 인스펙터, 사이는 가속·감속 곡선
-                    // ★스윙 방향 = 항상 마우스 방향 (몸이 보는 곳으로 휘두름)
-                    var frame = Quaternion.LookRotation(aimDir, Vector3.up);
+                    // ★스윙 방향 = 항상 마우스 방향 (몸이 보는 곳으로 휘두름).
+                    //   리그 로컬이므로 '몸 정면에서 몇 도 벌어졌나' 만 있으면 된다.
+                    var frame = Quaternion.Euler(0f, AimYawFromBody(true), 0f);
 
                     float sk = 1f - gather.SwingT;                      // 0→1
                     // ★가속·감속은 그래프가 결정 (인스펙터에서 직접 그린다)
@@ -994,8 +1016,7 @@ public class PlayerBow : MonoBehaviour
                     // ★스윙 자세도 세계 스케일을 곱한다 (2026-07-28). 이 한 줄만 ×S 가
                     //   빠져 있었다 — swingStartPos.y 가 2.12m 라 키 0.42m 캐릭터가
                     //   휘두르는 순간 손이 제 키의 5배 위로 순간이동했다. "무기가 사라졌다"의 정체.
-                    handR.position = transform.position +
-                        frame * Vector3.LerpUnclamped(sPos, ePos, p) * S;
+                    handR.localPosition = frame * Vector3.LerpUnclamped(sPos, ePos, p) * S * toLocal;
                     // ★회전은 '무기가 향하는 축'을 직접 보간한다.
                     //   시작·끝 각도를 쿼터니언으로 바로 이으면 지름길이 몸 뒤쪽으로 나서,
                     //   앞을 긁어야 할 가로 스윙이 등 뒤를 긁고 지나갔다.
@@ -1019,7 +1040,7 @@ public class PlayerBow : MonoBehaviour
                         aimV = Vector3.Slerp(Vector3.forward, q1 * Vector3.forward, u);
                         upV = Vector3.Slerp(Vector3.up, q1 * Vector3.up, u);
                     }
-                    handR.rotation = aimV.sqrMagnitude > 1e-6f && upV.sqrMagnitude > 1e-6f
+                    handR.localRotation = aimV.sqrMagnitude > 1e-6f && upV.sqrMagnitude > 1e-6f
                         ? frame * Quaternion.LookRotation(aimV.normalized, upV)
                         : frame * Quaternion.Slerp(q0, q1, rk);
 
@@ -1041,8 +1062,9 @@ public class PlayerBow : MonoBehaviour
                 }
                 else
                 {   // 휴대 — 손 방향만 전방으로 (자세는 gripEuler, 위치는 toolCarryPos)
-                    handR.rotation = Quaternion.Slerp(handR.rotation,
-                        Quaternion.LookRotation(fwd, Vector3.up), 10f * Time.deltaTime);
+                    //   리그 로컬 기준이므로 '몸 정면' = 회전 없음(identity)
+                    handR.localRotation = Quaternion.Slerp(handR.localRotation,
+                        localAim, 10f * Time.deltaTime);
                     toolHeld.localPosition = setup.gripPos + setup.carryPos;
                     // 들고 다닐 때 살짝 흔들림 — 완전히 굳어 있으면 인형 같다
                     float tsw = (Mathf.Sin(Time.time * setup.carrySwaySpeed) * 0.7f
@@ -1053,7 +1075,9 @@ public class PlayerBow : MonoBehaviour
                 }
                 prevSwingT = gather != null ? gather.SwingT : 0f;
             }
-            else handR.rotation = Quaternion.identity;
+            // 맨손 — 리그 로컬 identity = 몸 정면 (예전엔 월드 identity 라 몸과 무관하게
+            // 세계 +Z 를 봤다. 리그로 옮기면서 몸 기준으로 바로잡힌다)
+            else handR.localRotation = Quaternion.identity;
         }
     }
 }
