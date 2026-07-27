@@ -41,10 +41,29 @@
 애니메이션은 만들지 않는다. 무기별 차이는 `gripPos`/`gripEuler`(손 안에서의 자리),
 `scale`(크기), `style`(세로/가로 중 어느 클립을 쓸지)에서만 낸다.
 
-## 회귀 기준선 (Task 0 에서 측정, 이후 매 태스크 비교)
+## 회귀 기준선 — 2026-07-28 실측 (Task 1~4 는 이 값을 유지해야 한다)
 
-`HandL`/`HandR`/`Bow` 의 **플레이어 기준 상대 위치**와 **월드 스케일**. Task 1~4 는
-구조만 바꾸는 작업이므로 이 값이 변하면 안 된다.
+**측정 조건: 게임 뷰에 포커스가 있고, 캐릭터가 정지 상태.**
+포커스가 없으면 마우스가 (0,0) 으로 읽혀 조준 방향이 무의미해진다 — 그 상태로 잰 값은
+버린다. (1차 시도에서 실제로 이 함정에 빠졌다: 조준-몸 각도차가 49도로 나왔는데,
+포커스를 주니 0.0도였다.)
+
+측정 방식: **몸의 yaw 프레임 기준 월드 오프셋** (= HandRig 이 될 프레임).
+플레이어 로컬 좌표는 스쿼시 때문에 매 프레임 변하므로 쓰지 않는다.
+
+| 대상 | 오프셋 (x=옆, y=높이, z=앞) | 월드스케일 |
+|---|---|---|
+| `HandL` | `(-0.1825, -0.0391, 0.0497)` | 0.1227 |
+| `HandR` | `(0.1988, -0.0277, 0.0295)` | 0.1227 |
+| `Bow` | `(-0.2140, 0.0193, -0.0478)` | 0.2199 |
+
+**공식 검증:** `handSide = 0.2` → HandR `+0.1988` ✓ · HandL `-0.2 × 0.92 = -0.184` 예상에
+`-0.1825` ✓. 기준선이 코드와 일치한다.
+
+**합격 기준:** 오프셋은 소수점 3자리까지 일치.
+**월드스케일은 예외** — 지금 값(0.1227)은 손이 스쿼시하는 플레이어의 자식이라 매 프레임
+흔들린다. HandRig 밑으로 가면 `0.28 × 2 × 0.2239 = 0.1254` 로 **고정**된다.
+0.125 근처의 안 흔들리는 값이면 통과이며, 이건 의도한 개선이다.
 
 ## 파일 구조
 
@@ -148,7 +167,6 @@ public class HandRig : MonoBehaviour
     [HideInInspector] public Transform HandL, HandR, BowRoot;
 
     BlobMotion blob;
-    PlayerBow bow;
 
     void Awake() { I = this; }
 
@@ -163,16 +181,18 @@ public class HandRig : MonoBehaviour
             player = p.transform;
         }
         if (blob == null) blob = player.GetComponent<BlobMotion>();
-        if (bow == null) bow = player.GetComponent<PlayerBow>();
 
         // 위치 — 통통 튐(hop)은 따라간다. 예전 손도 그랬다.
         transform.position = player.position;
 
-        // 회전 — 조준 프레임. 예전 코드의 LookRotation(aimDir) 을 실제 오브젝트로 꺼낸 것.
-        var fwd = bow != null ? bow.AimDir : player.forward;
-        fwd.y = 0f;
-        if (fwd.sqrMagnitude > 1e-6f)
-            transform.rotation = Quaternion.LookRotation(fwd.normalized, Vector3.up);
+        // 회전 — 몸의 좌우 회전(yaw)만. 기울임(lean)과 스쿼시는 안 가져온다.
+        //
+        // ★조준 방향이 아니라 몸 방향인 이유 (2026-07-28): 손은 몸에 달린 것이고,
+        //   무엇보다 타격 판정이 이미 transform.forward 를 쓴다(PlayerGather.DoImpact).
+        //   기준을 맞춰야 "눈에는 맞았는데 판정은 빗나감" 이 생기지 않는다.
+        //   몸은 어차피 FaceTowards 로 조준을 따라 도므로 스윙은 여전히 마우스 쪽으로
+        //   나간다 (실측: 정지 상태에서 조준-몸 각도차 0.0도).
+        transform.rotation = Quaternion.Euler(0f, player.eulerAngles.y, 0f);
 
         // 크기 — ★찌그러지기 전 크기. 이래야 이 밑의 로컬 값이 예전 '플레이어 로컬'과
         //   단위가 같고, WorldScale.K 누락이 이 공간 안에서는 생길 수 없다.
