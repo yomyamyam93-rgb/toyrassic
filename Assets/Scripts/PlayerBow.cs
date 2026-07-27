@@ -471,24 +471,30 @@ public class PlayerBow : MonoBehaviour
         var rigT = rig != null ? rig.transform : transform;
         if (rig == null) Debug.LogError("[PlayerBow] 씬에 HandRig 이 없다 — 손이 플레이어 밑에 붙는다");
 
-        // 동그라미 손 (캐릭터 색 + 외곽선)
+        // ★손·활은 이제 씬에 실존한다 (2026-07-28). 런타임 생성이면 에디터에 없어서
+        //   애니메이션 창을 붙일 수 없다 — 그게 자세를 인스펙터 숫자로 타이핑할 수밖에
+        //   없던 근본 원인이었다. 여기서는 찾아서 재질·외곽선만 입힌다.
         foreach (var (n, side) in new[] { ("HandL", -1f), ("HandR", 1f) })
         {
-            var g = GameObject.CreatePrimitive(PrimitiveType.Sphere);
-            Destroy(g.GetComponent<Collider>());
-            g.name = n;
-            g.transform.SetParent(rigT, false);
-            g.transform.localScale = Vector3.one * handRadius * 2f;
+            var found = rigT.Find(n);
+            if (found == null) { Debug.LogError($"[PlayerBow] 씬에 HandRig/{n} 이 없다 — 손이 안 보인다"); continue; }
+            var g = found.gameObject;
             var mr = g.GetComponent<MeshRenderer>();
-            mr.material = Unlit(handColor);
-            AddOutline(g, g.GetComponent<MeshFilter>().sharedMesh);
+            if (mr != null) mr.material = Unlit(handColor);
+            var mf = g.GetComponent<MeshFilter>();
+            if (mf != null && mf.sharedMesh != null) AddOutline(g, mf.sharedMesh);
             if (side < 0) handL = g.transform; else handR = g.transform;
         }
         if (rig != null) { rig.HandL = handL; rig.HandR = handR; }
 
-        // 활 — 뭉뚝한 튜브 아치 메시 (외곽선 가능)
-        bowRoot = new GameObject("Bow").transform;
-        bowRoot.SetParent(rigT, false);
+        // 활 — 뭉뚝한 튜브 아치 메시 (외곽선 가능). 껍데기는 씬에, 안쪽은 런타임.
+        bowRoot = rigT.Find("Bow");
+        if (bowRoot == null)
+        {
+            Debug.LogError("[PlayerBow] 씬에 HandRig/Bow 가 없다 — 활이 안 보인다");
+            bowRoot = new GameObject("Bow").transform;
+            bowRoot.SetParent(rigT, false);
+        }
         if (rig != null) rig.BowRoot = bowRoot;
 
         if (bowModel == null) bowModel = Resources.Load<GameObject>("Tools/tool_bow");
