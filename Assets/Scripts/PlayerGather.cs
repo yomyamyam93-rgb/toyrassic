@@ -62,6 +62,19 @@ public class PlayerGather : MonoBehaviour
     float cd, swingT;
     Vector3 chopPos; bool chopIsRock;
     bool pendingImpact; float pendingAt; bool pendingIsPick, pendingIsSword; Vector3 pendingAim;
+
+    /// 지금 든 무기의 스윙을 애니메이션 클립이 그리고 있나 (PlayerBow 가 매 프레임 알려준다).
+    /// true 면 타격 시점은 클립의 이벤트가 정한다 — impactDelay 타이머는 쓰지 않는다.
+    [HideInInspector] public bool animDrivesImpact;
+
+    /// 애니메이션 이벤트에서 부르는 타격 진입점 (2026-07-28).
+    /// 스윙 중이 아닐 때 불리면 무시한다 — 클립을 편집하다 잘못 찍어도 안전하게.
+    public void AnimImpact()
+    {
+        if (!pendingImpact) return;
+        pendingImpact = false;
+        DoImpact();
+    }
     bool pendingBare;   // 맨손 스윙
 
     [Header("맨손 (무기 없을 때)")]
@@ -145,7 +158,10 @@ public class PlayerGather : MonoBehaviour
         cd -= Time.deltaTime;
         swingT = Mathf.Max(0f, swingT - Time.deltaTime / 0.34f);
         // 스윙 절정에 타격 — 모션과 동기, 전방 부채꼴 안 전부
-        if (pendingImpact && Time.time >= pendingAt)
+        // ★애니메이션 클립이 스윙을 그리는 무기는 이 타이머를 쓰지 않는다 (2026-07-28).
+        //   클립의 '무기가 눈에 보이게 닿는 프레임' 에 찍은 이벤트가 대신 부른다.
+        //   impactDelay 는 짐작한 초 단위 숫자라 모션을 바꿀 때마다 어긋났다.
+        if (pendingImpact && !animDrivesImpact && Time.time >= pendingAt)
         {
             pendingImpact = false;
             DoImpact();

@@ -252,6 +252,25 @@ public class PlayerBow : MonoBehaviour
     Vector3 aimDir = Vector3.forward;
     /// ★조준 방향 정본 — 스킬(SkillSystem)도 이걸 써야 평타와 궤적이 같다 (2026-07-28)
     public Vector3 AimDir => aimDir;
+
+    /// 지금 든 무기의 잔상 켜기/끄기 — 애니메이션 이벤트에서 부른다 (2026-07-28)
+    public void SetTrail(bool on)
+    {
+        var id = GearId(Hotbar.I != null ? Hotbar.I.Current : GearKind.None);
+        if (id == null || !rigs.TryGetValue(id, out var r) || r.trail == null) return;
+        if (on) r.trail.Clear();
+        r.trail.emitting = on;
+    }
+
+    /// 지금 든 무기의 머리 끝 — 이펙트를 손이 아니라 칼끝에서 터뜨리려고 (2026-07-28)
+    public Vector3 WeaponTip()
+    {
+        var id = GearId(Hotbar.I != null ? Hotbar.I.Current : GearKind.None);
+        if (id != null && rigs.TryGetValue(id, out var r) && r.inst != null)
+            return r.inst.TransformPoint(Vector3.forward);
+        return handR != null ? handR.position : transform.position;
+    }
+
     BlobMotion motion;
     Camera cam;
 
@@ -893,6 +912,18 @@ public class PlayerBow : MonoBehaviour
         //   값에서 직접 계산한다 — 회전은 몸의 yaw, 크기는 BaseScale(찌그러지기 전).
         //   로컬 축: x=옆, y=높이, z=앞. 크기는 리그에 이미 들어 있으므로 toLocal 로 나눈다.
         const float S = WorldScale.K;
+
+        // ★손 소유권 스위치 (2026-07-28). 근접무기는 애니메이션 클립이, 그 외(활·새총·
+        //   맨손)는 코드가 오른손을 움직인다. 활 조준은 당김 정도에 연속으로 반응해야
+        //   해서 클립으로는 표현이 안 된다 — 그쪽은 코드가 낫다.
+        //   애니메이터를 껐다 켜는 것만으로 소유권이 깨끗하게 넘어간다.
+        //   ※클립은 HandR 만 그린다. 왼손·활은 어느 쪽이든 코드가 계속 담당한다.
+        var gearHeld = Hotbar.I != null ? Hotbar.I.Current : GearKind.None;
+        bool clipOwnsHandR = gearHeld == GearKind.Axe || gearHeld == GearKind.Pick || gearHeld == GearKind.Sword;
+        var handAnim = HandRig.I != null ? HandRig.I.GetComponent<Animator>() : null;
+        if (handAnim != null && handAnim.enabled != clipOwnsHandR) handAnim.enabled = clipOwnsHandR;
+        // 타격 시점도 같이 넘긴다 — 클립이 그리면 클립의 이벤트가 때린다
+        if (gather != null) gather.animDrivesImpact = clipOwnsHandR;
         float rigScale = motion != null ? motion.BaseScale.x : transform.localScale.x;
         float toLocal = 1f / Mathf.Max(1e-6f, rigScale);
         // 조준 방향을 리그(=몸) 기준 각도로. 평소엔 몸이 곧 리그라 0 이다.
@@ -945,7 +976,8 @@ public class PlayerBow : MonoBehaviour
         var aimR = useString
             ? bowRoot.localPosition + bowRoot.localRotation * new Vector3(0f, 0f, back)
             : localAim * (new Vector3(ahR.x, ahR.y, ahR.z) * S * toLocal);
-        handR.localPosition = Vector3.Lerp(handR.localPosition, drawing ? aimR : idleR, drawing ? 22f * Time.deltaTime : k);
+        if (!clipOwnsHandR)
+            handR.localPosition = Vector3.Lerp(handR.localPosition, drawing ? aimR : idleR, drawing ? 22f * Time.deltaTime : k);
 
         nockArrow.gameObject.SetActive(drawing);
         if (drawing)
@@ -1060,7 +1092,8 @@ public class PlayerBow : MonoBehaviour
                     // ★스윙 자세도 세계 스케일을 곱한다 (2026-07-28). 이 한 줄만 ×S 가
                     //   빠져 있었다 — swingStartPos.y 가 2.12m 라 키 0.42m 캐릭터가
                     //   휘두르는 순간 손이 제 키의 5배 위로 순간이동했다. "무기가 사라졌다"의 정체.
-                    handR.localPosition = frame * Vector3.LerpUnclamped(sPos, ePos, p) * S * toLocal;
+                    if (!clipOwnsHandR)
+                        handR.localPosition = frame * Vector3.LerpUnclamped(sPos, ePos, p) * S * toLocal;
                     // ★회전은 '무기가 향하는 축'을 직접 보간한다.
                     //   시작·끝 각도를 쿼터니언으로 바로 이으면 지름길이 몸 뒤쪽으로 나서,
                     //   앞을 긁어야 할 가로 스윙이 등 뒤를 긁고 지나갔다.
@@ -1084,9 +1117,10 @@ public class PlayerBow : MonoBehaviour
                         aimV = Vector3.Slerp(Vector3.forward, q1 * Vector3.forward, u);
                         upV = Vector3.Slerp(Vector3.up, q1 * Vector3.up, u);
                     }
-                    handR.localRotation = aimV.sqrMagnitude > 1e-6f && upV.sqrMagnitude > 1e-6f
-                        ? frame * Quaternion.LookRotation(aimV.normalized, upV)
-                        : frame * Quaternion.Slerp(q0, q1, rk);
+                    if (!clipOwnsHandR)
+                        handR.localRotation = aimV.sqrMagnitude > 1e-6f && upV.sqrMagnitude > 1e-6f
+                            ? frame * Quaternion.LookRotation(aimV.normalized, upV)
+                            : frame * Quaternion.Slerp(q0, q1, rk);
 
                     if (trail != null)
                     {
@@ -1107,8 +1141,9 @@ public class PlayerBow : MonoBehaviour
                 else
                 {   // 휴대 — 손 방향만 전방으로 (자세는 gripEuler, 위치는 toolCarryPos)
                     //   리그 로컬 기준이므로 '몸 정면' = 회전 없음(identity)
-                    handR.localRotation = Quaternion.Slerp(handR.localRotation,
-                        localAim, 10f * Time.deltaTime);
+                    if (!clipOwnsHandR)
+                        handR.localRotation = Quaternion.Slerp(handR.localRotation,
+                            localAim, 10f * Time.deltaTime);
                     toolHeld.localPosition = setup.gripPos + setup.carryPos;
                     // 들고 다닐 때 살짝 흔들림 — 완전히 굳어 있으면 인형 같다
                     float tsw = (Mathf.Sin(Time.time * setup.carrySwaySpeed) * 0.7f
@@ -1117,11 +1152,15 @@ public class PlayerBow : MonoBehaviour
                     toolHeld.localRotation = Quaternion.Euler(setup.gripEuler + setup.carryEuler + new Vector3(tsw, 0f, tsw * 0.6f));
                     if (trail != null) trail.emitting = false;
                 }
+                // ★스윙이 막 시작된 프레임에 클립을 재생시킨다 (2026-07-28).
+                //   가로/세로는 무기의 style 이 정한다 — 코드가 쓰던 것과 같은 기준.
+                if (clipOwnsHandR && handAnim != null && prevSwingT <= 0f && gather != null && gather.SwingT > 0f)
+                    handAnim.SetTrigger(setup.style == SwingStyle.Horizontal ? "SwingH" : "SwingV");
                 prevSwingT = gather != null ? gather.SwingT : 0f;
             }
             // 맨손 — 리그 로컬 identity = 몸 정면 (예전엔 월드 identity 라 몸과 무관하게
             // 세계 +Z 를 봤다. 리그로 옮기면서 몸 기준으로 바로잡힌다)
-            else handR.localRotation = Quaternion.identity;
+            else if (!clipOwnsHandR) handR.localRotation = Quaternion.identity;
         }
     }
 }
