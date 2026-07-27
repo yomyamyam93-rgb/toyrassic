@@ -25,7 +25,12 @@ public class DropDisplayManager : MonoBehaviour
 
     [Header("근접 하이라이트 (흰 라인)")]
     [Tooltip("이 거리 안이면 테두리 켜짐 = 줍기 가능 신호")] public float highlightDist = 6.5f;
-    [Tooltip("켜질 때 살짝 커지는 배율")] public float highlightScale = 1.15f;
+    [Tooltip("켜질 때 살짝 커지는 배율 — ★배율이라 1/10 스케일과 무관. 1 미만이면 아이템이 작아진다")]
+    public float highlightScale = 1.15f;
+
+    [Header("획득 팝업")]
+    [Tooltip("\"+1 나뭇가지\" 텍스트가 뜨는 높이 (m, 플레이어 발밑 기준)")]
+    public float pickupTextHeight = 0.35f;
 
     void Awake() { I = this; }
     void OnEnable() { I = this; }

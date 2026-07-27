@@ -49,6 +49,10 @@ public class Incubator : MonoBehaviour
     void Awake()
     {
         Active = this;
+        // ★둥지·알 전체를 세계 스케일로 (2026-07-28). 이 오브젝트는 런타임 생성이라
+        //   1/10 작업이 아예 닿지 않았다 — 알 하나가 2.6m, 키 0.42m 캐릭터의 6배였다.
+        //   비주얼이 전부 이 뿌리의 자식(로컬 좌표)이라 여기서 한 번 줄이면 다 따라온다.
+        transform.localScale = Vector3.one * WorldScale.K;
         BuildVisual();
     }
 
@@ -282,10 +286,13 @@ public class Incubator : MonoBehaviour
         if (gaugeRoot != null && Camera.main != null)
         {
             var camT = Camera.main.transform;
-            gaugeRoot.position = transform.position + Vector3.up * 6.2f;
+            // ★게이지는 뿌리의 자식이 아니라 월드 오브젝트라 따로 줄인다 (2026-07-28).
+            //   거리 기준(42m)도 같이 줄여야 줌에 따른 크기 변화가 예전과 같게 나온다.
+            gaugeRoot.position = transform.position + Vector3.up * 6.2f * WorldScale.K;
             gaugeRoot.rotation = camT.rotation;
             float dist = Vector3.Distance(camT.position, gaugeRoot.position);
-            gaugeRoot.localScale = Vector3.one * 1.5f * Mathf.Clamp(dist / 42f, 0.85f, 6f);
+            gaugeRoot.localScale = Vector3.one * 1.5f * WorldScale.K
+                                 * Mathf.Clamp(dist / (42f * WorldScale.K), 0.85f, 6f);
             float f = hatchDuration > 0f ? Mathf.Clamp01(hatchT / hatchDuration) : 0f;   // 시간 = 게이지
             var s = gaugeFill.localScale; s.x = 1.95f * Mathf.Max(0.02f, f); gaugeFill.localScale = s;
             var lp = gaugeFill.localPosition; lp.x = -(1.95f - s.x) * 0.5f; gaugeFill.localPosition = lp;

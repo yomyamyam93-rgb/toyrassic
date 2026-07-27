@@ -10,7 +10,7 @@ public class ItemDrop : MonoBehaviour
     public int amount = 1;
 
     public static readonly List<ItemDrop> All = new List<ItemDrop>();
-    float bobT, baseY;
+    float bobT, baseY, groundY, popArc;
     bool highlighted;
     bool collecting; float flySpd;
     public bool Collecting => collecting;
@@ -59,13 +59,18 @@ public class ItemDrop : MonoBehaviour
 
         var terr = Terrain.activeTerrain;
         if (terr != null) pos.y = terr.SampleHeight(pos) + terr.transform.position.y;
-        d.baseY = pos.y + 1.1f;
+        // ★바닥 안착 (2026-07-28). 예전엔 "지면 + 1.1m" 고정이었다 — 1/10 스케일에서
+        //   아이콘이 0.44m 인데 1.1m 위에 떠서 캐릭터 키의 몇 배 높이에 있었다.
+        //   이제 아이콘 크기에서 나오므로 크기를 바꿔도 늘 아랫변이 지면에 닿는다.
+        d.groundY = pos.y;
+        d.baseY = pos.y + size * 0.5f;
+        d.popArc = size * 1.5f;
         if (popFrom.HasValue)
         {   // 통! — 중심에서 포물선으로 튀어나감
             d.popping = true; d.popStart = popFrom.Value; d.popTarget = pos;
             g.transform.position = popFrom.Value;
         }
-        else g.transform.position = pos + Vector3.up * 1.1f;
+        else g.transform.position = new Vector3(pos.x, d.baseY, pos.z);
         d.MakeBeam();
         return d;
     }
@@ -88,21 +93,44 @@ public class ItemDrop : MonoBehaviour
         return beamTex;
     }
 
+    // ★재질·메시는 종류별로 딱 하나씩 공유한다 (2026-07-28).
+    //   예전엔 드랍 하나가 `new Material` 을 2개씩 만들었다 — 아이템 1000개면 재질 2000개,
+    //   배칭이 전혀 안 돼서 드로우콜이 그대로 2000이 된다. 이게 렉의 큰 축이었다.
+    static readonly Dictionary<Kind, Material> beamMats = new Dictionary<Kind, Material>();
+    static Material BeamMat(Kind k)
+    {
+        if (beamMats.TryGetValue(k, out var m) && m != null) return m;
+        m = new Material(Shader.Find("Sprites/Default"));
+        m.mainTexture = BeamTex();
+        beamMats[k] = m;
+        return m;
+    }
+
+    static Mesh quadMesh;
+    static Mesh QuadMesh()
+    {
+        if (quadMesh != null) return quadMesh;
+        var tmp = GameObject.CreatePrimitive(PrimitiveType.Quad);
+        quadMesh = tmp.GetComponent<MeshFilter>().sharedMesh;   // 내장 Quad 에셋 — tmp 를 지워도 남는다
+        Destroy(tmp);
+        return quadMesh;
+    }
+
     void MakeBeam()
     {
         beam = new GameObject("beam").transform;
         beam.SetParent(SceneBuckets.Drops);
         for (int i = 0; i < 2; i++)
         {
-            var q = GameObject.CreatePrimitive(PrimitiveType.Quad).transform;
-            Destroy(q.GetComponent<Collider>());
+            var q = new GameObject("q").transform;
             q.SetParent(beam, false);
             q.localRotation = Quaternion.Euler(0f, i * 90f, 0f);
-            var mr = q.GetComponent<MeshRenderer>();
-            mr.material = new Material(Shader.Find("Sprites/Default"));
-            mr.material.mainTexture = BeamTex();
+            q.gameObject.AddComponent<MeshFilter>().sharedMesh = QuadMesh();
+            var mr = q.gameObject.AddComponent<MeshRenderer>();
+            mr.sharedMaterial = BeamMat(kind);
             mr.sortingOrder = -5;   // 아이콘(0)·하이라이트(-1)보다 뒤 — 빛기둥이 아이템을 안 가림
             mr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            mr.receiveShadows = false;
         }
         ApplyBeamSettings();
     }
@@ -117,12 +145,11 @@ public class ItemDrop : MonoBehaviour
         float w = set != null ? set.beamWidth : 1.1f;
         var c = set != null ? set.BeamColor(kind) : new Color(1.5f, 1.4f, 0.8f, 0.6f);
         beam.gameObject.SetActive(on && !collecting);
+        BeamMat(kind).color = c;   // 종류별 공유 재질 — 같은 색을 다시 넣는 것뿐이라 싸다
         foreach (Transform q in beam)
         {
             q.localScale = new Vector3(w, h, 1f);
             q.localPosition = Vector3.up * h * 0.5f;
-            var mr = q.GetComponent<MeshRenderer>();
-            if (mr != null) mr.material.color = c;
         }
     }
 
@@ -148,10 +175,10 @@ public class ItemDrop : MonoBehaviour
             float ease = 1f - Mathf.Pow(1f - t, 2f);   // 감속하며 도착
             var horiz = Vector3.Lerp(new Vector3(popStart.x, 0, popStart.z),
                                      new Vector3(popTarget.x, 0, popTarget.z), ease);
-            float y = Mathf.Lerp(popStart.y, baseY, t) + Mathf.Sin(t * Mathf.PI) * 1.7f;
+            float y = Mathf.Lerp(popStart.y, baseY, t) + Mathf.Sin(t * Mathf.PI) * popArc;
             transform.position = new Vector3(horiz.x, y, horiz.z);
             if (Camera.main != null) transform.rotation = Camera.main.transform.rotation;
-            if (beam != null) beam.position = new Vector3(horiz.x, baseY - 1.1f, horiz.z);
+            if (beam != null) beam.position = new Vector3(horiz.x, groundY, horiz.z);
             if (t >= 1f) popping = false;
             return;
         }
@@ -163,7 +190,7 @@ public class ItemDrop : MonoBehaviour
         var p = transform.position;
         p.y = baseY + Mathf.Sin(bobT * spd) * amp + amp;
         transform.position = p;
-        if (beam != null) beam.position = new Vector3(p.x, baseY - 1.1f, p.z);
+        if (beam != null) beam.position = new Vector3(p.x, groundY, p.z);
 
         // 빌보드 — 항상 카메라를 향함
         if (Camera.main != null) transform.rotation = Camera.main.transform.rotation;
@@ -210,7 +237,10 @@ public class ItemDrop : MonoBehaviour
                 string id = string.IsNullOrEmpty(itemId) ? "알" : itemId;
                 Inv.Add(id, amount); label = $"+{amount} {id}"; c = new Color(1f, 0.9f, 0.5f); break;
         }
-        var pos = player != null ? player.position + Vector3.up * 3.5f : transform.position;
+        // ★팝업 높이도 하드코딩 3.5m 였다 (2026-07-28) — 1/10 스케일에선 키의 20배 위였다
+        var dset = DropDisplayManager.I;
+        float th = dset != null ? dset.pickupTextHeight : 0.35f;
+        var pos = player != null ? player.position + Vector3.up * th : transform.position;
         FX.PopText(pos, label, c, 1.7f);
         FX.Burst(transform.position, new Color(1.6f, 1.4f, 0.7f, 0.9f), 8, 0.18f, 1.8f);
         Destroy(gameObject);

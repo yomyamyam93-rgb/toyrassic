@@ -150,6 +150,9 @@ public class SkillSystem : MonoBehaviour
 
     Vector3 AimDir()
     {
+        // ★평타와 같은 조준을 쓴다 (2026-07-28). 예전엔 여기서 '발밑 평면'으로 따로
+        //   계산해서, 같은 커서 위치인데도 평타(발사점 높이 평면)와 방향이 어긋났다.
+        if (bow != null) return bow.AimDir;
         if (cam == null) cam = Camera.main;
         if (cam == null) return transform.forward;
 #if ENABLE_INPUT_SYSTEM
@@ -202,11 +205,15 @@ public class SkillSystem : MonoBehaviour
         var dir = AimDir();
         if (gear == GearKind.Bow)
         {   // 관통 강사 — 굵은 화살이 여럿을 꿰뚫음
-            var from = transform.position + Vector3.up * 1.8f + dir * 1.5f;
+            // ★발사점은 평타와 똑같은 곳에서 (2026-07-28). 예전엔 여기서 따로
+            //   'up*1.8 + dir*1.5' 로 잡았고 ×K 도 없어서, 키 0.42m 캐릭터 기준
+            //   1.8m 위·1.5m 앞 허공에서 화살이 튀어나왔다.
+            var from = bow != null ? bow.ShotFrom()
+                                   : transform.position + (Vector3.up * 1.8f + dir * 1.5f) * WorldScale.K;
             ArrowProj.Throw(from, dir, bow != null ? bow.arrowSpeed * 1.3f : 160f,
                             (bow != null ? bow.arrowDamage : 25f) * qArrowDamageMul,
-                            bow != null ? bow.arrowRange : 70f, qArrowPierce);
-            FX.Burst(from, new Color(2.4f, 2.0f, 1.0f, 1f), 18, 0.22f, 5f, 0.3f);
+                            bow != null ? bow.arrowRange : 70f * WorldScale.K, qArrowPierce);
+            FX.Burst(from, new Color(2.4f, 2.0f, 1.0f, 1f), 18, 0.22f * WorldScale.K, 5f * WorldScale.K, 0.3f);
             SquadHUD.Toast("관통 강사!");
         }
         else if (gear == GearKind.Sling) StartCoroutine(QSlingBurst(dir));  // 새총 — 연발
@@ -614,20 +621,22 @@ public class SkillSystem : MonoBehaviour
         switch (aiming)
         {
             case 0:
-                if (gear == GearKind.Bow) { lineLen = bow != null ? bow.arrowRange : 70f; lineWidth = 1.4f; }
+                // ★표시용 리터럴에도 세계 스케일 (2026-07-28). 인스펙터 수치는 이미 1/10 인데
+                //   여기 상수만 안 줄어서 조준 표시가 실제 판정보다 훨씬 크게 그려졌다
+                if (gear == GearKind.Bow) { lineLen = bow != null ? bow.arrowRange : 70f * WorldScale.K; lineWidth = 1.4f * WorldScale.K; }
                 // ★실제 판정과 똑같은 영역을 그대로 보여준다 (QArea 한 곳에서 나온다)
                 else QArea(gear, dir, out circleAt, out circleR, out circleIn);
                 break;
             // 소집 — 마우스가 가리키는 지점의 원. 이 안에 든 내 펫이 따라온다
             case 1:
                 circleAt = AimSpot();
-                circleR = cmd != null ? cmd.callRadius : 20f;
+                circleR = cmd != null ? cmd.callRadius : 20f * WorldScale.K;
                 break;
             case 2: break;   // 구르기 — 영역 표시 없음
             // 돌격 — 보낼 지점 표시
             default:
                 circleAt = AimSpot();
-                circleR = 4f;
+                circleR = 4f * WorldScale.K;
                 break;
         }
 
@@ -635,7 +644,7 @@ public class SkillSystem : MonoBehaviour
         previewLine.enabled = lineLen > 0f;
         if (lineLen > 0f)
         {
-            var from = body + Vector3.up * 0.6f;
+            var from = body + Vector3.up * 0.6f * WorldScale.K;
             previewLine.startWidth = lineWidth; previewLine.endWidth = lineWidth * 0.7f;
             previewLine.SetPosition(0, from);
             previewLine.SetPosition(1, from + dir * lineLen);
@@ -647,7 +656,7 @@ public class SkillSystem : MonoBehaviour
             var c = circleAt;
             if (terrainRef == null) terrainRef = Terrain.activeTerrain;
             if (terrainRef != null) c.y = terrainRef.SampleHeight(c) + terrainRef.transform.position.y;
-            previewCircle.position = c + Vector3.up * 0.25f;
+            previewCircle.position = c + Vector3.up * 0.25f * WorldScale.K;
             previewCircle.localScale = new Vector3(circleR * 2f, circleR * 2f, 1f);
             // 도넛이면 구멍 뚫린 그림으로 (구멍 비율까지 실제 판정과 같게)
             var want = circleIn > 0.01f ? FX.RingThinTex(circleIn / circleR) : FX.CircleThinTex();
@@ -672,7 +681,7 @@ public class SkillSystem : MonoBehaviour
             if (!hit && lineLen > 0f)
             {
                 float along = Vector3.Dot(d, dir);
-                if (along >= -1f && along <= lineLen)
+                if (along >= -1f * WorldScale.K && along <= lineLen)
                 {
                     float side = Vector3.Cross(dir, d).magnitude;
                     hit = side <= lineWidth * 0.9f + u.body * 0.35f;

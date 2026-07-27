@@ -30,7 +30,7 @@ public class PlayerGather : MonoBehaviour
     [Tooltip("스윙 시작 → 실제 타격까지 (모션 절정 동기)")] public float impactDelay = 0.24f;
 
     [Header("테스트")]
-    [Tooltip("시작할 때 도끼·곡괭이·칼 지급 (제작 없이 바로 확인용) — 실제 시작은 맨손")]
+    [Tooltip("시작할 때 인벤토리에 아이템 전부 지급 (장비 6종 + 재료 + 알 4등급) — 제작 없이 바로 확인용. 실제 시작은 맨손")]
     public bool startWithTools = false;
 
     [Header("타격 판정 — 전방 부채꼴 (긁고 지나가면 다 맞음)")]
@@ -114,9 +114,16 @@ public class PlayerGather : MonoBehaviour
         PlayerLevel.Reset();
         if (startWithTools)
         {   // 테스트 지급 — 핫바 배치는 Hotbar.Start 가 보유 장비를 자동 복원
-            if (Inv.Count("도끼") == 0) Inv.Add("도끼", 1);
-            if (Inv.Count("곡갱이") == 0) Inv.Add("곡갱이", 1);
-            if (Inv.Count("칼") == 0) Inv.Add("칼", 1);
+            // 등록된 아이템 전부 (Resources/Icons 에 아이콘이 있는 것 = 아이템 정의)
+            foreach (var id in ItemDB.Ids)
+            {
+                if (Inv.Count(id) > 0) continue;
+                bool stack = id == "나뭇가지" || id == "돌";   // 재료는 뭉치로, 장비는 하나씩
+                Inv.Add(id, stack ? 20 : 1);
+            }
+            // 알은 등급별로 따로 — 전용 아이콘이 없어 ItemDB.Ids 에는 중간(알) 하나만 들어 있다
+            foreach (var t in new[] { PetScale.Tier.S, PetScale.Tier.L, PetScale.Tier.XL })
+                if (Inv.Count(ItemDB.EggId(t)) == 0) Inv.Add(ItemDB.EggId(t), 1);
         }
     }
 

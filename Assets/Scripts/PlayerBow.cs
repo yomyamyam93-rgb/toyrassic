@@ -250,6 +250,8 @@ public class PlayerBow : MonoBehaviour
         => k == GearKind.Axe ? "도끼" : k == GearKind.Pick ? "곡갱이" : k == GearKind.Sword ? "칼"
          : k == GearKind.Sling ? "새총" : null;
     Vector3 aimDir = Vector3.forward;
+    /// ★조준 방향 정본 — 스킬(SkillSystem)도 이걸 써야 평타와 궤적이 같다 (2026-07-28)
+    public Vector3 AimDir => aimDir;
     BlobMotion motion;
     Camera cam;
 
@@ -526,7 +528,7 @@ public class PlayerBow : MonoBehaviour
         aimLine.useWorldSpace = true;
         aimLine.positionCount = 2;
         aimLine.material = new Material(Shader.Find("Sprites/Default"));
-        aimLine.startWidth = 0.55f; aimLine.endWidth = 0.22f;
+        aimLine.startWidth = 0.55f * WorldScale.K; aimLine.endWidth = 0.22f * WorldScale.K;
         aimLine.startColor = new Color(0.55f, 1.4f, 2.0f, 0.95f);   // 밝은 연하늘색 — HDR 로 찐하게 (블룸 반짝)
         aimLine.endColor = new Color(0.55f, 1.3f, 2.0f, 0.55f);
         aimLine.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
@@ -669,14 +671,31 @@ public class PlayerBow : MonoBehaviour
 
         // 마우스 → '에임 라인과 같은 높이' 평면 교점 → 조준 방향
         // (캐릭터 발 높이로 계산하면 시차 때문에 라인이 포인터와 어긋난다)
+        // ★평면 높이는 '실제 발사점 높이'와 반드시 같아야 한다 (2026-07-28).
+        //   ShotFrom 에 ×K 를 넣으면서 여기만 안 따라가 1.35m 어긋났고, 비스듬한
+        //   카메라라 그 높이차가 그대로 좌우 오차가 됐다 = 궤적이 커서를 안 따라감.
+        //   든 무기의 발사점을 쓴다 — 새총과 활은 높이가 다르다.
         var ray = cam.ScreenPointToRay(mp);
-        float aimH = (stableY == 0f ? transform.position.y : stableY) + bowShotOrigin.y;
+        var gearNow = Hotbar.I != null ? Hotbar.I.Current : GearKind.None;
+        var shotDef = gearNow == GearKind.Sling ? weapons.Find(x => x.id == "새총") : null;
+        float aimH = (stableY == 0f ? transform.position.y : stableY)
+                   + (shotDef != null ? shotDef.shotOrigin.y : bowShotOrigin.y) * WorldScale.K;
         var plane = new Plane(Vector3.up, new Vector3(0f, aimH, 0f));
         if (plane.Raycast(ray, out float enter))
         {
             var hit = ray.GetPoint(enter);
             var d = hit - transform.position; d.y = 0f;
-            if (d.sqrMagnitude > 0.04f) aimDir = d.normalized;
+            // 죽은 구역 = 몸 반경. 커서가 몸에 겹치면 방향이 홱홱 뒤집히므로 직전 값을 유지
+            float dead = 1.5f * WorldScale.K;
+            if (d.sqrMagnitude > dead * dead)
+            {
+                // ★방향을 곧바로 넣지 않고 아주 짧게 수렴시킨다 (2026-07-28).
+                //   1/10 세계라 커서까지의 거리는 1/10 이 됐는데, 카메라 추적 지연·지형
+                //   샘플링에서 오는 위치 오차는 미터 단위 그대로다. 같은 오차가 10배 큰
+                //   각도 흔들림이 되어, 조준한 채 WASD 로 움직이면 에임이 부들부들 떨렸다.
+                //   시정수 33ms(≈2프레임) — 지연은 거의 안 느껴지고 떨림만 걸러진다.
+                aimDir = Vector3.Slerp(aimDir, d.normalized, 1f - Mathf.Exp(-30f * Time.deltaTime));
+            }
         }
 
         // 커서 교체 — 활 조준 중엔 원형 타겟(중앙 핫스팟), 평소엔 화살표
@@ -727,7 +746,9 @@ public class PlayerBow : MonoBehaviour
             }
             if (released && drawing && cd <= 0f)
             {
-                Fire(Mathf.Max(10f, aimLen), shot);
+                // ★최소 비행거리를 사거리 비율로 (2026-07-28). 예전엔 10m 고정이라
+                //   arrowRange 를 7 로 줄여도 화살이 늘 10m 를 날아갔다 — 클램프 상수 함정
+                Fire(Mathf.Max(range * 0.15f, aimLen), shot);
                 cd = shot != null ? fireCooldown * shot.shotCooldownMul : fireCooldown;
             }
         }
@@ -745,7 +766,9 @@ public class PlayerBow : MonoBehaviour
     /// shot 이 있으면 그 무기가 정한 지점, 없으면 활 기본값.
     public Vector3 ShotFrom(WeaponDef shot = null)
     {
-        var o = shot != null ? shot.shotOrigin : bowShotOrigin;
+        // ★shotOrigin 도 '저작 공간' 값이라 ×K 한다 (2026-07-28). 안 곱하면 (0,1.5,4) 가
+        //   그대로 먹혀서 화살이 캐릭터(키 0.42m) 앞 4m 허공에서 나갔다.
+        var o = (shot != null ? shot.shotOrigin : bowShotOrigin) * WorldScale.K;
         var right = Vector3.Cross(Vector3.up, aimDir).normalized;
         var p = transform.position + right * o.x + aimDir * o.z;
         return new Vector3(p.x, stableY + o.y, p.z);
@@ -762,9 +785,12 @@ public class PlayerBow : MonoBehaviour
         if (!plane.Raycast(ray, out float t)) return;
         var pos = ray.GetPoint(t);
         var d = pos - transform.position; d.y = 0f;
-        if (d.magnitude > 16f) pos = transform.position + d.normalized * 16f;
-        if (d.magnitude < 6f)   // 발밑 설치 방지 — 최소 6m 앞에
-            pos = transform.position + (d.sqrMagnitude > 0.01f ? d.normalized : aimDir) * 6f;
+        // ★설치 거리도 세계 스케일 (2026-07-28) — 안 줄이면 키 0.42m 캐릭터가
+        //   제 키의 14배 앞에만 둥지를 놓을 수 있었다
+        const float maxPlace = 16f * WorldScale.K, minPlace = 6f * WorldScale.K;
+        if (d.magnitude > maxPlace) pos = transform.position + d.normalized * maxPlace;
+        if (d.magnitude < minPlace)   // 발밑 설치 방지
+            pos = transform.position + (d.sqrMagnitude > 0.01f * WorldScale.K * WorldScale.K ? d.normalized : aimDir) * minPlace;
         PlayerBuild.PlaceAt(pos);
         Inv.Consume("둥지", 1);
         if (Hotbar.I != null) Hotbar.I.RemoveKind(GearKind.Incubator);
@@ -829,7 +855,7 @@ public class PlayerBow : MonoBehaviour
             float sway = (Mathf.Sin(Time.time * 2.6f) * 7f + Mathf.Sin(Time.time * 4.1f + 1.3f) * 3f) * carrySway;
             var rest = Quaternion.LookRotation(fwd, Vector3.up) * Quaternion.Euler(carryEuler + new Vector3(0f, 0f, sway));
             bowRoot.rotation = Quaternion.Slerp(bowRoot.rotation, rest, 6f * Time.deltaTime);
-            bowRoot.position += bowRoot.rotation * bowCarryPos;   // 휴대 위치 보정 (활 기준)
+            bowRoot.position += bowRoot.rotation * bowCarryPos * S;   // 휴대 위치 보정 (활 기준). ★×S 누락이었다 — 활이 손에서 1.18m 떨어져 있었다 (2026-07-28)
         }
 
         float back = -0.85f * pull * bowSize;
@@ -843,7 +869,7 @@ public class PlayerBow : MonoBehaviour
         var ahR = heldW != null ? heldW.aimHandR : bowAimHandR;
         var aimR = useString
             ? bowRoot.TransformPoint(new Vector3(0f, 0f, back))
-            : transform.position + right * ahR.x + fwd * ahR.z + Vector3.up * ahR.y;
+            : transform.position + (right * ahR.x + fwd * ahR.z + Vector3.up * ahR.y) * S;   // ★aimL 과 같은 규칙 (2026-07-28)
         handR.position = Vector3.Lerp(handR.position, drawing ? aimR : idleR, drawing ? 22f * Time.deltaTime : k);
 
         nockArrow.gameObject.SetActive(drawing);
@@ -869,7 +895,7 @@ public class PlayerBow : MonoBehaviour
                 var d = u.transform.position - from2; d.y = 0f;
                 float along = Vector3.Dot(d, aimDir);
                 if (along < 0f || along > aimLen) continue;
-                if (Vector3.Cross(aimDir, d).magnitude > 1.2f + u.body * 0.45f) continue;
+                if (Vector3.Cross(aimDir, d).magnitude > 1.2f * WorldScale.K + u.body * 0.45f) continue;
                 u.MarkDanger();
             }
         }
@@ -955,8 +981,11 @@ public class PlayerBow : MonoBehaviour
                         eEul.y = -eEul.y; eEul.z = -eEul.z;
                     }
 
+                    // ★스윙 자세도 세계 스케일을 곱한다 (2026-07-28). 이 한 줄만 ×S 가
+                    //   빠져 있었다 — swingStartPos.y 가 2.12m 라 키 0.42m 캐릭터가
+                    //   휘두르는 순간 손이 제 키의 5배 위로 순간이동했다. "무기가 사라졌다"의 정체.
                     handR.position = transform.position +
-                        frame * Vector3.LerpUnclamped(sPos, ePos, p);
+                        frame * Vector3.LerpUnclamped(sPos, ePos, p) * S;
                     // ★회전은 '무기가 향하는 축'을 직접 보간한다.
                     //   시작·끝 각도를 쿼터니언으로 바로 이으면 지름길이 몸 뒤쪽으로 나서,
                     //   앞을 긁어야 할 가로 스윙이 등 뒤를 긁고 지나갔다.
@@ -1034,14 +1063,16 @@ public class ArrowProj : MonoBehaviour
         var m = new Material(Shader.Find("Universal Render Pipeline/Unlit"));
         m.color = new Color(2.4f, 1.9f, 0.6f);                    // HDR — 블룸으로 반짝
         g.GetComponent<MeshRenderer>().material = m;
-        g.transform.localScale = new Vector3(0.16f, 1.0f, 0.16f); // 굵고 길게 — 잘 보이게
+        // ★화살 크기·꼬리도 세계 스케일 (2026-07-28). 실린더는 기본 높이가 2 라
+        //   y=1.0 이면 2m 짜리 화살이었다 — 키 0.42m 캐릭터의 5배
+        g.transform.localScale = new Vector3(0.16f, 1.0f, 0.16f) * WorldScale.K; // 굵고 길게 — 잘 보이게
         g.transform.position = from;
         g.transform.rotation = Quaternion.LookRotation(dir) * Quaternion.Euler(90f, 0f, 0f);
 
         // 빛 꼬리 — 궤적이 한눈에 보이게
         var tr = g.AddComponent<TrailRenderer>();
         tr.time = 0.18f;
-        tr.startWidth = 0.28f; tr.endWidth = 0.02f;
+        tr.startWidth = 0.28f * WorldScale.K; tr.endWidth = 0.02f * WorldScale.K;
         tr.material = new Material(Shader.Find("Universal Render Pipeline/Unlit"));
         tr.material.color = new Color(2.2f, 1.6f, 0.5f, 0.7f);
         tr.startColor = new Color(1f, 0.9f, 0.5f, 0.85f);
@@ -1070,7 +1101,9 @@ public class ArrowProj : MonoBehaviour
                 // 피격 지점 = 화살이 실제로 닿은 몸체 표면 (바운즈 최근접점)
                 var rend = u.GetComponentInChildren<Renderer>();
                 var hitP = rend != null ? rend.bounds.ClosestPoint(transform.position) : transform.position;
-                float s = Mathf.Clamp(u.body, 3f, 14f);
+                // ★클램프 상수도 스케일 (2026-07-28). 1/10 펫은 body 가 3 보다 작아
+                //   늘 하한 3 으로 튀어올라 피격 이펙트만 거대했다
+                float s = Mathf.Clamp(u.body, 3f * WorldScale.K, 14f * WorldScale.K);
                 FX.Burst(hitP, new Color(2.4f, 2.1f, 1.1f, 1f), 14, s * 0.045f, s * 0.55f, 0.22f);   // 번쩍! 스파크
                 FX.Burst(hitP, new Color(0.95f, 0.92f, 0.86f, 0.85f), 9, s * 0.09f, s * 0.22f, 0.55f); // 연기 퍼프
                 pierceLeft--;
