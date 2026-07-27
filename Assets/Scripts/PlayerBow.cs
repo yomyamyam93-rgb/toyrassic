@@ -334,14 +334,42 @@ public class PlayerBow : MonoBehaviour
         // 자동 정렬 결과는 저장해 두고, 모델별 보정값을 매 프레임 곱해서 적용 (실시간 튜닝)
         Transform MountModel(string n, GameObject model, out Transform instOut, out Quaternion autoRot, out float autoScale)
         {
-            var root = new GameObject(n).transform;
             // 새총은 조준할 때 앞으로 뻗는 왼손에 든다 (활과 같은 손)
-            root.SetParent(n == "새총" ? handL : handR, false);
-            var inst = Instantiate(model, root);
+            var hand = n == "새총" ? handL : handR;
+            // ★씬에 미리 만들어 둔 것을 찾아 쓴다 (2026-07-28). 런타임 생성이면 에디터에
+            //   무기가 없어서, 스윙 모션을 만들 때 도끼가 어디를 향하는지 볼 수가 없다.
+            var root = hand.Find(n);
+            if (root == null)
+            {
+                root = new GameObject(n).transform;
+                root.SetParent(hand, false);
+            }
+            var inst = root.childCount > 0 ? root.GetChild(0) : Instantiate(model, root).transform;
+
+            // ★정렬을 계산하기 전에 모델 원본 자세로 되돌린다 (2026-07-28).
+            //   아래 계산은 인스턴스의 '현재' 트랜스폼을 읽는데, 런타임 LateUpdate 가
+            //   그 값을 덮어쓴다. 씬에 저장되는 오브젝트가 되면서 지난 실행의 결과를
+            //   다시 입력으로 읽게 되어 실행할 때마다 조금씩 틀어지고 누적된다.
+            inst.localPosition = model.transform.localPosition;
+            inst.localRotation = model.transform.localRotation;
+            inst.localScale = model.transform.localScale;
+
+            // ★크기를 재는 동안은 반드시 켜 둔다 (2026-07-28). RootBounds 는 '켜져 있는'
+            //   메시만 재는데, 씬에 구워두면 무기마다 켜짐/꺼짐이 제각각이다. 꺼진 채로
+            //   재면 메시를 하나도 못 찾아 크기 정규화가 통째로 건너뛰어진다
+            //   (실제로 도끼 269% · 곡갱이 101% 로 갈렸다).
+            root.gameObject.SetActive(true);
+
+            // ★루트 크기도 1 로 되돌린다 (2026-07-28). RootBounds 는 '루트의 로컬 공간'
+            //   에서 재므로 루트 크기가 결과를 그대로 나눠버린다. 예전엔 루트를 새로
+            //   만들어 크기 1 이었는데, 씬에 구우면서 저작용으로 3.76 을 넣어두었더니
+            //   정규화 기준이 3.76배 어긋났다. 런타임 크기는 LateUpdate 가 곧 다시 넣는다.
+            root.localScale = Vector3.one;
+
             // ★블렌더에서 잡아둔 배치(위치·각도)를 그대로 쓴다 — 원점(0,0,0)이 손잡이라는
             //   규칙만 지키면, 손에 든 자세는 사장님이 모델링에서 정한 그대로가 된다.
             //   (축을 짐작하지 않으므로 무기마다 결과가 달라지는 일이 없다)
-            autoRot = inst.transform.localRotation;
+            autoRot = inst.localRotation;
             autoScale = 1f;
             if (RootBounds(root, out var bounds))
             {
@@ -353,10 +381,10 @@ public class PlayerBow : MonoBehaviour
                 {
                     var extra = Quaternion.FromToRotation(blade.normalized, Vector3.forward);
                     autoRot = extra * autoRot;
-                    inst.transform.localPosition = extra * inst.transform.localPosition;
+                    inst.localPosition = extra * inst.localPosition;
                 }
             }
-            instOut = inst.transform;
+            instOut = inst;
             root.gameObject.SetActive(false);
             return root;
         }
