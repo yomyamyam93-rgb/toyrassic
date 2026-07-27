@@ -171,8 +171,12 @@ public class PetUnit : MonoBehaviour
     bool dead;
     float deathT, deathStartY; bool deathDropped;    // 사망 연출 (고통→스르륵)
 
-    float AggroRange => 13f + body * 1.2f;
-    float TauntRange => 10f + body * 1.5f;           // 금속(탱커) 어그로
+    // ★거리·크기는 WorldScale.K 를 곱한다 (2026-07-27). body 는 인구수 등급(소1/중2/대3/
+    //   초대4)이라 값 자체를 줄이면 편성 시스템이 깨진다. 그래서 '미터로 쓰이는 지점'에서만
+    //   배율을 곱한다. 관문(사거리·이동속도·몸 스케일·체력바 높이)에만 곱하면 파생 공식
+    //   70곳을 개별로 고치지 않아도 된다.
+    float AggroRange => (13f + body * 1.2f) * WorldScale.K;
+    float TauntRange => (10f + body * 1.5f) * WorldScale.K;   // 금속(탱커) 어그로
 
     // ★공격 인원 제한 폐기 — 사거리에 닿으면 그냥 친다.
     //   둘만 덤비게 막아두니 한 마리씩 상대하게 돼서 걷기만 해도 다 피해졌다.
@@ -294,8 +298,9 @@ public class PetUnit : MonoBehaviour
                          : pattern == Pattern.Slam ? 1.9f      // 광역 강타
                          : 1.2f);                               // 꼬리 = 광역 약타
     // 기본 이속 상향 — 통통 뛰어서 다가오는 속도감
-    float MoveSpd => (8f + agi * 0.1f) * (0.8f + body * 0.035f) * (slowT > 0f ? 0.55f : 1f) * moveSpeedMul;
-    float AtkRange => AtkRangeRaw * rangeMul;
+    float MoveSpd => (8f + agi * 0.1f) * (0.8f + body * 0.035f) * (slowT > 0f ? 0.55f : 1f)
+                     * moveSpeedMul * WorldScale.K;
+    float AtkRange => AtkRangeRaw * rangeMul * WorldScale.K;
     float AtkRangeRaw => mat == Mat.Metal ? body * 0.95f + 1f
                     : mat == Mat.Stone ? body * 2.2f
                     : mat == Mat.Wood ? body * 2.6f
@@ -986,8 +991,9 @@ public class PetUnit : MonoBehaviour
         var g = GameObject.CreatePrimitive(PrimitiveType.Sphere);
         g.name = "drop_" + n;
         Destroy(g.GetComponent<Collider>());
-        g.transform.position = transform.position + Vector3.up * 0.6f;
-        g.transform.localScale = Vector3.one * Mathf.Clamp(body * 0.08f, 0.45f, 2f);
+        g.transform.position = transform.position + Vector3.up * 0.6f * WorldScale.K;
+        // ★Clamp 하한(0.45)이 축소를 막으므로 클램프 **결과**에 배율을 곱한다
+        g.transform.localScale = Vector3.one * Mathf.Clamp(body * 0.08f, 0.45f, 2f) * WorldScale.K;
         var mr = g.GetComponent<MeshRenderer>();
         mr.material = new Material(Shader.Find("Universal Render Pipeline/Lit"));
         mr.material.color = mat == Mat.Metal ? new Color(0.7f, 0.73f, 0.8f)
@@ -1090,7 +1096,7 @@ public class PetUnit : MonoBehaviour
         // 머리 위 = 렌더러 최상단 + 여유.
         //  · 펫: 비례를 크게 잡으면 XL(브론토)이 하늘로 뜨므로 고정값 위주
         //  · 캐릭터: 몸이 작고 카메라가 가까워 넉넉히 띄워야 잘 보인다
-        barY = top + (isAvatar ? body * 1.0f + 1.2f : 1.4f + body * 0.03f);
+        barY = top + (isAvatar ? body * 1.0f + 1.2f : 1.4f + body * 0.03f) * WorldScale.K;
         barBaseScale = 1.35f;   // ★전 유닛 동일 크기 (몸 크기 비례 폐지 — 제각각 버그 수정)
         barRoot = new GameObject(name + "_hpbar").transform;
         barRoot.SetParent(SceneBuckets.Bars);   // 하이라키 정리
@@ -1145,7 +1151,7 @@ public class PetUnit : MonoBehaviour
         //   실제 캐릭터 머리 꼭대기를 재서 그 위로 올린다 (덩치 짐작 대신 실측).
         if (mounted && Avatar != null)
         {
-            float headY = Avatar.transform.position.y + Avatar.body * 1.0f + mountedBarGap;
+            float headY = Avatar.transform.position.y + Avatar.body * 1.0f * WorldScale.K + mountedBarGap;
             if (headY > wantY) wantY = headY;
         }
         if (Mathf.Abs(wantY - barSmoothY) > 6f) barSmoothY = wantY;   // 순간이동·스폰 직후엔 스냅 (미끄러져 오는 버그 방지)
