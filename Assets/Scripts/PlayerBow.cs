@@ -240,6 +240,11 @@ public class PlayerBow : MonoBehaviour
         public Vector3 autoPos;                            // 모델에 저작된 위치 (그립 기준)
         public float autoScale = 1f;
         public TrailRenderer trail;
+        /// ★씬에 사람이 배치해 둔 무기인가 (2026-07-28).
+        /// true 면 자세·크기를 코드가 건드리지 않는다 — 화면에서 잡은 그대로가 정본이다.
+        public bool sceneAuthored;
+        /// 씬에서 잡은 모델 크기 (타격 팝을 이 위에 곱한다)
+        public Vector3 instScale = Vector3.one;
     }
     readonly System.Collections.Generic.Dictionary<string, ToolRig> rigs
         = new System.Collections.Generic.Dictionary<string, ToolRig>();
@@ -359,61 +364,64 @@ public class PlayerBow : MonoBehaviour
     {
         // 3D 모델 마운트 — 제일 긴 축을 자루(+Z)로 자동 정렬, 그립(원점)=자루 끝
         // 자동 정렬 결과는 저장해 두고, 모델별 보정값을 매 프레임 곱해서 적용 (실시간 튜닝)
-        Transform MountModel(string n, GameObject model, out Transform instOut, out Quaternion autoRot, out float autoScale)
+        void MountModel(string n, GameObject model, ToolRig rig)
         {
             // 새총은 조준할 때 앞으로 뻗는 왼손에 든다 (활과 같은 손)
             var hand = n == "새총" ? handL : handR;
             // ★씬에 미리 만들어 둔 것을 찾아 쓴다 (2026-07-28). 런타임 생성이면 에디터에
             //   무기가 없어서, 스윙 모션을 만들 때 도끼가 어디를 향하는지 볼 수가 없다.
             var root = hand.Find(n);
+            bool authored = root != null;          // 씬에 사람이 배치해 둔 것인가
             if (root == null)
             {
                 root = new GameObject(n).transform;
                 root.SetParent(hand, false);
             }
             var inst = root.childCount > 0 ? root.GetChild(0) : Instantiate(model, root).transform;
+            rig.root = root; rig.inst = inst; rig.sceneAuthored = authored;
 
-            // ★정렬을 계산하기 전에 모델 원본 자세로 되돌린다 (2026-07-28).
-            //   아래 계산은 인스턴스의 '현재' 트랜스폼을 읽는데, 런타임 LateUpdate 가
-            //   그 값을 덮어쓴다. 씬에 저장되는 오브젝트가 되면서 지난 실행의 결과를
-            //   다시 입력으로 읽게 되어 실행할 때마다 조금씩 틀어지고 누적된다.
+            if (authored)
+            {
+                // ★씬에서 잡은 자세·크기가 정본이다 (2026-07-28). 코드가 정규화하지도
+                //   덮어쓰지도 않는다 — 화면에서 끌어다 놓은 그대로가 게임에 나온다.
+                //   (예전엔 여기서 크기를 정규화하고 LateUpdate 가 gripPos·scale 로
+                //    덮어써서, 씬에서 아무리 맞춰도 플레이하면 딴 데로 갔다)
+                rig.autoRot = inst.localRotation;
+                rig.autoPos = inst.localPosition;
+                rig.autoScale = 1f;
+                rig.instScale = inst.localScale;
+                root.gameObject.SetActive(false);
+                return;
+            }
+
+            // ── 아래는 씬에 없을 때만: 모델 원본 자세로 두고 크기를 정규화한다 ──
             inst.localPosition = model.transform.localPosition;
             inst.localRotation = model.transform.localRotation;
             inst.localScale = model.transform.localScale;
-
-            // ★크기를 재는 동안은 반드시 켜 둔다 (2026-07-28). RootBounds 는 '켜져 있는'
-            //   메시만 재는데, 씬에 구워두면 무기마다 켜짐/꺼짐이 제각각이다. 꺼진 채로
-            //   재면 메시를 하나도 못 찾아 크기 정규화가 통째로 건너뛰어진다
-            //   (실제로 도끼 269% · 곡갱이 101% 로 갈렸다).
+            // RootBounds 는 '켜져 있는' 메시만, 그리고 '루트의 로컬 공간'에서 잰다
             root.gameObject.SetActive(true);
-
-            // ★루트 크기도 1 로 되돌린다 (2026-07-28). RootBounds 는 '루트의 로컬 공간'
-            //   에서 재므로 루트 크기가 결과를 그대로 나눠버린다. 예전엔 루트를 새로
-            //   만들어 크기 1 이었는데, 씬에 구우면서 저작용으로 3.76 을 넣어두었더니
-            //   정규화 기준이 3.76배 어긋났다. 런타임 크기는 LateUpdate 가 곧 다시 넣는다.
             root.localScale = Vector3.one;
 
             // ★블렌더에서 잡아둔 배치(위치·각도)를 그대로 쓴다 — 원점(0,0,0)이 손잡이라는
             //   규칙만 지키면, 손에 든 자세는 사장님이 모델링에서 정한 그대로가 된다.
-            //   (축을 짐작하지 않으므로 무기마다 결과가 달라지는 일이 없다)
-            autoRot = inst.localRotation;
-            autoScale = 1f;
+            rig.autoRot = inst.localRotation;
+            rig.autoScale = 1f;
             if (RootBounds(root, out var bounds))
             {
-                autoScale = toolLength / Mathf.Max(0.01f, FarthestFromOrigin(bounds));   // 그립 기준 크기 정규화
+                rig.autoScale = toolLength / Mathf.Max(0.01f, FarthestFromOrigin(bounds));   // 그립 기준 크기 정규화
                 // 스윙 모션은 '무기가 앞(+Z)을 향한다'는 전제로 짜여 있다. 그립에서 날이
                 // 뻗은 방향만 +Z 로 돌려주고, 저작한 기울기·회전은 그 위에 그대로 얹는다.
                 var blade = bounds.center;
                 if (blade.sqrMagnitude > 1e-4f)
                 {
                     var extra = Quaternion.FromToRotation(blade.normalized, Vector3.forward);
-                    autoRot = extra * autoRot;
+                    rig.autoRot = extra * rig.autoRot;
                     inst.localPosition = extra * inst.localPosition;
                 }
             }
-            instOut = inst;
+            rig.autoPos = inst.localPosition;
+            rig.instScale = Vector3.one * rig.autoScale;
             root.gameObject.SetActive(false);
-            return root;
         }
 
         Transform MakeTool(string n, Color headC, Vector3 headScale, out Transform body)
@@ -444,10 +452,7 @@ public class PlayerBow : MonoBehaviour
             if (rigs.ContainsKey(w.id)) continue;
             var rig = new ToolRig();
             if (w.model != null)
-            {
-                rig.root = MountModel(w.id, w.model, out rig.inst, out rig.autoRot, out rig.autoScale);
-                rig.autoPos = rig.inst.localPosition;   // 저작된 위치 보관 (크기 정규화 때 같이 줄인다)
-            }
+                MountModel(w.id, w.model, rig);
             else
                 rig.root = w.id == "곡갱이"
                     ? MakeTool(w.id, new Color(0.46f, 0.45f, 0.43f), new Vector3(0.9f, 0.16f, 0.22f), out rig.inst)
@@ -1056,20 +1061,29 @@ public class PlayerBow : MonoBehaviour
             var setup = curId != null ? weapons.Find(x => x.id == curId) : null;
             if (toolHeld != null && setup != null)
             {
-                // 잡기 — 인스펙터 값 그대로 (손 기준)
-                toolHeld.localPosition = setup.gripPos;
-                toolHeld.localRotation = Quaternion.Euler(setup.gripEuler);
-                toolHeld.localScale = Vector3.one * setup.scale;
+                // 잡기 — 인스펙터 값 그대로 (손 기준).
+                // ★씬에 배치한 무기는 건드리지 않는다 (2026-07-28) — 화면에서 잡은 자세·
+                //   크기가 정본이다. 예전엔 여기서 덮어써서 씬에서 아무리 맞춰도 소용없었다.
+                if (!rig.sceneAuthored)
+                {
+                    toolHeld.localPosition = setup.gripPos;
+                    toolHeld.localRotation = Quaternion.Euler(setup.gripEuler);
+                    toolHeld.localScale = Vector3.one * setup.scale;
+                }
 
                 // 모델별 정렬 보정 — 무기 드롭다운에서 조절한 값 (실시간 반영)
                 if (rig.inst != null)
                 {
                     // ★보정은 '손 기준' 축으로 — 모델 기준으로 곱하면 X 를 돌렸는데
                     //   대각선으로 도는 것처럼 보여서 손으로 맞출 수가 없다
+                    // ★씬에 배치한 무기는 모델 자세도 건드리지 않는다 (2026-07-28)
                     float s = rig.autoScale * setup.modelScale;
-                    var fix = Quaternion.Euler(setup.modelEuler);
-                    rig.inst.localRotation = fix * rig.autoRot;
-                    rig.inst.localPosition = fix * (rig.autoPos * s) + setup.modelPos;
+                    if (!rig.sceneAuthored)
+                    {
+                        var fix = Quaternion.Euler(setup.modelEuler);
+                        rig.inst.localRotation = fix * rig.autoRot;
+                        rig.inst.localPosition = fix * (rig.autoPos * s) + setup.modelPos;
+                    }
 
                     // ★타격 팝 — 치는 순간 부풀었다 돌아온다. 회전축이 손잡이라
                     //   전체를 키워도 머리 쪽이 크게 부푸는 것처럼 보인다
@@ -1087,7 +1101,10 @@ public class PlayerBow : MonoBehaviour
                         1f + pop * Mathf.Lerp(1f, setup.impactPopLong, Mathf.Abs(lengthAxis.x)),
                         1f + pop * Mathf.Lerp(1f, setup.impactPopLong, Mathf.Abs(lengthAxis.y)),
                         1f + pop * Mathf.Lerp(1f, setup.impactPopLong, Mathf.Abs(lengthAxis.z)));
-                    rig.inst.localScale = popScale * s;
+                    // 씬 배치 무기는 '씬에서 잡은 크기' 위에 팝만 곱한다 (크기를 안 뺏는다)
+                    rig.inst.localScale = rig.sceneAuthored
+                        ? Vector3.Scale(rig.instScale, popScale)
+                        : popScale * s;
                 }
 
                 var trail = rig.trail;
@@ -1176,12 +1193,16 @@ public class PlayerBow : MonoBehaviour
                     if (!clipOwnsHandR)
                         handR.localRotation = Quaternion.Slerp(handR.localRotation,
                             localAim, 10f * Time.deltaTime);
-                    toolHeld.localPosition = setup.gripPos + setup.carryPos;
-                    // 들고 다닐 때 살짝 흔들림 — 완전히 굳어 있으면 인형 같다
-                    float tsw = (Mathf.Sin(Time.time * setup.carrySwaySpeed) * 0.7f
-                               + Mathf.Sin(Time.time * setup.carrySwaySpeed * 1.6f + 0.9f) * 0.3f) * setup.carrySway;
-                    // ★휴대 각도는 여기서만 — 스윙 때 섞이면 무기가 비틀린 채 휘둘러진다
-                    toolHeld.localRotation = Quaternion.Euler(setup.gripEuler + setup.carryEuler + new Vector3(tsw, 0f, tsw * 0.6f));
+                    // ★씬 배치 무기는 자세를 안 건드린다 — 흔들림은 Carry 클립이 낸다
+                    if (!rig.sceneAuthored)
+                    {
+                        toolHeld.localPosition = setup.gripPos + setup.carryPos;
+                        // 들고 다닐 때 살짝 흔들림 — 완전히 굳어 있으면 인형 같다
+                        float tsw = (Mathf.Sin(Time.time * setup.carrySwaySpeed) * 0.7f
+                                   + Mathf.Sin(Time.time * setup.carrySwaySpeed * 1.6f + 0.9f) * 0.3f) * setup.carrySway;
+                        // ★휴대 각도는 여기서만 — 스윙 때 섞이면 무기가 비틀린 채 휘둘러진다
+                        toolHeld.localRotation = Quaternion.Euler(setup.gripEuler + setup.carryEuler + new Vector3(tsw, 0f, tsw * 0.6f));
+                    }
                     // 클립이 그리는 무기는 잔상도 클립이 갖는다 — 여기서 끄면 키프레임이 무시된다
                     if (trail != null && !clipOwnsHandR) trail.emitting = false;
                 }
