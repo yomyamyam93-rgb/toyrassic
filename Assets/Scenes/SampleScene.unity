@@ -2898,8 +2898,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::PlayerBow
   fireCooldown: 0.45
   arrowDamage: 50
-  arrowSpeed: 50
-  arrowRange: 7
+  arrowSpeed: 106.6
+  arrowRange: 12
   aimFillTime: 1.4
   drawTime: 0.9
   handRadius: 0.28
@@ -2909,7 +2909,7 @@ MonoBehaviour:
   bowAimHandR: {x: 0, y: 0.25500003, z: 1.4}
   drawReach: 0.4
   drawUp: 0.030000001
-  bowShotOrigin: {x: 0, y: 1.5, z: 4}
+  bowShotOrigin: {x: 0, y: 1.2, z: 6.25}
   handColor: {r: 0.99607843, g: 1, b: 0.99607843, a: 1}
   impactPop: 0.35
   impactPopSpan: 0.45
@@ -2928,7 +2928,7 @@ MonoBehaviour:
   bowModel: {fileID: 2387696732700100863, guid: 5c270e738435aee4b90db43a962c967c, type: 3}
   bowModelEuler: {x: -5, y: 178.84, z: -5.42}
   bowModelPos: {x: 0, y: 0, z: 0.54}
-  bowModelScale: 1
+  bowModelScale: 12
   bowSize: 0.578
   bowThick: 0.016
   bowColor: {r: 0.46, g: 0.28, b: 0.13, a: 1}
@@ -2941,9 +2941,9 @@ MonoBehaviour:
   weapons:
   - id: "\uB3C4\uB07C"
     model: {fileID: 7477283798205093626, guid: ed9e44d9101dd5c44ab74f6764d35d78, type: 3}
-    modelEuler: {x: 0, y: 0, z: 0}
+    modelEuler: {x: -7.2, y: 26.7, z: 38.69}
     modelPos: {x: 0, y: 0, z: 0}
-    modelScale: 1
+    modelScale: 2.47
     style: 1
     hFlip: 1
     ranged: 0
@@ -2963,9 +2963,9 @@ MonoBehaviour:
     impactPopLong: 0.4
     trailColor: {r: 1.8, g: 1.7, b: 1.2, a: 1}
     trailAlpha: 0.95
-    trailWidth: 0.089999996
-    trailTime: 0.24
-    trailTaper: 0.25
+    trailWidth: 0.38
+    trailTime: 0.306
+    trailTaper: 0.02
     shotOrigin: {x: 0, y: 0.3, z: 4}
     shotDamageMul: 0.45
     shotRangeMul: 0.5
@@ -2996,8 +2996,8 @@ MonoBehaviour:
     impactPopLong: 0.4
     trailColor: {r: 1.8, g: 1.7, b: 1.2, a: 1}
     trailAlpha: 0.95
-    trailWidth: 0.089999996
-    trailTime: 0.24
+    trailWidth: 2.4
+    trailTime: 0.36
     trailTaper: 0.25
     shotOrigin: {x: 0, y: 0.3, z: 4}
     shotDamageMul: 0.45
@@ -3029,8 +3029,8 @@ MonoBehaviour:
     impactPopLong: 0.4
     trailColor: {r: 1.8, g: 1.7, b: 1.2, a: 1}
     trailAlpha: 0.95
-    trailWidth: 0.089999996
-    trailTime: 0.24
+    trailWidth: 2.4
+    trailTime: 0.36
     trailTaper: 0.25
     shotOrigin: {x: 0, y: 0.3, z: 4}
     shotDamageMul: 0.45
@@ -3062,8 +3062,8 @@ MonoBehaviour:
     impactPopLong: 0.4
     trailColor: {r: 1.8, g: 1.7, b: 1.2, a: 1}
     trailAlpha: 0.95
-    trailWidth: 0.089999996
-    trailTime: 0.24
+    trailWidth: 2.4
+    trailTime: 0.36
     trailTaper: 0.25
     shotOrigin: {x: -1.2, y: 3.17, z: 2.2}
     shotDamageMul: 0.45
@@ -3072,7 +3072,7 @@ MonoBehaviour:
     shotCooldownMul: 1.5
     tuned: 1
   weaponsMigrated: 1
-  trailBoosted: 0
+  trailBoosted: 1
   axeSetup:
     modelEuler: {x: 0, y: 0, z: 0}
     modelPos: {x: 0, y: 0, z: 0}
@@ -3139,9 +3139,9 @@ MonoBehaviour:
     m_PreInfinity: 2
     m_PostInfinity: 2
     m_RotationOrder: 4
-  hSwingStartPos: {x: -2.4467773, y: -0.11047363, z: 0.39746094}
-  hSwingStartEuler: {x: 353.1225, y: -90.39224, z: -350.64105}
-  hSwingEndPos: {x: 2.5565186, y: -0.42217255, z: 0.68896484}
+  hSwingStartPos: {x: -3, y: 0.28, z: 0.39746094}
+  hSwingStartEuler: {x: 345.7, y: -39.9, z: -350.64105}
+  hSwingEndPos: {x: 8, y: -0.42217255, z: 0.68896484}
   hSwingEndEuler: {x: 3.908922, y: -263.44745, z: -358.69717}
   trailColor: {r: 1.8, g: 1.7, b: 1.2, a: 1}
   trailAlpha: 0.95
@@ -6085,6 +6085,54 @@ MeshFilter:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 196958281}
   m_Mesh: {fileID: 10208, guid: 0000000000000000e000000000000000, type: 0}
+--- !u!1 &198143050
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 198143052}
+  - component: {fileID: 198143051}
+  m_Layer: 0
+  m_Name: HandRig
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &198143051
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 198143050}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 469a7f12e02d3fd488614fb2f8989d12, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::HandRig
+  player: {fileID: 107336113}
+  HandL: {fileID: 0}
+  HandR: {fileID: 0}
+  BowRoot: {fileID: 0}
+--- !u!4 &198143052
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 198143050}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &200886081
 GameObject:
   m_ObjectHideFlags: 0
@@ -11938,7 +11986,7 @@ ParticleSystem:
         m_RotationOrder: 4
     startSizeY:
       serializedVersion: 2
-      minMaxState: 3
+      minMaxState: 0
       scalar: 1
       minScalar: 1
       maxCurve:
@@ -11991,7 +12039,7 @@ ParticleSystem:
         m_RotationOrder: 4
     startSizeZ:
       serializedVersion: 2
-      minMaxState: 3
+      minMaxState: 0
       scalar: 1
       minScalar: 1
       maxCurve:
@@ -59572,3 +59620,4 @@ SceneRoots:
   - {fileID: 1834216758}
   - {fileID: 123082803}
   - {fileID: 575511257}
+  - {fileID: 198143052}

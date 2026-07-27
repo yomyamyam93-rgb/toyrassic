@@ -31,6 +31,8 @@ public class BlobMotion : MonoBehaviour
     public float leanMax = 8f;
 
     Vector3 baseScale;
+    /// ★찌그러지기 전 원래 크기. HandRig 이 이걸 써야 손이 스쿼시를 안 먹는다 (2026-07-28)
+    public Vector3 BaseScale => baseScale;
     float t, bodyHeight = 1f;
     // 원점이 몸 한가운데인 모델은 그냥 지면 높이에 두면 반쯤 묻힌다.
     // 원점에서 발바닥까지의 거리를 재두고 그만큼 띄운다.
