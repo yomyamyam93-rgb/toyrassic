@@ -145,7 +145,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 2407.4075, y: 185.79639, z: 1962.963}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 0.1, y: 0.1, z: 0.1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 2135606205}
@@ -357,7 +357,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 2636.0945, y: 92.0625, z: 1567.9506}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 0.1, y: 0.1, z: 0.1}
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 1892071060}
@@ -388,13 +388,13 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::NestSite
   spawner: {fileID: 1834216757}
   egg: {fileID: 2104160909}
-  triggerRadius: 26
+  triggerRadius: 2.6000001
   swarmSize: 12
   swarmInterval: 0.4
   sizeMul: 0.55
   hpMul: 0.3
   dmgMul: 0.5
-  spawnRing: 14
+  spawnRing: 1.4
   bossSizeMul: 2
   bossHpMul: 2.5
   bossDmgMul: 1.6
@@ -409,7 +409,7 @@ MonoBehaviour:
     moveSpeed: 1
     range: 1
   warnRatio: 2.2
-  nestModelScale: 4
+  nestModelScale: 0.4
 --- !u!1 &29189847
 GameObject:
   m_ObjectHideFlags: 0
@@ -618,7 +618,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 2111.111, y: 248.77284, z: 2333.3333}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 0.1, y: 0.1, z: 0.1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 2135606205}
@@ -829,7 +829,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 4185.185, y: 382.83823, z: 2703.7036}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 0.1, y: 0.1, z: 0.1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 2135606205}
@@ -1612,7 +1612,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 2629.6296, y: 207.33672, z: 3148.148}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 0.1, y: 0.1, z: 0.1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 2135606205}
@@ -2808,15 +2808,19 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: a5e4f2f8682618448877c43d564e44f4, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PlayerMove
-  moveSpeed: 25.5
-  accel: 34
-  brake: 110
+  moveSpeed: 2.55
+  accel: 3.4
+  brake: 11
   fullDrawSpeed: 0.35
   waterY: 40
   wetFactor: 0.55
   cam: {fileID: 330585546}
+  saddleFollow: 0.75
+  saddleSpring: 22
+  saddleDamp: 0.86
+  saddleMax: 0.089999996
   dropTime: 0.45
-  dropHeight: 2.5
+  dropHeight: 0.25
   suppressMove: 0
 --- !u!114 &107336110
 MonoBehaviour:
@@ -2831,12 +2835,12 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::BlobMotion
   idleRate: 1.6
-  idleAmp: 0.055
+  idleAmp: 0.0055
   walkRate: 2.4
-  walkAmp: 0.14
+  walkAmp: 0.014
   runRate: 3
-  runAmp: 0.2
-  hopHeight: 0.85
+  runAmp: 0.020000001
+  hopHeight: 0.085
   idleHopRatio: 0.15
   wetSlow: 0.5
   wetAmp: 0.55
@@ -2894,17 +2898,17 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::PlayerBow
   fireCooldown: 0.45
   arrowDamage: 50
-  arrowSpeed: 500
-  arrowRange: 70
+  arrowSpeed: 50
+  arrowRange: 7
   aimFillTime: 1.4
   drawTime: 0.9
-  handRadius: 0.18
-  handSide: 2
-  handUp: -0.28
+  handRadius: 0.018000001
+  handSide: 0.2
+  handUp: -0.028
   bowAimHandL: {x: 0, y: 0.3, z: 4}
   bowAimHandR: {x: 0, y: 0.25500003, z: 1.4}
-  drawReach: 4
-  drawUp: 0.3
+  drawReach: 0.4
+  drawUp: 0.030000001
   bowShotOrigin: {x: 0, y: 1.5, z: 4}
   handColor: {r: 0.99607843, g: 1, b: 0.99607843, a: 1}
   impactPop: 0.35
@@ -2916,24 +2920,24 @@ MonoBehaviour:
   slingCooldownMul: 1.5
   carryEuler: {x: 29.7, y: 17.8, z: 16}
   bowCarryPos: {x: 0, y: 0, z: -1.18}
-  carrySway: 0.5
+  carrySway: 0.05
   toolCarryPos: {x: 0, y: 0, z: 0}
   toolCarryEuler: {x: 275.2749, y: 106.97716, z: 298.37494}
-  toolCarrySway: 4
+  toolCarrySway: 0.4
   toolCarrySwaySpeed: 2.2
   bowModel: {fileID: 2387696732700100863, guid: 5c270e738435aee4b90db43a962c967c, type: 3}
   bowModelEuler: {x: -5, y: 178.84, z: -5.42}
   bowModelPos: {x: 0, y: 0, z: 0.54}
-  bowModelScale: 2.4
-  bowSize: 1.15
-  bowThick: 0.16
+  bowModelScale: 0.24000001
+  bowSize: 0.115
+  bowThick: 0.016
   bowColor: {r: 0.46, g: 0.28, b: 0.13, a: 1}
   stringColor: {r: 0.95, g: 0.93, b: 0.85, a: 1}
   outlineHull: {fileID: 2100000, guid: c93d547576109994dac3bdc472bfb370, type: 2}
   outlineMask: {fileID: 2100000, guid: bd02a43a3e2def0469de205466a32e80, type: 2}
   toolAxeModel: {fileID: 7477283798205093626, guid: ed9e44d9101dd5c44ab74f6764d35d78, type: 3}
   toolPickModel: {fileID: 7477283798205093626, guid: 7af4502715d004e44bdb1a48129b0078, type: 3}
-  toolLength: 2.1
+  toolLength: 0.21
   weapons:
   - id: "\uB3C4\uB07C"
     model: {fileID: 7477283798205093626, guid: ed9e44d9101dd5c44ab74f6764d35d78, type: 3}
@@ -2961,6 +2965,7 @@ MonoBehaviour:
     trailAlpha: 0.95
     trailWidth: 0.9
     trailTime: 0.24
+    trailTaper: 0.25
     shotOrigin: {x: 0, y: 0.3, z: 4}
     shotDamageMul: 0.45
     shotRangeMul: 0.5
@@ -2993,6 +2998,7 @@ MonoBehaviour:
     trailAlpha: 0.95
     trailWidth: 0.9
     trailTime: 0.24
+    trailTaper: 0.25
     shotOrigin: {x: 0, y: 0.3, z: 4}
     shotDamageMul: 0.45
     shotRangeMul: 0.5
@@ -3025,6 +3031,7 @@ MonoBehaviour:
     trailAlpha: 0.95
     trailWidth: 0.9
     trailTime: 0.24
+    trailTaper: 0.25
     shotOrigin: {x: 0, y: 0.3, z: 4}
     shotDamageMul: 0.45
     shotRangeMul: 0.5
@@ -3057,6 +3064,7 @@ MonoBehaviour:
     trailAlpha: 0.95
     trailWidth: 0.9
     trailTime: 0.24
+    trailTaper: 0.25
     shotOrigin: {x: -1.2, y: 3.17, z: 2.2}
     shotDamageMul: 0.45
     shotRangeMul: 1.035
@@ -3064,6 +3072,7 @@ MonoBehaviour:
     shotCooldownMul: 1.5
     tuned: 1
   weaponsMigrated: 1
+  trailBoosted: 0
   axeSetup:
     modelEuler: {x: 0, y: 0, z: 0}
     modelPos: {x: 0, y: 0, z: 0}
@@ -3076,13 +3085,13 @@ MonoBehaviour:
     style: 0
   axeModelEuler: {x: 0, y: 0, z: 0}
   axeModelPos: {x: 0, y: 0, z: 0}
-  axeModelScale: 1
+  axeModelScale: 0.1
   pickModelEuler: {x: 0, y: 0, z: 0}
   pickModelPos: {x: 0, y: 0, z: 0}
-  pickModelScale: 1
+  pickModelScale: 0.1
   gripPosOffset: {x: 0, y: 0, z: 0}
   gripEuler: {x: 0, y: 0, z: 0}
-  toolScale: 3.76
+  toolScale: 0.37600002
   swingStartPos: {x: 1.94, y: 2.12, z: 0.74}
   swingStartEuler: {x: 306.89545, y: 188.84436, z: 251.65831}
   swingEndPos: {x: 0.060791016, y: -0.432518, z: 2.458496}
@@ -3136,7 +3145,7 @@ MonoBehaviour:
   hSwingEndEuler: {x: 3.908922, y: -263.44745, z: -358.69717}
   trailColor: {r: 1.8, g: 1.7, b: 1.2, a: 1}
   trailAlpha: 0.95
-  trailWidth: 0.9
+  trailWidth: 0.089999996
   trailTime: 0.24
   cursorNormal: {fileID: 2800000, guid: 4bf08ee8d05021444b2ad7ca4a3f65dc, type: 3}
   cursorAim: {fileID: 2800000, guid: 4631aeae621d94042be7f7fe1077c650, type: 3}
@@ -3182,10 +3191,17 @@ MonoBehaviour:
   moveSpeedMul: 1
   rangeMul: 1
   basicOnly: 0
+  mountDmgMul: 1
+  mountSpdMul: 1
+  following: 0
+  followSpot: {x: 0, y: 0, z: 0}
+  hasOrder: 0
+  orderSpot: {x: 0, y: 0, z: 0}
   biteHalfAngle: 55
-  windupTrack: 5
+  windupTrack: 0.5
   windupScale: 0.65
-  rangedThreshold: 1.8
+  rangedThreshold: 0.17999999
+  mountedBarGap: 0.120000005
 --- !u!114 &107336121
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -3217,7 +3233,7 @@ MonoBehaviour:
   swordCooldown: 0.38
   impactDelay: 0.24
   startWithTools: 0
-  swingRange: 5.5
+  swingRange: 0.55
   swingAngle: 130
   maxNodesPerSwing: 2
   treeHp: 30
@@ -3232,12 +3248,14 @@ MonoBehaviour:
   swordVsMob: 38
   swordVsNode: 2
   arrowVsNode: 4
-  arrowBlockRadius: 1.6
+  arrowBlockRadius: 0.16000001
   bareVsNode: 2.5
   bareVsMob: 6
   bareCooldown: 0.85
   mountedRangeBonus: 0.6
   mountedAngleMul: 1.25
+  swingHeightTolerance: 0.4
+  showSwingArc: 1
 --- !u!114 &107336123
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -3262,7 +3280,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 497d64208cb14fd4b8313687717bb3b3, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PlayerPickup
-  reach: 5.5
+  reach: 0.55
 --- !u!114 &107336125
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -3365,12 +3383,12 @@ MonoBehaviour:
     blockRadius: 1.6
     isFloor: 0
     isBench: 1
-  grid: 5
-  reach: 24
+  grid: 0.5
+  reach: 2.4
   maxSlope: 22
   refund: 0.5
-  floorLift: 0.9
-  snapRange: 16
+  floorLift: 0.089999996
+  snapRange: 1.6
 --- !u!114 &107336127
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -3386,7 +3404,7 @@ MonoBehaviour:
   qCooldown: 6
   qArrowDamageMul: 2.2
   qArrowPierce: 5
-  qSpinRadius: 8
+  qSpinRadius: 0.8
   qSpinDamage: 40
   qSlingShots: 5
   qSlingInterval: 0.07
@@ -3395,58 +3413,58 @@ MonoBehaviour:
   qAxeTurns: 1
   qAxeSpinTime: 0.35
   qAxeArcTail: 240
-  qAxeArcThick: 1.6
+  qAxeArcThick: 0.16000001
   qAxeInnerRatio: 0.34
   qAxeEdgeBonus: 1.6
   qAxeDamageMul: 2
   qAxeRangeMul: 1.5
   qSlamRise: 0.22
-  qSlamHeight: 4
+  qSlamHeight: 0.4
   qSlamHang: 0.1
   qSlamFall: 0.14
-  qSlamStep: 4
-  qSlamRadius: 9
+  qSlamStep: 0.4
+  qSlamRadius: 0.90000004
   qSlamDamageMul: 2.6
   qComboHits: 3
   qComboInterval: 0.13
-  qComboStep: 2.6
+  qComboStep: 0.26
   qComboDamageMul: 1.1
   qComboLunge: 0.07
   qComboSlashTime: 0.13
   wCooldown: 10
   biteDamage: 22
-  biteRange: 7
+  biteRange: 0.7
   biteAngle: 70
   goreDamage: 55
-  goreRange: 9
+  goreRange: 0.90000004
   goreAngle: 110
   stompDamage: 60
-  stompRadius: 11
+  stompRadius: 1.1
   tailDamage: 40
-  tailRadius: 13
-  tailKnock: 6
+  tailRadius: 1.3000001
+  tailKnock: 0.6
   rollCooldown: 3
-  rollDist: 11
+  rollDist: 1.1
   rollTime: 0.26
   eCooldown: 4
-  leapDist: 19
+  leapDist: 1.9
   leapTime: 0.3
-  bashDist: 14
+  bashDist: 1.4
   bashTime: 0.4
   bashDamage: 18
-  bashKnock: 6
-  hopDist: 15
+  bashKnock: 0.6
+  hopDist: 1.5
   hopTime: 0.5
   hopDamage: 30
-  hopRadius: 7
-  breakDist: 13
+  hopRadius: 0.7
+  breakDist: 1.3000001
   breakTime: 0.5
   breakDamage: 14
-  breakKnock: 8
+  breakKnock: 0.8
   rCooldown: 30
-  rRadius: 16
+  rRadius: 1.6
   rDamage: 90
-  rKnockback: 7
+  rKnockback: 0.7
 --- !u!114 &107336128
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -4279,7 +4297,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 1592.5925, y: 82.7504, z: 3888.8887}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 0.1, y: 0.1, z: 0.1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 2135606205}
@@ -4672,7 +4690,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 3074.074, y: 274.05334, z: 2037.0371}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 0.1, y: 0.1, z: 0.1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 2135606205}
@@ -5037,7 +5055,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 2037.0371, y: 98.699814, z: 3444.4446}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 0.1, y: 0.1, z: 0.1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 2135606205}
@@ -5610,7 +5628,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 2925.926, y: 241.95435, z: 2333.3333}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 0.1, y: 0.1, z: 0.1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 2135606205}
@@ -7298,7 +7316,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 3518.0837, y: 152.86714, z: 2155.3945}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 0.1, y: 0.1, z: 0.1}
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 1910045440}
@@ -7329,13 +7347,13 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::NestSite
   spawner: {fileID: 1834216757}
   egg: {fileID: 2135888176}
-  triggerRadius: 26
+  triggerRadius: 2.6000001
   swarmSize: 12
   swarmInterval: 0.4
   sizeMul: 0.55
   hpMul: 0.3
   dmgMul: 0.5
-  spawnRing: 14
+  spawnRing: 1.4
   bossSizeMul: 2
   bossHpMul: 2.5
   bossDmgMul: 1.6
@@ -7350,7 +7368,7 @@ MonoBehaviour:
     moveSpeed: 1
     range: 1
   warnRatio: 2.2
-  nestModelScale: 4
+  nestModelScale: 0.4
 --- !u!1 &247194586
 GameObject:
   m_ObjectHideFlags: 0
@@ -7918,7 +7936,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 3990.043, y: 68.228516, z: 1366.828}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 0.1, y: 0.1, z: 0.1}
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 498625706}
@@ -7949,13 +7967,13 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::NestSite
   spawner: {fileID: 1834216757}
   egg: {fileID: 393710297}
-  triggerRadius: 26
+  triggerRadius: 2.6000001
   swarmSize: 12
   swarmInterval: 0.4
   sizeMul: 0.55
   hpMul: 0.3
   dmgMul: 0.5
-  spawnRing: 14
+  spawnRing: 1.4
   bossSizeMul: 2
   bossHpMul: 2.5
   bossDmgMul: 1.6
@@ -7970,7 +7988,7 @@ MonoBehaviour:
     moveSpeed: 1
     range: 1
   warnRatio: 2.2
-  nestModelScale: 4
+  nestModelScale: 0.4
 --- !u!1 &267370100
 GameObject:
   m_ObjectHideFlags: 0
@@ -7997,7 +8015,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 2333.3333, y: 167.07968, z: 2777.7778}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 0.1, y: 0.1, z: 0.1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 2135606205}
@@ -8479,7 +8497,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 2084.8271, y: 99.59588, z: 3329.0051}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 0.1, y: 0.1, z: 0.1}
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 1709078054}
@@ -8510,13 +8528,13 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::NestSite
   spawner: {fileID: 1834216757}
   egg: {fileID: 1922377085}
-  triggerRadius: 26
+  triggerRadius: 2.6000001
   swarmSize: 12
   swarmInterval: 0.4
   sizeMul: 0.55
   hpMul: 0.3
   dmgMul: 0.5
-  spawnRing: 14
+  spawnRing: 1.4
   bossSizeMul: 2
   bossHpMul: 2.5
   bossDmgMul: 1.6
@@ -8531,7 +8549,7 @@ MonoBehaviour:
     moveSpeed: 1
     range: 1
   warnRatio: 2.2
-  nestModelScale: 4
+  nestModelScale: 0.4
 --- !u!1 &283437114
 GameObject:
   m_ObjectHideFlags: 0
@@ -8738,7 +8756,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 4259.2593, y: 57.42215, z: 1222.2222}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 0.1, y: 0.1, z: 0.1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 2135606205}
@@ -8981,7 +8999,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 703.7037, y: 4.9439344, z: 2777.7778}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 0.1, y: 0.1, z: 0.1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 2135606205}
@@ -9102,7 +9120,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 1222.2222, y: 72.20505, z: 4407.407}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 0.1, y: 0.1, z: 0.1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 2135606205}
@@ -9378,7 +9396,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 3729.5276, y: 138.6391, z: 3804.5361}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 0.1, y: 0.1, z: 0.1}
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 2102019303}
@@ -9409,13 +9427,13 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::NestSite
   spawner: {fileID: 1834216757}
   egg: {fileID: 1173493909}
-  triggerRadius: 26
+  triggerRadius: 2.6000001
   swarmSize: 12
   swarmInterval: 0.4
   sizeMul: 0.55
   hpMul: 0.3
   dmgMul: 0.5
-  spawnRing: 14
+  spawnRing: 1.4
   bossSizeMul: 2
   bossHpMul: 2.5
   bossDmgMul: 1.6
@@ -9430,7 +9448,7 @@ MonoBehaviour:
     moveSpeed: 1
     range: 1
   warnRatio: 2.2
-  nestModelScale: 4
+  nestModelScale: 0.4
 --- !u!1 &327370317
 GameObject:
   m_ObjectHideFlags: 0
@@ -9672,15 +9690,15 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::FollowCam
   target: {fileID: 107336113}
-  distance: 120
-  minDist: 2.2
-  maxDist: 120
-  height: 4
+  distance: 12
+  minDist: 0.22000001
+  maxDist: 12
+  height: 0.4
   yaw: 449.74863
   pitch: 42.3
   nearPitch: 4.65
   farPitch: 42.3
-  farLookUp: 7.19
+  farLookUp: 0.71900004
   rotSpeed: 0.4
   zoomSpeed: 1.5
   rotSmoothTime: 0.03
@@ -9926,7 +9944,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 3099.238, y: 118.98213, z: 3265.7786}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 0.1, y: 0.1, z: 0.1}
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 284664363}
@@ -9957,13 +9975,13 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::NestSite
   spawner: {fileID: 1834216757}
   egg: {fileID: 1499861500}
-  triggerRadius: 26
+  triggerRadius: 2.6000001
   swarmSize: 12
   swarmInterval: 0.4
   sizeMul: 0.55
   hpMul: 0.3
   dmgMul: 0.5
-  spawnRing: 14
+  spawnRing: 1.4
   bossSizeMul: 2
   bossHpMul: 2.5
   bossDmgMul: 1.6
@@ -9978,7 +9996,7 @@ MonoBehaviour:
     moveSpeed: 1
     range: 1
   warnRatio: 2.2
-  nestModelScale: 4
+  nestModelScale: 0.4
 --- !u!1 &357142637
 GameObject:
   m_ObjectHideFlags: 0
@@ -10907,7 +10925,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 4925.926, y: 85.55653, z: 2333.3333}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 0.1, y: 0.1, z: 0.1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 2135606205}
@@ -10939,7 +10957,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 3642.5535, y: 93.42219, z: 1614.921}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 0.1, y: 0.1, z: 0.1}
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 793759057}
@@ -10970,13 +10988,13 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::NestSite
   spawner: {fileID: 1834216757}
   egg: {fileID: 538333299}
-  triggerRadius: 26
+  triggerRadius: 2.6000001
   swarmSize: 12
   swarmInterval: 0.4
   sizeMul: 0.55
   hpMul: 0.3
   dmgMul: 0.5
-  spawnRing: 14
+  spawnRing: 1.4
   bossSizeMul: 2
   bossHpMul: 2.5
   bossDmgMul: 1.6
@@ -10991,7 +11009,7 @@ MonoBehaviour:
     moveSpeed: 1
     range: 1
   warnRatio: 2.2
-  nestModelScale: 4
+  nestModelScale: 0.4
 --- !u!1 &410087039
 GameObject:
   m_ObjectHideFlags: 0
@@ -11236,7 +11254,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 1424.6232, y: 91.61334, z: 1654.2764}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 0.1, y: 0.1, z: 0.1}
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 909219669}
@@ -11267,13 +11285,13 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::NestSite
   spawner: {fileID: 1834216757}
   egg: {fileID: 1095814938}
-  triggerRadius: 26
+  triggerRadius: 2.6000001
   swarmSize: 12
   swarmInterval: 0.4
   sizeMul: 0.55
   hpMul: 0.3
   dmgMul: 0.5
-  spawnRing: 14
+  spawnRing: 1.4
   bossSizeMul: 2
   bossHpMul: 2.5
   bossDmgMul: 1.6
@@ -11288,7 +11306,7 @@ MonoBehaviour:
     moveSpeed: 1
     range: 1
   warnRatio: 2.2
-  nestModelScale: 4
+  nestModelScale: 0.4
 --- !u!21 &414173269
 Material:
   serializedVersion: 8
@@ -17263,7 +17281,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 777.7778, y: 59.27287, z: 1444.4445}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 0.1, y: 0.1, z: 0.1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 2135606205}
@@ -17839,7 +17857,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 1740.7407, y: 91.73926, z: 1666.6667}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 0.1, y: 0.1, z: 0.1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 2135606205}
@@ -19133,7 +19151,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 1354.0697, y: 76.20735, z: 4110.4956}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 0.1, y: 0.1, z: 0.1}
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 1320486547}
@@ -19164,13 +19182,13 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::NestSite
   spawner: {fileID: 1834216757}
   egg: {fileID: 168583772}
-  triggerRadius: 26
+  triggerRadius: 2.6000001
   swarmSize: 5
   swarmInterval: 0.4
   sizeMul: 0.55
   hpMul: 0.3
   dmgMul: 0.5
-  spawnRing: 14
+  spawnRing: 1.4
   bossSizeMul: 1.5
   bossHpMul: 1.4
   bossDmgMul: 1.1
@@ -19185,7 +19203,7 @@ MonoBehaviour:
     moveSpeed: 1
     range: 1
   warnRatio: 2.2
-  nestModelScale: 4
+  nestModelScale: 0.4
 --- !u!1 &537795660
 GameObject:
   m_ObjectHideFlags: 0
@@ -20205,7 +20223,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 1511.1901, y: 76.58958, z: 4236.735}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 0.1, y: 0.1, z: 0.1}
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 1107871216}
@@ -20236,13 +20254,13 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::NestSite
   spawner: {fileID: 1834216757}
   egg: {fileID: 693626892}
-  triggerRadius: 26
+  triggerRadius: 2.6000001
   swarmSize: 5
   swarmInterval: 0.4
   sizeMul: 0.55
   hpMul: 0.3
   dmgMul: 0.5
-  spawnRing: 14
+  spawnRing: 1.4
   bossSizeMul: 1.5
   bossHpMul: 1.4
   bossDmgMul: 1.1
@@ -20257,7 +20275,7 @@ MonoBehaviour:
     moveSpeed: 1
     range: 1
   warnRatio: 2.2
-  nestModelScale: 4
+  nestModelScale: 0.4
 --- !u!1 &570557816
 GameObject:
   m_ObjectHideFlags: 0
@@ -20383,7 +20401,7 @@ MonoBehaviour:
   stickRatio: 0.55
   seed: 11
   respawnDelay: 90
-  minRespawnDist: 45
+  minRespawnDist: 4.5
   minHeight: 42
   maxHeight: 130
   maxSlope: 22
@@ -21122,7 +21140,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 1074.0741, y: 72.0513, z: 3666.6667}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 0.1, y: 0.1, z: 0.1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 2135606205}
@@ -21514,7 +21532,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 5522.2773, y: 50.26154, z: 1748.3395}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 0.1, y: 0.1, z: 0.1}
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 1924532204}
@@ -21545,13 +21563,13 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::NestSite
   spawner: {fileID: 1834216757}
   egg: {fileID: 1135767574}
-  triggerRadius: 26
+  triggerRadius: 2.6000001
   swarmSize: 12
   swarmInterval: 0.4
   sizeMul: 0.55
   hpMul: 0.3
   dmgMul: 0.5
-  spawnRing: 14
+  spawnRing: 1.4
   bossSizeMul: 2
   bossHpMul: 2.5
   bossDmgMul: 1.6
@@ -21566,7 +21584,7 @@ MonoBehaviour:
     moveSpeed: 1
     range: 1
   warnRatio: 2.2
-  nestModelScale: 4
+  nestModelScale: 0.4
 --- !u!1 &633296858
 GameObject:
   m_ObjectHideFlags: 0
@@ -21773,7 +21791,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 1740.7407, y: 63.919186, z: 1074.0741}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 0.1, y: 0.1, z: 0.1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 2135606205}
@@ -21804,7 +21822,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 3592.5925, y: 268.93085, z: 2407.4075}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 0.1, y: 0.1, z: 0.1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 2135606205}
@@ -22225,12 +22243,12 @@ MonoBehaviour:
     on: 0
   layerThreshold: 0.744
   density: 0.85
-  drawDistance: 300
+  drawDistance: 30
   cellSize: 2
   blockStrength: 0.105
-  edgeBand: 7.34
+  edgeBand: 0.734
   edgeDensity: 0.46
-  edgeSize: 0.914
+  edgeSize: 0.0914
   edgeJitter: 0.209
   edgeProtoCount: 3
   maxSlope: 34
@@ -22344,12 +22362,12 @@ MonoBehaviour:
     on: 0
   layerThreshold: 0.9
   spacing: 18.9
-  minDistance: 3.91
+  minDistance: 0.391
   forestContrast: 1
   forestDensity: 0.461
   plainsDensity: 0.3
   palmDensity: 0
-  edgeMargin: 12
+  edgeMargin: 1.2
   clumpStrength: 1
   clumpSize: 295
   maxSlope: 28
@@ -22403,9 +22421,9 @@ MonoBehaviour:
   - layer: {fileID: 8574412962073106934, guid: 734244157d9e7d445b51cf0c3e0a0c17, type: 2}
     on: 0
   layerThreshold: 0.772
-  footprint: 1.3
-  edgeMargin: 1
-  treeGap: 2.09
+  footprint: 0.13
+  edgeMargin: 0.1
+  treeGap: 0.20899999
   cellSize: 30.78
   density: 0.134
   clump: 0.967
@@ -22425,18 +22443,18 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: f3a3c9a7689315a46990de944d4d919b, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::DropDisplayManager
-  iconSize: 2.4
-  bobAmp: 0.64
+  iconSize: 0.24000001
+  bobAmp: 0.064
   bobSpeed: 2.4
   beamOn: 1
-  beamHeight: 11.23
-  beamWidth: 3.05
+  beamHeight: 1.123
+  beamWidth: 0.305
   beamAlpha: 0.6
   woodColor: {r: 0.65, g: 1.7, b: 0.5, a: 1}
   stoneColor: {r: 1.3, g: 1.3, b: 1.5, a: 1}
   eggColor: {r: 1.9, g: 1.55, b: 0.5, a: 1}
-  highlightDist: 0.4
-  highlightScale: 0.05
+  highlightDist: 0.040000003
+  highlightScale: 0.0050000004
 --- !u!114 &653440024
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -22494,7 +22512,7 @@ MonoBehaviour:
   respawnOn: 1
   delay: 180
   jitter: 0.3
-  minPlayerDist: 55
+  minPlayerDist: 5.5
 --- !u!1 &657558718
 GameObject:
   m_ObjectHideFlags: 0
@@ -22791,7 +22809,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 1592.5925, y: 69.06516, z: 4629.63}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 0.1, y: 0.1, z: 0.1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 2135606205}
@@ -22822,7 +22840,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 1962.963, y: 137.53952, z: 2481.4814}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 0.1, y: 0.1, z: 0.1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 2135606205}
@@ -22853,7 +22871,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 1814.8148, y: 65.898544, z: 4777.778}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 0.1, y: 0.1, z: 0.1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 2135606205}
@@ -23516,7 +23534,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 2333.3333, y: 227.18137, z: 2481.4814}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 0.1, y: 0.1, z: 0.1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 2135606205}
@@ -23640,7 +23658,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 4105.786, y: 12.481831, z: 4819.0483}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 0.1, y: 0.1, z: 0.1}
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 1964603736}
@@ -23671,13 +23689,13 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::NestSite
   spawner: {fileID: 1834216757}
   egg: {fileID: 2020407798}
-  triggerRadius: 26
+  triggerRadius: 2.6000001
   swarmSize: 12
   swarmInterval: 0.4
   sizeMul: 0.55
   hpMul: 0.3
   dmgMul: 0.5
-  spawnRing: 14
+  spawnRing: 1.4
   bossSizeMul: 2
   bossHpMul: 2.5
   bossDmgMul: 1.6
@@ -23692,7 +23710,7 @@ MonoBehaviour:
     moveSpeed: 1
     range: 1
   warnRatio: 2.2
-  nestModelScale: 4
+  nestModelScale: 0.4
 --- !u!1 &703493727
 GameObject:
   m_ObjectHideFlags: 0
@@ -23720,7 +23738,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 1757.8649, y: 74.25775, z: 4361.982}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 0.1, y: 0.1, z: 0.1}
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 1953285501}
@@ -23751,13 +23769,13 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::NestSite
   spawner: {fileID: 1834216757}
   egg: {fileID: 902360234}
-  triggerRadius: 26
+  triggerRadius: 2.6000001
   swarmSize: 5
   swarmInterval: 0.4
   sizeMul: 0.55
   hpMul: 0.3
   dmgMul: 0.5
-  spawnRing: 14
+  spawnRing: 1.4
   bossSizeMul: 1.5
   bossHpMul: 1.4
   bossDmgMul: 1.1
@@ -23772,7 +23790,7 @@ MonoBehaviour:
     moveSpeed: 1
     range: 1
   warnRatio: 2.2
-  nestModelScale: 4
+  nestModelScale: 0.4
 --- !u!1 &712506141
 GameObject:
   m_ObjectHideFlags: 0
@@ -24070,7 +24088,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 730.7714, y: 64.671745, z: 2523.0095}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 0.1, y: 0.1, z: 0.1}
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 1126346295}
@@ -24101,13 +24119,13 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::NestSite
   spawner: {fileID: 1834216757}
   egg: {fileID: 185422016}
-  triggerRadius: 26
+  triggerRadius: 2.6000001
   swarmSize: 12
   swarmInterval: 0.4
   sizeMul: 0.55
   hpMul: 0.3
   dmgMul: 0.5
-  spawnRing: 14
+  spawnRing: 1.4
   bossSizeMul: 2
   bossHpMul: 2.5
   bossDmgMul: 1.6
@@ -24122,7 +24140,7 @@ MonoBehaviour:
     moveSpeed: 1
     range: 1
   warnRatio: 2.2
-  nestModelScale: 4
+  nestModelScale: 0.4
 --- !u!1 &733754384
 GameObject:
   m_ObjectHideFlags: 0
@@ -24419,7 +24437,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 1740.7407, y: 116.04646, z: 2185.185}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 0.1, y: 0.1, z: 0.1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 2135606205}
@@ -24450,7 +24468,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 851.85187, y: 78.89002, z: 1962.963}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 0.1, y: 0.1, z: 0.1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 2135606205}
@@ -25111,7 +25129,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 1334.02, y: 65.5, z: 4902.98}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 0.1, y: 0.1, z: 0.1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 2135606205}
@@ -25232,7 +25250,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 2777.7778, y: 300.06635, z: 2703.7036}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 0.1, y: 0.1, z: 0.1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 2135606205}
@@ -25837,7 +25855,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 4333.3335, y: 115.55846, z: 3296.2961}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 0.1, y: 0.1, z: 0.1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 2135606205}
@@ -26892,7 +26910,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 3074.074, y: 136.68712, z: 1740.7407}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 0.1, y: 0.1, z: 0.1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 2135606205}
@@ -27422,7 +27440,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 1000, y: 66.41732, z: 4777.778}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 0.1, y: 0.1, z: 0.1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 2135606205}
@@ -27756,7 +27774,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 4423.7085, y: 61.34748, z: 1218.9556}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 0.1, y: 0.1, z: 0.1}
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 35887163}
@@ -27787,13 +27805,13 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::NestSite
   spawner: {fileID: 1834216757}
   egg: {fileID: 83664943}
-  triggerRadius: 26
+  triggerRadius: 2.6000001
   swarmSize: 12
   swarmInterval: 0.4
   sizeMul: 0.55
   hpMul: 0.3
   dmgMul: 0.5
-  spawnRing: 14
+  spawnRing: 1.4
   bossSizeMul: 2
   bossHpMul: 2.5
   bossDmgMul: 1.6
@@ -27808,7 +27826,7 @@ MonoBehaviour:
     moveSpeed: 1
     range: 1
   warnRatio: 2.2
-  nestModelScale: 4
+  nestModelScale: 0.4
 --- !u!1 &847094270
 GameObject:
   m_ObjectHideFlags: 0
@@ -27835,7 +27853,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 1592.5925, y: 93.43281, z: 3370.3706}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 0.1, y: 0.1, z: 0.1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 2135606205}
@@ -28048,7 +28066,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 3518.5186, y: 140.62474, z: 3074.074}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 0.1, y: 0.1, z: 0.1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 2135606205}
@@ -28563,7 +28581,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 4703.7036, y: 85.68501, z: 3814.8147}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 0.1, y: 0.1, z: 0.1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 2135606205}
@@ -29018,7 +29036,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 1370.3704, y: 76.20735, z: 4037.037}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 0.1, y: 0.1, z: 0.1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 2135606205}
@@ -29501,7 +29519,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 1222.2222, y: 92.695145, z: 1814.8148}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 0.1, y: 0.1, z: 0.1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 2135606205}
@@ -29803,7 +29821,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 2924.5825, y: 83.3888, z: 3853.84}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 0.1, y: 0.1, z: 0.1}
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 1038221321}
@@ -29834,13 +29852,13 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::NestSite
   spawner: {fileID: 1834216757}
   egg: {fileID: 782868380}
-  triggerRadius: 26
+  triggerRadius: 2.6000001
   swarmSize: 12
   swarmInterval: 0.4
   sizeMul: 0.55
   hpMul: 0.3
   dmgMul: 0.5
-  spawnRing: 14
+  spawnRing: 1.4
   bossSizeMul: 2
   bossHpMul: 2.5
   bossDmgMul: 1.6
@@ -29855,7 +29873,7 @@ MonoBehaviour:
     moveSpeed: 1
     range: 1
   warnRatio: 2.2
-  nestModelScale: 4
+  nestModelScale: 0.4
 --- !u!1 &912497716
 GameObject:
   m_ObjectHideFlags: 0
@@ -29882,7 +29900,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 2629.6296, y: 83.60342, z: 1222.2222}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 0.1, y: 0.1, z: 0.1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 2135606205}
@@ -29913,7 +29931,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 1666.6667, y: 60.10645, z: 5000}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 0.1, y: 0.1, z: 0.1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 2135606205}
@@ -29944,7 +29962,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 3444.4446, y: 236.87482, z: 2925.926}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 0.1, y: 0.1, z: 0.1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 2135606205}
@@ -30515,7 +30533,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 4111.1113, y: 187.84813, z: 2333.3333}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 0.1, y: 0.1, z: 0.1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 2135606205}
@@ -31298,7 +31316,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 4629.63, y: 88.385826, z: 1666.6667}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 0.1, y: 0.1, z: 0.1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 2135606205}
@@ -31541,7 +31559,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 1444.4445, y: 90.56058, z: 2629.6296}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 0.1, y: 0.1, z: 0.1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 2135606205}
@@ -32145,7 +32163,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 1634.9775, y: 87.96588, z: 3647.7024}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 0.1, y: 0.1, z: 0.1}
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 773065869}
@@ -32176,13 +32194,13 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::NestSite
   spawner: {fileID: 1834216757}
   egg: {fileID: 474248543}
-  triggerRadius: 26
+  triggerRadius: 2.6000001
   swarmSize: 12
   swarmInterval: 0.4
   sizeMul: 0.55
   hpMul: 0.3
   dmgMul: 0.5
-  spawnRing: 14
+  spawnRing: 1.4
   bossSizeMul: 2
   bossHpMul: 2.5
   bossDmgMul: 1.6
@@ -32197,7 +32215,7 @@ MonoBehaviour:
     moveSpeed: 1
     range: 1
   warnRatio: 2.2
-  nestModelScale: 4
+  nestModelScale: 0.4
 --- !u!1 &994067640
 GameObject:
   m_ObjectHideFlags: 0
@@ -32404,7 +32422,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 3962.9631, y: 106.580635, z: 4111.1113}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 0.1, y: 0.1, z: 0.1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 2135606205}
@@ -32647,7 +32665,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 1592.5925, y: 87.96588, z: 3592.5925}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 0.1, y: 0.1, z: 0.1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 2135606205}
@@ -32678,7 +32696,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 4185.185, y: 51.073685, z: 4703.7036}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 0.1, y: 0.1, z: 0.1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 2135606205}
@@ -33583,7 +33601,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 4629.63, y: 76.82382, z: 4259.2593}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 0.1, y: 0.1, z: 0.1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 2135606205}
@@ -33794,7 +33812,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 2851.852, y: 182.43733, z: 1888.8888}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 0.1, y: 0.1, z: 0.1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 2135606205}
@@ -33826,7 +33844,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 1738.461, y: 59.76249, z: 4718.742}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 0.1, y: 0.1, z: 0.1}
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 126057141}
@@ -33857,13 +33875,13 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::NestSite
   spawner: {fileID: 1834216757}
   egg: {fileID: 857880392}
-  triggerRadius: 26
+  triggerRadius: 2.6000001
   swarmSize: 12
   swarmInterval: 0.4
   sizeMul: 0.55
   hpMul: 0.3
   dmgMul: 0.5
-  spawnRing: 14
+  spawnRing: 1.4
   bossSizeMul: 2
   bossHpMul: 2.5
   bossDmgMul: 1.6
@@ -33878,7 +33896,7 @@ MonoBehaviour:
     moveSpeed: 1
     range: 1
   warnRatio: 2.2
-  nestModelScale: 4
+  nestModelScale: 0.4
 --- !u!1 &1060076098
 GameObject:
   m_ObjectHideFlags: 0
@@ -33995,7 +34013,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 4259.2593, y: 193.2831, z: 2925.926}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 0.1, y: 0.1, z: 0.1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 2135606205}
@@ -34690,7 +34708,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 1296.2964, y: 66.41732, z: 4925.926}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 0.1, y: 0.1, z: 0.1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 2135606205}
@@ -35805,7 +35823,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 1962.963, y: 215.5902, z: 1962.963}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 0.1, y: 0.1, z: 0.1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 2135606205}
@@ -35928,7 +35946,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 1814.8148, y: 141.66844, z: 2259.2593}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 0.1, y: 0.1, z: 0.1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 2135606205}
@@ -37767,7 +37785,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 2111.111, y: 66.25498, z: 4703.7036}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 0.1, y: 0.1, z: 0.1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 2135606205}
@@ -38191,7 +38209,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 1751.3491, y: 70.20056, z: 4523.927}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 0.1, y: 0.1, z: 0.1}
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 715966438}
@@ -38222,13 +38240,13 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::NestSite
   spawner: {fileID: 1834216757}
   egg: {fileID: 1749370172}
-  triggerRadius: 26
+  triggerRadius: 2.6000001
   swarmSize: 5
   swarmInterval: 0.4
   sizeMul: 0.55
   hpMul: 0.3
   dmgMul: 0.5
-  spawnRing: 14
+  spawnRing: 1.4
   bossSizeMul: 1.5
   bossHpMul: 1.4
   bossDmgMul: 1.1
@@ -38243,7 +38261,7 @@ MonoBehaviour:
     moveSpeed: 1
     range: 1
   warnRatio: 2.2
-  nestModelScale: 4
+  nestModelScale: 0.4
 --- !u!1 &1227570073
 GameObject:
   m_ObjectHideFlags: 0
@@ -38844,7 +38862,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 2111.111, y: 175.23994, z: 1814.8148}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 0.1, y: 0.1, z: 0.1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 2135606205}
@@ -38966,7 +38984,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 974.707, y: 72.362206, z: 4424.352}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 0.1, y: 0.1, z: 0.1}
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 391445658}
@@ -38997,13 +39015,13 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::NestSite
   spawner: {fileID: 1834216757}
   egg: {fileID: 2036224728}
-  triggerRadius: 26
+  triggerRadius: 2.6000001
   swarmSize: 12
   swarmInterval: 0.4
   sizeMul: 0.55
   hpMul: 0.3
   dmgMul: 0.5
-  spawnRing: 14
+  spawnRing: 1.4
   bossSizeMul: 2
   bossHpMul: 2.5
   bossDmgMul: 1.6
@@ -39018,7 +39036,7 @@ MonoBehaviour:
     moveSpeed: 1
     range: 1
   warnRatio: 2.2
-  nestModelScale: 4
+  nestModelScale: 0.4
 --- !u!1 &1259111415
 GameObject:
   m_ObjectHideFlags: 0
@@ -39225,7 +39243,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 1814.8148, y: 79.34966, z: 4111.1113}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 0.1, y: 0.1, z: 0.1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 2135606205}
@@ -39256,7 +39274,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 4481.4814, y: 135.77786, z: 2851.852}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 0.1, y: 0.1, z: 0.1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 2135606205}
@@ -39683,7 +39701,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 3000, y: 208.66144, z: 1888.8888}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 0.1, y: 0.1, z: 0.1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 2135606205}
@@ -40238,15 +40256,15 @@ PrefabInstance:
     m_Modifications:
     - target: {fileID: -7254855884874844228, guid: a9f97bdace247ed49a6a0d1b04c63f3e, type: 3}
       propertyPath: m_LocalScale.x
-      value: 2.2390738
+      value: 0.22390738
       objectReference: {fileID: 0}
     - target: {fileID: -7254855884874844228, guid: a9f97bdace247ed49a6a0d1b04c63f3e, type: 3}
       propertyPath: m_LocalScale.y
-      value: 2.2390738
+      value: 0.22390738
       objectReference: {fileID: 0}
     - target: {fileID: -7254855884874844228, guid: a9f97bdace247ed49a6a0d1b04c63f3e, type: 3}
       propertyPath: m_LocalScale.z
-      value: 2.2390738
+      value: 0.22390738
       objectReference: {fileID: 0}
     - target: {fileID: -7254855884874844228, guid: a9f97bdace247ed49a6a0d1b04c63f3e, type: 3}
       propertyPath: m_LocalPosition.x
@@ -40254,7 +40272,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: -7254855884874844228, guid: a9f97bdace247ed49a6a0d1b04c63f3e, type: 3}
       propertyPath: m_LocalPosition.y
-      value: 77.37
+      value: 74.89
       objectReference: {fileID: 0}
     - target: {fileID: -7254855884874844228, guid: a9f97bdace247ed49a6a0d1b04c63f3e, type: 3}
       propertyPath: m_LocalPosition.z
@@ -40551,7 +40569,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 2185.185, y: 63.3876, z: 4851.852}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 0.1, y: 0.1, z: 0.1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 2135606205}
@@ -40672,7 +40690,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 1666.6667, y: 71.96754, z: 4481.4814}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 0.1, y: 0.1, z: 0.1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 2135606205}
@@ -40793,7 +40811,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 3740.7407, y: 119.29491, z: 2111.111}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 0.1, y: 0.1, z: 0.1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 2135606205}
@@ -40824,7 +40842,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 4264, y: 93, z: 3966}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 0.1, y: 0.1, z: 0.1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 2135606205}
@@ -40930,7 +40948,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 3296.2961, y: 266.43646, z: 2481.4814}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 0.1, y: 0.1, z: 0.1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 2135606205}
@@ -40962,7 +40980,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 1045.1, y: 63.27, z: 4997.9}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 0.1, y: 0.1, z: 0.1}
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 35870680}
@@ -40993,13 +41011,13 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::NestSite
   spawner: {fileID: 1834216757}
   egg: {fileID: 62672447}
-  triggerRadius: 26
+  triggerRadius: 2.6000001
   swarmSize: 12
   swarmInterval: 0.4
   sizeMul: 0.55
   hpMul: 0.3
   dmgMul: 0.5
-  spawnRing: 14
+  spawnRing: 1.4
   bossSizeMul: 2
   bossHpMul: 2.5
   bossDmgMul: 1.6
@@ -41014,7 +41032,7 @@ MonoBehaviour:
     moveSpeed: 1
     range: 1
   warnRatio: 2.2
-  nestModelScale: 4
+  nestModelScale: 0.4
 --- !u!1 &1358273100
 GameObject:
   m_ObjectHideFlags: 0
@@ -41613,7 +41631,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 5074.0737, y: 93.15794, z: 1962.963}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 0.1, y: 0.1, z: 0.1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 2135606205}
@@ -42004,7 +42022,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 4333.3335, y: 166.31355, z: 2333.3333}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 0.1, y: 0.1, z: 0.1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 2135606205}
@@ -42215,7 +42233,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 1888.8888, y: 95.9674, z: 3296.2961}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 0.1, y: 0.1, z: 0.1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 2135606205}
@@ -42246,7 +42264,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 2259.2593, y: 162.84486, z: 2629.6296}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 0.1, y: 0.1, z: 0.1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 2135606205}
@@ -42277,7 +42295,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 3888.8887, y: 264.63467, z: 2407.4075}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 0.1, y: 0.1, z: 0.1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 2135606205}
@@ -42398,7 +42416,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 4259.2593, y: 71.55131, z: 4259.2593}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 0.1, y: 0.1, z: 0.1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 2135606205}
@@ -42520,7 +42538,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 877.5791, y: 59.38889, z: 1351.3982}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 0.1, y: 0.1, z: 0.1}
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 1617612511}
@@ -42551,13 +42569,13 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::NestSite
   spawner: {fileID: 1834216757}
   egg: {fileID: 680266727}
-  triggerRadius: 26
+  triggerRadius: 2.6000001
   swarmSize: 12
   swarmInterval: 0.4
   sizeMul: 0.55
   hpMul: 0.3
   dmgMul: 0.5
-  spawnRing: 14
+  spawnRing: 1.4
   bossSizeMul: 2
   bossHpMul: 2.5
   bossDmgMul: 1.6
@@ -42572,7 +42590,7 @@ MonoBehaviour:
     moveSpeed: 1
     range: 1
   warnRatio: 2.2
-  nestModelScale: 4
+  nestModelScale: 0.4
 --- !u!1 &1411887275
 GameObject:
   m_ObjectHideFlags: 0
@@ -42599,7 +42617,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 3814.8147, y: 373.35178, z: 2703.7036}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 0.1, y: 0.1, z: 0.1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 2135606205}
@@ -42721,7 +42739,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 2636.5461, y: 91.21956, z: 3729.7332}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 0.1, y: 0.1, z: 0.1}
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 1568524114}
@@ -42752,13 +42770,13 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::NestSite
   spawner: {fileID: 1834216757}
   egg: {fileID: 145786205}
-  triggerRadius: 26
+  triggerRadius: 2.6000001
   swarmSize: 12
   swarmInterval: 0.4
   sizeMul: 0.55
   hpMul: 0.3
   dmgMul: 0.5
-  spawnRing: 14
+  spawnRing: 1.4
   bossSizeMul: 2
   bossHpMul: 2.5
   bossDmgMul: 1.6
@@ -42773,7 +42791,7 @@ MonoBehaviour:
     moveSpeed: 1
     range: 1
   warnRatio: 2.2
-  nestModelScale: 4
+  nestModelScale: 0.4
 --- !u!1 &1426080286
 GameObject:
   m_ObjectHideFlags: 0
@@ -42800,7 +42818,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 2259.2593, y: 274.36014, z: 2037.0371}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 0.1, y: 0.1, z: 0.1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 2135606205}
@@ -43102,7 +43120,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 4258.948, y: 134.82123, z: 2195.5361}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 0.1, y: 0.1, z: 0.1}
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 1220736500}
@@ -43133,13 +43151,13 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::NestSite
   spawner: {fileID: 1834216757}
   egg: {fileID: 526800523}
-  triggerRadius: 26
+  triggerRadius: 2.6000001
   swarmSize: 12
   swarmInterval: 0.4
   sizeMul: 0.55
   hpMul: 0.3
   dmgMul: 0.5
-  spawnRing: 14
+  spawnRing: 1.4
   bossSizeMul: 2
   bossHpMul: 2.5
   bossDmgMul: 1.6
@@ -43154,7 +43172,7 @@ MonoBehaviour:
     moveSpeed: 1
     range: 1
   warnRatio: 2.2
-  nestModelScale: 4
+  nestModelScale: 0.4
 --- !u!1 &1445617858
 GameObject:
   m_ObjectHideFlags: 0
@@ -44235,7 +44253,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 2333.3333, y: 90.84671, z: 1444.4445}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 0.1, y: 0.1, z: 0.1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 2135606205}
@@ -44266,7 +44284,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 4333.3335, y: 240.73917, z: 2629.6296}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 0.1, y: 0.1, z: 0.1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 2135606205}
@@ -44747,7 +44765,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 3296.2961, y: 231.6387, z: 2851.852}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 0.1, y: 0.1, z: 0.1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 2135606205}
@@ -44779,7 +44797,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 4824.9014, y: 87.56755, z: 2885.8655}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 0.1, y: 0.1, z: 0.1}
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 1261654287}
@@ -44810,13 +44828,13 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::NestSite
   spawner: {fileID: 1834216757}
   egg: {fileID: 202252895}
-  triggerRadius: 26
+  triggerRadius: 2.6000001
   swarmSize: 12
   swarmInterval: 0.4
   sizeMul: 0.55
   hpMul: 0.3
   dmgMul: 0.5
-  spawnRing: 14
+  spawnRing: 1.4
   bossSizeMul: 2
   bossHpMul: 2.5
   bossDmgMul: 1.6
@@ -44831,7 +44849,7 @@ MonoBehaviour:
     moveSpeed: 1
     range: 1
   warnRatio: 2.2
-  nestModelScale: 4
+  nestModelScale: 0.4
 --- !u!1 &1499861499
 GameObject:
   m_ObjectHideFlags: 0
@@ -45703,7 +45721,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 4651.243, y: 86.66829, z: 3786.4397}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 0.1, y: 0.1, z: 0.1}
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 1504163314}
@@ -45734,13 +45752,13 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::NestSite
   spawner: {fileID: 1834216757}
   egg: {fileID: 1240982393}
-  triggerRadius: 26
+  triggerRadius: 2.6000001
   swarmSize: 12
   swarmInterval: 0.4
   sizeMul: 0.55
   hpMul: 0.3
   dmgMul: 0.5
-  spawnRing: 14
+  spawnRing: 1.4
   bossSizeMul: 2
   bossHpMul: 2.5
   bossDmgMul: 1.6
@@ -45755,7 +45773,7 @@ MonoBehaviour:
     moveSpeed: 1
     range: 1
   warnRatio: 2.2
-  nestModelScale: 4
+  nestModelScale: 0.4
 --- !u!1 &1540250675
 GameObject:
   m_ObjectHideFlags: 0
@@ -45783,7 +45801,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 2129.7495, y: 81.56993, z: 1205.024}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 0.1, y: 0.1, z: 0.1}
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 1111728751}
@@ -45814,13 +45832,13 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::NestSite
   spawner: {fileID: 1834216757}
   egg: {fileID: 1864640563}
-  triggerRadius: 26
+  triggerRadius: 2.6000001
   swarmSize: 12
   swarmInterval: 0.4
   sizeMul: 0.55
   hpMul: 0.3
   dmgMul: 0.5
-  spawnRing: 14
+  spawnRing: 1.4
   bossSizeMul: 2
   bossHpMul: 2.5
   bossDmgMul: 1.6
@@ -45835,7 +45853,7 @@ MonoBehaviour:
     moveSpeed: 1
     range: 1
   warnRatio: 2.2
-  nestModelScale: 4
+  nestModelScale: 0.4
 --- !u!1 &1542384062
 GameObject:
   m_ObjectHideFlags: 0
@@ -46042,7 +46060,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 4037.037, y: 124.57262, z: 3148.148}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 0.1, y: 0.1, z: 0.1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 2135606205}
@@ -46073,7 +46091,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 3740.7407, y: 221.30972, z: 2925.926}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 0.1, y: 0.1, z: 0.1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 2135606205}
@@ -46406,7 +46424,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 3148.148, y: 128.46878, z: 3148.148}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 0.1, y: 0.1, z: 0.1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 2135606205}
@@ -46797,7 +46815,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 3222.2222, y: 360.47473, z: 2629.6296}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 0.1, y: 0.1, z: 0.1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 2135606205}
@@ -48094,7 +48112,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 4481.4814, y: 88.774826, z: 1666.6667}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 0.1, y: 0.1, z: 0.1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 2135606205}
@@ -48575,7 +48593,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 1444.4445, y: 92.79673, z: 2333.3333}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 0.1, y: 0.1, z: 0.1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 2135606205}
@@ -48606,7 +48624,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 3370.3706, y: 125.25324, z: 3370.3706}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 0.1, y: 0.1, z: 0.1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 2135606205}
@@ -48637,7 +48655,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 3000, y: 85.77137, z: 3814.8147}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 0.1, y: 0.1, z: 0.1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 2135606205}
@@ -49029,7 +49047,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 4993.6167, y: 55.12356, z: 4484.9746}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 0.1, y: 0.1, z: 0.1}
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 101760884}
@@ -49060,13 +49078,13 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::NestSite
   spawner: {fileID: 1834216757}
   egg: {fileID: 1156017777}
-  triggerRadius: 26
+  triggerRadius: 2.6000001
   swarmSize: 12
   swarmInterval: 0.4
   sizeMul: 0.55
   hpMul: 0.3
   dmgMul: 0.5
-  spawnRing: 14
+  spawnRing: 1.4
   bossSizeMul: 2
   bossHpMul: 2.5
   bossDmgMul: 1.6
@@ -49081,7 +49099,7 @@ MonoBehaviour:
     moveSpeed: 1
     range: 1
   warnRatio: 2.2
-  nestModelScale: 4
+  nestModelScale: 0.4
 --- !u!1 &1684043301
 GameObject:
   m_ObjectHideFlags: 0
@@ -49289,7 +49307,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 966.8909, y: 84.93944, z: 1950.3915}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 0.1, y: 0.1, z: 0.1}
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 121760595}
@@ -49320,13 +49338,13 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::NestSite
   spawner: {fileID: 1834216757}
   egg: {fileID: 800691948}
-  triggerRadius: 26
+  triggerRadius: 2.6000001
   swarmSize: 12
   swarmInterval: 0.4
   sizeMul: 0.55
   hpMul: 0.3
   dmgMul: 0.5
-  spawnRing: 14
+  spawnRing: 1.4
   bossSizeMul: 2
   bossHpMul: 2.5
   bossDmgMul: 1.6
@@ -49341,7 +49359,7 @@ MonoBehaviour:
     moveSpeed: 1
     range: 1
   warnRatio: 2.2
-  nestModelScale: 4
+  nestModelScale: 0.4
 --- !u!1 &1701273836
 GameObject:
   m_ObjectHideFlags: 0
@@ -49548,7 +49566,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 2111.111, y: 313.67065, z: 2037.0371}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 0.1, y: 0.1, z: 0.1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 2135606205}
@@ -51721,7 +51739,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 1664.489, y: 77.207504, z: 4217.454}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 0.1, y: 0.1, z: 0.1}
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 1753159492}
@@ -51752,13 +51770,13 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::NestSite
   spawner: {fileID: 1834216757}
   egg: {fileID: 868668395}
-  triggerRadius: 26
+  triggerRadius: 2.6000001
   swarmSize: 5
   swarmInterval: 0.4
   sizeMul: 0.55
   hpMul: 0.3
   dmgMul: 0.5
-  spawnRing: 14
+  spawnRing: 1.4
   bossSizeMul: 1.5
   bossHpMul: 1.4
   bossDmgMul: 1.1
@@ -51773,7 +51791,7 @@ MonoBehaviour:
     moveSpeed: 1
     range: 1
   warnRatio: 2.2
-  nestModelScale: 4
+  nestModelScale: 0.4
 --- !u!1 &1784858024
 GameObject:
   m_ObjectHideFlags: 0
@@ -51800,7 +51818,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 2555.5557, y: 325.77097, z: 2703.7036}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 0.1, y: 0.1, z: 0.1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 2135606205}
@@ -51831,7 +51849,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 3148.148, y: 81.93611, z: 1296.2964}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 0.1, y: 0.1, z: 0.1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 2135606205}
@@ -52042,7 +52060,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 4703.7036, y: 92.368034, z: 2407.4075}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 0.1, y: 0.1, z: 0.1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 2135606205}
@@ -52074,7 +52092,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 967.6299, y: 66.41732, z: 4748.6597}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 0.1, y: 0.1, z: 0.1}
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 2118887876}
@@ -52105,13 +52123,13 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::NestSite
   spawner: {fileID: 1834216757}
   egg: {fileID: 1151667100}
-  triggerRadius: 26
+  triggerRadius: 2.6000001
   swarmSize: 12
   swarmInterval: 0.4
   sizeMul: 0.55
   hpMul: 0.3
   dmgMul: 0.5
-  spawnRing: 14
+  spawnRing: 1.4
   bossSizeMul: 2
   bossHpMul: 2.5
   bossDmgMul: 1.6
@@ -52126,7 +52144,7 @@ MonoBehaviour:
     moveSpeed: 1
     range: 1
   warnRatio: 2.2
-  nestModelScale: 4
+  nestModelScale: 0.4
 --- !u!1 &1814931582
 GameObject:
   m_ObjectHideFlags: 0
@@ -52743,15 +52761,15 @@ MonoBehaviour:
     moveSpeed: 1
     range: 1
   player: {fileID: 107336113}
-  minDist: 60
-  maxDist: 150
-  despawnDist: 260
+  minDist: 6
+  maxDist: 15
+  despawnDist: 26
   cap: 6
   respawnDelay: 25
   minHeight: 42
   maxHeight: 130
   maxSlope: 18
-  minGapFromPets: 30
+  minGapFromPets: 3
   outlineHull: {fileID: 2100000, guid: c93d547576109994dac3bdc472bfb370, type: 2}
   outlineMask: {fileID: 2100000, guid: bd02a43a3e2def0469de205466a32e80, type: 2}
   levelOrigin: {fileID: 0}
@@ -52798,7 +52816,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 3962.9631, y: 99.3798, z: 1814.8148}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 0.1, y: 0.1, z: 0.1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 2135606205}
@@ -53369,7 +53387,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 1814.8148, y: 134.169, z: 2111.111}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 0.1, y: 0.1, z: 0.1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 2135606205}
@@ -53582,7 +53600,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 1666.6667, y: 94.37737, z: 3000}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 0.1, y: 0.1, z: 0.1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 2135606205}
@@ -55569,7 +55587,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 3888.8887, y: 165.82239, z: 3000}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 0.1, y: 0.1, z: 0.1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 2135606205}
@@ -55690,7 +55708,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 3000, y: 59.795536, z: 851.85187}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 0.1, y: 0.1, z: 0.1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 2135606205}
@@ -55811,7 +55829,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 3740.7407, y: 274.35605, z: 2481.4814}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 0.1, y: 0.1, z: 0.1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 2135606205}
@@ -55842,7 +55860,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 2407.4075, y: 308.7759, z: 2333.3333}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 0.1, y: 0.1, z: 0.1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 2135606205}
@@ -56085,7 +56103,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 851.85187, y: 73.29461, z: 2407.4075}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 0.1, y: 0.1, z: 0.1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 2135606205}
@@ -56116,7 +56134,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 2333.3333, y: 108.49178, z: 3296.2961}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 0.1, y: 0.1, z: 0.1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 2135606205}
@@ -56237,7 +56255,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 2777.7778, y: 136.52003, z: 3148.148}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 0.1, y: 0.1, z: 0.1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 2135606205}
@@ -56358,7 +56376,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 2925.926, y: 188.43927, z: 2925.926}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 0.1, y: 0.1, z: 0.1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 2135606205}
@@ -56389,7 +56407,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 3000, y: 223.01512, z: 2629.6296}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 0.1, y: 0.1, z: 0.1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 2135606205}
@@ -56783,7 +56801,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 1577.532, y: 79.58483, z: 4085.0583}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 0.1, y: 0.1, z: 0.1}
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 2048215128}
@@ -56814,13 +56832,13 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::NestSite
   spawner: {fileID: 1834216757}
   egg: {fileID: 30686766}
-  triggerRadius: 26
+  triggerRadius: 2.6000001
   swarmSize: 5
   swarmInterval: 0.4
   sizeMul: 0.55
   hpMul: 0.3
   dmgMul: 0.5
-  spawnRing: 14
+  spawnRing: 1.4
   bossSizeMul: 1.5
   bossHpMul: 1.4
   bossDmgMul: 1.1
@@ -56835,7 +56853,7 @@ MonoBehaviour:
     moveSpeed: 1
     range: 1
   warnRatio: 2.2
-  nestModelScale: 4
+  nestModelScale: 0.4
 --- !u!1 &2024124548
 GameObject:
   m_ObjectHideFlags: 0
@@ -56862,7 +56880,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 1666.6667, y: 93.00768, z: 1888.8888}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 0.1, y: 0.1, z: 0.1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 2135606205}
@@ -57255,7 +57273,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 2777.7778, y: 294.17642, z: 2333.3333}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 0.1, y: 0.1, z: 0.1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 2135606205}
@@ -57556,7 +57574,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 1222.2222, y: 76.20735, z: 4111.1113}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 0.1, y: 0.1, z: 0.1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 2135606205}
@@ -57799,7 +57817,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 3222.2222, y: 164.03056, z: 1962.963}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 0.1, y: 0.1, z: 0.1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 2135606205}
@@ -58372,7 +58390,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 2481.4814, y: 293.88904, z: 3000}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 0.1, y: 0.1, z: 0.1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 2135606205}
