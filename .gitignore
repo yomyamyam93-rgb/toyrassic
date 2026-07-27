@@ -44,3 +44,13 @@ Assets/World/splat_backup.bytes
 Assets/World/splat_backup.bytes.meta
 Assets/World/terrain_export.bytes
 Assets/World/terrain_export.bytes.meta
+
+# 지형 애셋 — 코드로 다시 굽는다(TerrainTiler + WorldBuilder ①번).
+# 하이트맵 해상도를 올리면 100MB 를 넘어 깃헙 푸시가 막힌다. 원본은 island_height.bin(16MB).
+Assets/Terrain_0_0.asset
+Assets/Terrain_0_0.asset.meta
+Assets/World/Tiles/
+Assets/World/Tiles.meta
+# 타일별 스플랫 백업 — 타일당 128MB. ②번(지우기)용 로컬 캐시라 공유 불필요
+Assets/World/splat_Tile_*.bytes
+Assets/World/splat_Tile_*.bytes.meta

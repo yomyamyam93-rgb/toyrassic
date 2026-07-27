@@ -18,7 +18,9 @@ Shader "Toyrassic/TerrainToon"
         _L7 ("레이어7", 2D) = "white" {}
         _TileA ("타일크기 0-3", Vector) = (30,30,30,30)
         _TileB ("타일크기 4-7", Vector) = (30,30,30,30)
-        _WorldMin ("월드 최소 XZ", Float) = 0
+        // ★타일 지형(4×4)이 되면서 x·z 원점이 서로 달라졌다 → Float 하나로는 표현 불가.
+        //   xy = (원점X, 원점Z). 지형 한 장일 땐 (0,0) 이라 예전과 같다.
+        _WorldMin ("월드 최소 XZ", Vector) = (0,0,0,0)
         _WorldSize ("월드 크기", Float) = 6000
         _CliffTile ("절벽 타일 (m)", Float) = 18
         _CliffDark ("절벽 아래 어둡게", Range(0,1)) = 0.25
@@ -49,7 +51,8 @@ Shader "Toyrassic/TerrainToon"
             TEXTURE2D(_L1); TEXTURE2D(_L2); TEXTURE2D(_L3);
             TEXTURE2D(_L4); TEXTURE2D(_L5); TEXTURE2D(_L6); TEXTURE2D(_L7);
             float4 _TileA, _TileB;
-            float _WorldMin, _WorldSize, _CliffTile, _CliffDark, _ShadowDark;
+            float4 _WorldMin;
+            float _WorldSize, _CliffTile, _CliffDark, _ShadowDark;
 
             V vert(A i)
             {
@@ -64,7 +67,7 @@ Shader "Toyrassic/TerrainToon"
 
             half4 frag(V i) : SV_Target
             {
-                float2 cuv = saturate((i.wpos.xz - _WorldMin) / _WorldSize);
+                float2 cuv = saturate((i.wpos.xz - _WorldMin.xy) / _WorldSize);
                 half4 c0 = SAMPLE_TEXTURE2D(_Control0, sampler_Control0, cuv);
                 half4 c1 = SAMPLE_TEXTURE2D(_Control1, sampler_Control0, cuv);
                 float2 xz = i.wpos.xz;

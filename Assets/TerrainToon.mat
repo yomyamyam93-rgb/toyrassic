@@ -67,8 +67,9 @@ Material:
     m_Floats:
     - _CliffDark: 0.25
     - _CliffTile: 18
+    - _ShadowDark: 0.35
     - _WorldMin: 0
-    - _WorldSize: 6000
+    - _WorldSize: 24000
     m_Colors:
     - _TileA: {r: 20, g: 20, b: 20, a: 20}
     - _TileB: {r: 24, g: 20, b: 84.7, a: 20}

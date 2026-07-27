@@ -31,6 +31,10 @@ public class MapUI : MonoBehaviour
     public static bool IsFullOpen { get; private set; }
 
     Terrain terr;
+    /// ★지형이 6km 한 장 → 24km 4×4 타일이 됐다 (2026-07-27).
+    ///   Terrain.activeTerrain 하나만 보면 지도에 1/16 만 나온다 → 전부 모아 세계 범위를 쓴다.
+    Terrain[] terrs;
+    Vector3 wOrigin, wSize;
     GameObject canvasRoot;
     RectTransform panel, markerLayer;
     RawImage mapImg;
@@ -44,13 +48,49 @@ public class MapUI : MonoBehaviour
 
     void Start()
     {
-        terr = Terrain.activeTerrain;
+        GatherTerrains();
         Build();
+    }
+
+    /// 씬의 지형을 전부 모아 세계 범위를 구한다 (타일 1장이든 16장이든 같은 코드)
+    void GatherTerrains()
+    {
+        terrs = FindObjectsByType<Terrain>(FindObjectsSortMode.None);
+        terr = terrs.Length > 0 ? terrs[0] : Terrain.activeTerrain;
+        if (terrs.Length == 0) return;
+        float minX = float.MaxValue, minZ = float.MaxValue;
+        float maxX = float.MinValue, maxZ = float.MinValue, maxY = 1f;
+        foreach (var t in terrs)
+        {
+            var p = t.transform.position; var s = t.terrainData.size;
+            minX = Mathf.Min(minX, p.x); minZ = Mathf.Min(minZ, p.z);
+            maxX = Mathf.Max(maxX, p.x + s.x); maxZ = Mathf.Max(maxZ, p.z + s.z);
+            maxY = Mathf.Max(maxY, s.y);
+        }
+        wOrigin = new Vector3(minX, 0f, minZ);
+        wSize = new Vector3(maxX - minX, maxY, maxZ - minZ);
+    }
+
+    /// 세계 UV(0~1) 자리의 지형을 찾아 높이·경사를 잰다
+    bool SampleWorld(float u, float v, out float height01, out float steep01)
+    {
+        height01 = 0f; steep01 = 0f;
+        float wx = wOrigin.x + u * wSize.x, wz = wOrigin.z + v * wSize.z;
+        foreach (var t in terrs)
+        {
+            var o = t.transform.position; var s = t.terrainData.size;
+            if (wx < o.x || wx > o.x + s.x || wz < o.z || wz > o.z + s.z) continue;
+            float lu = (wx - o.x) / s.x, lv = (wz - o.z) / s.z;
+            height01 = t.terrainData.GetInterpolatedHeight(lu, lv) / Mathf.Max(1f, wSize.y);
+            steep01 = t.terrainData.GetSteepness(lu, lv) / 90f;
+            return true;
+        }
+        return false;
     }
 
     void Update()
     {
-        if (terr == null) { terr = Terrain.activeTerrain; if (terr == null) return; }
+        if (terrs == null || terrs.Length == 0) { GatherTerrains(); if (terrs.Length == 0) return; }
 #if ENABLE_INPUT_SYSTEM
         var k = Keyboard.current;
         if (k != null && k.mKey.wasPressedThisFrame) Toggle();
@@ -145,8 +185,7 @@ public class MapUI : MonoBehaviour
     /// 지형 높이·경사로 지도 그림을 한 번만 굽는다
     void MakeMapTexture()
     {
-        if (terr == null) return;
-        var td = terr.terrainData;
+        if (terrs == null || terrs.Length == 0) return;
         int r = Mathf.Clamp(mapRes, 64, 512);
         mapTex = new Texture2D(r, r, TextureFormat.RGBA32, false) { wrapMode = TextureWrapMode.Clamp };
         var px = new Color[r * r];
@@ -154,8 +193,7 @@ public class MapUI : MonoBehaviour
             for (int x = 0; x < r; x++)
             {
                 float u = (x + 0.5f) / r, v = (y + 0.5f) / r;
-                float h = td.GetInterpolatedHeight(u, v) / Mathf.Max(1f, td.size.y);
-                float steep = td.GetSteepness(u, v) / 90f;
+                SampleWorld(u, v, out float h, out float steep);
                 var c = Color.Lerp(lowColor, highColor, Mathf.Clamp01(h * 1.6f));
                 c = Color.Lerp(c, cliffColor, Mathf.Clamp01((steep - 0.32f) * 2.4f));   // 가파르면 바위색
                 px[y * r + x] = c;
@@ -190,11 +228,10 @@ public class MapUI : MonoBehaviour
     Rect ViewRect()
     {
         if (IsFullOpen) return new Rect(0f, 0f, 1f, 1f);
-        var td = terr.terrainData; var to = terr.transform.position;
         var p = transform.position;
-        float cu = Mathf.Clamp01((p.x - to.x) / td.size.x);
-        float cv = Mathf.Clamp01((p.z - to.z) / td.size.z);
-        float ru = viewRadius / td.size.x, rv = viewRadius / td.size.z;
+        float cu = Mathf.Clamp01((p.x - wOrigin.x) / wSize.x);
+        float cv = Mathf.Clamp01((p.z - wOrigin.z) / wSize.z);
+        float ru = viewRadius / wSize.x, rv = viewRadius / wSize.z;
         return new Rect(cu - ru, cv - rv, ru * 2f, rv * 2f);
     }
 
@@ -236,9 +273,8 @@ public class MapUI : MonoBehaviour
 
     void Mark(Vector3 world, Rect view, Color c, float size)
     {
-        var td = terr.terrainData; var to = terr.transform.position;
-        float u = (world.x - to.x) / td.size.x;
-        float v = (world.z - to.z) / td.size.z;
+        float u = (world.x - wOrigin.x) / wSize.x;
+        float v = (world.z - wOrigin.z) / wSize.z;
         if (u < view.xMin || u > view.xMax || v < view.yMin || v > view.yMax) return;   // 화면 밖
 
         Image img;

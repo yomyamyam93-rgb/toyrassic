@@ -217,7 +217,7 @@ public class GrassManagerEditor : Editor
             for (int i = 0; i < 8; i++)
                 m.SetTexture("_L" + i, i < layers.Length && layers[i] != null ? layers[i].diffuseTexture : null);
             m.SetVector("_TileA", ta); m.SetVector("_TileB", tb);
-            m.SetFloat("_WorldMin", o.x); m.SetFloat("_WorldSize", td.size.x);
+            m.SetVector("_WorldMin", new Vector4(o.x, o.z, 0f, 0f)); m.SetFloat("_WorldSize", td.size.x);
             EditorUtility.SetDirty(m);
         }
         AssetDatabase.SaveAssets();

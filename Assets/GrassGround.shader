@@ -6,7 +6,8 @@ Shader "Toyrassic/GrassGround"
     Properties
     {
         _MainTex ("잎 컷아웃", 2D) = "white" {}
-        _WorldMin ("월드 최소 XZ", Float) = 0
+        // xy = (원점X, 원점Z). 타일 지형이라 x·z 가 다르다 (TerrainToon 과 같은 이유)
+        _WorldMin ("월드 최소 XZ", Vector) = (0,0,0,0)
         _WorldSize ("월드 크기", Float) = 6000
         _Tint ("전체 색조", Color) = (1,1,1,1)
         _Cutoff ("알파 컷", Range(0,1)) = 0.4
@@ -54,7 +55,8 @@ Shader "Toyrassic/GrassGround"
             TEXTURE2D(_L0); SAMPLER(sampler_L0);               // repeat — 레이어 8장 공용
             TEXTURE2D(_L1); TEXTURE2D(_L2); TEXTURE2D(_L3);
             TEXTURE2D(_L4); TEXTURE2D(_L5); TEXTURE2D(_L6); TEXTURE2D(_L7);
-            float _WorldMin, _WorldSize, _Cutoff, _BaseDark, _TipBoost, _ShadowDark;
+            float4 _WorldMin;
+            float _WorldSize, _Cutoff, _BaseDark, _TipBoost, _ShadowDark;
             half4 _Tint;
             float4 _TileA, _TileB;
 
@@ -76,7 +78,7 @@ Shader "Toyrassic/GrassGround"
                 clip(a - _Cutoff);
 
                 // 지형과 동일: 스플랫 가중치 × 반복 타일 레이어색
-                float2 cuv = saturate((i.wpos.xz - _WorldMin) / _WorldSize);
+                float2 cuv = saturate((i.wpos.xz - _WorldMin.xy) / _WorldSize);
                 half4 c0 = SAMPLE_TEXTURE2D(_Control0, sampler_Control0, cuv);
                 half4 c1 = SAMPLE_TEXTURE2D(_Control1, sampler_Control0, cuv);
                 float2 xz = i.wpos.xz;

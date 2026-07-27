@@ -16,7 +16,8 @@ using UnityEngine;
 ///
 /// ★축척: 계획서는 격자 81×81(칸 104m = 8424m 대륙) 기준인데 실제 지형은 6km 로
 ///   재건됐다. 칸 크기를 곱하지 말고 **지형 실측 크기에 비례**시킨다(GridToWorld).
-///   폭·사행도 같은 축척으로 환산하므로 지형을 또 바꿔도 자동으로 맞는다.
+///   사행도 같은 축척으로 환산하므로 지형을 또 바꿔도 자동으로 맞는다.
+///   ★단 길 '폭'만은 예외 — 지형이 아니라 캐릭터 기준이라 WidthRefSize 에 고정한다.
 ///
 /// ★길은 반드시 "불규칙하게" 구불거려야 한다 (사용자 확정 규칙).
 ///   규칙적인 물결은 인공적이다 → IrregularMeander 의 세 겹 참조.
@@ -31,6 +32,14 @@ public static class WorldBuilder
     static readonly Dictionary<string, float> TierWidth = new Dictionary<string, float> {
         { "main", 6f }, { "side", 3f }, { "trail", 1.5f }, { "bronto", 60f },
     };
+
+    /// ★길 폭은 지형 크기를 따라가지 않는다 (2026-07-27 확정).
+    ///   길을 걷는 건 캐릭터와 펫이지 지형이 아니다. 지형을 4배로 키우면 폭까지 4배가 돼
+    ///   브론토 순환로가 171m(축구장 두 개)가 된다 — 그래서 기준 크기에 고정한다.
+    ///   지형을 키워도 길 폭은 그대로 유지된다.
+    const float WidthRefSize = 6000f;   // 폭을 튜닝했던 지형 크기(m). 지형 실측과 다르면 여기만 맞춘다
+    /// 길 폭 전체 배율 — 넓다 싶으면 0.8, 좁다 싶으면 1.2 처럼 이 값 하나만 만진다
+    const float WidthMul = 1f;
     // 사행 세기(m) — 큰길일수록 덜 흔들린다
     static readonly Dictionary<string, float> TierMeander = new Dictionary<string, float> {
         { "main", 22f }, { "side", 30f }, { "trail", 34f }, { "bronto", 14f },
@@ -41,6 +50,10 @@ public static class WorldBuilder
     const float ForestScale = 0.0022f, ForestCut = 0.35f;
     const float TreeMaxSlope = 28f, GrassMaxSlope = 34f;
     const float MinHeight = 2f, MaxHeightFrac = 0.62f;
+    /// MinHeight 를 튜닝했던 지형 높이(m). 지형을 키우면 이 비율로 환산한다 —
+    /// 안 그러면 최고높이 1720m 짜리 세계에서 "해발 2m 위" 가 사실상 물가 전부가 된다.
+    const float HeightRef = 430f;
+    static float MinH(TerrainData td) => MinHeight * (td.size.y / HeightRef);
     const float GrassDensityMax = 0.85f;
 
     const float EdgeFade = 0.5f, StepM = 6f;
@@ -54,33 +67,53 @@ public static class WorldBuilder
         if (!EditorUtility.DisplayDialog("월드 다시 짓기",
             "기존 마커·길·나무·풀을 전부 지우고 계획 지도대로 다시 만든다.\n" +
             "(지형 자체는 그대로)", "다시 짓기", "취소")) return;
+        RebuildAllNow();
+    }
 
-        if (!Setup(out var terrain, out var lines, out int cell, out int grid)) return;
+    /// 확인 창 없이 다시 짓기 (원격 실행용)
+    public static void RebuildAllNow()
+    {
+        if (!Setup(out var tiles, out var lines, out int cell, out int grid)) return;
 
-        ClearAll(terrain, silent: true);
-        int markers = DoMarkers(terrain, lines, grid);
-        var (roads, cells) = DoRoads(terrain, lines, cell, grid);
-        int rocks = DoRocks(terrain);
-        int trees = DoTrees(terrain);
-        int grass = DoGrass(terrain);
-        int flowers = DoFlowers(terrain);
-        DoWater(terrain);
+        foreach (var t in tiles) ClearAll(t, silent: true);
+        int markers = DoMarkers(lines, grid);            // 마커는 세계 전체에 한 번만
 
-        var td = terrain.terrainData;
+        int roads = 0, cells = 0, rocks = 0, trees = 0, grass = 0, flowers = 0;
+        try
+        {
+            for (int i = 0; i < tiles.Length; i++)
+            {
+                var t = tiles[i];
+                EditorUtility.DisplayProgressBar("월드 다시 짓기",
+                    $"타일 {i + 1}/{tiles.Length} — {t.name}", i / (float)tiles.Length);
 
-        // ★뭉개짐 해결 — 유니티 지형은 'Base Map Distance' 밖은 저해상 흐린 합성본으로 그린다.
-        //   기본 1000m 라 6km 지형은 대부분 흐리게 나왔다 → 지형 전체 크기로 올려 끝까지 선명하게.
-        terrain.basemapDistance = Mathf.Max(td.size.x, td.size.z) * 1.2f;
-        terrain.heightmapPixelError = 1f;               // 낮을수록 지형 실루엣 선명(기본 1~5)
-        if (td.baseMapResolution < 2048) td.baseMapResolution = 2048;
+                var (r, c) = DoRoads(t, lines, cell, grid);
+                roads = Mathf.Max(roads, r);              // 구간 수는 타일마다 같다(칠한 칸만 다름)
+                cells += c;
+                rocks += DoRocks(t);
+                trees += DoTrees(t);
+                grass += DoGrass(t);
+                flowers += DoFlowers(t);
 
-        terrain.Flush();
-        EditorUtility.SetDirty(td);
-        EditorUtility.SetDirty(terrain);
+                var ttd = t.terrainData;
+                // ★뭉개짐 해결 — 'Base Map Distance' 밖은 저해상 흐린 합성본으로 그려진다.
+                //   세계 전체 크기로 올려 끝까지 선명하게.
+                t.basemapDistance = Mathf.Max(_wSize.x, _wSize.z) * 1.2f;
+                t.heightmapPixelError = 1f;              // 낮을수록 지형 실루엣 선명
+                if (ttd.baseMapResolution < 2048) ttd.baseMapResolution = 2048;
+                t.Flush();
+                EditorUtility.SetDirty(ttd);
+                EditorUtility.SetDirty(t);
+            }
+        }
+        finally { EditorUtility.ClearProgressBar(); }
+
+        DoWater(tiles[0]);
         AssetDatabase.SaveAssets();
 
-        Debug.Log($"[월드] 완성 — 마커 {markers} · 길 {roads}구간({cells}칸) · 바위 {rocks}칸 · 나무 {trees} · 풀 {grass}칸 · 꽃 {flowers}\n" +
-                  $"지형 실측 {td.size.x:F0}×{td.size.z:F0}m · 격자 {grid} → 칸 {td.size.x / grid:F1}m " +
+        Debug.Log($"[월드] 완성 — 지형 {tiles.Length}장 · 마커 {markers} · 길 {roads}구간({cells}칸) · " +
+                  $"바위 {rocks}칸 · 나무 {trees} · 풀 {grass}칸 · 꽃 {flowers}\n" +
+                  $"세계 {_wSize.x:F0}×{_wSize.z:F0}m · 격자 {grid} → 칸 {_wSize.x / grid:F1}m " +
                   $"(계획서 {cell}m 기준, 비례 환산)");
     }
 
@@ -92,9 +125,11 @@ public static class WorldBuilder
     {
         if (!EditorUtility.DisplayDialog("월드 지우기",
             "마커·길(흙칠)·나무·풀을 전부 지운다. 지형 높이는 그대로.", "지우기", "취소")) return;
-        var terrain = FindTerrain();
-        if (terrain == null) return;
-        ClearAll(terrain, silent: false);
+        var tiles = FindTiles();
+        if (tiles == null) return;
+        _tiles = tiles;
+        foreach (var t in tiles) ClearAll(t, silent: tiles.Length > 1);
+        if (tiles.Length > 1) Debug.Log($"[월드] 지형 {tiles.Length}장 지움 — 마커·길·나무·풀 원상복구.");
         AssetDatabase.SaveAssets();
     }
 
@@ -104,10 +139,10 @@ public static class WorldBuilder
         var td = terrain.terrainData;
         Undo.RegisterCompleteObjectUndo(td, "월드 지우기");
 
-        // 마커
+        // 마커 — 세계에 하나뿐이라 첫 타일에서만 지운다
         var root = GameObject.Find("Markers");
         int m = 0;
-        if (root != null)
+        if (root != null && (_tiles == null || _tiles.Length == 0 || terrain == _tiles[0]))
         {
             m = root.transform.childCount;
             for (int i = m - 1; i >= 0; i--)
@@ -117,7 +152,7 @@ public static class WorldBuilder
         // 길 — ★백업된 원본 스플랫맵을 그대로 복원한다.
         //   예전엔 "흙을 잔디로 밀기"로 지웠는데, 모래사장 위 길이 초록 줄로 남았다.
         //   어떤 재질 위에 칠했든 원본으로 되돌리려면 스냅샷 복원뿐이다.
-        string road = RestoreSplat(td) ? "길 복원" : "길 백업 없음(건너뜀)";
+        string road = RestoreSplat(td, SplatPath(terrain)) ? "길 복원" : "길 백업 없음(건너뜀)";
 
         // 나무·풀
         td.SetTreeInstances(new TreeInstance[0], true);
@@ -197,10 +232,9 @@ public static class WorldBuilder
     // ══════════════════════════════════════════════════════════
     //  실제 작업들
     // ══════════════════════════════════════════════════════════
-    static int DoMarkers(Terrain terrain, string[] lines, int grid)
+    /// 마커는 세계 전체에 한 번만 놓는다 (타일마다 놓으면 16벌이 겹친다)
+    static int DoMarkers(string[] lines, int grid)
     {
-        var origin = terrain.transform.position;
-        var size = terrain.terrainData.size;
         var root = GameObject.Find("Markers") ?? new GameObject("Markers");
 
         int n = 0;
@@ -208,8 +242,8 @@ public static class WorldBuilder
         {
             if (!ln.StartsWith("M ")) continue;
             var t = ln.Split(' ');
-            var p = GridToWorld(int.Parse(t[1]), int.Parse(t[2]), origin, size, grid);
-            p.y = terrain.SampleHeight(p) + origin.y;
+            var p = GridToWorld(int.Parse(t[1]), int.Parse(t[2]), _wOrigin, _wSize, grid);
+            p.y = WorldHeight(p);
 
             var go = new GameObject($"{t[3]}_{t[1]}_{t[2]}");
             go.transform.SetParent(root.transform);
@@ -234,10 +268,10 @@ public static class WorldBuilder
         }
 
         int aw = td.alphamapWidth, ah = td.alphamapHeight, al = td.alphamapLayers;
-        BackupSplat(td);                                // ★칠하기 전 원본 보존 (지우기용)
+        BackupSplat(td, SplatPath(terrain));             // ★칠하기 전 원본 보존 (지우기용)
         var alpha = td.GetAlphamaps(0, 0, aw, ah);
-        // 계획서(격자 81 × 104m = 8424m) → 실제 지형 축척
-        float scale = size.x / (grid * (float)cell);
+        // 계획서(격자 81 × 104m = 8424m) → 세계 전체 축척
+        float scale = _wSize.x / (grid * (float)cell);
 
         int roads = 0, painted = 0, seed = 0;
         foreach (var ln in lines)
@@ -249,13 +283,16 @@ public static class WorldBuilder
             for (int i = 3; i < t.Length; i++)
             {
                 var xy = t[i].Split(',');
+                // ★계획 좌표는 세계 전체 기준 — 타일마다 다시 재면 16조각으로 쪼개진 길이 나온다
                 path.Add(GridToWorld(
                     float.Parse(xy[0], CultureInfo.InvariantCulture),
-                    float.Parse(xy[1], CultureInfo.InvariantCulture), origin, size, grid));
+                    float.Parse(xy[1], CultureInfo.InvariantCulture), _wOrigin, _wSize, grid));
             }
             if (path.Count < 2) continue;
 
-            float width = (TierWidth.TryGetValue(tier, out var w) ? w : 3f) * scale;
+            // ★폭만은 지형 축척(scale)이 아니라 고정 기준을 쓴다 — 지형을 키워도 길은 안 넓어진다
+            float widthScale = WidthRefSize / (grid * (float)cell) * WidthMul;
+            float width = (TierWidth.TryGetValue(tier, out var w) ? w : 3f) * widthScale;
 
             // ★계획서에 이미 유선형 곡선이 들어있다(mapplan 의 SMOOTH). 여기서 사행을 또
             //   넣으면 이중으로 흔들린다 → 촘촘히 재표본만 해서 그대로 칠한다.
@@ -373,9 +410,12 @@ public static class WorldBuilder
 
         // ★숲/평야 강한 대비 — 저주파 '바이옴' 노이즈로 큰 덩어리를 나누고, 그 위에 군집.
         //   plains = 거의 빈 벌판(홑나무 1~2%), forest = 빽빽, 사이는 그라데이션.
-        const int NCLUST = 18;
+        //   ★군집 중심은 **세계 전체** 기준(0~1)이고 씨앗을 고정한다 — 타일마다 다시 뽑으면
+        //     똑같은 숲 무늬가 16번 반복된다. 잔가지 난수(rnd)와 분리해야 하는 이유.
+        const int NCLUST = 18 * 4;
+        var crnd = new System.Random(20260724);
         var ccx = new float[NCLUST]; var ccz = new float[NCLUST]; var ccr = new float[NCLUST];
-        for (int c = 0; c < NCLUST; c++) { ccx[c] = (float)rnd.NextDouble(); ccz[c] = (float)rnd.NextDouble(); ccr[c] = 0.03f + (float)rnd.NextDouble() * 0.05f; }
+        for (int c = 0; c < NCLUST; c++) { ccx[c] = (float)crnd.NextDouble(); ccz[c] = (float)crnd.NextDouble(); ccr[c] = (0.03f + (float)crnd.NextDouble() * 0.05f) * 0.5f; }
 
         float spacing = TreeSpacing * 0.5f;   // 격자 곱게 → 셀당 여러 그루와 합쳐 진짜 빽빽
         int cols = Mathf.Max(1, (int)(size.x / spacing)), rows = Mathf.Max(1, (int)(size.z / spacing));
@@ -388,7 +428,7 @@ public static class WorldBuilder
             if (fx <= 0f || fx >= 1f || fz <= 0f || fz >= 1f) continue;
 
             float h = td.GetInterpolatedHeight(fx, fz);
-            if (h < MinHeight || h > maxH) continue;
+            if (h < MinH(td) || h > maxH) continue;
             if (Vector3.Angle(td.GetInterpolatedNormal(fx, fz), Vector3.up) > TreeMaxSlope) continue;
             if (OnRoad(td, fx, fz)) continue;
 
@@ -418,9 +458,10 @@ public static class WorldBuilder
             lump = Mathf.Clamp01(lump / 1.05f);
             // ③ 빽빽한 군집 중심
             float clust = 0f;
+            float wfx = (wx - _wOrigin.x) / _wSize.x, wfz = (wz - _wOrigin.z) / _wSize.z;
             for (int c = 0; c < NCLUST; c++)
             {
-                float dx = fx - ccx[c], dz = fz - ccz[c];
+                float dx = wfx - ccx[c], dz = wfz - ccz[c];
                 clust = Mathf.Max(clust, Mathf.Exp(-(dx * dx + dz * dz) / (ccr[c] * ccr[c])));
             }
             // 밀도(0~1.7+). 코어는 1 넘어서 → 셀당 여러 그루로 진짜 빽빽.
@@ -437,7 +478,7 @@ public static class WorldBuilder
                 float jz = fz + ((float)rnd.NextDouble() - 0.5f) * cellM;
                 if (jx <= 0f || jx >= 1f || jz <= 0f || jz >= 1f) continue;
                 float hh = td.GetInterpolatedHeight(jx, jz);
-                if (hh < MinHeight || hh > maxH) continue;
+                if (hh < MinH(td) || hh > maxH) continue;
                 if (SandAmount(td, jx, jz) > 0.3f) continue;
                 if (CliffNear(jx, jz)) continue;                 // 절벽 끝 배제
                 float jwx = origin.x + jx * size.x, jwz = origin.z + jz * size.z;
@@ -550,7 +591,7 @@ public static class WorldBuilder
             var mat = AssetDatabase.LoadAssetAtPath<Material>(mp);
             if (mat == null) continue;
             if (mat.HasProperty("_GroundTex")) mat.SetTexture("_GroundTex", baked);
-            if (mat.HasProperty("_WorldMin")) mat.SetFloat("_WorldMin", origin.x);
+            if (mat.HasProperty("_WorldMin")) mat.SetVector("_WorldMin", new Vector4(origin.x, origin.z, 0f, 0f));
             if (mat.HasProperty("_WorldSize")) mat.SetFloat("_WorldSize", td.size.x);
             EditorUtility.SetDirty(mat);
             wired++;
@@ -599,7 +640,7 @@ public static class WorldBuilder
             {
                 float fx = (float)x / (res - 1), fz = (float)y / (res - 1);
                 float h = td.GetInterpolatedHeight(fx, fz);
-                if (h < MinHeight || h > maxH) continue;
+                if (h < MinH(td) || h > maxH) continue;
                 if (Vector3.Angle(td.GetInterpolatedNormal(fx, fz), Vector3.up) > GrassMaxSlope) continue;
                 if (SandAmount(td, fx, fz) > 0.3f) continue;   // ★모래사장엔 잔디 없음
 
@@ -673,7 +714,7 @@ public static class WorldBuilder
         {
             float fx = (float)x / (res - 1), fz = (float)y / (res - 1);
             float h = td.GetInterpolatedHeight(fx, fz);
-            if (h < MinHeight || h > maxH) continue;
+            if (h < MinH(td) || h > maxH) continue;
             if (Vector3.Angle(td.GetInterpolatedNormal(fx, fz), Vector3.up) > GrassMaxSlope) continue;
             if (OnRoad(td, fx, fz)) continue;
 
@@ -936,12 +977,12 @@ public static class WorldBuilder
     }
 
     /// 스플랫맵 원본 스냅샷 — 이미 있으면 덮어쓰지 않는다(길 칠한 상태를 원본으로 굳히면 끝장).
-    static void BackupSplat(TerrainData td)
+    static void BackupSplat(TerrainData td, string path)
     {
-        if (File.Exists(SplatBackup)) return;
+        if (File.Exists(path)) return;
         int w = td.alphamapWidth, h = td.alphamapHeight, l = td.alphamapLayers;
         var a = td.GetAlphamaps(0, 0, w, h);
-        using (var fs = new FileStream(SplatBackup, FileMode.Create))
+        using (var fs = new FileStream(path, FileMode.Create))
         using (var bw = new BinaryWriter(fs))
         {
             bw.Write(w); bw.Write(h); bw.Write(l);
@@ -949,14 +990,13 @@ public static class WorldBuilder
             for (int x = 0; x < w; x++)
             for (int i = 0; i < l; i++) bw.Write(a[z, x, i]);
         }
-        AssetDatabase.Refresh();
-        Debug.Log($"[월드] 스플랫맵 원본 백업 저장 ({w}×{h}×{l}). 지우기는 이걸 복원한다.");
+        Debug.Log($"[월드] 스플랫맵 원본 백업 저장 {Path.GetFileName(path)} ({w}×{h}×{l}). 지우기는 이걸 복원한다.");
     }
 
-    static bool RestoreSplat(TerrainData td)
+    static bool RestoreSplat(TerrainData td, string path)
     {
-        if (!File.Exists(SplatBackup)) return false;
-        using (var fs = new FileStream(SplatBackup, FileMode.Open))
+        if (!File.Exists(path)) return false;
+        using (var fs = new FileStream(path, FileMode.Open))
         using (var br = new BinaryReader(fs))
         {
             int w = br.ReadInt32(), h = br.ReadInt32(), l = br.ReadInt32();
@@ -975,18 +1015,66 @@ public static class WorldBuilder
         return true;
     }
 
-    static Terrain FindTerrain()
+    // ══════════════════════════════════════════════════════════
+    //  타일 지형 — 여러 장을 "하나의 세계"로 다룬다 (2026-07-27)
+    // ══════════════════════════════════════════════════════════
+    /// ★지형이 6km 한 장 → 24km 4×4 타일이 됐다.
+    ///   계획 지도(격자 81×81)는 **세계 전체**에 펴야 하고, 칠하기·심기는 **타일마다** 한다.
+    ///   그래서 좌표 계산에는 _wOrigin/_wSize(세계 전체)를 쓰고, 쓰기는 각 타일에 한다.
+    ///   타일이 한 장뿐이어도 같은 코드가 그대로 돈다(세계 = 그 한 장).
+    static Terrain[] _tiles;
+    static Vector3 _wOrigin, _wSize;
+
+    static Terrain[] FindTiles()
     {
-        var t = Object.FindObjectsByType<Terrain>(FindObjectsSortMode.None).FirstOrDefault();
-        if (t == null) Debug.LogError("[월드] Terrain 을 못 찾았다. SampleScene 을 열었는지 확인할 것.");
-        return t;
+        var ts = Object.FindObjectsByType<Terrain>(FindObjectsSortMode.None);
+        if (ts.Length == 0)
+        {
+            Debug.LogError("[월드] Terrain 을 못 찾았다. SampleScene 을 열었는지 확인할 것.");
+            return null;
+        }
+        float minX = float.MaxValue, minZ = float.MaxValue;
+        float maxX = float.MinValue, maxZ = float.MinValue, maxY = 0f;
+        foreach (var t in ts)
+        {
+            var p = t.transform.position; var s = t.terrainData.size;
+            minX = Mathf.Min(minX, p.x); minZ = Mathf.Min(minZ, p.z);
+            maxX = Mathf.Max(maxX, p.x + s.x); maxZ = Mathf.Max(maxZ, p.z + s.z);
+            maxY = Mathf.Max(maxY, s.y);
+        }
+        _wOrigin = new Vector3(minX, ts[0].transform.position.y, minZ);
+        _wSize = new Vector3(maxX - minX, maxY, maxZ - minZ);
+        return ts;
     }
 
-    static bool Setup(out Terrain terrain, out string[] lines, out int cell, out int grid)
+    /// 월드 좌표의 지형 높이 — 그 자리를 담당하는 타일을 찾아서 잰다
+    static float WorldHeight(Vector3 p)
+    {
+        foreach (var t in _tiles)
+        {
+            var o = t.transform.position; var s = t.terrainData.size;
+            if (p.x >= o.x && p.x <= o.x + s.x && p.z >= o.z && p.z <= o.z + s.z)
+                return t.SampleHeight(p) + o.y;
+        }
+        return _wOrigin.y;
+    }
+
+    /// 타일마다 따로 백업해야 한다 — 규격(해상도)이 타일별로 다를 수 있다
+    static string SplatPath(Terrain t) => $"Assets/World/splat_{t.name}.bytes";
+
+    /// 지형 하나만 있으면 되는 도구용 (내보내기·물높이) — 첫 타일을 준다
+    static Terrain FindTerrain()
+    {
+        var ts = FindTiles();
+        return ts == null ? null : ts[0];
+    }
+
+    static bool Setup(out Terrain[] tiles, out string[] lines, out int cell, out int grid)
     {
         lines = null; cell = 104; grid = 81;
-        terrain = FindTerrain();
-        if (terrain == null) return false;
+        tiles = FindTiles();
+        if (tiles == null) return false;
+        _tiles = tiles;
         if (!File.Exists(PlanPath)) { Debug.LogError($"[월드] {PlanPath} 가 없다."); return false; }
         lines = File.ReadAllLines(PlanPath);
         foreach (var ln in lines)
@@ -1000,7 +1088,8 @@ public static class WorldBuilder
                 _alignN = int.Parse(t[3]);
             }
         }
-        Debug.Log($"[월드] 격자 정렬 보정 {_align.x:+0;-0;0},{_align.y:+0;-0;0}칸 (하이트맵 실측, 일치도 0.72)");
+        Debug.Log($"[월드] 지형 {tiles.Length}장 · 세계 {_wSize.x:F0}×{_wSize.z:F0}m · " +
+                  $"격자 정렬 보정 {_align.x:+0;-0;0},{_align.y:+0;-0;0}칸");
         _dirtCache = -2; _sandCache = -2;
         return true;
     }

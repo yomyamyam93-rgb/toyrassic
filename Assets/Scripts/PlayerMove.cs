@@ -20,7 +20,7 @@ public class PlayerMove : MonoBehaviour
     public float fullDrawSpeed = 0.35f;
 
     [Header("물")]
-    public float waterY = 40f;
+    public float waterY = 160f;   // 지형 4배 확대(2026-07-27) — 바다 표면 48m + 해변 띠
     [Tooltip("물에 잠기면 느려진다")]
     public float wetFactor = 0.55f;
 

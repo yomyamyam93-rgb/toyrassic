@@ -271,7 +271,7 @@ public class TerrainManagerEditor : Editor
         for (int i = 0; i < 8; i++)
             mat.SetTexture("_L" + i, i < layers.Length && layers[i] != null ? layers[i].diffuseTexture : null);
         mat.SetVector("_TileA", ta); mat.SetVector("_TileB", tb);
-        mat.SetFloat("_WorldMin", t.transform.position.x);
+        mat.SetVector("_WorldMin", new Vector4(t.transform.position.x, t.transform.position.z, 0f, 0f));
         mat.SetFloat("_WorldSize", td.size.x);
         EditorUtility.SetDirty(mat);
     }

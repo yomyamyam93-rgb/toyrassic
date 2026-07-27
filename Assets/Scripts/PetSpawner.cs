@@ -41,8 +41,8 @@ public class PetSpawner : MonoBehaviour
     [Tooltip("빈자리 보충 간격 (초)")] public float respawnDelay = 25f;
 
     [Header("지형 조건")]
-    public float minHeight = 42f;
-    public float maxHeight = 130f;
+    public float minHeight = 168f;
+    public float maxHeight = 520f;
     [Tooltip("이보다 가파른 경사엔 안 나옴 (도)")] public float maxSlope = 18f;
     [Tooltip("다른 펫과의 최소 간격 (m)")] public float minGapFromPets = 30f;
 
@@ -144,7 +144,7 @@ public class PetSpawner : MonoBehaviour
 
     [Header("야생 레벨 — 시작점에서 멀수록 강하다")]
     [Tooltip("이 지점이 1레벨 기준 (비우면 첫 플레이어 위치)")] public Transform levelOrigin;
-    [Tooltip("몇 m 마다 1레벨씩 오르나")] public float metersPerLevel = 45f;
+    [Tooltip("몇 m 마다 1레벨씩 오르나")] public float metersPerLevel = 180f;
     [Tooltip("같은 자리에서도 흔들리는 폭 (±)")] public int levelJitter = 3;
 
     static Vector3 originCache; static bool originSet;

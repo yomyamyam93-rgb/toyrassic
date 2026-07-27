@@ -77,7 +77,7 @@ Material:
     - _Cutoff: 0.4
     - _ShadowDark: 0.35
     - _TipBoost: 1.565
-    - _WorldMin: 0
+    - _WorldMin: 18000
     - _WorldSize: 6000
     m_Colors:
     - _TileA: {r: 20, g: 20, b: 20, a: 20}
