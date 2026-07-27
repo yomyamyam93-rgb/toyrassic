@@ -249,6 +249,7 @@ public class PlayerBow : MonoBehaviour
     readonly System.Collections.Generic.Dictionary<string, ToolRig> rigs
         = new System.Collections.Generic.Dictionary<string, ToolRig>();
     float prevSwingT;
+    int prevSwingSeq;   // 마지막으로 클립을 되감은 스윙 번호
 
     /// 핫바 장비 → 무기 ID
     static string GearId(GearKind k)
@@ -1054,7 +1055,16 @@ public class PlayerBow : MonoBehaviour
         {
             string curId = GearId(gearV);
             foreach (var kv in rigs)
-                if (kv.Value.root != null) kv.Value.root.gameObject.SetActive(kv.Key == curId);
+            {
+                if (kv.Value.root == null) continue;
+                bool want = kv.Key == curId;
+                // ★막 켜진 무기의 잔상은 지운다 (2026-07-28). TrailRenderer 는 꺼져 있던
+                //   동안의 옛 점들을 들고 있어서, 다시 켜지는 순간 예전 자리부터 지금까지
+                //   선이 쭉 이어진다 — 무기를 바꿀 때 타타탁 하고 줄이 그어지던 것.
+                if (want && !kv.Value.root.gameObject.activeSelf && kv.Value.trail != null)
+                    kv.Value.trail.Clear();
+                kv.Value.root.gameObject.SetActive(want);
+            }
             ToolRig rig = null;
             if (curId != null) rigs.TryGetValue(curId, out rig);
             var toolHeld = rig != null ? rig.root : null;
@@ -1206,10 +1216,17 @@ public class PlayerBow : MonoBehaviour
                     // 클립이 그리는 무기는 잔상도 클립이 갖는다 — 여기서 끄면 키프레임이 무시된다
                     if (trail != null && !clipOwnsHandR) trail.emitting = false;
                 }
-                // ★스윙이 막 시작된 프레임에 클립을 재생시킨다 (2026-07-28).
-                //   가로/세로는 무기의 style 이 정한다 — 코드가 쓰던 것과 같은 기준.
-                if (clipOwnsHandR && handAnim != null && prevSwingT <= 0f && gather != null && gather.SwingT > 0f)
-                    handAnim.SetTrigger(setup.style == SwingStyle.Horizontal ? "SwingH" : "SwingV");
+                // ★휘두를 때마다 클립을 처음부터 다시 재생한다 (2026-07-28).
+                //   예전엔 'swingT 가 0→양수' 로 감지했는데, 연타하거나 버튼을 누르고
+                //   있으면 swingT 가 0 으로 안 떨어져 두 번째부터 영영 안 걸렸다
+                //   (= 공격이 한 번만 되던 버그). 스윙 번호가 바뀌었는지로 본다.
+                //   Trigger 가 아니라 Play 를 쓰는 이유: 스윙 중에 또 휘둘러도 확실히 되감긴다.
+                if (clipOwnsHandR && handAnim != null && gather != null && gather.SwingSeq != prevSwingSeq)
+                {
+                    prevSwingSeq = gather.SwingSeq;
+                    handAnim.Play(setup.style == SwingStyle.Horizontal ? "Swing_Horizontal" : "Swing_Vertical", 0, 0f);
+                    if (rig.trail != null) rig.trail.Clear();   // 되감을 때 옛 궤적이 남지 않게
+                }
                 prevSwingT = gather != null ? gather.SwingT : 0f;
             }
             // 맨손 — 리그 로컬 identity = 몸 정면 (예전엔 월드 identity 라 몸과 무관하게

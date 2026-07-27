@@ -63,6 +63,11 @@ public class PlayerGather : MonoBehaviour
     Vector3 chopPos; bool chopIsRock;
     bool pendingImpact; float pendingAt; bool pendingIsPick, pendingIsSword; Vector3 pendingAim;
 
+    /// ★스윙 일련번호 — 휘두를 때마다 1씩 는다 (2026-07-28).
+    /// 클립 재생을 'swingT 가 0→양수' 로 감지하면, 연타하거나 버튼을 누르고 있을 때
+    /// swingT 가 0 으로 안 떨어져서 두 번째부터 영영 안 걸린다. 번호가 바뀌었는지로 본다.
+    [HideInInspector] public int SwingSeq;
+
     /// 지금 든 무기의 스윙을 애니메이션 클립이 그리고 있나 (PlayerBow 가 매 프레임 알려준다).
     /// true 면 타격 시점은 클립의 이벤트가 정한다 — impactDelay 타이머는 쓰지 않는다.
     [HideInInspector] public bool animDrivesImpact;
@@ -376,6 +381,7 @@ public class PlayerGather : MonoBehaviour
         pendingAim = aimDir;
         pendingImpact = true;
         pendingAt = Time.time + impactDelay;
+        SwingSeq++;   // 클립을 처음부터 다시 재생시키는 신호
     }
 
     /// 화살이 나무/바위에 맞음 — 화살로도 캘 수 있다, 효율이 낮을 뿐 (arrowVsNode)
