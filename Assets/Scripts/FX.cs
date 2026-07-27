@@ -211,7 +211,10 @@ public static class FX
         var fnt = PopFont();
         if (fnt != null) t.font = fnt;
         t.text = text;
-        t.fontSize = style == PopStyle.Crit ? 11f : style == PopStyle.Hit ? 9f : 7.5f;
+        // ★1/10 스케일에 맞춰 글자 크기를 줄인다 (2026-07-28). 월드 스페이스 텍스트라
+        //   캐릭터가 작아진 만큼 상대적으로 거대해 보였다. 아이템 획득(Item)이 특히 컸다.
+        t.fontSize = (style == PopStyle.Crit ? 11f : style == PopStyle.Hit ? 9f : 7.5f)
+                   * WorldScale.K * 3f;
         t.alignment = TMPro.TextAlignmentOptions.Center;
         t.fontStyle = TMPro.FontStyles.Bold;
         // 스타일별 그라디언트 (위→아래)

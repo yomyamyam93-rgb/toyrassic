@@ -852,7 +852,7 @@ public class PetUnit : MonoBehaviour
         // 피해 숫자 — 내 편이 맞으면 빨강, 적이 맞으면 밝은 노랑
         FX.DamageNum(transform.position + Vector3.up * body * 0.8f, dmg,
                      team == Team.Player ? new Color(1f, 0.35f, 0.3f) : new Color(1f, 0.95f, 0.6f),
-                     Mathf.Clamp(body * 0.22f, 0.9f, 3.5f));
+                     Mathf.Clamp(body * 0.22f, 0.9f, 3.5f) / 3f);   // ★하한 0.9 가 축소를 막으므로 결과를 나눈다 (2026-07-28)
         // 어그로: 때린 놈에게 위협 전액 + 근처 무리에게도 일부 (무리 어그로 — 업계 정공법)
         if (attacker != null && attacker.team != team)
         {
@@ -1098,14 +1098,14 @@ public class PetUnit : MonoBehaviour
         //  · 캐릭터: 몸이 작고 카메라가 가까워 넉넉히 띄워야 잘 보인다
         // ★띄우는 간격도 바 크기에 맞춰야 한다 (2026-07-28). 바를 ×2 로 키워놨으므로
         //   간격만 비례(×1)로 두면 바가 머리에 딱 붙어 보인다. 같은 ×2 를 곱한다.
-        barY = top + (isAvatar ? body * 1.0f + 1.2f : 1.4f + body * 0.03f) * WorldScale.K * 2f;
+        barY = top + (isAvatar ? body * 1.0f + 1.2f : 1.4f + body * 0.03f) * WorldScale.K * 3f;   // ★점프 때 몸이 바를 넘어서 간격을 ×2→×3 (2026-07-28)
         // ★전 유닛 동일 크기 (몸 크기 비례 폐지 — 제각각 버그 수정)
         // ★바는 몸의 자식이 아니라 월드에 따로 있으므로 세계 스케일을 직접 곱한다 (2026-07-27)
         // ★1/10 스케일에서는 '비율'과 '가독성'을 동시에 만족할 수 없다 (2026-07-28).
         //   ×1 = 원본 비율(바 너비 ÷ 캐릭터 높이 = 1.15배)이지만 읽을 수 없을 만큼 작다.
         //   ×4 = 읽히지만 4.6배로 넓어져 납작하게 눌려 보인다. ×2 를 타협값으로 쓴다.
         //   ★근본 해결은 월드 스페이스가 아니라 화면 스페이스(항상 같은 픽셀 크기)로 바꾸는 것.
-        barBaseScale = 1.35f * WorldScale.K * 2.6f;
+        barBaseScale = 1.35f * WorldScale.K * 3.9f;   // 2.6 → ×1.5 (2026-07-28)
         barRoot = new GameObject(name + "_hpbar").transform;
         barRoot.SetParent(SceneBuckets.Bars);   // 하이라키 정리
         barRoot.localScale = Vector3.one * barBaseScale;

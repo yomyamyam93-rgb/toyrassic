@@ -2902,7 +2902,7 @@ MonoBehaviour:
   arrowRange: 7
   aimFillTime: 1.4
   drawTime: 0.9
-  handRadius: 0.054000005
+  handRadius: 0.18
   handSide: 0.2
   handUp: -0.028
   bowAimHandL: {x: 0, y: 0.3, z: 4}
@@ -20396,7 +20396,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::ScatterSpawner
   player: {fileID: 107336113}
-  cellSize: 55
+  cellSize: 20
   density: 0.3
   stickRatio: 0.55
   seed: 11
@@ -22443,13 +22443,13 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: f3a3c9a7689315a46990de944d4d919b, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::DropDisplayManager
-  iconSize: 0.72
+  iconSize: 0.44
   bobAmp: 0.192
   bobSpeed: 2.4
   beamOn: 1
-  beamHeight: 3.369
-  beamWidth: 0.915
-  beamAlpha: 0.6
+  beamHeight: 3.39
+  beamWidth: 0.45
+  beamAlpha: 0.759
   woodColor: {r: 0.65, g: 1.7, b: 0.5, a: 1}
   stoneColor: {r: 1.3, g: 1.3, b: 1.5, a: 1}
   eggColor: {r: 1.9, g: 1.55, b: 0.5, a: 1}
