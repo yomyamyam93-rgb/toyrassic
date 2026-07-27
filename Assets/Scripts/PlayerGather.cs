@@ -156,7 +156,10 @@ public class PlayerGather : MonoBehaviour
     void Update()
     {
         cd -= Time.deltaTime;
-        swingT = Mathf.Max(0f, swingT - Time.deltaTime / 0.34f);
+        // ★클립이 스윙을 그리면 스윙 지속시간도 클립 길이(1초)를 따라야 한다 (2026-07-28).
+        //   안 맞추면 코드는 0.34초에 스윙이 끝난 줄 알고 잔상을 꺼버리는데
+        //   애니메이터는 아직 1초짜리를 그리고 있다.
+        swingT = Mathf.Max(0f, swingT - Time.deltaTime / (animDrivesImpact ? 1f : 0.34f));
         // 스윙 절정에 타격 — 모션과 동기, 전방 부채꼴 안 전부
         // ★애니메이션 클립이 스윙을 그리는 무기는 이 타이머를 쓰지 않는다 (2026-07-28).
         //   클립의 '무기가 눈에 보이게 닿는 프레임' 에 찍은 이벤트가 대신 부른다.

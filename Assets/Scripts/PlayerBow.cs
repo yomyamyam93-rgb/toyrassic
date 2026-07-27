@@ -1122,7 +1122,11 @@ public class PlayerBow : MonoBehaviour
                             ? frame * Quaternion.LookRotation(aimV.normalized, upV)
                             : frame * Quaternion.Slerp(q0, q1, rk);
 
-                    if (trail != null)
+                    // ★클립이 그리는 무기면 잔상에 코드가 일절 손대지 않는다 (2026-07-28).
+                    //   색·굵기·길이까지 매 프레임 덮어쓰면 애니메이션 창에서 찍은
+                    //   키프레임이 아무 효과가 없다. 잔상 전체를 클립이 소유한다.
+                    //   ※그래서 무기 탭의 trail* 값들은 근접무기에는 더 이상 안 쓰인다.
+                    if (trail != null && !clipOwnsHandR)
                     {
                         // 잔상 세부설정 실시간 반영
                         trail.time = setup.trailTime;
@@ -1150,7 +1154,8 @@ public class PlayerBow : MonoBehaviour
                                + Mathf.Sin(Time.time * setup.carrySwaySpeed * 1.6f + 0.9f) * 0.3f) * setup.carrySway;
                     // ★휴대 각도는 여기서만 — 스윙 때 섞이면 무기가 비틀린 채 휘둘러진다
                     toolHeld.localRotation = Quaternion.Euler(setup.gripEuler + setup.carryEuler + new Vector3(tsw, 0f, tsw * 0.6f));
-                    if (trail != null) trail.emitting = false;
+                    // 클립이 그리는 무기는 잔상도 클립이 갖는다 — 여기서 끄면 키프레임이 무시된다
+                    if (trail != null && !clipOwnsHandR) trail.emitting = false;
                 }
                 // ★스윙이 막 시작된 프레임에 클립을 재생시킨다 (2026-07-28).
                 //   가로/세로는 무기의 style 이 정한다 — 코드가 쓰던 것과 같은 기준.
