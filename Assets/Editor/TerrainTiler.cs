@@ -91,14 +91,21 @@ public static class TerrainTiler
         float ox = Seed % 1000 * 0.37f, oz = Seed % 997 * 0.53f;
         float stepM = tileSize / (TileRes - 1);          // 픽셀 하나가 담당하는 거리
         int done = 0;
+        bool canceled = false;
 
         try
         {
             for (int tz = 0; tz < TilesPerSide; tz++)
             for (int tx = 0; tx < TilesPerSide; tx++)
             {
-                EditorUtility.DisplayProgressBar("지형 타일 굽기",
-                    $"타일 {done + 1}/{total} 계산 중", done / (float)total);
+                if (canceled) break;
+                if (EditorUtility.DisplayCancelableProgressBar("지형 타일 굽기",
+                    $"타일 {done + 1}/{total} 계산 중", done / (float)total))
+                {
+                    canceled = true;
+                    Debug.LogWarning($"[지형] 사용자가 중단했다 — 타일 {done}/{total} 까지만 구워졌다.");
+                    break;
+                }
 
                 var h = new float[TileRes, TileRes];
                 float baseX = tx * tileSize, baseZ = tz * tileSize;
@@ -178,8 +185,9 @@ public static class TerrainTiler
             }
 
             // ── 이웃 연결: 경계에서 조명·LOD 가 튀지 않게 ──
-            for (int tz = 0; tz < TilesPerSide; tz++)
-            for (int tx = 0; tx < TilesPerSide; tx++)
+            //    중간에 취소했으면 빈 자리가 있어 건너뛴다 (없으면 여기서 오류가 난다)
+            for (int tz = 0; tz < TilesPerSide && !canceled; tz++)
+            for (int tx = 0; tx < TilesPerSide && !canceled; tx++)
                 made[tx, tz].SetNeighbors(
                     tx > 0 ? made[tx - 1, tz] : null,
                     tz < TilesPerSide - 1 ? made[tx, tz + 1] : null,

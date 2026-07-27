@@ -95,8 +95,10 @@ public static class WorldBuilder
             for (int i = 0; i < tiles.Length; i++)
             {
                 var t = tiles[i];
-                EditorUtility.DisplayProgressBar("월드 다시 짓기",
-                    $"타일 {i + 1}/{tiles.Length} — {t.name}", i / (float)tiles.Length);
+                // ★취소 가능하게 — 예전에 못 멈춰서 두 시간을 날린 적이 있다(Esc 로 중단)
+                if (EditorUtility.DisplayCancelableProgressBar("월드 다시 짓기",
+                    $"타일 {i + 1}/{tiles.Length} — {t.name}", i / (float)tiles.Length))
+                { Debug.LogWarning($"[월드] 사용자가 중단했다 — 타일 {i}/{tiles.Length} 까지만 처리됨."); break; }
 
                 DoGround(t);                              // ★바탕칠 먼저 — 길은 그 위에 덧칠한다
                 var (r, c) = DoRoads(t, lines, cell, grid);
@@ -120,6 +122,7 @@ public static class WorldBuilder
         }
         finally { EditorUtility.ClearProgressBar(); }
 
+        BakeGroundColorForGrass(tiles[0]);   // ★세계 전체를 한 장으로 — 반드시 한 번만
         DoWater(tiles[0]);
         AssetDatabase.SaveAssets();
 
@@ -155,8 +158,9 @@ public static class WorldBuilder
         {
             for (int i = 0; i < tiles.Length; i++)
             {
-                EditorUtility.DisplayProgressBar("잔디 다시 심기",
-                    $"타일 {i + 1}/{tiles.Length} — {tiles[i].name}", i / (float)tiles.Length);
+                if (EditorUtility.DisplayCancelableProgressBar("잔디 다시 심기",
+                    $"타일 {i + 1}/{tiles.Length} — {tiles[i].name}", i / (float)tiles.Length))
+                { Debug.LogWarning($"[월드] 사용자가 중단했다 — 타일 {i}/{tiles.Length} 까지만."); break; }
                 grass += DoGrass(tiles[i]);
                 flowers += DoFlowers(tiles[i]);
                 tiles[i].Flush();
@@ -164,6 +168,7 @@ public static class WorldBuilder
             }
         }
         finally { EditorUtility.ClearProgressBar(); }
+        BakeGroundColorForGrass(tiles[0]);   // ★한 번만
         AssetDatabase.SaveAssets();
         Debug.Log($"[월드] 잔디 다시 심기 완료 — 지형 {tiles.Length}장 · 풀 {grass}칸 · 꽃 {flowers}");
     }
@@ -764,10 +769,16 @@ public static class WorldBuilder
                   $"({_wSize.x / R:F1} m/px, 지형 {tiles.Length}장) → GrassCross 재질 {wired}개 연결.");
     }
 
+    /// 잔디 표시 거리(m) — 유니티 기본 80m 는 깔아도 안 보인다.
+    /// 패치를 128 로 키워 드로우콜을 16배 줄인 만큼 멀리까지 감당된다.
+    const float GrassViewDist = 900f;
+
     static int DoGrass(Terrain terrain)
     {
         var td = terrain.terrainData;
-        BakeGroundColorForGrass(terrain);      // ★색 매칭 먼저
+        // ★땅색 굽기는 여기서 부르지 않는다 — 세계 전체를 한 장으로 굽는 작업이라
+        //   타일마다 부르면 8192² 굽기를 16번 반복한다(느림의 주범이었다).
+        //   ①번·⑥번이 모든 타일을 마친 뒤 한 번만 부른다.
         var protos = td.detailPrototypes;
         if (protos == null || protos.Length == 0)
         {
@@ -788,13 +799,50 @@ public static class WorldBuilder
 
         // ★또 2배 — 셀당 상한(16)에 이미 걸려서, 잔디를 더 심으려면 '셀 자체'를 촘촘히.
         //   3m/셀 → 2.2m/셀 이면 셀 수가 약 1.86배 = 잔디 총량 ~2배.
+        //   ★패치 크기가 성능의 핵심이다 — 패치 하나가 곧 드로우콜 단위다.
+        //     패치당 32 면 2720 해상도에서 타일마다 85×85=7225 개, 16장이면 11만 5천 개가 된다.
+        //     128 로 키우면 타일당 21×21=441 개(16배 감소) → 잔디를 훨씬 멀리까지 그릴 수 있다.
+        //     해상도는 패치 크기의 배수여야 한다.
+        const int PerPatch = 128;
         int wantRes = Mathf.Clamp(Mathf.CeilToInt(td.size.x / 2.2f), 512, 3072);   // 2.2m당 1셀
-        if (td.detailResolution < wantRes)
-            td.SetDetailResolution(wantRes, Mathf.Min(td.detailResolutionPerPatch, 32));
+        wantRes = Mathf.Max(PerPatch, wantRes / PerPatch * PerPatch);              // 배수로 맞춤
+        if (td.detailResolution != wantRes || td.detailResolutionPerPatch != PerPatch)
+            td.SetDetailResolution(wantRes, PerPatch);
         int res = td.detailResolution;
         float maxH = td.size.y * MaxHeightFrac;
         int total = 0;
         const int AMT_MAX = 16;                 // 유니티 셀당 상한
+
+        // ★알파맵을 한 번만 통째로 읽는다.
+        //   예전엔 칸마다 SandAmount/DirtAmount 가 td.GetAlphamaps(x,z,1,1) 을 불렀는데,
+        //   값 하나 읽자고 배열을 새로 할당하는 호출이라 16장 × 700만칸 × 10종 = 11억 번이 됐다.
+        int aw = td.alphamapWidth, ah = td.alphamapHeight;
+        var splat = td.GetAlphamaps(0, 0, aw, ah);
+        int sandL = FindLayer(td, "sand", "beach");
+        int dirtL = FindLayer(td, "dirt", "drysoil");
+        float minH = MinH(td);
+
+        // ★칸별 판정을 한 번만 한다 (예전엔 풀 종류마다 높이·경사를 다시 쟀다 = 10배 낭비).
+        //   0 이면 잔디 없음, 그 외는 도로 페이드 값.
+        var fade = new float[res, res];
+        for (int y = 0; y < res; y++)
+        for (int x = 0; x < res; x++)
+        {
+            float fx = (float)x / (res - 1), fz = (float)y / (res - 1);
+            float h = td.GetInterpolatedHeight(fx, fz);
+            if (h < minH || h > maxH) continue;
+            if (Vector3.Angle(td.GetInterpolatedNormal(fx, fz), Vector3.up) > GrassMaxSlope) continue;
+
+            int ax = Mathf.Clamp(Mathf.RoundToInt(fx * (aw - 1)), 0, aw - 1);
+            int az = Mathf.Clamp(Mathf.RoundToInt(fz * (ah - 1)), 0, ah - 1);
+            if (sandL >= 0 && splat[az, ax, sandL] > 0.3f) continue;   // ★모래사장엔 잔디 없음
+
+            // ★도로 페이드: 흙(도로) 비중이 높을수록 잔디를 줄인다 = 도로가 잔디로 서서히 번짐
+            float dirt = dirtL >= 0 ? splat[az, ax, dirtL] : 0f;
+            float rf = Mathf.SmoothStep(1f, 0f, Mathf.InverseLerp(0.12f, 0.5f, dirt));
+            if (rf <= 0.02f) continue;
+            fade[y, x] = rf;
+        }
 
         for (int layer = 0; layer < protos.Length; layer++)
         {
@@ -803,30 +851,21 @@ public static class WorldBuilder
             for (int y = 0; y < res; y++)
             for (int x = 0; x < res; x++)
             {
+                float rf = fade[y, x];
+                if (rf <= 0f) continue;
                 float fx = (float)x / (res - 1), fz = (float)y / (res - 1);
-                float h = td.GetInterpolatedHeight(fx, fz);
-                if (h < MinH(td) || h > maxH) continue;
-                if (Vector3.Angle(td.GetInterpolatedNormal(fx, fz), Vector3.up) > GrassMaxSlope) continue;
-                if (SandAmount(td, fx, fz) > 0.3f) continue;   // ★모래사장엔 잔디 없음
-
-                // ★도로 페이드: 흙(도로) 비중이 높을수록 잔디를 줄인다 = 도로가 잔디로 서서히 번짐
-                float dirt = DirtAmount(td, fx, fz);
-                float roadFade = Mathf.SmoothStep(1f, 0f, Mathf.InverseLerp(0.12f, 0.5f, dirt));
-                if (roadFade <= 0.02f) continue;
-
                 // 커버리지 거의 전면 + 상한 = 2배 더 빽빽 (문턱 0.20→0.05, 최소 8)
                 float d = Mathf.PerlinNoise(fx * 90f + layer * 37.7f, fz * 90f + layer * 37.7f);
                 if (d < 0.05f) continue;
                 float dens = Mathf.Lerp(8f, AMT_MAX, (d - 0.05f) / 0.95f) * GrassDensityMax;
-                int amt = Mathf.RoundToInt(dens * roadFade);   // 도로 근처는 성기게
+                int amt = Mathf.RoundToInt(dens * rf);        // 도로 근처는 성기게
                 if (amt <= 0) continue;
                 map[y, x] = Mathf.Min(AMT_MAX, amt);
                 total++;
             }
             td.SetDetailLayer(0, 0, layer, map);
         }
-        // ★유니티 잔디는 기본 그리기 거리가 80m 라 멀리서 보면 깔아도 안 보인다
-        terrain.detailObjectDistance = 250f;
+        terrain.detailObjectDistance = GrassViewDist;
         terrain.detailObjectDensity = 1f;
         return total;
     }
