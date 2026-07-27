@@ -452,6 +452,21 @@ public class PlayerBow : MonoBehaviour
     /// 도구 머리 끝의 스윙 궤적 트레일 — 휘두르는 동안만 발광
     TrailRenderer MakeTrail(Transform tool)
     {
+        // ★씬에 이미 만들어 둔 잔상이 있으면 그걸 쓴다 (2026-07-28).
+        //   위치·굵기·색을 화면에서 잡고 애니메이션 키프레임까지 찍을 수 있어야 하는데,
+        //   런타임에 또 만들면 무기에 잔상이 두 개 붙고 사장님이 만든 건 묻힌다.
+        //   이름은 대소문자 상관없이 'trail' 로 시작하면 그것으로 본다.
+        foreach (Transform c in tool)
+        {
+            if (!c.name.ToLower().StartsWith("trail")) continue;
+            var found = c.GetComponent<TrailRenderer>();
+            if (found == null) found = c.gameObject.AddComponent<TrailRenderer>();
+            if (found.sharedMaterial == null) found.material = new Material(Shader.Find("Sprites/Default"));
+            found.emitting = false;
+            found.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            return found;
+        }
+
         var tip = new GameObject("trail");
         tip.transform.SetParent(tool, false);
         // 무기 끝에 붙인다 — 모델은 그립에서 toolLength 만큼 뻗도록 정규화되어 있다
