@@ -230,8 +230,10 @@ public class NestSite : MonoBehaviour
     void ApplyEggLook()
     {
         if (egg == null) return;
-        egg.localPosition = new Vector3(0f, 2.2f, 0f);
-        egg.localScale = new Vector3(2.4f, 3.2f, 2.4f);
+        // ★5배 (2026-07-29 사용자 "둥지와 알 모델링이 너무 작아서 못 찾겠어").
+        //   둥지 모형도 같은 배수로 키웠으므로 알도 같이 커져야 둥지에 안 묻힌다.
+        egg.localPosition = new Vector3(0f, 2.2f * 5f, 0f);
+        egg.localScale = new Vector3(2.4f, 3.2f, 2.4f) * 5f;
     }
 
     void Start()
@@ -261,8 +263,10 @@ public class NestSite : MonoBehaviour
     [Header("빛줄기")]
     [Tooltip("빛줄기 높이 (m) — 하늘 끝까지. 지형 최고 1000m 보다 높아야 산 너머에서도 보인다")]
     public float beamHeight = 1400f;
-    [Tooltip("빛줄기 굵기 반경 (m)")] public float beamRadius = 0.6f;
-    [Tooltip("빛줄기 진하기")] [Range(0f, 1f)] public float beamAlpha = 0.35f;
+    // ★굵기를 크게 (2026-07-29). 0.6m 는 멀리서 화면상 1픽셀도 안 돼 아예 안 보였다.
+    //   6km 섬에서 몇백 미터 밖을 가리키는 표시라 굵어야 한다.
+    [Tooltip("빛줄기 굵기 반경 (m) — 멀리서도 보이려면 굵어야 한다")] public float beamRadius = 4f;
+    [Tooltip("빛줄기 진하기")] [Range(0f, 1f)] public float beamAlpha = 0.5f;
 
     Transform beam;
     static Material beamMat;

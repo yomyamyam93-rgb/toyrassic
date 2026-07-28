@@ -127,7 +127,7 @@ public class PetUnit : MonoBehaviour
         agi = baseAgi * (1f + pAgi * PerPoint);
         float before = maxHp;
         vit = baseVit * (1f + pVit * PerPoint);
-        maxHp = vit * 10f;
+        maxHp = vit * HpPerVit;
         hp = Mathf.Min(maxHp, hp + Mathf.Max(0f, maxHp - before));   // 늘어난 만큼 회복
     }
 
@@ -155,7 +155,7 @@ public class PetUnit : MonoBehaviour
         level = Mathf.Clamp(lv, 1, MaxLevel);
         float k = 1f + (level - 1) * 0.03f;
         str *= k; vit *= k; agi *= 1f + (level - 1) * 0.012f;
-        maxHp = vit * 10f; hp = maxHp;
+        maxHp = vit * HpPerVit; hp = maxHp;
     }
 
     /// 펫 교체 시 레벨 이어받기 — 보관함에서 꺼낼 때
@@ -209,7 +209,7 @@ public class PetUnit : MonoBehaviour
         str = baseStr * Mathf.Pow(1f + rs, n);
         agi = baseAgi * Mathf.Pow(1f + ra, n);
         vit = baseVit * Mathf.Pow(1f + rv, n);
-        maxHp = vit * 10f;
+        maxHp = vit * HpPerVit;
     }
 
     [Header("코어 스탯 (코어가 전부 정함)")]
@@ -217,6 +217,13 @@ public class PetUnit : MonoBehaviour
     public float intel = 5f;   // 지력 = 마법 딜·회복량 (물이 씀)
     public float agi = 10f;    // 민첩 = 공속·이동·회피
     public float vit = 30f;    // 체력 = 순수 HP
+
+    // ★전투를 길게 (2026-07-29 사용자 "좀더 전투가 길어질 수 있게 스탯 밸런스").
+    //   예전 vit x10 은 M등급 TTK 가 5초 안팎이라 한 번 붙으면 순식간에 끝났다.
+    //   x22 로 올리면 같은 조건에서 약 11초 — 붙었다 떨어지고 다시 붙을 시간이 생긴다.
+    //   ★피해를 깎지 않고 체력을 올린다. 설계가 "방어력 없음 — 표기대로 다 들어간다" 라
+    //   피해를 건드리면 그 약속이 깨진다.
+    public const float HpPerVit = 22f;
 
     public Transform followTarget;
 
@@ -276,7 +283,7 @@ public class PetUnit : MonoBehaviour
     void Start()
     {
         terrain = Terrain.activeTerrain;
-        maxHp = hp = vit * 10f;
+        maxHp = hp = vit * HpPerVit;
         baseScale = transform.localScale;
         // ※파티클(꽃잎 등) 렌더러는 바운즈가 엉뚱해서 제외 — 체력바가 하늘로 가는 사고 방지
         Renderer r = null;
