@@ -269,6 +269,13 @@ public class SkillSystem : MonoBehaviour
         FX.Burst(from, throwTrailColor, 10, 0.03f, 0.35f, 0.3f);   // 집어드는 순간 반짝
 
         var ghost = MakeFlyingCopy(pet);
+
+        // ★구르는 축 = 진행 방향의 '옆' — 이 축으로 돌아야 공이 앞으로 구르는 것처럼 보인다.
+        //   위쪽 축으로 돌리면 헬리콥터처럼 팽이 돌기가 된다.
+        var flat = spot - from; flat.y = 0f;
+        var spinAxis = flat.sqrMagnitude > 1e-4f
+                     ? Vector3.Cross(Vector3.up, flat.normalized) : Vector3.right;
+
         float t = 0f, dur = Mathf.Max(0.05f, throwFlyTime);
         while (t < 1f)
         {
@@ -276,7 +283,11 @@ public class SkillSystem : MonoBehaviour
             float k = Mathf.Clamp01(t);
             var p = Vector3.Lerp(from, spot, k);
             p.y += Mathf.Sin(k * Mathf.PI) * throwArc;          // 포물선
-            if (ghost != null) ghost.transform.position = p;
+            if (ghost != null)
+            {
+                ghost.transform.position = p;
+                ghost.transform.Rotate(spinAxis, throwSpin * Time.deltaTime, Space.World);
+            }
             yield return null;
         }
         if (ghost != null) Destroy(ghost);
@@ -326,35 +337,72 @@ public class SkillSystem : MonoBehaviour
         blob.skillPitch = 0f;
     }
 
-    [Tooltip("날아가는 펫이 얼마나 밝아지나 (1 = 원래 색, 3 = 블룸으로 확 빛남)")]
-    public float throwGlow = 3f;
+    [Tooltip("테두리가 얼마나 빛나나 (1 = 원래, 5 = 블룸으로 확 빛남)")]
+    public float throwGlow = 5f;
+    [Tooltip("공처럼 말리는 정도 (1 = 완전한 구, 0 = 원래 모양)")]
+    [Range(0f, 1f)] public float throwBallRoundness = 1f;
+    [Tooltip("날아가며 구르는 빠르기 (초당 °)")] public float throwSpin = 720f;
     [Tooltip("꼬리 색")] public Color throwTrailColor = new Color(2.2f, 1.7f, 0.9f, 1f);
 
-    /// ★날아가는 것은 **머리 위에 있던 그 펫** 이다 (2026-07-28 사용자).
-    ///   구체로 바꿨더니 "내 펫을 던진다" 는 느낌이 사라졌다. 펫 모양 그대로 날아가되
-    ///   **반짝 빛나게** 한다 — 재질을 복제해 밝기를 올리고 발광을 켠다.
+    /// ★날아가는 것은 **머리 위에 있던 그 펫** 이다. 단 두 가지가 다르다 (2026-07-28 사용자):
+    ///   ① **공처럼 말린다** — 세 축을 같은 길이로 눌러/늘려 동그랗게 만든다.
+    ///      그래야 굴러가는 것처럼 회전시켜도 어색하지 않다 (긴 몸을 돌리면 헬리콥터가 된다).
+    ///   ② **몸이 아니라 테두리가 빛난다** — 몸 전체를 밝히면 그냥 흰 덩어리가 되고
+    ///      무슨 펫인지 안 보인다. 아웃라인만 밝히면 실루엣이 살아 있으면서 빛난다.
     ///   컴포넌트는 안 붙인다 (진짜 PetUnit 을 날리면 비행 중에 전투 판정에 끼어든다).
     GameObject MakeFlyingCopy(PetUnit pet)
     {
         if (pet == null) return null;
         var srcMf = pet.GetComponent<MeshFilter>();
         var srcMr = pet.GetComponent<MeshRenderer>();
-        if (srcMf == null || srcMr == null) return null;
+        if (srcMf == null || srcMr == null || srcMf.sharedMesh == null) return null;
+        var mesh = srcMf.sharedMesh;
 
+        // 루트는 회전만 맡는다 (구르기)
         var g = new GameObject("throw_" + pet.name);
         g.transform.SetParent(SceneBuckets.Fx);
-        g.transform.localScale = pet.transform.lossyScale;
-        g.AddComponent<MeshFilter>().sharedMesh = srcMf.sharedMesh;
 
-        var mr = g.AddComponent<MeshRenderer>();
-        mr.material = Glowing(srcMr.sharedMaterial);
-        mr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+        // ── 공으로 말기 ──
+        // 메시를 세 축 같은 크기로 눌러 구에 가깝게. 중심이 원점이 아니면 회전이 흔들리므로
+        // 자식으로 한 겹 두고 메시 중심만큼 밀어 준다.
+        var ms = mesh.bounds.size;
+        var world = pet.transform.lossyScale;
+        float d = Mathf.Max(0.02f, pet.body);                       // 목표 지름 = 원래 몸 크기
+        var round = new Vector3(d / Mathf.Max(1e-4f, ms.x),
+                                d / Mathf.Max(1e-4f, ms.y),
+                                d / Mathf.Max(1e-4f, ms.z));
+        var keep = new Vector3(world.x, world.y, world.z);          // 원래 비율
+        var scale = Vector3.Lerp(keep, round, Mathf.Clamp01(throwBallRoundness));
+
+        var visual = new GameObject("visual").transform;
+        visual.SetParent(g.transform, false);
+        visual.localScale = scale;
+        visual.localPosition = -Vector3.Scale(mesh.bounds.center, scale);   // 중심을 원점으로
+
+        // 몸 — 원래 색 그대로 (여기까지 밝히면 흰 덩어리가 된다)
+        var body = visual.gameObject.AddComponent<MeshFilter>();
+        body.sharedMesh = mesh;
+        var bmr = visual.gameObject.AddComponent<MeshRenderer>();
+        bmr.sharedMaterial = srcMr.sharedMaterial;
+        bmr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+
+        // 테두리 — 여기만 빛낸다. 원본 펫의 Outline 자식에서 재질을 빌린다
+        var srcOutline = pet.transform.Find("Outline");
+        var omat = srcOutline != null ? srcOutline.GetComponent<MeshRenderer>() : null;
+        if (omat != null)
+        {
+            var o = new GameObject("outline").transform;
+            o.SetParent(visual, false);
+            o.gameObject.AddComponent<MeshFilter>().sharedMesh = mesh;
+            var omr = o.gameObject.AddComponent<MeshRenderer>();
+            omr.material = Glowing(omat.sharedMaterial);
+            omr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+        }
 
         // 빛 꼬리 — 어디서 어디로 날아가는지 한눈에 보이게
         var tr = g.AddComponent<TrailRenderer>();
-        float w = Mathf.Max(0.02f, pet.body * 0.5f);
         tr.time = 0.25f;
-        tr.startWidth = w; tr.endWidth = 0f;
+        tr.startWidth = d * 0.55f; tr.endWidth = 0f;
         tr.material = new Material(Shader.Find("Universal Render Pipeline/Unlit"));
         tr.material.color = throwTrailColor;
         tr.startColor = new Color(throwTrailColor.r, throwTrailColor.g, throwTrailColor.b, 0.85f);
@@ -363,17 +411,17 @@ public class SkillSystem : MonoBehaviour
         return g;
     }
 
-    /// 원래 재질을 복제해 밝기·발광을 올린다 (원본 재질은 안 건드린다)
+    /// 재질을 복제해 밝기·발광을 올린다 (원본 재질은 안 건드린다)
     Material Glowing(Material src)
     {
-        var m = src != null ? new Material(src) : new Material(Shader.Find("Universal Render Pipeline/Lit"));
+        var m = src != null ? new Material(src) : new Material(Shader.Find("Universal Render Pipeline/Unlit"));
         Color baseC = m.HasProperty("_BaseColor") ? m.GetColor("_BaseColor")
                     : m.HasProperty("_Color") ? m.GetColor("_Color") : Color.white;
         var lit = baseC * throwGlow; lit.a = baseC.a;
         if (m.HasProperty("_BaseColor")) m.SetColor("_BaseColor", lit);
         if (m.HasProperty("_Color")) m.SetColor("_Color", lit);
         m.EnableKeyword("_EMISSION");
-        m.SetColor("_EmissionColor", baseC * throwGlow * 0.8f);
+        m.SetColor("_EmissionColor", baseC * throwGlow);
         return m;
     }
 
