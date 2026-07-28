@@ -246,7 +246,14 @@ public class SkillSystem : MonoBehaviour
     ///   진짜 PetUnit 을 날리면 그 동안 목록에 잡혀 전투 판정에 끼어든다).
     System.Collections.IEnumerator ThrowFlight(PetUnit pet, Vector3 spot)
     {
-        var from = transform.position + Vector3.up * 0.25f * WorldScale.K;
+        // ★출발점은 '머리 위에 올려둔 펫' 자리다 (2026-07-28 사용자).
+        //   거기 있던 것이 그대로 피융 날아가야 눈이 따라간다.
+        var head = PetHeadDisplay.I;
+        var from = head != null ? head.HeadPoint : transform.position + Vector3.up * 0.25f * WorldScale.K;
+        if (head != null) head.Hide();
+
+        // 던지는 모션 — 살짝 젖혔다 앞으로 홱
+        if (blob != null) StartCoroutine(ThrowMotion());
 
         var ghost = MakeFlyingCopy(pet);
         float t = 0f, dur = Mathf.Max(0.05f, throwFlyTime);
@@ -256,11 +263,7 @@ public class SkillSystem : MonoBehaviour
             float k = Mathf.Clamp01(t);
             var p = Vector3.Lerp(from, spot, k);
             p.y += Mathf.Sin(k * Mathf.PI) * throwArc;          // 포물선
-            if (ghost != null)
-            {
-                ghost.transform.position = p;
-                ghost.transform.Rotate(0f, 900f * Time.deltaTime, 0f);   // 빙글빙글 날아간다
-            }
+            if (ghost != null) ghost.transform.position = p;
             yield return null;
         }
         if (ghost != null) Destroy(ghost);
@@ -281,21 +284,65 @@ public class SkillSystem : MonoBehaviour
 
         yield return new WaitForSeconds(0.06f);   // 팡 하고 아주 잠깐 뜸 들인 뒤 튀어나온다
         SummonPack(pet, spot);
+        if (head != null) head.Show();            // 머리 위에 다시 올라온다 (펫은 소모되지 않는다)
     }
 
-    /// 날아가는 동안 보여줄 껍데기 — 메시·재질만 빌린다 (컴포넌트 없음)
+    /// 던지는 모션 — 뒤로 살짝 젖혔다가 앞으로 홱. 웅크림이 있어야 던진 것처럼 보인다
+    [Tooltip("던질 때 젖히는 각도 (°)")] public float throwWindupDeg = 16f;
+    [Tooltip("젖히는 시간 (초)")] public float throwWindupTime = 0.1f;
+    [Tooltip("앞으로 채는 시간 (초)")] public float throwSnapTime = 0.16f;
+
+    System.Collections.IEnumerator ThrowMotion()
+    {
+        float t = 0f;
+        while (t < 1f)   // ① 뒤로 젖힘
+        {
+            t += Time.deltaTime / Mathf.Max(0.02f, throwWindupTime);
+            blob.skillPitch = -throwWindupDeg * Mathf.Clamp01(t);
+            yield return null;
+        }
+        t = 0f;
+        while (t < 1f)   // ② 앞으로 홱 → 제자리
+        {
+            t += Time.deltaTime / Mathf.Max(0.02f, throwSnapTime);
+            float k = Mathf.Clamp01(t);
+            // -젖힘 → +두 배로 앞으로 → 0
+            blob.skillPitch = Mathf.Sin((k * 1.5f + 0.5f) * Mathf.PI) * throwWindupDeg * 1.6f * (1f - k);
+            yield return null;
+        }
+        blob.skillPitch = 0f;
+    }
+
+    [Tooltip("날아가는 구체의 크기 (m)")] public float throwBallSize = 0.16f;
+    [Tooltip("구체 색 (밝게 = 블룸으로 빛남)")]
+    public Color throwBallColor = new Color(2.4f, 1.9f, 0.9f, 1f);
+
+    /// ★날아가는 동안은 펫 모양이 아니라 **빛나는 구체** 다 (2026-07-28 사용자).
+    ///   펫 메시가 빙글빙글 날아가면 뭐가 뭔지 안 읽힌다. 빛 덩어리로 날아가서
+    ///   착탄에 펑 터지며 펫이 되는 편이 훨씬 잘 읽히고 시원하다. 삐유우우웅 — 팡.
     GameObject MakeFlyingCopy(PetUnit pet)
     {
-        var mf = pet.GetComponent<MeshFilter>();
-        var mr = pet.GetComponent<MeshRenderer>();
-        if (mf == null || mr == null) return null;
-        var g = new GameObject("throw_" + pet.name);
+        var g = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+        Destroy(g.GetComponent<Collider>());
+        g.name = "throw_" + (pet != null ? pet.name : "pet");
         g.transform.SetParent(SceneBuckets.Fx);
-        g.transform.localScale = pet.transform.lossyScale;
-        g.AddComponent<MeshFilter>().sharedMesh = mf.sharedMesh;
-        var r = g.AddComponent<MeshRenderer>();
-        r.sharedMaterial = mr.sharedMaterial;
-        r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+        g.transform.localScale = Vector3.one * throwBallSize;
+
+        var mr = g.GetComponent<MeshRenderer>();
+        mr.material = new Material(Shader.Find("Universal Render Pipeline/Unlit"));
+        mr.material.color = throwBallColor;                 // HDR — 블룸으로 번쩍인다
+        mr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+
+        // 빛 꼬리 — 어디서 어디로 날아가는지 한눈에 보이게
+        var tr = g.AddComponent<TrailRenderer>();
+        tr.time = 0.22f;
+        tr.startWidth = throwBallSize * 0.9f;
+        tr.endWidth = 0f;
+        tr.material = new Material(Shader.Find("Universal Render Pipeline/Unlit"));
+        tr.material.color = throwBallColor;
+        tr.startColor = new Color(throwBallColor.r, throwBallColor.g, throwBallColor.b, 0.9f);
+        tr.endColor = new Color(throwBallColor.r, throwBallColor.g, throwBallColor.b, 0f);
+        tr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
         return g;
     }
 

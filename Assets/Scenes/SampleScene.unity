@@ -3193,6 +3193,9 @@ MonoBehaviour:
   grudgeTime: 4
   leashRange: 12
   returning: 0
+  atkAngle: 60
+  sizeAngleStep: 0.5
+  sizeReachStep: 0.35
   owner: {fileID: 0}
   landTime: 0.22
   packBudget: 0
@@ -3200,6 +3203,10 @@ MonoBehaviour:
   emergeTime: 0.5
   emergeArc: 0.75
   emergeStagger: 0.09
+  deadTint: {r: 0.32, g: 0.32, b: 0.35, a: 1}
+  deathLinger: 1.1
+  dissolveTime: 0.9
+  dissolveColor: {r: 2.2, g: 1.7, b: 0.9, a: 1}
 --- !u!114 &107336121
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -3262,7 +3269,6 @@ MonoBehaviour:
   bareRangeMul: 0.7
   bareAngleMul: 0.7
   swingHeightTolerance: 0.4
-  showSwingArc: 1
 --- !u!114 &107336123
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -3447,8 +3453,13 @@ MonoBehaviour:
   throwImpactDamage: 45
   throwImpactRadius: 1.6
   throwSpread: 1.4
-  throwFlyTime: 0.55
-  throwArc: 1.6
+  throwFlyTime: 0.9
+  throwArc: 2.2
+  throwWindupDeg: 16
+  throwWindupTime: 0.1
+  throwSnapTime: 0.16
+  throwBallSize: 0.16
+  throwBallColor: {r: 2.4, g: 1.9, b: 0.9, a: 1}
 --- !u!114 &107336128
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -3472,6 +3483,22 @@ MonoBehaviour:
   eggColor: {r: 1, g: 0.85, b: 0.25, a: 1}
   incColor: {r: 0.45, g: 0.85, b: 1, a: 1}
   meColor: {r: 1, g: 1, b: 1, a: 1}
+--- !u!114 &107336131
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 107336108}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 35ed4565a5cab4c45b550243f4d32408, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::PetHeadDisplay
+  sizeRatio: 0.35
+  gapRatio: 0.12
+  bobRatio: 0.04
+  bobSpeed: 2.2
 --- !u!1 &110553655
 GameObject:
   m_ObjectHideFlags: 0
@@ -41294,6 +41321,9 @@ PrefabInstance:
     - targetCorrespondingSourceObject: {fileID: 7477283798205093626, guid: a9f97bdace247ed49a6a0d1b04c63f3e, type: 3}
       insertIndex: -1
       addedObject: {fileID: 107336128}
+    - targetCorrespondingSourceObject: {fileID: 7477283798205093626, guid: a9f97bdace247ed49a6a0d1b04c63f3e, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 107336131}
   m_SourcePrefab: {fileID: -4161369568681901532, guid: a9f97bdace247ed49a6a0d1b04c63f3e, type: 3}
 --- !u!1 &1314258370
 GameObject:
