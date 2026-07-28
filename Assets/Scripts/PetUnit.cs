@@ -276,7 +276,15 @@ public class PetUnit : MonoBehaviour
     /// 지금 싸우는 중인가 — 체력바 표시와 야생 증식이 이걸 본다
     public bool InCombat => target != null && target.Alive;
 
-    float AtkRange => reach * rangeMul;
+    /// ★사거리는 '표면에서 표면까지' 로 잰다 (2026-07-28).
+    ///   중심 거리로 재면 덩치가 클수록 불리하고, 무엇보다 **Separate 가 밀어내는
+    ///   간격보다 사거리가 짧아질 수 있다.** 실제로 종별 사거리배수가 0.5 인 놈은
+    ///   사거리 0.25m 인데 밀어내는 간격도 0.25m 라, 때리려고 파고들면 밀려나고
+    ///   다시 파고드는 일이 반복돼 **상대를 계속 떠밀며 끌고 다녔다.**
+    ///   두 몸 반지름을 더해 두면 사거리가 간격보다 항상 넉넉하다.
+    float AtkRangeTo(PetUnit t) =>
+        reach * rangeMul + (body + (t != null ? t.body : 0f)) * 0.5f;
+
     float AtkPeriodNow => atkPeriod / Mathf.Max(0.1f, atkSpeedMul);
 
     /// ★어그로 규칙 (2026-07-28)
@@ -514,7 +522,7 @@ public class PetUnit : MonoBehaviour
         {
             float d = Dist(target.transform.position);
             var toT = target.transform.position - transform.position;
-            if (d > AtkRange)
+            if (d > AtkRangeTo(target))
             {   // ② 멀다 — 다가간다
                 Step(toT, MoveSpd);
                 if (motion != null) motion.speed01 = 1f;
