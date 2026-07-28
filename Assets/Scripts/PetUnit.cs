@@ -1137,6 +1137,11 @@ public class PetUnit : MonoBehaviour
         lmat.SetFloat(TMPro.ShaderUtilities.ID_UnderlaySoftness, 0f);
         lmat.SetFloat("_ZTestMode", (float)UnityEngine.Rendering.CompareFunction.Always);
         lmat.renderQueue = 4500;                      // 몸·나무보다 항상 앞
+        // ★외곽선을 켠 뒤 반드시 이걸 불러야 한다 (2026-07-29).
+        //   TMP 는 글자 메시에 '여백' 을 만들어 두고 그 안에 외곽선을 그린다. 두께를 바꾸고
+        //   여백을 다시 계산하지 않으면 외곽선이 메시 밖으로 나가 **잘려서 안 보인다.**
+        //   (설정은 들어갔는데 화면에 없던 이유가 이것이다)
+        barLevel.UpdateMeshPadding();
         // ★RectTransform 설정은 TMP 를 붙인 **뒤에** 한다 — 붙일 때 TMP 가 값을 다시 잡는다.
         //   좁은 rect 에 넣으면 글자가 안 보이는 일이 있어 넉넉히 준다.
         barLevel.overflowMode = TMPro.TextOverflowModes.Overflow;

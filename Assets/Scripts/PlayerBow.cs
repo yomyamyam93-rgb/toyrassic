@@ -793,6 +793,16 @@ public class PlayerBow : MonoBehaviour
                 bowAutoPos = bowInst.localPosition;
                 bowAutoScale = 1f;
                 bowInstScale = bowInst.localScale;
+                // ★시위를 실제 활 모델에 맞춘다 (2026-07-29 사용자 — "활 쏠 때 어그러진다").
+                //   예전엔 모델을 bowSize 에 맞춰 줄여서 시위(±bowSize)와 활 끝이 일치했다.
+                //   씬 자세를 존중하면서 그 정규화를 뺐더니, 시위는 여전히 옛 bowSize 를
+                //   쓰는데 활은 씬 크기라 둘이 따로 놀아 활이 찌그러져 보였다.
+                //   이제 반대로 — 모델을 재서 시위 길이를 거기에 맞춘다.
+                if (RootBounds(bowRoot, out var abb))
+                {
+                    float half = FarthestFromOrigin(abb);
+                    if (half > 0.01f) bowSize = half;
+                }
             }
             else
             {
