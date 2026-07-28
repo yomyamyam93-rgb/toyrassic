@@ -1755,8 +1755,24 @@ public class ArrowProj : MonoBehaviour
     {
         float step = speed * Time.deltaTime;
         var prev = transform.position;                  // ★지나간 자취의 시작점
-        transform.position += dir * step;
+        var np = prev + dir * step;
+
+        // ★화살도 지면을 따라 난다 (2026-07-29 사용자 — "투사체는 지면을 따라 날아가지
+        //   않네 이상한 곳으로 날아가").
+        //
+        //   판정과 조준선은 이미 '지면 위 고도' 를 쓰는데 화살만 수평으로 날면,
+        //   비탈에서 화살이 허공에 붕 떠서 엉뚱한 데로 가는 것처럼 보인다.
+        //   높이만 지면을 따라 내리면 **보이는 것 = 조준선 = 판정** 이 전부 같아진다.
+        //   가로 방향은 그대로 직선이다 — 궤적이 휘지는 않는다.
+        float g = GroundAt(np);
+        np.y = g + groundAlt;
+        transform.position = np;
         traveled += step;
+
+        // 오르내리는 각도까지 반영해 눕힌다 — 수평으로 굳어 있으면 비탈에서 어색하다
+        var move = np - prev;
+        if (move.sqrMagnitude > 1e-10f)
+            transform.rotation = Quaternion.LookRotation(move.normalized) * Quaternion.Euler(90f, 0f, 0f);
 
         // ★한 점이 아니라 '지나간 선분'으로 맞힌다 (2026-07-28).
         //   화살 속도 106m/s ÷ 60프레임 = 한 프레임에 1.78m 순간이동인데, 1/10 세계의
