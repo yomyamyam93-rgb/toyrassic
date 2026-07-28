@@ -251,6 +251,9 @@ public static class FX
     public enum PopStyle { Item, Hit, Crit }
     static TMPro.TMP_FontAsset popFont;
     static bool popFontTried;
+    /// 월드 텍스트용 폰트 (체력바 레벨 등도 같은 것을 쓴다)
+    public static TMPro.TMP_FontAsset WorldFont() => PopFont();
+
     static TMPro.TMP_FontAsset PopFont()
     {
         if (popFontTried) return popFont;   // 1회만 시도 — 피격마다 재시도해서 렉 걸리던 것 방지

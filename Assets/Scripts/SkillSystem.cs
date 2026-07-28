@@ -1529,7 +1529,12 @@ public class SkillSystem : MonoBehaviour
 
     void BuildChargeGauge(Transform parent, float bottom)
     {
-        var round = St != null ? St.Round() : null;
+        // ★차징바는 각진 바다 (2026-07-29 사용자). 그리고 **둥근 스프라이트를 늘려 쓰지 않는다.**
+        //
+        //   프로젝트 규칙: 바(체력·수치)는 스케일로 늘려 쓰지 않고 맞는 크기로 만든다.
+        //   각진 단색 바에는 '맞는 크기' 라는 게 따로 없다 — 스프라이트를 아예 안 쓰면
+        //   유니티가 1x1 흰 픽셀로 그려서 **어떤 크기에서도 완벽하게 또렷하다.**
+        //   Sliced 로 둥근 모서리를 늘리던 것이 뭉개짐의 원인이었으므로, 그걸 없앤다.
         const float w = 220f, h = 14f;
 
         var root = new GameObject("ChargeGauge", typeof(RectTransform)).GetComponent<RectTransform>();
@@ -1538,7 +1543,7 @@ public class SkillSystem : MonoBehaviour
         root.anchoredPosition = new Vector2(0f, bottom);
         root.sizeDelta = new Vector2(w, h);
         var bg = root.gameObject.AddComponent<Image>();
-        bg.sprite = round; bg.type = Image.Type.Sliced;
+        bg.sprite = null;                       // 각진 단색 — 1x1 흰 픽셀로 그려진다
         bg.color = new Color(0.08f, 0.08f, 0.10f, 0.85f);
 
         var fillRt = new GameObject("fill", typeof(RectTransform)).GetComponent<RectTransform>();
@@ -1548,7 +1553,7 @@ public class SkillSystem : MonoBehaviour
         fillRt.offsetMin = new Vector2(2f, 2f); fillRt.offsetMax = new Vector2(2f, -2f);
         fillRt.sizeDelta = new Vector2(0f, fillRt.sizeDelta.y);
         chargeFill = fillRt.gameObject.AddComponent<Image>();
-        chargeFill.sprite = round; chargeFill.type = Image.Type.Sliced;
+        chargeFill.sprite = null;               // 각진 단색
 
         // 2·3단 눈금 — 언제 놓아야 하는지가 보여야 한다
         foreach (float at in new[] { 0f, 1f })

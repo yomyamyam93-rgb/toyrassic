@@ -1042,9 +1042,9 @@ public class PetUnit : MonoBehaviour
     ///   카메라 거리 범위가 12~30 이므로 그 한가운데를 잡았다.
     const float barRefDist = 20f;
 
-    /// ★체력바 전체 크기 배수 (2026-07-29 사용자 "3배는 키워야 한다").
-    ///   여기만 만지면 모든 유닛의 바가 같이 커진다.
-    const float barSizeMul = 3f;
+    /// ★체력바 전체 크기 배수. 여기만 만지면 모든 유닛의 바가 같이 커진다.
+    ///   3 → 4.5 (2026-07-29 사용자 "1.5배만 더").
+    const float barSizeMul = 4.5f;
     void MakeBar(Renderer r)
     {
         ghostHp = hp;
@@ -1093,7 +1093,34 @@ public class PetUnit : MonoBehaviour
         barGhost.localScale = new Vector3(1.78f, 0.30f, 1f);
         barFill = Quad("fill", team == Team.Player ? new Color(0.35f, 0.9f, 0.4f) : new Color(0.95f, 0.4f, 0.35f), 0f, 12);
         barFill.localScale = new Vector3(1.78f, 0.30f, 1f);
+
+        // ★바 왼쪽에 레벨 (2026-07-29 사용자). 몇 레벨짜리인지가 붙기 전에 보여야
+        //   덤빌지 말지를 고를 수 있다 — 지도의 난이도 색과 같은 목적이다.
+        //   피해 숫자와 같은 방식(TMP + Overlay 셰이더)이라 몸·나무에 안 가린다.
+        var lvGo = new GameObject("lv", typeof(RectTransform));
+        lvGo.transform.SetParent(barRoot, false);
+        barLevel = lvGo.AddComponent<TMPro.TextMeshPro>();
+        var fnt = FX.WorldFont();
+        if (fnt != null) barLevel.font = fnt;
+        barLevel.fontSize = 0.62f;                    // barRoot 로컬 단위 (바 높이 0.42 대비 조금 크게)
+        barLevel.alignment = TMPro.TextAlignmentOptions.Right;
+        barLevel.fontStyle = TMPro.FontStyles.Bold;
+        barLevel.color = new Color(1f, 0.95f, 0.75f);
+        barLevel.enableWordWrapping = false;
+        barLevel.raycastTarget = false;
+        var lrt = (RectTransform)lvGo.transform;
+        lrt.sizeDelta = new Vector2(1.4f, 0.5f);
+        lrt.localPosition = new Vector3(-1.05f, 0f, -0.02f);   // 바 왼쪽 바깥, 살짝 앞
+        var lmr = barLevel.GetComponent<MeshRenderer>();
+        if (lmr != null)
+        {
+            lmr.sortingOrder = 13;
+            lmr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+        }
+        barLevelShown = -1;   // 첫 갱신 강제
     }
+
+    TMPro.TextMeshPro barLevel; int barLevelShown = -1;
 
     float barShowT;
     void Bar()
@@ -1144,6 +1171,13 @@ public class PetUnit : MonoBehaviour
         //   dist/42 가 늘 하한 0.85 에 걸렸다 = 월드 크기 고정 = **줌아웃하면 화면에서 작아짐.**
         //   딱 반대로 동작하고 있었다.
         barRoot.localScale = Vector3.one * barBaseScale * (dist / barRefDist);
+
+        // 레벨 — 바뀔 때만 대입한다 (TMP 는 대입할 때마다 메시를 다시 만든다)
+        if (barLevel != null && barLevelShown != level)
+        {
+            barLevelShown = level;
+            barLevel.text = "Lv." + level;
+        }
         // 롤식: 실체력은 즉시, 잔상 바는 잠깐 머물다 스르륵 따라 내려옴
         ghostHp = hp > ghostHp ? hp : Mathf.MoveTowards(ghostHp, hp, maxHp * 0.45f * Time.deltaTime);
         float f = maxHp > 0 ? hp / maxHp : 0f;
