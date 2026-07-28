@@ -714,6 +714,7 @@ public class PetUnit : MonoBehaviour
         float pulse = motion != null ? motion.MovePulse : 1f;
         transform.position += dir * spd * pulse * Time.deltaTime;
         curSpeed = spd;
+        movedThisFrame = true;   // 이동 중에는 자리를 잡느라 밀린다 (서 있으면 안 밀린다)
         Face(dir);
     }
 
@@ -725,6 +726,9 @@ public class PetUnit : MonoBehaviour
         transform.rotation = Quaternion.RotateTowards(transform.rotation, want, 480f * Time.deltaTime);
     }
 
+    /// Step 이 이번 프레임에 나를 움직였나 — 밀림 판정에 쓴다
+    bool movedThisFrame;
+
     void Separate()
     {
         foreach (var u in All)
@@ -733,9 +737,19 @@ public class PetUnit : MonoBehaviour
             float need = (body + u.body) * 0.42f;
             var d = transform.position - u.transform.position; d.y = 0;
             float dist = d.magnitude;
-            if (dist < need && dist > 0.01f)
-                transform.position += d / dist * (need - dist) * 2.2f * Time.deltaTime;
+            if (dist >= need || dist <= 0.01f) continue;
+
+            // ★밀리는 건 '움직이는 쪽'뿐이다 (2026-07-28 사용자).
+            //   넉백도 아닌데 제자리에서 때리는 놈이 밀려나면 이상하다.
+            //   다가오는 놈이 못 파고드는 것뿐이고, 서 있는 놈은 자리를 지킨다.
+            //   예외: 심하게 겹쳤을 때(스폰이 겹치는 등)는 서로 빠져나온다 — 안 그러면
+            //   가만히 선 둘이 영원히 한 몸처럼 붙어 있다.
+            bool deep = dist < need * 0.45f;
+            if (!movedThisFrame && !deep) continue;
+
+            transform.position += d / dist * (need - dist) * 2.2f * Time.deltaTime;
         }
+        movedThisFrame = false;
     }
 
     void Ground(bool force)
