@@ -3165,6 +3165,7 @@ MonoBehaviour:
   trailTime: 0.24
   cursorNormal: {fileID: 2800000, guid: 4bf08ee8d05021444b2ad7ca4a3f65dc, type: 3}
   cursorAim: {fileID: 2800000, guid: 4631aeae621d94042be7f7fe1077c650, type: 3}
+  bowOwnedByClip: 1
   chargeStep2: 0.45
   chargeStep3: 1.1
   chargeMoveSlow: 0.45
@@ -3254,6 +3255,8 @@ MonoBehaviour:
   dissolveTime: 0.9
   dissolveColor: {r: 2.2, g: 1.7, b: 0.9, a: 1}
   avatarBarLift: 0.45
+  barGap: 5
+  barLevelSize: 5.5
 --- !u!114 &107336121
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -6165,31 +6168,31 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 6108485557323672939, guid: 5c270e738435aee4b90db43a962c967c, type: 3}
       propertyPath: m_LocalRotation.w
-      value: -0.6569369
+      value: -0.5783179
       objectReference: {fileID: 0}
     - target: {fileID: 6108485557323672939, guid: 5c270e738435aee4b90db43a962c967c, type: 3}
       propertyPath: m_LocalRotation.x
-      value: -0.0015189179
+      value: -0.42169568
       objectReference: {fileID: 0}
     - target: {fileID: 6108485557323672939, guid: 5c270e738435aee4b90db43a962c967c, type: 3}
       propertyPath: m_LocalRotation.y
-      value: -0.0014748445
+      value: -0.3637848
       objectReference: {fileID: 0}
     - target: {fileID: 6108485557323672939, guid: 5c270e738435aee4b90db43a962c967c, type: 3}
       propertyPath: m_LocalRotation.z
-      value: -0.75394267
+      value: -0.59613913
       objectReference: {fileID: 0}
     - target: {fileID: 6108485557323672939, guid: 5c270e738435aee4b90db43a962c967c, type: 3}
       propertyPath: m_LocalEulerAnglesHint.x
-      value: -0.013
+      value: 3.096
       objectReference: {fileID: 0}
     - target: {fileID: 6108485557323672939, guid: 5c270e738435aee4b90db43a962c967c, type: 3}
       propertyPath: m_LocalEulerAnglesHint.y
-      value: 0.242
+      value: 67.653
       objectReference: {fileID: 0}
     - target: {fileID: 6108485557323672939, guid: 5c270e738435aee4b90db43a962c967c, type: 3}
       propertyPath: m_LocalEulerAnglesHint.z
-      value: 97.866
+      value: 93.814
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []

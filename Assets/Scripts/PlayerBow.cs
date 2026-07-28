@@ -230,6 +230,12 @@ public class PlayerBow : MonoBehaviour
     Quaternion bowAutoRot = Quaternion.identity; float bowAutoScale = 1f; Vector3 bowAutoPos;
     /// 활 모델이 씬에 사람이 배치해 둔 것인가 — 그렇다면 코드가 자세·크기를 안 건드린다
     bool bowAuthored; Vector3 bowInstScale = Vector3.one;
+
+    [Header("활 소유권")]
+    [Tooltip("★켜면 활 자세를 코드가 전혀 안 건드린다 — 씬과 애니메이션 클립이 전부 갖는다.\n" +
+             "코드가 남기는 건 자세와 무관한 것뿐: 들었을 때만 보이기 · 시위 당김 · 화살 걸기.\n" +
+             "끄면 예전처럼 코드가 휴대/조준 자세를 계산한다.")]
+    public bool bowOwnedByClip = true;
     LineRenderer bowString, aimLine;
     Transform nockArrow;
     float cd, drawT, aimLen; bool drawing;
@@ -1311,29 +1317,38 @@ public class PlayerBow : MonoBehaviour
         float k = 13f * Time.deltaTime;
         handL.localPosition = Vector3.Lerp(handL.localPosition, drawing ? aimL : idleL, k);
 
-        // 활 그립 = 왼손 정중앙. 자세는 상황에 따라:
-        bowRoot.localPosition = handL.localPosition;
-        if (drawing)
-        {   // 조준 자세 — 시위가 조준 방향과 일직선
-            bowRoot.localRotation = Quaternion.Slerp(bowRoot.localRotation, localAim, 18f * Time.deltaTime);
-        }
-        else
-        {   // 휴대 자세 — 비스듬히 기울여 들고, 걸을수록 살랑살랑 각도가 흔들림
-            float sway = (Mathf.Sin(Time.time * 2.6f) * 7f + Mathf.Sin(Time.time * 4.1f + 1.3f) * 3f) * carrySway;
-            if (hasRestBow)
-            {
-                // ★씬에서 잡은 자리·각도가 기준. 위에 얹는 건 살랑거림과 손의 숨쉬는 흔들림뿐.
-                //   그래야 편집 창에서 활을 옮긴 그대로 게임에 나온다.
-                var rest = restBowRot * Quaternion.Euler(0f, 0f, sway);
-                bowRoot.localRotation = Quaternion.Slerp(bowRoot.localRotation, rest, 6f * Time.deltaTime);
-                // 손이 흔들리는 만큼만 같이 흔들린다 (활은 왼손에 들려 있으므로)
-                bowRoot.localPosition = restBowPos + (handL.localPosition - restL);
+        // ★활은 사람이 갖는다 (2026-07-29 사용자 — "활도 그냥 내가 지정해서 모션 만들어야겠다").
+        //
+        //   CLAUDE.md 의 소유권 규칙이 원래 "HandL·HandR·Bow 는 애니메이션 클립이 갖는다" 였는데,
+        //   코드가 계속 활 자세를 덮어쓰면서 부딪혔다. 씬에서 맞춰도, carryEuler 로 맞춰도,
+        //   결국 코드가 뭔가를 다시 계산해 어긋났다 — 세 번 반복됐다.
+        //
+        //   이 스위치를 켜면 **코드는 활 트랜스폼에 손대지 않는다.** 자세는 전부 씬과
+        //   애니메이션 클립 몫이다. 코드가 남기는 건 자세와 무관한 것뿐 —
+        //   ①들었을 때만 보이기 ②시위 당김 ③화살 걸기.
+        if (!bowOwnedByClip)
+        {
+            // 활 그립 = 왼손 정중앙. 자세는 상황에 따라:
+            bowRoot.localPosition = handL.localPosition;
+            if (drawing)
+            {   // 조준 자세 — 시위가 조준 방향과 일직선
+                bowRoot.localRotation = Quaternion.Slerp(bowRoot.localRotation, localAim, 18f * Time.deltaTime);
             }
             else
-            {
-                var rest = localAim * Quaternion.Euler(carryEuler + new Vector3(0f, 0f, sway));
-                bowRoot.localRotation = Quaternion.Slerp(bowRoot.localRotation, rest, 6f * Time.deltaTime);
-                bowRoot.localPosition += bowRoot.localRotation * bowCarryPos * S * toLocal;   // 휴대 위치 보정 (활 기준)
+            {   // 휴대 자세 — 비스듬히 기울여 들고, 걸을수록 살랑살랑 각도가 흔들림
+                float sway = (Mathf.Sin(Time.time * 2.6f) * 7f + Mathf.Sin(Time.time * 4.1f + 1.3f) * 3f) * carrySway;
+                if (hasRestBow)
+                {
+                    var rest = restBowRot * Quaternion.Euler(0f, 0f, sway);
+                    bowRoot.localRotation = Quaternion.Slerp(bowRoot.localRotation, rest, 6f * Time.deltaTime);
+                    bowRoot.localPosition = restBowPos + (handL.localPosition - restL);
+                }
+                else
+                {
+                    var rest = localAim * Quaternion.Euler(carryEuler + new Vector3(0f, 0f, sway));
+                    bowRoot.localRotation = Quaternion.Slerp(bowRoot.localRotation, rest, 6f * Time.deltaTime);
+                    bowRoot.localPosition += bowRoot.localRotation * bowCarryPos * S * toLocal;
+                }
             }
         }
 
@@ -1393,7 +1408,8 @@ public class PlayerBow : MonoBehaviour
         // ── 장비 비주얼 — 든 것만 보인다 (weapons 리스트 기반) ──
         var gearV = Hotbar.I != null ? Hotbar.I.Current : GearKind.None;
         if (bowRoot != null) bowRoot.gameObject.SetActive(gearV == GearKind.Bow);
-        if (bowInst != null)
+        // ★활을 사람이 가질 땐 안쪽 모델도 안 건드린다 — 씬에서 잡은 그대로 둔다
+        if (bowInst != null && !bowOwnedByClip)
         {   // 활 모델 정렬 — 인스펙터 값 실시간 반영 (도구와 같은 방식)
             // ★씬에 배치한 활은 자세·크기를 건드리지 않는다 (근접 무기와 같은 규칙)
             if (bowAuthored)
