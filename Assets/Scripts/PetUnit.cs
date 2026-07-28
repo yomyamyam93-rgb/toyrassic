@@ -1234,35 +1234,6 @@ public class PetUnit : MonoBehaviour
         lrt.localScale = Vector3.one;
         barLevel.text = level.ToString();   // 첫 프레임부터 보이게
 
-        // ★전투력 — 반대쪽(오른쪽) 끝. 레벨과 붙여 놓으면 "이 숫자 뭐야?" 가 된다.
-        //   자리도 색도 달라야 라벨 없이 갈린다. 금색 = 세기.
-        var pwGo = new GameObject("pow", typeof(RectTransform));
-        pwGo.transform.SetParent(barRoot, false);
-        barPower = pwGo.AddComponent<TMPro.TextMeshPro>();
-        if (fnt != null) barPower.font = fnt;
-        barPower.fontSize = barLevelSize * 0.72f;      // 레벨보다 한 단계 작게
-        barPower.alignment = TMPro.TextAlignmentOptions.Center;
-        barPower.fontStyle = TMPro.FontStyles.Bold;
-        barPower.color = new Color(1f, 0.85f, 0.35f);  // 금색
-        barPower.enableWordWrapping = false;
-        barPower.raycastTarget = false;
-        if (lm != null) barPower.fontSharedMaterial = lm;   // 같은 검정 획
-        barPower.UpdateMeshPadding();
-        barPower.overflowMode = TMPro.TextOverflowModes.Overflow;
-        var prt = barPower.rectTransform;
-        prt.anchorMin = prt.anchorMax = prt.pivot = new Vector2(0.5f, 0.5f);
-        prt.sizeDelta = new Vector2(1.4f, 0.7f);
-        prt.localPosition = new Vector3(1.05f, 0f, -0.02f);   // 바 오른쪽 끝
-        prt.localRotation = Quaternion.identity;
-        prt.localScale = Vector3.one;
-        barPower.text = "";
-        var pmr = barPower.GetComponent<MeshRenderer>();
-        if (pmr != null)
-        {
-            pmr.sortingOrder = 13;
-            pmr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
-        }
-
         var lmr = barLevel.GetComponent<MeshRenderer>();
         if (lmr != null)
         {
@@ -1273,8 +1244,6 @@ public class PetUnit : MonoBehaviour
     }
 
     TMPro.TextMeshPro barLevel; int barLevelShown = -1;
-    /// 전투력 — 바 오른쪽 끝. 매 프레임 계산하면 부담이라 0.5초에 한 번만
-    TMPro.TextMeshPro barPower; int barPow, barPowShown = -1; float barPowAt = -99f;
 
     float barShowT;
     void Bar()
@@ -1335,15 +1304,9 @@ public class PetUnit : MonoBehaviour
             barLevelShown = showLv;
             barLevel.text = showLv.ToString();
         }
-        // ★전투력은 **반대쪽 끝**에 (2026-07-29 사용자 "228 숫자는 뭐야..?").
-        //   레벨 바로 밑에 숫자만 띄웠더니 뭔지 알 수가 없었다. 자리를 떼고 색도 다르게 —
-        //   왼쪽=레벨(흰색) · 오른쪽=전투력(금색) 이면 라벨 없이도 갈린다.
-        if (Time.time - barPowAt > 0.5f) { barPow = Power.Of(this); barPowAt = Time.time; }
-        if (barPower != null && barPowShown != barPow)
-        {
-            barPowShown = barPow;
-            barPower.text = barPow.ToString();
-        }
+        // ★전투력은 바에 안 띄운다 (2026-07-29 사용자 "그냥 표기하지 말자").
+        //   숫자 둘이 바보다 넓어져 몸을 가렸다. 전투력은 '붙을까 말까' 를 정하는 정보라
+        //   싸우는 중에 계속 떠 있을 이유가 없다 — 지도의 난이도 색이 그 몫을 한다.
         // 롤식: 실체력은 즉시, 잔상 바는 잠깐 머물다 스르륵 따라 내려옴
         ghostHp = hp > ghostHp ? hp : Mathf.MoveTowards(ghostHp, hp, maxHp * 0.45f * Time.deltaTime);
         float f = maxHp > 0 ? hp / maxHp : 0f;

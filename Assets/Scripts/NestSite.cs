@@ -259,8 +259,8 @@ public class NestSite : MonoBehaviour
     //   ItemDrop 이 되어 **날아간다** — 빛줄기가 그걸 따라다니게 된다.
     //   그래서 둥지에 달고, 알이 있는지로 켜고 끈다.
     [Header("빛줄기")]
-    [Tooltip("빛줄기 높이 (m) — 지형이 430m 라 300이면 산 너머에서도 보인다")]
-    public float beamHeight = 300f;
+    [Tooltip("빛줄기 높이 (m) — 하늘 끝까지. 지형 최고 1000m 보다 높아야 산 너머에서도 보인다")]
+    public float beamHeight = 1400f;
     [Tooltip("빛줄기 굵기 반경 (m)")] public float beamRadius = 0.6f;
     [Tooltip("빛줄기 진하기")] [Range(0f, 1f)] public float beamAlpha = 0.35f;
 
@@ -272,17 +272,23 @@ public class NestSite : MonoBehaviour
         if (beam != null) return;
         if (beamMat == null)
         {
-            beamMat = new Material(Shader.Find("Universal Render Pipeline/Unlit"));
+            // ★안개를 무시하는 전용 셰이더 (2026-07-29 사용자 "안개에 가려지는 거 같기도").
+            //   URP/Unlit 은 안개를 무조건 먹는데, 씬 안개가 Linear 끝 160m 이라
+            //   **160m 너머 둥지의 빛줄기가 안개색에 완전히 잠겼다.**
+            //   멀리 있는 걸 찾으라고 만든 길잡이가 멀면 안 보이는 셈이었다.
+            var sh = Shader.Find("Toyrassic/EggBeam");
+            beamMat = new Material(sh != null ? sh : Shader.Find("Universal Render Pipeline/Unlit"));
             beamMat.SetColor("_BaseColor", new Color(1f, 1f, 1f, beamAlpha));
-            // URP Unlit 을 코드로 반투명으로 돌리려면 값 여섯 개를 다 맞춰야 한다.
-            // 하나라도 빠지면 불투명한 흰 기둥이 되어 시야를 가린다.
-            beamMat.SetFloat("_Surface", 1f);                       // Transparent
-            beamMat.SetFloat("_Blend", 0f);                         // Alpha
-            beamMat.SetFloat("_SrcBlend", (float)UnityEngine.Rendering.BlendMode.SrcAlpha);
-            beamMat.SetFloat("_DstBlend", (float)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
-            beamMat.SetFloat("_ZWrite", 0f);
-            beamMat.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
-            beamMat.renderQueue = (int)UnityEngine.Rendering.RenderQueue.Transparent;
+            if (sh == null)
+            {   // 예비 — 전용 셰이더를 못 찾았을 때만
+                beamMat.SetFloat("_Surface", 1f);
+                beamMat.SetFloat("_Blend", 0f);
+                beamMat.SetFloat("_SrcBlend", (float)UnityEngine.Rendering.BlendMode.SrcAlpha);
+                beamMat.SetFloat("_DstBlend", (float)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
+                beamMat.SetFloat("_ZWrite", 0f);
+                beamMat.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
+                beamMat.renderQueue = (int)UnityEngine.Rendering.RenderQueue.Transparent;
+            }
         }
         var b = GameObject.CreatePrimitive(PrimitiveType.Cylinder).transform;
         Destroy(b.GetComponent<Collider>());
