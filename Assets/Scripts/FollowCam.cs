@@ -10,8 +10,18 @@ using UnityEngine.InputSystem;
 public class FollowCam : MonoBehaviour
 {
     public Transform target;
-    public float distance = 22f, minDist = 2.2f, maxDist = 105f;   // minDist 낮게 = 더 바짝 확대
+
+    [Header("거리 (휠로 당기고 민다)")]
+    [Tooltip("지금 거리 (m) — 실행 중에 휠로 바뀐다")]
+    public float distance = 22f;
+    [Tooltip("★제일 당겼을 때 거리 (m) — 이보다 가까이는 못 온다. 작을수록 캐릭터에 바짝 붙는다")]
+    public float minDist = 12f;
+    [Tooltip("★제일 뺐을 때 거리 (m) — 이보다 멀리는 못 간다. 키우려면 카메라 Far 도 같이 봐야 한다")]
+    public float maxDist = 30f;
+    [Tooltip("바라보는 지점을 캐릭터보다 이만큼 위로 (m)")]
     public float height = 4.5f;
+
+    [Header("각도 (실행 중 값 — 우클릭 드래그로 바뀐다)")]
     public float yaw = 35f, pitch = 28f;
 
     // ★상하 각도를 줌에 묶어 두던 것을 풀었다 (2026-07-28 사용자).
