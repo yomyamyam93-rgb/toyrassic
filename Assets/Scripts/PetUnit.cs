@@ -198,7 +198,13 @@ public class PetUnit : MonoBehaviour
             r = rr; break;
         }
         footOff = r != null ? transform.position.y - r.bounds.min.y : 0f;
-        if (r != null) body = Mathf.Max(1f, Mathf.Max(r.bounds.size.x, Mathf.Max(r.bounds.size.y, r.bounds.size.z)));
+        // ★하한 1m 를 걷어냈다 (2026-07-28). 옛 스케일(캐릭터 4.2m)에서 만든 값인데,
+        //   1/10 세계의 펫은 0.3m 남짓이라 전부 1 로 뭉개졌다. 그 결과 —
+        //     · 서로 밀어내는 간격이 0.84m 인데 때리는 거리는 0.5m → 다가갈수록 밀려나
+        //       영영 못 닿는다 (새 전투 행동이 아예 성립을 안 했다)
+        //     · 덩치가 다른 펫들의 피격 크기·이펙트 크기가 전부 똑같아졌다
+        //   실측 크기를 그대로 쓴다. 하한은 0 나눗셈만 막는 수준으로.
+        if (r != null) body = Mathf.Max(0.05f, Mathf.Max(r.bounds.size.x, Mathf.Max(r.bounds.size.y, r.bounds.size.z)));
         if (isAvatar) { Avatar = this; MakeBar(r); return; }   // 캐릭터: 모션·AI 없음
         if (isStructure)
         {   // 건물: 모션 없음, 맞기만. 체력바는 평소 숨김
@@ -209,6 +215,10 @@ public class PetUnit : MonoBehaviour
         motion = GetComponent<PetMotion>();
         if (motion == null) motion = gameObject.AddComponent<PetMotion>();
         MakeBar(r);
+        // 평소엔 바를 숨긴다 — 전투에 들어가면 Bar() 가 켠다 (한 프레임 깜빡임 방지)
+        if (barRoot != null) barRoot.gameObject.SetActive(false);
+        // ★목표 탐색 시점을 개체마다 어긋나게 — 50마리가 같은 프레임에 훑으면 뚝뚝 끊긴다
+        retargetT = Random.value * 0.5f;
         Ground(true);
     }
 
@@ -220,9 +230,90 @@ public class PetUnit : MonoBehaviour
     /// ★야생 습격병 — 스킬(원소기·패턴기)을 안 쓰고 평타만. 떼로 몰려와도 읽히게
     [HideInInspector] public bool basicOnly;
 
-    /// 걷는 속도 — 이동 부품용으로 남겨 둔다 (행동을 다시 만들 때 여기서 시작한다)
+    /// 걷는 속도
     float MoveSpd => (8f + agi * 0.1f) * (0.8f + body * 0.035f) * (slowT > 0f ? 0.55f : 1f)
                      * moveSpeedMul * WorldScale.K;
+
+    // ── 전투 행동 (2026-07-28 재작성) ──────────────────────────────────────
+    //
+    // ★예전 행동(원소 6종 × 패턴 4종 + 장전·빨간 예고·공격 후 경직)은 되살리지 않는다.
+    //   지향점이 바뀌었다 — 이제 필요한 그림은 **50대50으로 떼지어 치고받는 전쟁**이지
+    //   한 마리의 화려한 연출이 아니다. 화려한 개별 연출은 50마리가 동시에 하면
+    //   무슨 일이 일어나는지 아무도 못 읽는다.
+    //   ① 가까운 적을 찾고 ② 멀면 다가가고 ③ 닿으면 때린다. 그게 전부다.
+    //
+    // ★거리 값은 전부 '지금 세계의 m' 이다 (캐릭터 키 0.42m).
+    //   인스펙터에서 눈으로 보며 맞추라고 노출했다 — WorldScale.K 를 또 곱하지 말 것.
+    [Header("전투 — 값은 지금 세계 기준 m (캐릭터 키 0.42m)")]
+    [Tooltip("적을 알아채는 거리")] public float aggroRange = 3f;
+    [Tooltip("때릴 수 있는 거리")] public float reach = 0.5f;
+    [Tooltip("공격 간격 (초)")] public float atkPeriod = 1.1f;
+    [Tooltip("한 대 피해 = 힘 × 이 값")] public float dmgPerStr = 0.8f;
+
+    PetUnit target;
+    float atkCd, retargetT;
+
+    /// 지금 싸우는 중인가 — 체력바 표시와 야생 증식이 이걸 본다
+    public bool InCombat => target != null && target.Alive;
+
+    float AtkRange => reach * rangeMul;
+    float AtkPeriodNow => atkPeriod / Mathf.Max(0.1f, atkSpeedMul);
+
+    PetUnit FindNearestEnemy()
+    {
+        PetUnit best = null; float bd = aggroRange;
+        foreach (var u in All)
+        {
+            if (u == null || !u.Alive || u.team == team) continue;
+            float d = Dist(u.transform.position);
+            if (d < bd) { bd = d; best = u; }
+        }
+        return best;
+    }
+
+    /// 한 대 때린다 — 사거리 판정은 부르는 쪽이 이미 했다
+    void Strike()
+    {
+        if (target == null || !target.Alive) return;
+        if (motion != null) motion.Punch();
+        target.TakeDamage(str * dmgPerStr, this);
+        target.OnHit();
+        // ★이펙트는 일부러 작게 (2026-07-28). 50마리가 동시에 때리면 화면이 흰 가루로 덮인다
+        FX.Burst(target.transform.position + Vector3.up * target.body * 0.3f,
+                 Color.white, 5, target.body * 0.04f, target.body * 0.3f);
+    }
+
+    // ── 야생 증식 — 평소엔 한 마리, 어그로가 끌리면 퐁! 하고 무리가 된다 ──
+    //
+    // ★왜 이렇게 (2026-07-28 사용자): 50마리가 처음부터 벌판을 돌아다니면 프레임도
+    //   죽고 어디가 전장인지도 안 보인다. 평소엔 한 마리만 어슬렁거리다가, 싸움이
+    //   붙는 순간 무리가 나타나 전투가 '열리는' 편이 읽기도 쉽고 훨씬 싸다.
+    [Header("야생 — 어그로 시 증식")]
+    [Tooltip("전투에 들어가면 이 수까지 불어난다 (1 = 증식 안 함)")] public int packSize = 1;
+    [Tooltip("불어난 무리가 퍼지는 반경 (m)")] public float packSpread = 1.2f;
+    bool packWoken;
+
+    void WakePack()
+    {
+        if (packWoken || packSize <= 1 || team != Team.Wild || isStructure || isAvatar) return;
+        packWoken = true;
+
+        FX.Burst(transform.position + Vector3.up * body * 0.3f,
+                 new Color(1.6f, 1.2f, 0.5f, 0.95f), 26, body * 0.06f, body * 0.7f, 0.45f);
+        FollowCam.Shake(0.12f);
+
+        for (int i = 1; i < packSize; i++)
+        {
+            float a = (i / (float)packSize) * Mathf.PI * 2f;
+            var pos = transform.position + new Vector3(Mathf.Cos(a), 0f, Mathf.Sin(a)) * packSpread;
+            var g = Instantiate(gameObject, pos, transform.rotation);
+            g.name = name;
+            var u = g.GetComponent<PetUnit>();
+            if (u != null) { u.packSize = 1; u.packWoken = true; }   // 복제본은 다시 안 불어난다
+            FX.Burst(pos + Vector3.up * body * 0.3f,
+                     new Color(1.6f, 1.2f, 0.5f, 0.9f), 10, body * 0.05f, body * 0.5f, 0.35f);
+        }
+    }
 
     void Update()
     {
@@ -242,12 +333,39 @@ public class PetUnit : MonoBehaviour
             return;
         }
 
-        // ★여기가 '행동'이 있던 자리다 (2026-07-28 전부 삭제).
-        //   지금 펫은 스스로 목표를 찾지도, 다가가지도, 때리지도 않는다 — 가만히 서 있는다.
-        //   새 행동은 이 자리에 붙이면 된다. 아래는 서 있기에 필요한 최소한:
-        //   서로 안 겹치게(Separate) · 땅에 붙기(Ground) · 피격 반응(HitFlash) · 체력바(Bar).
-        curSpeed = Mathf.MoveTowards(curSpeed, 0f, MoveSpd * 2.5f * Time.deltaTime);
-        if (motion != null) motion.speed01 = 0f;
+        // ① 목표 갱신 — 0.5초마다. 개체마다 시점이 어긋나 있어 한 프레임에 몰리지 않는다
+        retargetT -= Time.deltaTime;
+        if (retargetT <= 0f)
+        {
+            retargetT = 0.5f;
+            if (target == null || !target.Alive || Dist(target.transform.position) > aggroRange * 1.6f)
+                target = FindNearestEnemy();
+            if (target != null) WakePack();   // 야생: 처음 적을 본 순간 퐁! 하고 무리가 된다
+        }
+
+        atkCd -= Time.deltaTime;
+
+        if (target != null && target.Alive)
+        {
+            float d = Dist(target.transform.position);
+            var toT = target.transform.position - transform.position;
+            if (d > AtkRange)
+            {   // ② 멀다 — 다가간다
+                Step(toT, MoveSpd);
+                if (motion != null) motion.speed01 = 1f;
+            }
+            else
+            {   // ③ 닿는다 — 때린다
+                Face(toT);
+                if (motion != null) motion.speed01 = 0f;
+                if (atkCd <= 0f) { atkCd = AtkPeriodNow; Strike(); }
+            }
+        }
+        else
+        {   // 적이 없다 — 선다 (배회는 아직 없다)
+            curSpeed = Mathf.MoveTowards(curSpeed, 0f, MoveSpd * 2.5f * Time.deltaTime);
+            if (motion != null) motion.speed01 = 0f;
+        }
 
         Separate();
         Ground(false);
@@ -536,6 +654,17 @@ public class PetUnit : MonoBehaviour
         {   // 구조물은 평소 숨김 — 피격·변화 때만 잠깐
             barShowT -= Time.deltaTime;
             bool show = barShowT > 0f;
+            if (barRoot.gameObject.activeSelf != show) barRoot.gameObject.SetActive(show);
+            if (!show) return;
+        }
+        else if (!isAvatar)
+        {
+            // ★펫 체력바는 전투 중에만 보인다 (2026-07-28).
+            //   ①어슬렁거리는 야생 위에 체력바가 떠 있으면 평화로운 장면이 안 나온다.
+            //   ②50대50 이면 바가 100개다. 하나하나 매 프레임 위치·카메라 정렬·거리 보정을
+            //     하면 그것만으로 프레임이 무너진다. 안 보일 땐 여기서 바로 빠져나간다.
+            barShowT -= Time.deltaTime;
+            bool show = InCombat || barShowT > 0f;
             if (barRoot.gameObject.activeSelf != show) barRoot.gameObject.SetActive(show);
             if (!show) return;
         }

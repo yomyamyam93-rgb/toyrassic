@@ -37,7 +37,8 @@ public class PetSpawner : MonoBehaviour
     [Tooltip("이 거리 밖으로 벗어난 야생은 삭제 (성능)")] public float despawnDist = 260f;
 
     [Header("유지 수·주기")]
-    [Tooltip("주변에 항상 유지할 야생 수")] public int cap = 6;
+    [Tooltip("주변에 항상 유지할 야생 수 (어슬렁거리는 '무리 대표' 수)")] public int cap = 6;
+    [Tooltip("★야생 한 마리가 어그로 시 몇 마리로 불어나나 (전쟁 규모)")] public int wildPackSize = 8;
     [Tooltip("빈자리 보충 간격 (초)")] public float respawnDelay = 25f;
 
     [Header("지형 조건")]
@@ -59,6 +60,7 @@ public class PetSpawner : MonoBehaviour
         if (player == null) { var p = GameObject.Find("Player"); if (p != null) player = p.transform; }
         // 시작 시 캡까지 즉시 채움
         for (int i = 0; i < cap * 4 && CountWild() < cap; i++) TrySpawn();
+        GiveStartPets();   // 내 펫 지급 (시험용)
     }
 
     void Update()
@@ -308,6 +310,44 @@ public class PetSpawner : MonoBehaviour
         pu.intel = 8;
         ApplyRole(pu, RoleOf(e.species, e.tier), e);        // 역할별 특성 (뾰족하게)
         pu.SetWildLevel(WildLevelAt(pos, e.tier));          // 멀수록 강하다
+        // ★야생은 어그로가 끌리면 이 수까지 퐁 하고 불어난다 (2026-07-28).
+        //   벌판에는 한 마리만 어슬렁거리고, 싸움이 붙어야 무리가 나타난다.
+        pu.packSize = Mathf.Max(1, wildPackSize);
         return unit;
+    }
+
+    // ── 내 펫 (시험용 지급) ────────────────────────────────────────────
+    [Header("★내 펫 — 시작할 때 지급 (시험용)")]
+    [Tooltip("시작할 때 내 펫을 몇 마리 줄까 (0 = 안 줌). E 펫 선택을 시험하려면 3")]
+    public int startPets = 3;
+    [Tooltip("지급한 펫이 내 주위 이 거리에 선다 (m)")] public float startPetGap = 1.5f;
+
+    /// 야생과 같은 방식으로 만들되 내 편으로 돌린다.
+    public GameObject SpawnPlayerPet(Entry e, Vector3 pos)
+    {
+        var go = Spawn(e, pos);
+        if (go == null) return null;
+        var pu = go.GetComponent<PetUnit>();
+        if (pu == null) return null;
+        pu.team = PetUnit.Team.Player;
+        pu.collectible = false;
+        pu.packSize = 1;             // 내 펫은 스스로 안 불어난다 (R 투척으로 소환한다)
+        pu.SetWildLevel(1);          // 거리 기반 레벨 보정을 취소 — 내 펫은 1레벨부터
+        PetBox.Register(pu, e.species, e.tier);
+        return go;
+    }
+
+    /// 시작 지급 — 서로 다른 종으로 startPets 마리
+    void GiveStartPets()
+    {
+        if (startPets <= 0 || player == null || entries.Count == 0) return;
+        int n = Mathf.Min(startPets, entries.Count);
+        for (int i = 0; i < n; i++)
+        {
+            float a = (i / (float)n) * Mathf.PI * 2f;
+            var pos = player.position + new Vector3(Mathf.Cos(a), 0f, Mathf.Sin(a)) * startPetGap;
+            if (terr != null) pos.y = terr.SampleHeight(pos) + terr.transform.position.y;
+            SpawnPlayerPet(entries[i], pos);
+        }
     }
 }
