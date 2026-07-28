@@ -3310,7 +3310,9 @@ MonoBehaviour:
   pickAngleMul: 0.55
   bareRangeMul: 0.7
   bareAngleMul: 0.7
-  swingHeightTolerance: 1.6
+  autoReachFromModel: 1
+  reachSlack: 1.15
+  swingHeightTolerance: 5
   debugSwing: 1
 --- !u!114 &107336123
 MonoBehaviour:

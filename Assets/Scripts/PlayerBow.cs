@@ -1303,11 +1303,8 @@ public class PlayerBow : MonoBehaviour
             foreach (var u in PetUnit.All)
             {
                 if (u == null || !u.Alive || u.team != PetUnit.Team.Wild) continue;
-                var d = u.transform.position - from2; d.y = 0f;
-                float along = Vector3.Dot(d, aimDir);
-                if (along < 0f || along > aimLen) continue;
-                if (Vector3.Cross(aimDir, d).magnitude > 1.2f * WorldScale.K + u.body * 0.45f) continue;
-                u.MarkDanger();
+                // ★실제 명중 판정과 같은 식 — 표시와 결과가 어긋나지 않게
+                if (ArrowProj.AimHits(u, from2, aimDir, aimLen)) u.MarkDanger();
             }
         }
 
@@ -1597,8 +1594,11 @@ public class ArrowProj : MonoBehaviour
     //
     //   근접(InArc)은 이미 "수평 거리 + 높이 허용치" 로 나눠 재고 있었다. 화살도 같게 만든다.
     //   수평은 지나간 자취 전체로, 높이는 넉넉한 창으로 — 언덕 위아래가 서로 닿는다.
-    [Tooltip("화살이 맞는 높이 폭 (m) — 언덕 위에서 쏴도 아래가 맞게")]
-    public static float HeightWindow = 1.6f;
+    // ★세로로 긴 기둥 (2026-07-29 사용자 아이디어) — 이 게임에 공중 유닛이 없으므로
+    //   높이는 '같은 땅에 있나' 만 가려내면 된다. 5m 는 캐릭터(0.42m) 기준 12키라
+    //   비탈은 전부 덮고 절벽(10m+)은 여전히 갈린다.
+    [Tooltip("화살이 맞는 높이 폭 (m) — 세로로 긴 기둥. 언덕 아래도 맞게")]
+    public static float HeightWindow = 5f;
     [Tooltip("맞는 수평 반경에 더하는 여유 (m)")]
     public static float HitPad = 0.22f;
 
@@ -1629,6 +1629,23 @@ public class ArrowProj : MonoBehaviour
 
     /// 판정에 쓰는 높이 — 실제 위치가 아니라 '지면 위 고도' 를 유지한 높이
     float JudgeY(Vector3 at) => GroundAt(at) + groundAlt;
+
+    /// ★조준선이 이 펫을 맞히나 — **실제 명중 판정과 같은 식**을 쓴다 (2026-07-29 사용자).
+    ///
+    /// ★왜: 조준 표시(빨갛게)는 높이를 아예 무시하고 가로 여유도 0.59m 였는데,
+    ///   실제 명중은 0.79m + 높이 창이었다. 그래서 "빨갛게 뜨는데 안 맞고,
+    ///   에임은 위에 있는데 맞는다고 뜨는" 어긋남이 났다. 표시와 판정은 한 식이어야 한다.
+    public static bool AimHits(PetUnit u, Vector3 from, Vector3 dir, float len)
+    {
+        if (u == null || !u.Alive) return false;
+        var center = u.transform.position + Vector3.up * u.body * 0.5f;
+        var to = from + dir * len;
+        if (SegDistFlat(center, from, to) >= u.body * 0.55f + HitPad) return false;
+        // 쏘는 자리의 지면 위 고도를 펫 발밑 지면에 얹어 비교 (지면 기준 판정과 같은 규칙)
+        float alt = from.y - GroundAt(from);
+        float judge = GroundAt(u.transform.position) + alt;
+        return Mathf.Abs(center.y - judge) < HeightWindow + u.body * 0.5f;
+    }
 
     /// 점 p 와 선분 a→b 의 수평(XZ) 최단 거리 — 높이는 따로 본다
     static float SegDistFlat(Vector3 p, Vector3 a, Vector3 b)

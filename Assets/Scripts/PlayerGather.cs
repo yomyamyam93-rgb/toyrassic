@@ -314,7 +314,14 @@ public class PlayerGather : MonoBehaviour
     bool InArc(Vector3 wp, float extra)
     {
         var d = wp - SwingOrigin;
-        // 높이 차가 크면 제외 — 예전엔 y 를 아예 버려서 절벽 위 아래가 서로 맞았다
+        // ★판정은 '세로로 긴 기둥' 이다 (2026-07-29 사용자 아이디어).
+        //
+        //   "베거나 찍는 판정 범위를 세로로 넓게 넣어서 아래 있는 것도 맞게 —
+        //    어차피 높게 날아다니는 건 없잖아"
+        //
+        //   맞는 말이다. 이 게임에 공중 유닛이 없으므로 높이는 사실상 '같은 땅에 있나'
+        //   만 가려내면 된다. 그러면 오르막·내리막에서 무기가 닿는 게 보이는데
+        //   판정만 빗나가는 일이 없어진다. 절벽 위아래(10m 이상)는 여전히 갈린다.
         float dy = Mathf.Abs(d.y), dyMax = swingHeightTolerance + extra;
         d.y = 0f;
         float dist = d.magnitude, reach = SwingReach + extra;
@@ -424,16 +431,32 @@ public class PlayerGather : MonoBehaviour
             var td = terr.terrainData; var to = terr.transform.position;
             var trees = Trees(td);
             var rockOf = ProtoRock(td);   // 캐시 — 문자열 연산 없음
+            // ★격자로 좁혀서 본다 (2026-07-29 사용자 — "평타 때릴 때마다 렉 오지네").
+            //   예전엔 휘두를 때마다 나무 107,563 그루를 전부 InArc 에 넣었다.
+            //   스윙 한 번에 10만 번 — 그게 평타마다 프레임이 튀던 이유다.
+            //   화살이 쓰는 격자를 그대로 쓴다. 사거리 근처 칸만 보면 몇 개로 줄어든다.
             var cands = new System.Collections.Generic.List<(int i, float d, Vector3 wp, bool rock)>();
-            for (int i = 0; i < trees.Length; i++)
-            {
-                bool isRock = trees[i].prototypeIndex < rockOf.Length && rockOf[trees[i].prototypeIndex];
-                // 큰 바위는 중심이 멀어도 표면이 닿으면 맞게 — 크기만큼 판정 여유
-                float ex = isRock ? trees[i].widthScale * 1.6f : 1.0f;
-                var wp = Vector3.Scale(trees[i].position, td.size) + to;
-                if (!InArc(wp, ex)) continue;
-                cands.Add((i, FlatDist(wp, SwingOrigin), wp, isRock));   // 탈 땐 펫 기준
-            }
+            var grid = TreeGrid(td, to);
+            float rr = SwingReach + 4f;                 // 큰 바위 여유까지 넉넉히
+            var o = SwingOrigin;
+            int gx0 = CellOf(o.x - rr, to.x), gx1 = CellOf(o.x + rr, to.x);
+            int gz0 = CellOf(o.z - rr, to.z), gz1 = CellOf(o.z + rr, to.z);
+            for (int cz = gz0; cz <= gz1; cz++)
+                for (int cx = gx0; cx <= gx1; cx++)
+                {
+                    if (!grid.TryGetValue(cz * GridDim + cx, out var bucket)) continue;
+                    for (int k = 0; k < bucket.Count; k++)
+                    {
+                        int i = bucket[k];
+                        if (i >= trees.Length) continue;
+                        bool isRock = trees[i].prototypeIndex < rockOf.Length && rockOf[trees[i].prototypeIndex];
+                        // 큰 바위는 중심이 멀어도 표면이 닿으면 맞게 — 크기만큼 판정 여유
+                        float ex = isRock ? trees[i].widthScale * 1.6f : 1.0f;
+                        var wp = Vector3.Scale(trees[i].position, td.size) + to;
+                        if (!InArc(wp, ex)) continue;
+                        cands.Add((i, FlatDist(wp, o), wp, isRock));   // 탈 땐 펫 기준
+                    }
+                }
             if (cands.Count > 0)
             {
                 cands.Sort((a, b) => a.d.CompareTo(b.d));
