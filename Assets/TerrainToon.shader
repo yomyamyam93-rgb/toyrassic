@@ -22,6 +22,11 @@ Shader "Toyrassic/TerrainToon"
         _WorldSize ("월드 크기", Float) = 6000
         _CliffTile ("절벽 타일 (m)", Float) = 18
         _CliffDark ("절벽 아래 어둡게", Range(0,1)) = 0.25
+        // ★경사로 절벽을 자동 판정 (2026-07-28 사용자 — "일정각도 이상이면 벽 재질").
+        //   예전엔 레이어6(c1.b)을 **칠한 곳에만** 절벽이 나왔다. 6km 섬을 손으로 칠할 수도
+        //   없고, 지형을 깎으면 칠한 것이 그대로 어긋난다. 각도로 판정하면 저절로 따라온다.
+        _CliffAngle ("절벽이 시작되는 각도 (°)", Range(0,90)) = 34
+        _CliffBlend ("잔디 → 절벽 섞이는 폭 (°)", Range(1,45)) = 14
         _ShadowDark ("그림자 진하기", Range(0,1)) = 0.35
     }
     SubShader
@@ -50,6 +55,7 @@ Shader "Toyrassic/TerrainToon"
             TEXTURE2D(_L4); TEXTURE2D(_L5); TEXTURE2D(_L6); TEXTURE2D(_L7);
             float4 _TileA, _TileB;
             float _WorldMin, _WorldSize, _CliffTile, _CliffDark, _ShadowDark;
+            float _CliffAngle, _CliffBlend;
 
             V vert(A i)
             {
@@ -89,10 +95,19 @@ Shader "Toyrassic/TerrainToon"
                 // 절벽 아래쪽 살짝 어둡게 → 밑동이 그늘진 느낌 (스타일라이즈드)
                 float hFrac = saturate(1.0 - n.y);                    // 가파를수록 1
                 rock *= 1.0 - _CliffDark * hFrac * 0.6;
-                g += c1.b * rock;
 
-                half wsum = c0.r + c0.g + c0.b + c0.a + c1.r + c1.g + c1.b + c1.a;
+                // 위에서 본 7장을 먼저 정규화한다 (절벽은 빼고)
+                half wsum = c0.r + c0.g + c0.b + c0.a + c1.r + c1.g + c1.a;
                 g /= max(wsum, 0.001);
+
+                // ★경사각으로 절벽을 자동 판정. n.y 는 면이 얼마나 위를 보는지라
+                //   acos 로 실제 각도(°)를 뽑는다 — 인스펙터에 '34도' 라고 쓰는 편이
+                //   0.293 같은 코사인 값보다 손대기 쉽다.
+                float ang = degrees(acos(saturate(n.y)));
+                float cliffAuto = smoothstep(_CliffAngle, _CliffAngle + _CliffBlend, ang);
+                // 칠해둔 절벽(c1.b)과 각도 판정 중 센 쪽을 쓴다 — 손으로 칠한 것도 살아남는다
+                float cliffW = saturate(max(c1.b, cliffAuto));
+                g = lerp(g, rock, cliffW);
 
                 // 매트 조명 (그림자 수신 포함)
                 float4 shadowCoord = TransformWorldToShadowCoord(i.wpos);

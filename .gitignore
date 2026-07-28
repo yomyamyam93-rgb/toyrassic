@@ -56,3 +56,6 @@ Assets/World/splat_Island.bytes.meta
 # 24km 타일 지형 — 폐기한 방향의 잔재. 씬은 Terrain_0_0(6km) 한 장만 쓴다.
 # 실수로 커밋돼 1.1GB 를 차지했다. 필요하면 archive-24km 브랜치에 있다. (2026-07-28)
 Assets/World/Tiles/
+
+# 지형 복구 백업 (87MB짜리 TerrainData 사본)
+/TerrainBackup/
