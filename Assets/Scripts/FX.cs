@@ -825,3 +825,125 @@ public class FXBurstReturn : MonoBehaviour
         FX.ReturnBurst(GetComponent<ParticleSystem>());
     }
 }
+
+/// 발사 충격 고리 — 쏘는 순간 총구에서 퍼져 나가는 먼지 고리.
+///
+/// ★왜 파티클이 아니라 메시인가 (2026-07-29 사용자 "원형 고리? 약간 먼지같이 불규칙한"):
+///   파티클을 원형으로 뿌리면 '점들이 흩어진다' 로 보이지 고리로 안 읽힌다.
+///   **테두리가 이어진 고리**여야 충격파로 보인다. 대신 반지름에 마디마다 무작위를 줘서
+///   매끈한 도넛이 아니라 먼지가 뭉친 것처럼 만든다 — 완벽한 원은 인공적으로 보인다.
+///
+/// ★비용: 머티리얼은 하나를 공유하고 오브젝트는 돌려 쓴다. 메시만 발사마다 새로 만드는데
+///   마디가 28개뿐이라 가볍다 (그래야 매번 다른 모양이 나온다).
+public class FXRing : MonoBehaviour
+{
+    static readonly System.Collections.Generic.Stack<FXRing> pool
+        = new System.Collections.Generic.Stack<FXRing>();
+    static Material mat;
+
+    MeshFilter mf; MeshRenderer mr; Mesh mesh;
+    MaterialPropertyBlock mpb;
+    float t, life, from, to;
+    Color tint;
+
+    /// pos 에서 dir 을 향해 수직으로 선 고리가 퍼진다.
+    public static void Spawn(Vector3 pos, Vector3 dir, Color color, float startR, float endR, float life)
+    {
+        FXRing r = null;
+        while (pool.Count > 0) { var g = pool.Pop(); if (g != null) { r = g; break; } }
+        if (r == null)
+        {
+            var go = new GameObject("fx_ring");
+            if (SceneBuckets.Fx != null) go.transform.SetParent(SceneBuckets.Fx);
+            r = go.AddComponent<FXRing>();
+            r.mf = go.AddComponent<MeshFilter>();
+            r.mr = go.AddComponent<MeshRenderer>();
+            r.mr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            r.mr.receiveShadows = false;
+            r.mpb = new MaterialPropertyBlock();
+            r.mesh = new Mesh { name = "fx_ring" };
+            r.mf.sharedMesh = r.mesh;
+        }
+        r.gameObject.SetActive(true);
+        r.transform.SetPositionAndRotation(pos, Quaternion.LookRotation(dir.sqrMagnitude > 1e-6f ? dir : Vector3.forward));
+        r.mr.sharedMaterial = Mat();
+        r.tint = color; r.life = Mathf.Max(0.05f, life); r.from = startR; r.to = endR; r.t = 0f;
+        r.Build();
+        r.enabled = true;
+        r.Apply(0f);
+    }
+
+    static Material Mat()
+    {
+        if (mat != null) return mat;
+        mat = new Material(Shader.Find("Universal Render Pipeline/Unlit"));
+        mat.SetFloat("_Surface", 1f);
+        mat.SetFloat("_Blend", 0f);
+        mat.SetFloat("_SrcBlend", (float)UnityEngine.Rendering.BlendMode.SrcAlpha);
+        mat.SetFloat("_DstBlend", (float)UnityEngine.Rendering.BlendMode.One);   // 더하기 = 빛나는 먼지
+        mat.SetFloat("_ZWrite", 0f);
+        mat.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
+        mat.renderQueue = (int)UnityEngine.Rendering.RenderQueue.Transparent;
+        return mat;
+    }
+
+    /// 반지름 1 짜리 고리를 만든다. 실제 크기는 스케일로 준다.
+    /// 마디마다 두께와 반지름을 흔들어 '먼지가 뭉친' 모양으로.
+    void Build()
+    {
+        const int Seg = 28;
+        var v = new Vector3[(Seg + 1) * 2];
+        var uv = new Vector2[v.Length];
+        float phase = Random.value * 100f;
+        for (int i = 0; i <= Seg; i++)
+        {
+            float a = i / (float)Seg * Mathf.PI * 2f;
+            // 비배음 두 겹 — 배수 관계면 무늬가 반복돼 보인다 (길 규칙과 같은 이유)
+            float n = Mathf.PerlinNoise(Mathf.Cos(a) * 1.7f + phase, Mathf.Sin(a) * 1.7f + phase) - 0.5f
+                    + (Mathf.PerlinNoise(Mathf.Cos(a) * 4.3f + phase, Mathf.Sin(a) * 4.3f + phase) - 0.5f) * 0.5f;
+            float rOut = 1f + n * 0.30f;                 // 바깥 테두리를 울퉁불퉁하게
+            float rIn = rOut * (0.62f + n * 0.12f);      // 두께도 마디마다 다르게
+            var d = new Vector3(Mathf.Cos(a), Mathf.Sin(a), 0f);
+            v[i * 2] = d * rIn; v[i * 2 + 1] = d * rOut;
+            uv[i * 2] = new Vector2(i / (float)Seg, 0f);
+            uv[i * 2 + 1] = new Vector2(i / (float)Seg, 1f);
+        }
+        var tri = new int[Seg * 6];
+        int k = 0;
+        for (int i = 0; i < Seg; i++)
+        {
+            int a = i * 2, b = i * 2 + 1, c = i * 2 + 2, d2 = i * 2 + 3;
+            tri[k++] = a; tri[k++] = b; tri[k++] = c;
+            tri[k++] = b; tri[k++] = d2; tri[k++] = c;
+        }
+        mesh.Clear();
+        mesh.vertices = v; mesh.uv = uv; mesh.triangles = tri;
+        mesh.RecalculateBounds();
+    }
+
+    void Apply(float k)
+    {
+        // 처음에 확 퍼지고 끝에서 느려진다 — 등속이면 고무줄처럼 보인다
+        float e = 1f - (1f - k) * (1f - k);
+        float r = Mathf.Lerp(from, to, e);
+        transform.localScale = new Vector3(r, r, r);
+        var c = tint * (1f - k) * (1f - k);   // 빨리 옅어지고 끝에서 천천히
+        c.a = 1f - k;
+        mpb.SetColor("_BaseColor", c);
+        mr.SetPropertyBlock(mpb);
+    }
+
+    void Update()
+    {
+        t += Time.deltaTime;
+        float k = Mathf.Clamp01(t / life);
+        if (k >= 1f)
+        {
+            enabled = false;
+            gameObject.SetActive(false);
+            if (pool.Count < 32) pool.Push(this); else Destroy(gameObject);
+            return;
+        }
+        Apply(k);
+    }
+}

@@ -1232,6 +1232,28 @@ public class PlayerBow : MonoBehaviour
         FX.Burst(from, shot != null ? new Color(1.4f, 1.3f, 1.1f, 0.85f)   // 새총 — 돌멩이 튀는 느낌
                                     : new Color(2.2f, 1.9f, 0.8f, 0.9f),
                  shot != null ? 6 : 10, 0.14f, 2f, 0.2f);
+        MuzzleRing(from, shot != null);
+    }
+
+    // ── 발사 충격 고리 (2026-07-29 사용자) ────────────────────────────
+    //
+    // ★"화살이 딱 나갈 때 발사 지점에서 원형으로 퍼져나가는 고리, 약간 먼지같이 불규칙한"
+    //   조준 방향에 **수직으로** 세운다 — 총구에서 밀려난 공기처럼 보이게.
+    //   테두리는 마디마다 흔들어 매끈한 도넛이 안 되게 한다 (완벽한 원은 인공적이다).
+    [Header("발사 충격 고리")]
+    [Tooltip("시작 반지름 (m)")] public float ringFrom = 0.05f;
+    [Tooltip("끝 반지름 (m) — 여기까지 퍼진다")] public float ringTo = 0.55f;
+    [Tooltip("퍼지는 시간 (초) — 짧을수록 탁 터진다")] public float ringLife = 0.22f;
+    [Tooltip("활 고리 색 (1을 넘으면 블룸에 걸려 빛난다)")]
+    public Color ringColorBow = new Color(2.0f, 1.7f, 0.9f, 1f);
+    [Tooltip("새총 고리 색 — 돌먼지라 탁하게")]
+    public Color ringColorSling = new Color(1.3f, 1.2f, 1.0f, 1f);
+    [Tooltip("꽉 당겨 쐈을 때 고리 배수")] public float ringChargedMul = 1.8f;
+
+    void MuzzleRing(Vector3 from, bool sling, float mul = 1f)
+    {
+        FXRing.Spawn(from, aimDir, sling ? ringColorSling : ringColorBow,
+                     ringFrom * mul, ringTo * mul, ringLife);
     }
 
     [Header("3단 (꽉 당김) — 무기 고유기")]
@@ -1260,6 +1282,7 @@ public class PlayerBow : MonoBehaviour
             ArrowProj.Throw(from, aimDir, spd * 1.3f, baseDmg * chargedBowDmg, range * 1.3f,
                             Mathf.Max(1, chargedPierce));
             FX.Burst(from, new Color(2.6f, 2.2f, 1.0f, 1f), 22, 0.18f, 3.5f, 0.3f);
+            MuzzleRing(from, false, ringChargedMul);   // 꽉 당긴 만큼 고리도 크게
         }
         FollowCam.Shake(0.3f);
     }
@@ -1281,6 +1304,7 @@ public class PlayerBow : MonoBehaviour
             var d = Quaternion.Euler(0f, off, 0f) * aimDir;
             ArrowProj.Throw(from, d, spd, dmg, range);
             FX.Burst(from, new Color(1.8f, 1.6f, 1.1f, 0.95f), 6, 0.16f, 3f, 0.25f);
+            FXRing.Spawn(from, d, ringColorSling, ringFrom, ringTo * 0.85f, ringLife);
             FollowCam.Shake(0.12f);
             if (i < n - 1) yield return new WaitForSeconds(slingBurstInterval);
         }
