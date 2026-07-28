@@ -248,7 +248,12 @@ public class SkillSystem : MonoBehaviour
     [Tooltip("칼이 퍼지는 각도 (°) — 좁게 모아 꽂는다")] public float swordScatterAngle = 45f;
     [Tooltip("흩뿌려 떨어지는 거리 폭 (m) — 앞뒤로도 흩어진다")] public float scatterDepth = 2.2f;
     [Tooltip("한 발이 날아가는 시간 (초)")] public float scatterFlyTime = 0.6f;
-    [Tooltip("발마다 늦어지는 간격 (초) — 촤라락 퍼지는 소리")] public float scatterStagger = 0.045f;
+    // ★한 번에 촥 뿌린다 — 연발이 아니다 (2026-07-28 사용자).
+    //   발마다 기다리면 그건 기관총이고, 그건 활·새총의 몫이다. 도끼·칼은 한 동작으로
+    //   전부 뿌려져야 '휘둘러 흩뿌렸다' 로 읽힌다.
+    //   대신 비행 시간에만 ±편차를 준다 — 완전히 같은 순간에 착지하면 기계처럼 보인다.
+    [Tooltip("착지 시점 편차 (0.15 = ±15%) — 0 이면 전부 같은 순간에 떨어져 기계처럼 보인다")]
+    [Range(0f, 0.5f)] public float scatterTimeJitter = 0.18f;
 
     [Header("E — 연발 (활·새총)")]
     [Tooltip("날아가는 속도 (m/s) — 빠르게 쏜다")] public float rapidSpeed = 14f;
@@ -295,8 +300,9 @@ public class SkillSystem : MonoBehaviour
 
         var from = head != null ? head.HeadPoint : transform.position + Vector3.up * 0.25f * WorldScale.K;
         if (head != null) head.Hide();
-        FX.Burst(from, throwTrailColor, 12, 0.03f, 0.4f, 0.3f);
-        FollowCam.Shake(0.15f);
+        // 한 방으로 다 나가는 동작이라 그 순간이 세야 한다 — 크게 터뜨리고 크게 흔든다
+        FX.Burst(from, throwTrailColor, 26, 0.04f, 0.9f, 0.35f);
+        FollowCam.Shake(0.28f);
 
         var center = ThrowSpot();
         var to = center - transform.position; to.y = 0f;
@@ -314,8 +320,10 @@ public class SkillSystem : MonoBehaviour
             float rr = dist + Random.Range(-scatterDepth, scatterDepth) * 0.5f;
             var d2 = Quaternion.Euler(0f, ang, 0f) * dir;
             var land = Ground(transform.position + d2 * Mathf.Max(0.4f, rr));
-            StartCoroutine(BallFlight(pet, from, land, scatterFlyTime, throwArc * 0.7f, 1, 0f));
-            if (scatterStagger > 0f) yield return new WaitForSeconds(scatterStagger);
+            // ★전부 같은 프레임에 출발한다 — 한 번의 휘두름으로 촥 뿌려진 것이니까.
+            //   착지 시점만 조금씩 어긋나 '촥' 하고 흩어져 떨어진다.
+            float fly = scatterFlyTime * (1f + Random.Range(-scatterTimeJitter, scatterTimeJitter));
+            StartCoroutine(BallFlight(pet, from, land, fly, throwArc * 0.7f, 1, 0f));
         }
         SquadHUD.Toast($"{pet.name} {n}마리 흩뿌림!");
         if (head != null) head.Show();
