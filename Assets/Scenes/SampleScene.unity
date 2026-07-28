@@ -3216,7 +3216,7 @@ MonoBehaviour:
   deathLinger: 1.1
   dissolveTime: 0.9
   dissolveColor: {r: 2.2, g: 1.7, b: 0.9, a: 1}
-  avatarBarLift: 0.9
+  avatarBarLift: 0.45
 --- !u!114 &107336121
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -3526,7 +3526,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 35ed4565a5cab4c45b550243f4d32408, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PetHeadDisplay
-  sizeRatio: 1.4
+  sizeRatio: 0.7
   gapRatio: 0.12
   bobRatio: 0.04
   bobSpeed: 2.2

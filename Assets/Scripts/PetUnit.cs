@@ -969,7 +969,7 @@ public class PetUnit : MonoBehaviour
     // ★몸에 안 붙임 — 스쿼시·통통 바운스에 안 흔들리게 월드 공간에서 부드럽게 따라감
     float barY, barSmoothY, barBaseScale;
     [Tooltip("캐릭터 체력바를 얼마나 더 올리나 (m) — 머리 위 펫을 안 가리게")]
-    public float avatarBarLift = 0.9f;
+    public float avatarBarLift = 0.45f;
     /// 거리 보정 배율 상한 — 넘어가면 화면에서 자연히 작아진다 (숨기지는 않음)
     const float barMaxGrow = 2.0f;
     void MakeBar(Renderer r)

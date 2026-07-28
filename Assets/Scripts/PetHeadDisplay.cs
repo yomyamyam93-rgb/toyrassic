@@ -15,8 +15,8 @@ public class PetHeadDisplay : MonoBehaviour
 {
     public static PetHeadDisplay I;
 
-    [Tooltip("캐릭터 키 대비 미니 펫 크기 (1.4 = 키의 140%)")]
-    public float sizeRatio = 1.4f;
+    [Tooltip("캐릭터 키 대비 미니 펫 크기 (0.7 = 키의 70%)")]
+    public float sizeRatio = 0.7f;
     [Tooltip("머리 꼭대기에서 얼마나 더 띄우나 (캐릭터 키 대비)")]
     public float gapRatio = 0.12f;
     [Tooltip("둥실둥실 뜨는 높이 (캐릭터 키 대비, 0 = 고정)")]
