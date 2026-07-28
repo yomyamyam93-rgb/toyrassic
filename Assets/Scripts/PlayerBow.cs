@@ -1241,13 +1241,13 @@ public class PlayerBow : MonoBehaviour
     //   조준 방향에 **수직으로** 세운다 — 총구에서 밀려난 공기처럼 보이게.
     //   테두리는 마디마다 흔들어 매끈한 도넛이 안 되게 한다 (완벽한 원은 인공적이다).
     [Header("발사 충격 고리")]
-    [Tooltip("시작 반지름 (m)")] public float ringFrom = 0.05f;
-    [Tooltip("끝 반지름 (m) — 여기까지 퍼진다")] public float ringTo = 0.55f;
-    [Tooltip("퍼지는 시간 (초) — 짧을수록 탁 터진다")] public float ringLife = 0.22f;
-    [Tooltip("활 고리 색 (1을 넘으면 블룸에 걸려 빛난다)")]
-    public Color ringColorBow = new Color(2.0f, 1.7f, 0.9f, 1f);
-    [Tooltip("새총 고리 색 — 돌먼지라 탁하게")]
-    public Color ringColorSling = new Color(1.3f, 1.2f, 1.0f, 1f);
+    [Tooltip("시작 반지름 (m)")] public float ringFrom = 0.15f;
+    [Tooltip("끝 반지름 (m) — 여기까지 퍼진다. 캐릭터 키가 0.42m 다")] public float ringTo = 1.65f;
+    [Tooltip("퍼지는 시간 (초) — 짧을수록 탁 터진다")] public float ringLife = 0.66f;
+    [Tooltip("활 고리 색 — 흰색. 1을 넘겨야 블룸에 걸려 '빛나는 흰' 으로 보인다")]
+    public Color ringColorBow = new Color(2.2f, 2.2f, 2.2f, 1f);
+    [Tooltip("새총 고리 색 — 흰색, 조금 약하게")]
+    public Color ringColorSling = new Color(1.7f, 1.7f, 1.7f, 1f);
     [Tooltip("꽉 당겨 쐈을 때 고리 배수")] public float ringChargedMul = 1.8f;
 
     void MuzzleRing(Vector3 from, bool sling, float mul = 1f)
