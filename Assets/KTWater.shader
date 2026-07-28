@@ -50,6 +50,10 @@ Shader "Toyrassic/KTWater"
             HLSLPROGRAM
             #pragma vertex vert
             #pragma fragment frag
+            // ★안개 (2026-07-29 사용자 "바다도 안개가 먹어야 하는데 혼자만 멀리서도 보여")
+            //   이 셰이더에는 안개 처리가 아예 없어서, 다른 건 다 안개에 먹히는데
+            //   물만 또렷하게 남아 수평선이 유리처럼 잘려 보였다.
+            #pragma multi_compile_fog
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/DeclareDepthTexture.hlsl"
 
@@ -63,7 +67,7 @@ Shader "Toyrassic/KTWater"
             float _DeepStr;
 
             struct A { float4 positionOS:POSITION; };
-            struct V { float4 positionHCS:SV_POSITION; float3 wpos:TEXCOORD0; float4 spos:TEXCOORD1; };
+            struct V { float4 positionHCS:SV_POSITION; float3 wpos:TEXCOORD0; float4 spos:TEXCOORD1; float fog:TEXCOORD2; };
 
             float h21(float2 v){ v=frac(v*0.3183099+float2(0.71,0.113)); v+=dot(v,v.yx+41.7); return frac(v.x*v.y*95.4307); }
             float vnoise(float2 v){ float2 i=floor(v),f=frac(v); f=f*f*(3.0-2.0*f);
@@ -76,7 +80,8 @@ Shader "Toyrassic/KTWater"
                 float3 p=abs(frac(c.xxx+K.xyz)*6.-K.www); return c.z*lerp(K.xxx,saturate(p-K.xxx),c.y); }
 
             V vert(A i){ V o; float3 w=TransformObjectToWorld(i.positionOS.xyz);
-                o.wpos=w; o.positionHCS=TransformWorldToHClip(w); o.spos=ComputeScreenPos(o.positionHCS); return o; }
+                o.wpos=w; o.positionHCS=TransformWorldToHClip(w); o.spos=ComputeScreenPos(o.positionHCS);
+                o.fog=ComputeFogFactor(o.positionHCS.z); return o; }
 
             half4 frag(V i):SV_Target
             {
@@ -147,6 +152,8 @@ Shader "Toyrassic/KTWater"
                     col += g * _GlintBright * 0.02;
                     a = max(a, saturate(g * _GlintBright * 0.02));
                 }
+                // ★안개를 섞는다 — 멀수록 하늘색에 잠겨 수평선이 자연스럽게 사라진다
+                col = MixFog(col, i.fog);
                 return half4(col, saturate(a));
             }
             ENDHLSL

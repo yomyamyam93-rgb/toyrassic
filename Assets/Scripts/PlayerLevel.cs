@@ -34,7 +34,12 @@ public static class PlayerLevel
     public const float MaxMoveMul = 1.3f;      // 이동은 1.3배까지
 
     /// 다음 레벨까지 필요한 경험치 — 완만하게 올라간다
-    public static float XpNeed => 40f + 28f * (Level - 1) + 2f * (Level - 1) * (Level - 1);
+    // ★캐릭터는 펫보다 더 어렵다 (2026-07-29 사용자 "캐릭터는 더 어려워야하고").
+    //   예전 40 + 28n + 2n² 는 1렙이 40 이라 첫 전투에 몇 레벨이 그냥 올랐다.
+    //   기본 몫을 크게 올리고 2차항도 키운다 —
+    //     1렙 220 · 10렙 850 · 50렙 8,320 · 100렙 30,020
+    //   격파당 supply x 4 (4~16) 이므로 초반 한 레벨에도 여러 번 싸워야 한다.
+    public static float XpNeed => 220f + 40f * (Level - 1) + 3f * (Level - 1) * (Level - 1);
 
     // ── 다른 코드가 읽는 배수 ──
     public static float DamageMul => Mathf.Min(MaxDamageMul, 1f + Str * StrDamagePerPoint);

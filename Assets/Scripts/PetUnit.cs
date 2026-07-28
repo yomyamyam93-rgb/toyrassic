@@ -49,9 +49,14 @@ public class PetUnit : MonoBehaviour
     //   야생 격파 한 번이 18~72 경험치이므로 대략 —
     //     20렙 ≈ 150마리 · 50렙 ≈ 1,550마리 · 100렙 ≈ 9,500마리
     //   초반은 금방 오르고 100렙은 끝까지 남는 목표가 된다.
-    public const float XpBase = 45f;    // 어느 레벨이든 깔리는 몫 (초반이 너무 쉽지 않게)
-    public const float XpGrow = 5f;     // 지수 항의 계수
-    public const float XpExp = 1.65f;   // 클수록 후반이 가팔라진다
+    // ★한 번 더 크게 올렸다 (2026-07-29 사용자 — "한두 번 싸우고 10렙은 오반데,
+    //   훨씬훨씬 어려워야").
+    //   앞서 45/5/1.65 로 잡았는데, 격파당 18(종마다) 이라 한 번 싸우면(15마리쯤)
+    //   270 이 들어와 10렙 근처까지 갔다. **초반 요구치가 너무 낮았다.**
+    //   기본 몫을 3배로 올리고 격파 경험치는 3분의 1 이하로 줄인다 (아래 GainXP 호출부).
+    public const float XpBase = 140f;   // 어느 레벨이든 깔리는 몫 — 초반을 여기서 막는다
+    public const float XpGrow = 9f;     // 지수 항의 계수
+    public const float XpExp = 1.6f;    // 클수록 후반이 가팔라진다
 
     public float XpNeed => XpNeedAt(level);
 
@@ -880,12 +885,15 @@ public class PetUnit : MonoBehaviour
         if (barRoot != null) barRoot.gameObject.SetActive(false);
         if (team == Team.Wild)
         {   // 격파 경험치 → 캐릭터와 내 펫 둘 다. 펫 획득은 오직 부화로!
-            PlayerLevel.Gain(supply * 12f + body * 0.6f);   // 덩치가 클수록 더 준다
+            // ★캐릭터는 펫보다 더 어렵게 (2026-07-29 사용자 "캐릭터는 더 어려워야하고").
+            //   body 항을 뺐다 — 크기 격차를 벌리면서 body 가 최대 6까지 올라가
+            //   덩치 큰 놈 하나가 경험치를 왕창 주는 상태였다. 등급(supply)만 본다.
+            PlayerLevel.Gain(supply * 4f);
             // ★잡은 놈만 먹는 게 아니라 **가진 펫 전부가 같이 큰다** (2026-07-29 사용자).
             //   예전엔 살아 있는 분신 하나만 골라 줬다(break). 그 분신은 흡수되며 사라지므로
             //   경험치가 증발했고, 설령 남았어도 "때린 애만 크는" 게 되어
             //   부대를 굴리는 게임과 안 맞았다. 이제 보관함의 모든 종이 함께 오른다.
-            PetBox.GainXPAll(supply * 18f);
+            PetBox.GainXPAll(supply * 5f);
         }
         Destroy(gameObject, 20f);   // 안전망 — 정상 흐름은 부스러짐이 끝나면서 스스로 사라진다
     }
@@ -1235,6 +1243,8 @@ public class PetUnit : MonoBehaviour
     }
 
     TMPro.TextMeshPro barLevel; int barLevelShown = -1;
+    /// 전투력 — 매 프레임 계산하면 부담이라 0.5초에 한 번만
+    int barPow, barPowShown = -1; float barPowAt = -99f;
 
     float barShowT;
     void Bar()
@@ -1286,11 +1296,16 @@ public class PetUnit : MonoBehaviour
         //   딱 반대로 동작하고 있었다.
         barRoot.localScale = Vector3.one * barBaseScale * (dist / barRefDist);
 
-        // 레벨 — 바뀔 때만 대입한다 (TMP 는 대입할 때마다 메시를 다시 만든다)
-        if (barLevel != null && barLevelShown != level)
+        // ★레벨 — 캐릭터는 PlayerLevel(static)이 진짜 레벨이다 (2026-07-29).
+        //   예전엔 PetUnit.level 을 띄웠는데, 아바타는 그 값이 영영 1이라
+        //   "캐릭터는 왜 레벨이 안 오르냐" 가 됐다. 오르는 건 PlayerLevel 쪽이었다.
+        int showLv = isAvatar ? PlayerLevel.Level : level;
+        // 전투력도 같이 — 몇 레벨인지보다 '얼마나 센지' 가 붙을지 말지를 정한다
+        if (Time.time - barPowAt > 0.5f) { barPow = Power.Of(this); barPowAt = Time.time; }
+        if (barLevel != null && (barLevelShown != showLv || barPowShown != barPow))
         {
-            barLevelShown = level;
-            barLevel.text = level.ToString();   // 숫자만 — 체력 숫자와 안 겹치게
+            barLevelShown = showLv; barPowShown = barPow;
+            barLevel.text = $"{showLv}\n<size=60%>{barPow}</size>";
         }
         // 롤식: 실체력은 즉시, 잔상 바는 잠깐 머물다 스르륵 따라 내려옴
         ghostHp = hp > ghostHp ? hp : Mathf.MoveTowards(ghostHp, hp, maxHp * 0.45f * Time.deltaTime);
