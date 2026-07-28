@@ -2842,6 +2842,7 @@ MonoBehaviour:
   leanMax: 8
   skillHop: 0
   skillYaw: 0
+  skillPitch: 0
   skillHoldFacing: 0
 --- !u!4 &107336113 stripped
 Transform:
@@ -3241,8 +3242,8 @@ MonoBehaviour:
   pickVsRock: 10
   pickVsTree: 4
   axeVsMob: 9
-  pickVsMob: 11
-  swordVsMob: 16
+  pickVsMob: 18
+  swordVsMob: 13
   swordVsNode: 2
   arrowVsNode: 4
   arrowBlockRadius: 0.16000001
@@ -3252,6 +3253,14 @@ MonoBehaviour:
   bareVsNode: 2.5
   bareVsMob: 4
   bareCooldown: 0.85
+  swordRangeMul: 0.9
+  swordAngleMul: 0.8
+  axeRangeMul: 1.15
+  axeAngleMul: 1.35
+  pickRangeMul: 0.85
+  pickAngleMul: 0.55
+  bareRangeMul: 0.7
+  bareAngleMul: 0.7
   swingHeightTolerance: 0.4
   showSwingArc: 1
 --- !u!114 &107336123
@@ -3429,9 +3438,9 @@ MonoBehaviour:
   qComboDamageMul: 1.1
   qComboLunge: 0.07
   qComboSlashTime: 0.13
-  rollCooldown: 3
-  rollDist: 1.1
-  rollTime: 0.26
+  rollCooldown: 1.4
+  rollDist: 2.3
+  rollTime: 0.3
   throwCooldown: 12
   throwRange: 8
   throwBudget: 12

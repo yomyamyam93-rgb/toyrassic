@@ -76,6 +76,10 @@ public class BlobMotion : MonoBehaviour
     public float skillHop;
     /// 추가로 돌리는 각도 (°). 한 바퀴 도는 스킬용
     public float skillYaw;
+    /// ★앞으로 넘어가는 각도 (°) — 구르기용 (2026-07-28).
+    ///   몸을 진행 방향으로 회전시킨다. 리깅이 없는 블롭이라 '앞구르기'는
+    ///   이 축을 한 바퀴 돌리는 것으로 표현한다.
+    public float skillPitch;
     /// true 면 마우스 쪽으로 몸을 돌리지 않는다 (스킬이 회전을 잡고 있는 동안)
     public bool skillHoldFacing;
 
@@ -116,7 +120,7 @@ public class BlobMotion : MonoBehaviour
         float wantLean = leanMax * speed01;
         lean = Mathf.Lerp(lean, wantLean, 8f * Time.deltaTime);
         var e = transform.localEulerAngles;
-        transform.localRotation = Quaternion.Euler(lean, e.y + skillYaw, 0f);
+        transform.localRotation = Quaternion.Euler(lean + skillPitch, e.y + skillYaw, 0f);
     }
 
     /// 진행 방향으로 부드럽게 돌린다 (수평 성분만)
@@ -128,6 +132,6 @@ public class BlobMotion : MonoBehaviour
         var want = Quaternion.LookRotation(dir.normalized, Vector3.up);
         var cur = Quaternion.Euler(0f, transform.localEulerAngles.y, 0f);
         var next = Quaternion.RotateTowards(cur, want, turnSpeed * 60f * Time.deltaTime);
-        transform.localRotation = Quaternion.Euler(lean, next.eulerAngles.y, 0f);
+        transform.localRotation = Quaternion.Euler(lean + skillPitch, next.eulerAngles.y, 0f);
     }
 }

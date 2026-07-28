@@ -259,6 +259,9 @@ public class PlayerBow : MonoBehaviour
     /// ★조준 방향 정본 — 스킬(SkillSystem)도 이걸 써야 평타와 궤적이 같다 (2026-07-28)
     public Vector3 AimDir => aimDir;
 
+    /// 조준을 즉시 끊는다 — 구르기처럼 '지금 당장' 나가야 하는 동작이 부른다 (2026-07-28)
+    public void CancelDraw() { drawing = false; drawT = 0f; aimLen = 0f; }
+
     /// 지금 든 무기의 잔상 켜기/끄기 — 애니메이션 이벤트에서 부른다 (2026-07-28)
     public void SetTrail(bool on)
     {

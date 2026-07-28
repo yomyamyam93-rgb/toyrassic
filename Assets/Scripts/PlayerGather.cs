@@ -207,10 +207,33 @@ public class PlayerGather : MonoBehaviour
         if (Time.time < windowEnd) SweepDamage();
     }
 
+    // ── 무기별 타격 영역 ────────────────────────────────────────────────
+    //
+    // ★영역이 무기 성격을 가르는 축이다 (2026-07-28).
+    //   여태 근접 3종이 **완전히 같은 부채꼴**을 썼다. 모션만 다르고 닿는 자리가
+    //   똑같으니 무기를 바꿀 이유가 피해·공속 숫자뿐이었다.
+    //   근접은 부채꼴 안의 적을 **전부** 때리므로, 각도가 곧 '몇 마리를 동시에
+    //   상대하나' 다 — 밸런스에서 피해·공속만큼 중요하다.
+    //     칼   = 좁고 빠르게      (단일에 강함, 떼엔 보통)
+    //     도끼 = 넓게 쓸어친다    (떼에 강함, 한 놈한텐 약함)
+    //     곡괭이 = 좁게 콱 찍는다 (채집용, 전투는 어정쩡)
+    [Header("무기별 타격 영역 — 기본 부채꼴에 곱해진다")]
+    [Tooltip("칼 — 사거리 / 각도")] public float swordRangeMul = 0.9f, swordAngleMul = 0.8f;
+    [Tooltip("도끼 — 사거리 / 각도")] public float axeRangeMul = 1.15f, axeAngleMul = 1.35f;
+    [Tooltip("곡괭이 — 사거리 / 각도")] public float pickRangeMul = 0.85f, pickAngleMul = 0.55f;
+    [Tooltip("맨손 — 사거리 / 각도")] public float bareRangeMul = 0.7f, bareAngleMul = 0.7f;
+
+    float WeaponRangeMul => pendingBare ? bareRangeMul
+                          : pendingIsSword ? swordRangeMul
+                          : pendingIsPick ? pickRangeMul : axeRangeMul;
+    float WeaponAngleMul => pendingBare ? bareAngleMul
+                          : pendingIsSword ? swordAngleMul
+                          : pendingIsPick ? pickAngleMul : axeAngleMul;
+
     // ★탑승 삭제 (2026-07-28) — 늘 내 자리에서 휘두른다
     Vector3 SwingOrigin => transform.position;
-    float SwingReach => swingRange * skillRangeMul;
-    float SwingSpread => swingAngle;
+    float SwingReach => swingRange * WeaponRangeMul * skillRangeMul;
+    float SwingSpread => Mathf.Min(360f, swingAngle * WeaponAngleMul);
 
     [Header("판정 정밀도")]
     [Tooltip("이보다 높이 차이가 나면 안 맞는다 (절벽 위/아래 헛맞음 방지, m)")]

@@ -113,6 +113,7 @@ public class SkillSystem : MonoBehaviour
         move = GetComponent<PlayerMove>();
         bow = GetComponent<PlayerBow>();
         gather = GetComponent<PlayerGather>();
+        blob = GetComponent<BlobMotion>();
         cmd = GetComponent<PetCommand>();
         if (cmd == null) cmd = gameObject.AddComponent<PetCommand>();
         cam = Camera.main;
@@ -166,6 +167,7 @@ public class SkillSystem : MonoBehaviour
     {
         for (int i = 0; i < cd.Length; i++) cd[i] = Mathf.Max(0f, cd[i] - Time.deltaTime);
         AdvanceDash();
+        AdvanceRoll();
         RefreshHUD();
 
         // 창·건축 모드에선 스킬 입력 잠금 (Q·E·R 이 건축 조작과 겹치지 않게)
@@ -531,15 +533,46 @@ public class SkillSystem : MonoBehaviour
         if (sword != null) sword.hFlip = baseFlip;   // 원래대로 (평타가 안 바뀌게)
     }
 
-    // ── Space: 구르기 (기본 회피, 무기·펫과 무관하게 항상 쓸 수 있다) ──
+    // ── Space: 구르기 (기본 회피) ────────────────────────────────────────
+    //
+    // ★어떤 상태에서든 나가야 한다 (2026-07-28 사용자). 회피는 '지금 당장' 쓰는 것이라
+    //   휘두르는 중이든 활을 당기는 중이든 막히면 안 된다. 진행 중인 동작을 끊고 구른다.
+    //   쿨타임 말고는 아무 조건도 걸지 않는다.
     void TryE()
     {
         if (!Ready(2)) return;
+
+        // 진행 중인 동작을 끊는다 — 스윙·조준을 붙잡고 있으면 회피가 늦는다
+        if (bow != null) bow.CancelDraw();
+
         // ★WASD 로 가려는 방향으로 구른다 (입력 없으면 바라보는 쪽)
         var rollDir = move != null && move.InputDir.sqrMagnitude > 0.01f ? move.InputDir : AimDir();
         StartDash(rollDir, rollDist, rollTime, false, 0f, 0f);
-        FX.Burst(transform.position, new Color(0.9f, 0.95f, 1.1f, 0.8f), 12, 0.25f, 4f);
+        rollT = rollTime;                      // 구르는 모션 시작
+        if (blob != null) blob.skillHoldFacing = true;   // 구르는 동안 마우스를 안 따라간다
+        FX.Burst(transform.position, new Color(0.9f, 0.95f, 1.1f, 0.8f), 12, 0.25f * WorldScale.K, 4f * WorldScale.K);
         Use(2, rollCooldown);
+    }
+
+    // ── 구르는 모션 — 리깅이 없는 블롭이라 몸을 앞으로 한 바퀴 굴린다 ──
+    BlobMotion blob;
+    float rollT;
+
+    void AdvanceRoll()
+    {
+        if (blob == null) return;
+        if (rollT <= 0f) { blob.skillPitch = 0f; return; }
+        rollT -= Time.deltaTime;
+        float k = 1f - Mathf.Clamp01(rollT / Mathf.Max(0.05f, rollTime));
+        blob.skillPitch = k * 360f;                       // 한 바퀴
+        blob.skillHop = Mathf.Sin(k * Mathf.PI) * 0.12f * WorldScale.K * 3f;   // 살짝 떴다 내려온다
+        if (rollT <= 0f)
+        {
+            rollT = 0f;
+            blob.skillPitch = 0f;
+            blob.skillHop = 0f;
+            blob.skillHoldFacing = false;
+        }
     }
 
 
