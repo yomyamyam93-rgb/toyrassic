@@ -327,10 +327,15 @@ public class PetUnit : MonoBehaviour
     ///   ② 펫들 사이에서는 '때린 놈 우선' 이 살아 있다 — 맞고도 무시하면 이상하다.
     ///   ③ 주변에 적 펫이 하나도 없을 때만 플레이어를 노린다. 단 아주 가까울 때만
     ///      (aggroRange ÷ avatarBias). 원거리에서 쏘는 주인공을 잡으러 달려오진 않는다.
+    /// 전투 상태로 깨어났나 — 밖에서도 켤 수 있다 (둥지 습격조처럼 처음부터 싸우러 온 놈).
+    /// ★증식으로 깨어난 것만 전투로 치면, 둥지에서 부른 습격조는 전투 중에도 3m 밖을
+    ///   못 보고 멀뚱히 서 있는다 (2026-07-28 실제로 그랬다).
+    [HideInInspector] public bool alerted;
+
     /// 이미 전투에 들어간 상태인가 — 그러면 전장 전체를 본다.
-    /// ★내 펫은 싸우라고 내보낸 것이니 늘 참전 상태다. 야생은 무리가 깨어난 뒤부터.
+    /// ★내 펫은 싸우라고 내보낸 것이니 늘 참전 상태다. 야생은 깨어난 뒤부터.
     ///   (야생이 평소에도 멀리까지 보면 벌판이 늘 시끄러워져 '평화로운 장면' 이 사라진다)
-    bool Engaged => team == Team.Player || packWoken || grudgeT > 0f;
+    bool Engaged => team == Team.Player || alerted || packWoken || grudgeT > 0f;
 
     float SearchRange => Engaged ? joinRange : aggroRange;
 
@@ -353,10 +358,18 @@ public class PetUnit : MonoBehaviour
         }
         if (best != null) return best;
 
-        // ② 앞을 막아선 펫이 없다 — 그제야 주인공을 본다 (아주 가까울 때만)
+        // ② 앞을 막아선 펫이 없다 — 그제야 주인공을 본다.
+        //
+        // ★거리 기준이 상태에 따라 다르다 (2026-07-28).
+        //   · 평소: aggroRange ÷ avatarBias (아주 가까울 때만) — 조용히 지나갈 수 있어야 한다
+        //   · 전투 중: 참전 거리 전체 — **내 펫이 다 죽으면 나를 잡으러 와야 한다.**
+        //     후순위 배수는 '펫이냐 주인이냐' 를 고를 때 쓰는 것이지, 고를 게 없는데도
+        //     주인을 못 보게 만드는 값이 아니다. 그것 때문에 야생이 10m 밖에서
+        //     볼 대상이 없어 멀뚱히 서 있었다.
         var me = Avatar;
+        float avatarReach = Engaged ? range : aggroRange / Mathf.Max(1f, avatarBias);
         if (me != null && me.Alive && me.team != team
-            && Dist(me.transform.position) <= aggroRange / Mathf.Max(1f, avatarBias))
+            && Dist(me.transform.position) <= avatarReach)
             return me;
 
         return null;
@@ -532,6 +545,7 @@ public class PetUnit : MonoBehaviour
     {
         if (packWoken || packBudget <= 0 || team != Team.Wild || isStructure || isAvatar) return;
         packWoken = true;
+        alerted = true;
 
         int n = CountFor(packBudget, supply);
         if (n <= 1) return;
@@ -550,6 +564,7 @@ public class PetUnit : MonoBehaviour
             var u = g.GetComponent<PetUnit>();
             if (u == null) continue;
             u.packBudget = 0; u.packWoken = true;      // 튀어나온 놈은 다시 안 불어난다
+            u.alerted = true;                          // 태어날 때부터 전투 상태
             // ★제자리에서 튀어나가 포물선을 그리고 착지 — 퐁…퐁…퐁 으로 단계적으로
             u.LaunchTo(from, pos, emergeTime, emergeArc, i * emergeStagger);
         }
@@ -640,6 +655,10 @@ public class PetUnit : MonoBehaviour
         FX.DamageNum(transform.position + Vector3.up * body * 0.8f, dmg,
                      team == Team.Player ? new Color(1f, 0.35f, 0.3f) : new Color(1f, 0.95f, 0.6f),
                      Mathf.Clamp(body * 0.22f, 0.9f, 3.5f) / 3f);   // ★하한 0.9 가 축소를 막으므로 결과를 나눈다 (2026-07-28)
+        // ★맞았으면 전투 상태다 — 누가 때렸든(플레이어 포함) 전장 전체를 보게 된다.
+        //   안 그러면 멀리서 활로 맞히기만 하면 영영 3m 밖을 못 보고 서 있는다.
+        if (!isAvatar && !isStructure) alerted = true;
+
         // 때린 놈을 기억한다 — 잠깐은 그놈을 우선해서 문다 (FindTarget ①)
         // ★단 플레이어에게는 안 걸린다. 전투를 여는 건 늘 플레이어라, 걸어두면
         //   전투마다 전원이 주인공에게 몰린다. 주인공은 '앞을 막은 펫이 없을 때'만 노려진다.

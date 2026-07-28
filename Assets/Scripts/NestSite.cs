@@ -213,6 +213,8 @@ public class NestSite : MonoBehaviour
         if (u == null) return null;
         u.name = entry.koreanName + suffix;
         u.packBudget = 0;   // ★여기서 또 불어나면 규모를 둥지가 통제할 수 없다
+        u.alerted = true;   // ★싸우러 나온 놈들이다 — 처음부터 전장 전체를 본다.
+                            //   이게 없으면 3m 밖을 못 보고 둥지 앞에 멀뚱히 서 있는다.
         swarm.Add(u);
         return u;
     }
