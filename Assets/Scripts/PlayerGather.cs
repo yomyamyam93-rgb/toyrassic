@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 
 /// 자원 상태 — 실제 저장은 전부 슬롯 인벤토리(Inv). 여긴 읽기 편의 껍데기.
@@ -118,13 +119,48 @@ public class PlayerGather : MonoBehaviour
     Camera cam;
 
     // 지형 트리 배열 캐시 — treeInstances 접근마다 전체 복사되는 것 방지 (프레임당 1회)
-    TreeInstance[] treesCache; int treesCacheFrame = -1;
+    TreeInstance[] treesCache;
+    // ★나무 배열을 '매 프레임' 이 아니라 '바뀔 때만' 다시 읽는다 (2026-07-29).
+    //
+    //   td.treeInstances 는 읽을 때마다 **배열 전체를 복사해서 돌려준다.** 이 지형은
+    //   나무가 107,563 그루라 한 번 읽을 때마다 약 4MB 를 새로 할당한다.
+    //   화살이 매 프레임 이걸 불렀으니 초당 240MB 를 만들고 버린 셈이다 — GC 폭발.
+    //   나무는 캐거나 부술 때만 바뀌므로, 그때 InvalidateTrees 로 버리면 충분하다.
+    bool treesDirty = true;
+
     TreeInstance[] Trees(TerrainData td)
     {
-        if (treesCacheFrame != Time.frameCount) { treesCache = td.treeInstances; treesCacheFrame = Time.frameCount; }
+        if (treesDirty || treesCache == null) { treesCache = td.treeInstances; treesDirty = false; treeGrid = null; }
         return treesCache;
     }
-    void InvalidateTrees() { treesCacheFrame = -1; }
+    void InvalidateTrees() { treesDirty = true; treeGrid = null; }
+
+    // ── 나무 격자 ────────────────────────────────────────────────────
+    //
+    // ★화살이 매 프레임 나무 10만 그루를 **전수 검사**하고 있었다. 화살 3발이면
+    //   프레임당 32만 번, 초당 1,900만 번이다. "이펙트가 화려하지도 않은데 렉이 심하다" 의 정체.
+    //   격자에 미리 담아 두면 화살이 지나가는 칸의 나무 몇 개만 보면 된다.
+    const float TreeCell = 24f;      // 칸 한 변 (m) — 6km 지형이 250칸 남짓
+    const int GridDim = 512;         // 한 축 최대 칸 수
+    Dictionary<int, List<int>> treeGrid;
+
+    static int CellOf(float v, float origin) =>
+        Mathf.Clamp(Mathf.FloorToInt((v - origin) / TreeCell), 0, GridDim - 1);
+
+    Dictionary<int, List<int>> TreeGrid(TerrainData td, Vector3 origin)
+    {
+        if (treeGrid != null) return treeGrid;
+        var trees = Trees(td);
+        treeGrid = new Dictionary<int, List<int>>(8192);
+        for (int i = 0; i < trees.Length; i++)
+        {
+            var wp = Vector3.Scale(trees[i].position, td.size) + origin;
+            int key = CellOf(wp.z, origin.z) * GridDim + CellOf(wp.x, origin.x);
+            if (!treeGrid.TryGetValue(key, out var list)) { list = new List<int>(8); treeGrid[key] = list; }
+            list.Add(i);
+        }
+        return treeGrid;
+    }
 
     // 프로토타입별 바위 여부 캐시 — 매 스윙 수천 번 문자열 비교(GC 스파이크) 방지
     bool[] protoRock; int protoCount = -1;
@@ -515,21 +551,33 @@ public class PlayerGather : MonoBehaviour
                 return true;
             }
         }
-        // ② 지형 노드 — 맞는 순간 실체화 + 저효율 피해 (캐시 사용 — 매 프레임 복사 방지)
+        // ② 지형 노드 — 맞는 순간 실체화 + 저효율 피해
+        //    ★격자로 좁혀서 본다. 전수 검사하면 화살 하나가 매 프레임 10만 그루를 훑는다.
         var td = terr.terrainData; var to2 = terr.transform.position;
         var trees = Trees(td);
         var rockOf = ProtoRock(td);
-        for (int i = 0; i < trees.Length; i++)
-        {
-            var wp = Vector3.Scale(trees[i].position, td.size) + to2;
-            if (SegDistFlat(wp, from, to) < arrowBlockRadius)
+        var grid = TreeGrid(td, to2);
+
+        // 화살이 지나간 선분을 덮는 칸만 — 반경만큼 넓혀서 경계에 걸친 나무도 포함
+        float r = arrowBlockRadius;
+        int x0 = CellOf(Mathf.Min(from.x, to.x) - r, to2.x), x1 = CellOf(Mathf.Max(from.x, to.x) + r, to2.x);
+        int z0 = CellOf(Mathf.Min(from.z, to.z) - r, to2.z), z1 = CellOf(Mathf.Max(from.z, to.z) + r, to2.z);
+        for (int cz = z0; cz <= z1; cz++)
+            for (int cx = x0; cx <= x1; cx++)
             {
-                bool isRock = trees[i].prototypeIndex < rockOf.Length && rockOf[trees[i].prototypeIndex];
-                var node = Materialize(i, wp, isRock);
-                if (node != null) node.Hit(arrowVsNode);
-                return true;
+                if (!grid.TryGetValue(cz * GridDim + cx, out var bucket)) continue;
+                for (int k = 0; k < bucket.Count; k++)
+                {
+                    int i = bucket[k];
+                    if (i >= trees.Length) continue;                  // 캐시가 어긋난 사이의 방어
+                    var wp = Vector3.Scale(trees[i].position, td.size) + to2;
+                    if (SegDistFlat(wp, from, to) >= r) continue;
+                    bool isRock = trees[i].prototypeIndex < rockOf.Length && rockOf[trees[i].prototypeIndex];
+                    var node = Materialize(i, wp, isRock);
+                    if (node != null) node.Hit(arrowVsNode);
+                    return true;
+                }
             }
-        }
         return false;
     }
 }
