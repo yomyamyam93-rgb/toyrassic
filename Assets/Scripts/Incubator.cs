@@ -193,7 +193,6 @@ public class Incubator : MonoBehaviour
             }
             KillGauge();
             FX.Burst(transform.position + Vector3.up * 1.5f, new Color(0.6f, 0.55f, 0.5f, 1f), 30, 0.5f, 5f);
-            foreach (var a in attackers) if (a != null && a.Alive) a.forceTarget = null;
             if (Active == this) Active = null;
             Destroy(gameObject);
             return;
@@ -268,7 +267,8 @@ public class Incubator : MonoBehaviour
                 {
                     var u = g.GetComponent<PetUnit>();
                     u.name = entry.koreanName + "(습격)";
-                    u.forceTarget = unit;            // 부화기를 향해 진군
+                    // ※'부화기를 향해 진군' 은 펫 행동과 함께 삭제됨 (2026-07-28).
+                    //   지금은 소환만 되고 가만히 서 있는다 — 행동을 다시 만들면 여기에 다시 붙인다.
                     attackers.Add(u);
                     toSpawn--;
                 }

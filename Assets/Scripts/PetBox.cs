@@ -76,7 +76,6 @@ public static class PetBox
             if (u.team != PetUnit.Team.Player || u.name != d.name) continue;
             Sync(u);
             if (Hotbar.MountPet == u && Hotbar.I != null) Hotbar.I.SetMount(null);
-            PetCommand.Followers.Remove(u);
             Object.Destroy(u.gameObject);
             break;
         }

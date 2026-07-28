@@ -60,6 +60,9 @@ public class Hotbar : MonoBehaviour
 
     void Update()
     {
+        // 예약해 둔 무기 교체 — 스윙이 끝나는 순간 반영 (창이 열려 있어도 처리한다)
+        if (queuedSelect >= 0 && !SwingBusy) Apply(queuedSelect);
+
         // 건축 모드·창 열림 중엔 숫자키를 그쪽이 쓴다 (입력 충돌 방지)
         if (BuildSystem.IsBuilding || MenuUI.IsOpen || PetNameUI.IsOpen) return;
 #if ENABLE_INPUT_SYSTEM
@@ -75,9 +78,26 @@ public class Hotbar : MonoBehaviour
 #endif
     }
 
+    /// 지금 무기를 휘두르는 중인가 — 스윙이 끝날 때까지 손에 든 것을 안 바꾼다.
+    /// ★왜 (2026-07-28): 잔상(TrailRenderer)은 무기 끝을 따라다니며 선을 긋는데,
+    ///   휘두르는 도중에 무기를 갈면 옛 무기가 있던 자리에서 새 무기 자리까지
+    ///   한 줄이 쭉 그어진다. 애니메이션도 중간에 끊겨 손이 튄다.
+    static bool SwingBusy => PlayerGather.I != null && PlayerGather.I.Swinging;
+
+    /// 스윙 중에 누른 숫자키 — 스윙이 끝나는 즉시 이 칸으로 바꾼다.
+    /// 그냥 무시하면 "키를 눌렀는데 안 먹었다"가 되므로 예약해 둔다.
+    int queuedSelect = -1;
+
     public void Select(int i)
     {
         if (i == MountSlot) return;   // 탑승 칸은 '드는' 칸이 아니다
+        if (SwingBusy) { queuedSelect = i; return; }
+        Apply(i);
+    }
+
+    void Apply(int i)
+    {
+        queuedSelect = -1;
         selected = Mathf.Clamp(i, 0, 9);
         RefreshSel();
     }

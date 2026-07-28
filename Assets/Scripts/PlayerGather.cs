@@ -78,6 +78,28 @@ public class PlayerGather : MonoBehaviour
     {
         if (!pendingImpact) return;
         pendingImpact = false;
+        BeginImpact();
+    }
+
+    [Header("타격 유효 구간")]
+    [Tooltip("타격이 살아 있는 시간 (초) — 이 동안 범위에 들어온 것은 전부 맞는다")]
+    public float impactWindow = 0.14f;
+
+    /// ★타격은 '한 순간'이 아니라 '짧은 구간'이다 (2026-07-28).
+    ///   예전엔 애니메이션 이벤트가 찍힌 딱 그 한 프레임에만 부채꼴을 검사했다.
+    ///   1/10 세계에서 사거리가 0.55m 로 줄어든 뒤로, 그 한 프레임에 상대가 0.6m 에
+    ///   있으면 그냥 빗나갔다 — 눈에는 무기가 몸을 훑고 지나가는데 피가 안 닳는
+    ///   현상의 정체다. 이제 창이 열려 있는 동안 매 프레임 훑고, 한 번 맞은 대상은
+    ///   중복으로 안 맞는다 (한 스윙에 여러 번 들어가지 않게).
+    float windowEnd;
+    readonly System.Collections.Generic.HashSet<PetUnit> hitUnits = new System.Collections.Generic.HashSet<PetUnit>();
+    readonly System.Collections.Generic.HashSet<ChoppableTree> hitNodes = new System.Collections.Generic.HashSet<ChoppableTree>();
+
+    void BeginImpact()
+    {
+        hitUnits.Clear();
+        hitNodes.Clear();
+        windowEnd = Time.time + Mathf.Max(0f, impactWindow);
         DoImpact();
     }
     bool pendingBare;   // 맨손 스윙
@@ -119,6 +141,13 @@ public class PlayerGather : MonoBehaviour
 
     /// 스윙 진행 1→0 (PlayerBow 가 손·도구·트레일 연출에 사용)
     public float SwingT => swingT;
+
+    /// 지금 한 번의 스윙 동작이 진행 중인가 — 이 동안엔 손에 든 무기를 바꾸지 않는다.
+    /// ★swingT 를 안 쓰는 이유 (2026-07-28): swingT 는 클립 길이(1초)에 맞춰 줄어드는데
+    ///   공속은 그보다 빨라서(칼 0.38초) 연타 중엔 0 으로 떨어지는 일이 없다. 그걸로 막으면
+    ///   공격을 멈춘 뒤로도 1초 동안 무기가 안 바뀌어 '먹통' 처럼 느껴진다.
+    ///   쿨다운이 곧 '이번 스윙이 차지하는 시간' 이므로 이쪽이 맞다.
+    public bool Swinging => cd > 0f;
     public Vector3 ChopPos => chopPos;
     public bool ChopIsRock => chopIsRock;
     /// 스윙 진행도(0→1) 중 실제로 타격이 들어가는 지점 — 연출 타이밍 동기용
@@ -172,8 +201,10 @@ public class PlayerGather : MonoBehaviour
         if (pendingImpact && !animDrivesImpact && Time.time >= pendingAt)
         {
             pendingImpact = false;
-            DoImpact();
+            BeginImpact();
         }
+        // 타격 구간이 열려 있는 동안 계속 훑는다 — 지금 들어온 놈도 맞는다
+        if (Time.time < windowEnd) SweepDamage();
     }
 
     // ★탑승 중이면 펫 등 위에서 휘두른다 — 기준점도 펫이고, 펫 덩치만큼 팔이 짧아진 셈이라
@@ -228,10 +259,10 @@ public class PlayerGather : MonoBehaviour
         return Vector3.Angle(a, d) <= SwingSpread * 0.5f + widen;
     }
 
-    /// 임팩트 — 부채꼴 안의 몹·노드 전부 타격 (긁고 지나가면 다 맞음)
-    void DoImpact()
+    /// 타격 구간 내내 매 프레임 훑는 부분 — 몹·구조물·깨어난 노드.
+    /// 한 번 맞은 대상은 다시 안 맞는다 (한 스윙 = 대상당 한 대).
+    bool SweepDamage()
     {
-        bool isPick = pendingIsPick;
         bool hitAny = false;
 
         // ★판정 방향은 '지금 보는 쪽' — 무기는 캐릭터에 붙어 도니까, 휘두르는 사이
@@ -239,20 +270,15 @@ public class PlayerGather : MonoBehaviour
         var face = transform.forward; face.y = 0f;
         if (face.sqrMagnitude > 1e-4f) pendingAim = face.normalized;
 
-        if (showSwingArc)
-        {
-            float yaw = Quaternion.LookRotation(pendingAim, Vector3.up).eulerAngles.y;
-            FX.Sweep(SwingOrigin, yaw - SwingSpread * 0.5f, SwingSpread, SwingReach,
-                     new Color(1.9f, 1.75f, 1.2f, 0.5f), 0.1f, 0.16f);
-        }
-
         // ① 야생 몹 — 전부
         float mobDmg = DmgMob;
         foreach (var u in PetUnit.All)
         {
             if (u == null || !u.Alive || u.team != PetUnit.Team.Wild) continue;
+            if (hitUnits.Contains(u)) continue;
             // 몸 반지름 그대로 — 보이는 덩치와 맞는 자리에서 맞는다
             if (!InArc(u.transform.position, u.body * 0.5f)) continue;
+            hitUnits.Add(u);
             u.TakeDamage(mobDmg, PetUnit.Avatar);
             u.OnHit();
             FX.Burst(u.transform.position + Vector3.up * u.body * 0.4f,
@@ -261,11 +287,13 @@ public class PlayerGather : MonoBehaviour
         }
 
         // ①-b 내 구조물 — 때려서 부수면 재료 회수 (철거 방식)
-        float structDmg = pendingIsSword ? swordVsMob * 0.5f : isPick ? pickVsRock : axeVsTree;
+        float structDmg = pendingIsSword ? swordVsMob * 0.5f : pendingIsPick ? pickVsRock : axeVsTree;
         foreach (var u in PetUnit.All)
         {
             if (u == null || !u.Alive || !u.isStructure) continue;
+            if (hitUnits.Contains(u)) continue;
             if (!InArc(u.transform.position, u.body * 0.5f)) continue;
+            hitUnits.Add(u);
             u.TakeDamage(structDmg, PetUnit.Avatar);
             u.OnHit();
             FX.Burst(u.transform.position + Vector3.up * 1.5f,
@@ -276,11 +304,29 @@ public class PlayerGather : MonoBehaviour
         // ② 깨어난 노드 — 전부 (큰 바위는 덩치만큼 판정 여유)
         foreach (var t in ChoppableTree.All.ToArray())
         {
-            if (t == null) continue;
+            if (t == null || hitNodes.Contains(t)) continue;
             float ex = t.IsRock ? t.transform.localScale.x * 1.6f : 1.2f;
             if (!InArc(t.transform.position, ex)) continue;
+            hitNodes.Add(t);
             t.Hit(t.IsRock ? DmgRock : DmgTree);
             hitAny = true;
+        }
+
+        if (hitAny) FollowCam.Shake(0.09f);
+        return hitAny;
+    }
+
+    /// 임팩트 첫 프레임 — 한 번만 할 일(부채꼴 표시·지형 노드 실체화) + 첫 훑기
+    void DoImpact()
+    {
+        SweepDamage();          // 첫 훑기 (화면 흔들림도 그쪽이 낸다)
+        bool hitAny = false;    // 여기서는 지형 노드를 캤을 때만 흔든다
+
+        if (showSwingArc)
+        {
+            float yaw = Quaternion.LookRotation(pendingAim, Vector3.up).eulerAngles.y;
+            FX.Sweep(SwingOrigin, yaw - SwingSpread * 0.5f, SwingSpread, SwingReach,
+                     new Color(1.9f, 1.75f, 1.2f, 0.5f), 0.1f, 0.16f);
         }
 
         // ③ 지형 노드 — 부채꼴 안 후보 수집 → ★한 번의 지형 재구성으로 배치 실체화 (스윙 렉 방지)
@@ -313,6 +359,7 @@ public class PlayerGather : MonoBehaviour
                 {
                     var node = MaterializeInst(trees[c.i], c.wp, c.rock);
                     if (node == null) continue;
+                    hitNodes.Add(node);   // 방금 캔 것을 이 스윙 동안 또 때리지 않게
                     node.Hit(c.rock ? DmgRock : DmgTree);
                     hitAny = true;
                 }
@@ -384,28 +431,42 @@ public class PlayerGather : MonoBehaviour
         SwingSeq++;   // 클립을 처음부터 다시 재생시키는 신호
     }
 
+    /// 점 p 와 선분 a→b 사이의 수평 거리 (2026-07-28).
+    /// ★화살은 한 프레임에 1.7m 씩 순간이동한다(속도 106m/s). 도착점 하나만 재면
+    ///   나무를 통째로 뛰어넘어 안 맞았다. 지나간 자취 전체로 재야 한다.
+    static float SegDistFlat(Vector3 p, Vector3 a, Vector3 b)
+    {
+        p.y = 0f; a.y = 0f; b.y = 0f;
+        var ab = b - a;
+        float len2 = ab.sqrMagnitude;
+        if (len2 < 1e-6f) return Vector3.Distance(p, a);
+        float t = Mathf.Clamp01(Vector3.Dot(p - a, ab) / len2);
+        return Vector3.Distance(p, a + ab * t);
+    }
+
     /// 화살이 나무/바위에 맞음 — 화살로도 캘 수 있다, 효율이 낮을 뿐 (arrowVsNode)
-    public bool ArrowHit(Vector3 pos)
+    /// from→to 는 이번 프레임에 화살이 지나간 구간이다.
+    public bool ArrowHit(Vector3 from, Vector3 to)
     {
         if (terr == null) { terr = Terrain.activeTerrain; if (terr == null) return false; }
         // ① 이미 깨어난 노드
         foreach (var t in ChoppableTree.All)
         {
             if (t == null) continue;
-            if (FlatDist(t.transform.position, pos) < arrowBlockRadius)
+            if (SegDistFlat(t.transform.position, from, to) < arrowBlockRadius)
             {
                 t.Hit(arrowVsNode);
                 return true;
             }
         }
         // ② 지형 노드 — 맞는 순간 실체화 + 저효율 피해 (캐시 사용 — 매 프레임 복사 방지)
-        var td = terr.terrainData; var to = terr.transform.position;
+        var td = terr.terrainData; var to2 = terr.transform.position;
         var trees = Trees(td);
         var rockOf = ProtoRock(td);
         for (int i = 0; i < trees.Length; i++)
         {
-            var wp = Vector3.Scale(trees[i].position, td.size) + to;
-            if (FlatDist(wp, pos) < arrowBlockRadius)
+            var wp = Vector3.Scale(trees[i].position, td.size) + to2;
+            if (SegDistFlat(wp, from, to) < arrowBlockRadius)
             {
                 bool isRock = trees[i].prototypeIndex < rockOf.Length && rockOf[trees[i].prototypeIndex];
                 var node = Materialize(i, wp, isRock);

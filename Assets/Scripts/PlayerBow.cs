@@ -1270,18 +1270,33 @@ public class ArrowProj : MonoBehaviour
         p.dir = dir.normalized; p.speed = speed; p.dmg = dmg; p.range = range; p.pierceLeft = Mathf.Max(1, pierce);
     }
 
+    /// 점 p 와 선분 a→b 의 최단 거리 (3D)
+    static float SegDist(Vector3 p, Vector3 a, Vector3 b)
+    {
+        var ab = b - a;
+        float len2 = ab.sqrMagnitude;
+        if (len2 < 1e-6f) return Vector3.Distance(p, a);
+        float t = Mathf.Clamp01(Vector3.Dot(p - a, ab) / len2);
+        return Vector3.Distance(p, a + ab * t);
+    }
+
     void Update()
     {
         float step = speed * Time.deltaTime;
+        var prev = transform.position;                  // ★지나간 자취의 시작점
         transform.position += dir * step;
         traveled += step;
-        if (traveled >= range) { Destroy(gameObject); return; }
 
+        // ★한 점이 아니라 '지나간 선분'으로 맞힌다 (2026-07-28).
+        //   화살 속도 106m/s ÷ 60프레임 = 한 프레임에 1.78m 순간이동인데, 1/10 세계의
+        //   펫 몸통은 반경 0.2m 남짓이다. 도착점만 재면 적을 통째로 뛰어넘어
+        //   "조준 표시는 적 위에 있는데 안 맞는" 현상이 났다.
+        //   높이도 더 이상 무시하지 않는다 — 머리 위로 지나간 화살이 맞던 것도 함께 고쳐진다.
         foreach (var u in PetUnit.All)
         {
             if (u == null || !u.Alive || u.team != PetUnit.Team.Wild || hitSet.Contains(u)) continue;
-            var d = u.transform.position - transform.position; d.y = 0f;
-            if (d.magnitude < u.body * 0.45f)
+            var center = u.transform.position + Vector3.up * u.body * 0.5f;   // 발밑이 아니라 몸통 중심
+            if (SegDist(center, prev, transform.position) < u.body * 0.55f)
             {
                 hitSet.Add(u);           // 같은 놈 중복 타격 방지 — 관통해 지나감
                 u.TakeDamage(dmg, PetUnit.Avatar);   // 어그로: 쏜 사람(캐릭터)을 쫓아온다
@@ -1300,9 +1315,14 @@ public class ArrowProj : MonoBehaviour
         }
 
         // 나무·바위 명중 — 부서지면 아이템 드랍 (E로 줍기)
-        if (PlayerGather.I != null && PlayerGather.I.ArrowHit(transform.position))
+        if (PlayerGather.I != null && PlayerGather.I.ArrowHit(prev, transform.position))
         {
             Destroy(gameObject);
+            return;
         }
+
+        // 사거리 소진 — ★판정을 마친 뒤에 지운다. 먼저 지우면 마지막 한 구간이 통째로
+        //   검사되지 않아, 사거리 끝에 서 있는 적은 영영 안 맞았다.
+        if (traveled >= range) Destroy(gameObject);
     }
 }

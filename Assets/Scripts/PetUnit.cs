@@ -30,8 +30,6 @@ public class PetUnit : MonoBehaviour
     public static PetUnit Avatar;
     [Tooltip("건물(부화기 등) — AI·모션 없이 서서 맞기만 함")]
     public bool isStructure = false;
-    [Tooltip("주변에 적이 없으면 이 대상을 향해 진군 (습격 웨이브용)")]
-    public PetUnit forceTarget;
     [Tooltip("탑승 중 — 이동은 PlayerMove 가 조종, AI 정지")]
     [HideInInspector] public bool mounted;
     [Tooltip("목표 크기(최대 변, m). 0 = 티어 기본값 사용. 인스펙터 슬라이더가 조절")]
@@ -142,70 +140,40 @@ public class PetUnit : MonoBehaviour
     [HideInInspector] public float body = 3f;
 
     // ── 내부 ──
+    //
+    // ★★★2026-07-28 — 펫의 '행동'을 전부 걷어냈다 (사용자 결정).
+    //   1/10 스케일 전환 뒤 공격 모션·속도·간격이 전부 어긋나서, 고쳐 쓰는 것보다
+    //   백지에서 다시 만드는 편이 빠르다고 판단했다. 지운 것:
+    //     · 목표 찾기 / 어그로(위협 테이블) / 도발 / 리쉬
+    //     · 평시 행동(따라다니기·배회) / 지휘(소집·돌격)
+    //     · 전투 접근 · 장전(사전동작) · 빨간 예고 범위 · 공격 후 경직
+    //     · 원소 6종 발현 · 패턴기(돌진·내려찍기·3연타·휩쓸기) · 펫의 타격 판정
+    //   남긴 것 = 다시 만들 때 바닥부터 안 짜도 되는 부품들:
+    //     · 이동 부품(Step·Face·Ground·Separate·MoveSpd) — 지금은 아무도 안 부른다
+    //     · 죽음(Die·DeathAnim·SpawnDrop) · 피격(OnHit·HitFlash) · 체력바
+    //     · 밖에서 거는 효과(Airborne·Knock) — 플레이어 스킬과 둥지가 쓴다
     public static readonly List<PetUnit> All = new List<PetUnit>();
-    PetUnit target;
-    // 위협(어그로) 테이블 — 받은 피해량 누적. 업계 정공법: 때린 놈은 거리와 무관하게 쫓는다
-    readonly Dictionary<PetUnit, float> threat = new Dictionary<PetUnit, float>();
-    float LeashRange => Mathf.Max(AggroRange * 4f, 110f);   // 이 밖까지 도망가면 포기
-    float atkCd, wanderT, retargetT;
-    Vector3 wanderDir;
     Terrain terrain;
     float footOff;
     Transform barRoot, barFill;
     Vector3 baseScale;
-    float lungeT; Vector3 lungeFrom, lungeTo;
-    float windupT; bool winding;
     float flashT;
-    [HideInInspector] public float slowT;            // ⚡번개 전용 슬로우
-    float airT, airDur, airHeight, airY;             // 금속 광역의 에어본
-    float strikeT;                                   // 타격 지연 — 모션 절정에 데미지
-    float jumpT; Vector3 jumpFrom, jumpTo;           // 돌 점프 내려찍기
-    float dashT; Vector3 dashFrom, dashTo;           // 기본 공격: 기 모으고 돌진
-    Vector3 lockedAim, lockedDest;                   // 장전 '순간'에 확정 — 이후 절대 안 바뀜 (회피 가능)
-    Transform tele; float teleRadius;                // 빨간 범위 텔레그래프
+    [HideInInspector] public float slowT;            // 둔화 (밖에서 걸어 주는 효과)
+    float airT, airDur, airHeight, airY;             // 에어본 — 붕 떴다 내려옴
     float ghostHp;                                   // 롤식 지연 감소 바
     Transform barGhost;
-    int burstLeft; float burstT;                     // 나무 3연타
     PetMotion motion;
     float curSpeed;
     bool dead;
     float deathT, deathStartY; bool deathDropped;    // 사망 연출 (고통→스르륵)
 
-    // ★거리·크기는 WorldScale.K 를 곱한다 (2026-07-27). body 는 인구수 등급(소1/중2/대3/
-    //   초대4)이라 값 자체를 줄이면 편성 시스템이 깨진다. 그래서 '미터로 쓰이는 지점'에서만
-    //   배율을 곱한다. 관문(사거리·이동속도·몸 스케일·체력바 높이)에만 곱하면 파생 공식
-    //   70곳을 개별로 고치지 않아도 된다.
-    float AggroRange => (13f + body * 1.2f) * WorldScale.K;
-    float TauntRange => (10f + body * 1.5f) * WorldScale.K;   // 금속(탱커) 어그로
-
-    // ★공격 인원 제한 폐기 — 사거리에 닿으면 그냥 친다.
-    //   둘만 덤비게 막아두니 한 마리씩 상대하게 돼서 걷기만 해도 다 피해졌다.
-    //   떼로 몰려오는 게임이니 각자 자기 타이밍에 들어오는 게 맞다.
-    static readonly HashSet<PetUnit> attackTokens = new HashSet<PetUnit>();
-    bool ClaimToken() { attackTokens.Add(this); return true; }
-    void ReleaseToken() { attackTokens.Remove(this); }
-
-    // ── 공격 후 회복 경직 (강한 공격일수록 길게 = 반격 창구) ──
-    float recoverT;
-    float RecoverDur => mat != Mat.Basic ? 0.3f
-                      : pattern == Pattern.Bite ? 0.35f
-                      : pattern == Pattern.Charge ? 1.0f
-                      : pattern == Pattern.Slam ? 1.2f
-                      : 0.8f;
-    /// 장전 웅크림 깊이 — 큰 공격일수록 깊게 (모션 차등)
-    float ChargeDepth => pattern == Pattern.Bite ? 0.55f
-                       : pattern == Pattern.Charge ? 1.0f
-                       : pattern == Pattern.Slam ? 1.25f
-                       : 0.8f;
-
     public bool Alive => !dead;
 
     void OnEnable() { All.Add(this); }
-    void OnDisable() { All.Remove(this); ReleaseToken(); }
+    void OnDisable() { All.Remove(this); }
     void OnDestroy()
     {
         if (barRoot != null) Destroy(barRoot.gameObject);   // 바는 이제 몸의 자식이 아님
-        if (tele != null) Destroy(tele.gameObject);
     }
 
     // ── 위험 마킹 — 스킬 조준 영역 안이면 ★몸 자체가 붉게 빛난다 (매 프레임 호출로 유지) ──
@@ -269,75 +237,21 @@ public class PetUnit : MonoBehaviour
         }
     }
 
-    // ── 지휘 (PetCommand 가 넣어준다) ──
-    /// 주인을 따라다니는 중 — 이때는 싸우지 않고 붙어만 다닌다
-    [HideInInspector] public bool following;
-    /// 따라갈 자리 (주인 뒤쪽)
-    [HideInInspector] public Vector3 followSpot;
-    /// 돌격 명령을 받았나 / 어디로
-    [HideInInspector] public bool hasOrder;
-    [HideInInspector] public Vector3 orderSpot;
-
-    float AtkPeriodRaw => (mat == Mat.Metal ? 3.2f : mat == Mat.Stone ? 3.4f : mat == Mat.Wood ? 2.3f
-                      : mat == Mat.Fire ? 3.0f : mat == Mat.Water ? 0.38f
-                      : mat == Mat.Lightning ? 1.7f
-                      : pattern == Pattern.Bite ? 1.5f      // 물기 = 빠른 연타
-                      : pattern == Pattern.Charge ? 3.0f    // 돌진 = 준비 필요
-                      : pattern == Pattern.Slam ? 3.3f      // 내려찍기 = 묵직
-                      : 2.6f)                                // 꼬리 휩쓸기
-                       / (1f + agi * 0.010f);
-    /// ★실제 공격 간격 — 종 특색(공속)이 여기서 반영된다.
-    /// 습격병은 이 간격만큼 쉬었다 때린다 = 무한 연타가 아니다
-    float AtkPeriod => AtkPeriodRaw / Mathf.Max(0.1f, atkSpeedMul * mountSpdMul);
-    float Damage => DamageRaw * mountDmgMul;
-    float DamageRaw => mat == Mat.Water ? intel * 0.22f  // 💧물총 속사 — 발당 약하게 (DPS 는 비슷)
-                  : str * (mat == Mat.Metal ? 0.95f : mat == Mat.Stone ? 1.05f : mat == Mat.Wood ? 0.45f
-                         : mat == Mat.Fire ? 1.8f : mat == Mat.Lightning ? 0.8f
-                         : pattern == Pattern.Bite ? 1.0f      // 빠른 대신 약하게
-                         : pattern == Pattern.Charge ? 1.7f    // 한 방 크게
-                         : pattern == Pattern.Slam ? 1.9f      // 광역 강타
-                         : 1.2f);                               // 꼬리 = 광역 약타
-    // 기본 이속 상향 — 통통 뛰어서 다가오는 속도감
+    /// 걷는 속도 — 이동 부품용으로 남겨 둔다 (행동을 다시 만들 때 여기서 시작한다)
     float MoveSpd => (8f + agi * 0.1f) * (0.8f + body * 0.035f) * (slowT > 0f ? 0.55f : 1f)
                      * moveSpeedMul * WorldScale.K;
-    float AtkRange => AtkRangeRaw * rangeMul * WorldScale.K;
-    float AtkRangeRaw => mat == Mat.Metal ? body * 0.95f + 1f
-                    : mat == Mat.Stone ? body * 2.2f
-                    : mat == Mat.Wood ? body * 2.6f
-                    : mat == Mat.Fire ? body * 3.2f
-                    : mat == Mat.Water ? body * 3.0f
-                    : mat == Mat.Lightning ? body * 1.1f + 1f
-                    : pattern == Pattern.Bite ? body * 0.85f + 1.5f    // 붙어서 문다
-                    : pattern == Pattern.Charge ? body * 2.4f          // 멀리서 달려든다
-                    : pattern == Pattern.Slam ? body * 1.5f
-                    : body * 1.2f + 1f;                                 // 꼬리
-    float WindupDur => WindupRaw * windupScale;      // 배수로 한 번에 조절
-    float WindupRaw => mat == Mat.Metal ? 0.85f      // 우우우웅
-                     : mat == Mat.Fire ? 0.85f       // 기 모으기
-                     : mat == Mat.Stone ? 0.45f
-                     : mat == Mat.Wood ? 0.35f
-                     : mat == Mat.Water ? 0.12f    // 물총은 조준만 살짝
-                     : mat == Mat.Lightning ? 0.3f
-                     : pattern == Pattern.Bite ? 0.55f      // 물기 = 짧은 준비
-                     : pattern == Pattern.Charge ? 1.5f     // 돌진 = 긴 예열 (보고 피함)
-                     : pattern == Pattern.Slam ? 1.7f       // 내려찍기 = 제일 길게
-                     : 1.0f;                                 // 꼬리
 
     void Update()
     {
-        if (dead) { KillTele(); DeathAnim(); return; }
+        if (dead) { DeathAnim(); return; }
         if (isAvatar) { HitFlash(); Bar(); return; }             // 캐릭터: 피격·바만
         if (isStructure) { HitFlash(); Bar(); return; }          // 건물
-        if (mounted) { KillTele(); HitFlash(); Ground(false); Bar(); return; }   // 탑승 중
-        // ★장전이 끊긴 상태(피격·에어본·다른 행동)에서 텔레그래프가 남지 않게
-        if (!winding && tele != null && dashT <= 0f) KillTele();
-        atkCd -= Time.deltaTime;
+        if (mounted) { HitFlash(); Ground(false); Bar(); return; }   // 탑승 중 — 이동은 PlayerMove 가 시킨다
         slowT = Mathf.Max(0f, slowT - Time.deltaTime);
 
-        // 에어본 — 붕 떴다 내려올 때까지 행동 불가 (장전 취소)
+        // 에어본 — 붕 떴다 내려올 때까지 아무것도 못 한다
         if (airT > 0f)
         {
-            if (winding) { winding = false; KillTele(); }
             airT -= Time.deltaTime;
             float k = 1f - Mathf.Clamp01(airT / airDur);
             airY = Mathf.Sin(k * Mathf.PI) * airHeight;
@@ -346,496 +260,21 @@ public class PetUnit : MonoBehaviour
             return;
         }
 
-        // ★소집 중 — 싸우지 않고 주인 뒤에 붙어 따라온다
-        if (following)
-        {
-            if (winding) { winding = false; KillTele(); }
-            var to = followSpot - transform.position; to.y = 0f;
-            float far = to.magnitude;
-            if (far > 1.2f)
-            {   // 멀수록 빨리 (뒤처지면 뛴다)
-                float sp = MoveSpd * (far > 9f ? 1.6f : 1f);
-                var np = transform.position + to.normalized * Mathf.Min(sp * Time.deltaTime, far);
-                np = TreeBlocker.Resolve(np, body * 0.3f * WorldScale.K);
-                transform.position = new Vector3(np.x, transform.position.y, np.z);
-                Face(to);
-                if (motion != null) motion.speed01 = Mathf.Clamp01(sp / 12f);
-            }
-            else if (motion != null) motion.speed01 = 0f;
-            Separate(); Ground(false); Bar(); HitFlash();
-            return;
-        }
-
-        // 돌: 점프 내려찍기 진행
-        if (jumpT > 0f) { JumpAdvance(); Ground(false); Bar(); HitFlash(); return; }
-
-        // 기본 공격: 돌진 진행
-        if (dashT > 0f) { DashAdvance(); Ground(false); Bar(); HitFlash(); return; }
-
-        // 나무: 3연타 진행 (회전하며 표표푝)
-        if (burstLeft > 0)
-        {
-            transform.Rotate(0f, 540f * Time.deltaTime, 0f);
-            burstT -= Time.deltaTime;
-            if (burstT <= 0f)
-            {
-                burstT = 0.16f;
-                burstLeft--;
-                if (motion != null) motion.Punch();
-                if (target != null && target.Alive)
-                    PetProjectile.Throw(this, target, Damage, false,
-                        new Color(0.45f, 0.85f, 0.3f), body * 0.05f, 0.3f, body * 0.07f);
-            }
-            Ground(false); Bar(); HitFlash();
-            return;
-        }
-
-        // 타격 지연 — 모션이 앞으로 콱 굽는 절정 순간에 데미지 (치고 나서 굽는 버그 수정)
-        if (strikeT > 0f)
-        {
-            strikeT -= Time.deltaTime;
-            if (strikeT <= 0f) DoStrike();
-        }
-
-        // 주기적 재타겟 (탱커 어그로 갈아타기 포함)
-        retargetT -= Time.deltaTime;
-        if (retargetT <= 0f) { retargetT = 0.8f; var nt = FindTarget(); if (nt != null) target = nt; }
-        if (target == null || !target.Alive || Dist(target.transform.position) > AggroRange * 1.8f)
-            target = FindTarget();
-
-        // 공격 후 회복 경직 — 그동안 못 움직이고 못 때린다 (반격 창구)
-        if (recoverT > 0f)
-        {
-            recoverT -= Time.deltaTime;
-            if (recoverT <= 0f) ReleaseToken();
-            curSpeed = Mathf.MoveTowards(curSpeed, 0f, MoveSpd * 3f * Time.deltaTime);
-            if (motion != null) motion.speed01 = 0f;
-            Separate(); Ground(false); LungeFx(); HitFlash(); Bar();
-            return;
-        }
-
-        // 장전 (사전동작)
-        if (winding)
-        {
-            windupT -= Time.deltaTime;
-            float wp = 1f - Mathf.Clamp01(windupT / WindupDur);
-            if (motion != null) motion.charge = Mathf.Max(motion.charge, wp * wp * ChargeDepth);
-            if (target == null || !target.Alive) { winding = false; KillTele(); }
-            else
-            {
-                // 텔레그래프: 기 모을수록 원이 차오름 (터지기 직전 = 꽉 참)
-                if (tele != null)
-                {   // 차오르는 연출 — 모양(비율)은 유지하고 크기만 커진다
-                    float wp2 = 1f - Mathf.Clamp01(windupT / WindupDur);
-                    float g = 0.75f + 0.35f * wp2;
-                    tele.localScale = new Vector3(teleW * g, teleH * g, 1f);
-                    if (pattern == Pattern.Sweep)   // 휩쓸기는 회전 예고
-                        tele.rotation = Quaternion.Euler(90f, teleYaw + wp2 * 220f, 0f);
-                }
-                // ★기 모으는 동안 조준을 '조금씩' 따라간다.
-                //   완전히 고정하면 옆으로 걷기만 해도 다 빗나가고, 완전히 따라가면
-                //   피할 수가 없다. 천천히 따라가야 '제때' 피하는 판단이 생긴다.
-                if (mat == Mat.Basic)
-                {
-                    lockedAim = Vector3.MoveTowards(lockedAim, target.transform.position,
-                                                    windupTrack * Time.deltaTime);
-                    Face(lockedAim - transform.position);
-                    // 예고 표시도 같이 옮긴다 — 보이는 자리와 맞는 자리가 어긋나면 안 된다
-                    var dd2 = lockedAim - transform.position; dd2.y = 0f;
-                    float dl2 = Mathf.Min(dd2.magnitude, AtkRange * 1.4f);
-                    lockedDest = transform.position
-                               + (dd2.sqrMagnitude > 1e-4f ? dd2.normalized : transform.forward) * dl2;
-                    if (tele != null) tele.position = lockedDest + Vector3.up * 0.15f;
-                }
-                else Face(target.transform.position - transform.position);
-                if (windupT <= 0f) { winding = false; ExecuteAttack(); }
-            }
-        }
-        else if (target != null) Combat();
-        else Peace();
-
+        // ★여기가 '행동'이 있던 자리다 (2026-07-28 전부 삭제).
+        //   지금 펫은 스스로 목표를 찾지도, 다가가지도, 때리지도 않는다 — 가만히 서 있는다.
+        //   새 행동은 이 자리에 붙이면 된다. 아래는 서 있기에 필요한 최소한:
+        //   서로 안 겹치게(Separate) · 땅에 붙기(Ground) · 피격 반응(HitFlash) · 체력바(Bar).
         curSpeed = Mathf.MoveTowards(curSpeed, 0f, MoveSpd * 2.5f * Time.deltaTime);
-        if (motion != null) motion.speed01 = Mathf.Clamp01(curSpeed / MoveSpd);
+        if (motion != null) motion.speed01 = 0f;
 
         Separate();
         Ground(false);
-        LungeFx();
         HitFlash();
         Bar();
     }
 
     float Dist(Vector3 p) { p.y = 0; var q = transform.position; q.y = 0; return Vector3.Distance(p, q); }
 
-    /// 위협 추가 — 맞거나(전액) 무리가 맞는 걸 보거나(일부)
-    public void AddThreat(PetUnit attacker, float amount)
-    {
-        if (dead || isAvatar || isStructure || attacker == null || attacker.team == team) return;
-        threat.TryGetValue(attacker, out float t);
-        threat[attacker] = t + amount;
-        if (target == null || !target.Alive) target = attacker;   // 즉시 보복
-    }
-
-    PetUnit FindTarget()
-    {
-        // ① 도발(금속 탱커) 최우선
-        PetUnit taunt = null; float td = TauntRange;
-        PetUnit near = null; float bd = AggroRange;
-        foreach (var u in All)
-        {
-            if (u == this || !u.Alive || u.team == team) continue;
-            float d = Dist(u.transform.position);
-            if (d < bd) { bd = d; near = u; }
-            if (u.mat == Mat.Metal && d < td) { td = d; taunt = u; }
-        }
-        if (taunt != null) return taunt;
-
-        // ② 위협 테이블 1순위 — 때린 놈은 멀어도 쫓는다 (리쉬 안이면)
-        PetUnit best = null; float bt = 0f;
-        List<PetUnit> stale = null;
-        foreach (var kv in threat)
-        {
-            var u = kv.Key;
-            if (u == null || !u.Alive || u.team == team || Dist(u.transform.position) > LeashRange)
-            {
-                (stale ??= new List<PetUnit>()).Add(u);
-                continue;
-            }
-            if (kv.Value > bt) { bt = kv.Value; best = u; }
-        }
-        if (stale != null) foreach (var s in stale) threat.Remove(s);   // 리쉬 밖·사망 = 어그로 초기화
-        if (best != null) return best;
-
-        // ③ 근접 감지 → ④ 강제 목표(부화기 습격)
-        if (near != null) return near;
-        if (forceTarget != null && forceTarget.Alive && forceTarget.team != team) return forceTarget;
-        return null;
-    }
-
-    void Peace()
-    {
-        // ★돌격 명령 — 지정한 지점까지 가서, 도착하면 그 자리에서 싸운다
-        if (hasOrder)
-        {
-            var to = orderSpot - transform.position; to.y = 0f;
-            if (to.magnitude > 2.5f)
-            {
-                Step(to, MoveSpd * 1.3f);
-                if (motion != null) motion.speed01 = 1f;
-                return;
-            }
-            hasOrder = false;   // 도착 — 이제 알아서 근처 적을 친다
-        }
-        if (team == Team.Player && followTarget != null)
-        {
-            float d = Dist(followTarget.position);
-            if (d > body * 0.9f + 3f)
-            {   // ★따라잡기 부스트: 주인 이속(25.5)보다 빠르게 + 멀수록 가속 → 군단이 안 늘어짐
-                float chase = Mathf.Max(MoveSpd, 28f + Mathf.Max(0f, d - 25f) * 0.35f);
-                Step(followTarget.position - transform.position, chase);
-            }
-        }
-        else
-        {
-            wanderT -= Time.deltaTime;
-            if (wanderT <= 0f) { wanderT = Random.Range(2f, 5f); wanderDir = Random.insideUnitSphere; wanderDir.y = 0; }
-            if (wanderDir.sqrMagnitude > 0.1f) Step(wanderDir, MoveSpd * 0.35f);
-        }
-    }
-
-    void Combat()
-    {
-        float d = Dist(target.transform.position);
-        if (d > AtkRange) Step(target.transform.position - transform.position, MoveSpd);
-        else if (atkCd <= 0f && !ClaimToken())
-        {   // 공격 순번을 못 얻음 — 주변을 맴돌며 대기 (다구리 방지)
-            var toT = target.transform.position - transform.position; toT.y = 0;
-            var side = Vector3.Cross(Vector3.up, toT.normalized);
-            Step(side * (GetInstanceID() % 2 == 0 ? 1f : -1f) - toT.normalized * 0.25f, MoveSpd * 0.55f);
-            Face(toT);
-        }
-        else if (atkCd <= 0f)
-        {
-            winding = true; windupT = WindupDur;
-            // ★공격을 '마음먹은 순간' 목표 지점·도착점 확정 — 이후 플레이어가 움직여도 안 따라감
-            lockedAim = target.transform.position;
-            if (mat == Mat.Basic)
-            {
-                var dd = lockedAim - transform.position; dd.y = 0;
-                float dl = Mathf.Min(dd.magnitude, AtkRange * 1.4f);
-                lockedDest = transform.position + (dd.sqrMagnitude > 1e-4f ? dd.normalized : transform.forward) * dl;
-                MakeTele(lockedDest, body * 0.95f);   // 공격 종류별 모양으로 표시
-            }
-        }
-        else Face(target.transform.position - transform.position);
-    }
-
-    void ExecuteAttack()
-    {
-        atkCd = Mathf.Max(0.4f, AtkPeriod - WindupDur);
-        recoverT = RecoverDur;   // 공격 후 경직 — 이 동안이 반격 타이밍
-        var dir = (target.transform.position - transform.position); dir.y = 0;
-        Face(dir);
-        if (motion != null) motion.Punch();
-
-        switch (mat)
-        {
-            case Mat.Metal:   // 우우우웅.. 쾅! — 타격은 모션 절정(0.09초 뒤)에
-                strikeT = 0.09f;
-                break;
-            case Mat.Stone:   // 점프 → 내려찍기 (착지 때 광역+넉백)
-                jumpT = 1f;
-                jumpFrom = transform.position;
-                // ★적 몸 위가 아니라 '앞'에 착지 — 겹침 밀림 방지 (밀치기는 넉백 한 번만)
-                jumpTo = target.transform.position - dir.normalized * (body * 0.55f + target.body * 0.35f);
-                break;
-
-            case Mat.Wood:    // 잎사귀 3연타 타타탁 (회전하며)
-                burstLeft = 3; burstT = 0f;
-                break;
-
-            case Mat.Fire:    // 기 모아서.. 팡! 큰 불덩이 (낮은 탄도)
-                PetProjectile.Throw(this, target, Damage, false,
-                    new Color(2.2f, 1.0f, 0.2f), body * 0.16f, 0.5f, body * 0.18f);
-                FX.Burst(transform.position + transform.forward * body * 0.4f + Vector3.up * body * 0.3f,
-                         new Color(2.0f, 1.1f, 0.3f, 0.9f), 10, body * 0.06f, body * 0.3f);
-                break;
-
-            case Mat.Water:   // 물총 속사 — 푝푝푝 빠른 직선탄 + 아주 살짝 밀림
-                PetProjectile.Throw(this, target, Damage, false,
-                    new Color(0.4f, 0.75f, 1.6f), body * 0.055f, 0.18f, body * 0.03f,
-                    target.body * 0.03f);                         // 근소 넉백
-                break;
-
-            case Mat.Lightning: // 단일 평타 + 슬로우 — 타격은 모션 절정에
-                strikeT = 0.08f;
-                lungeT = 1f; lungeFrom = transform.position;
-                lungeTo = transform.position + dir.normalized * (body * 0.15f);
-                break;
-
-            default:            // Basic — 종별 패턴
-                switch (pattern)
-                {
-                    case Pattern.Bite:      // 물기 — 짧게 달려들어 콱
-                        strikeT = 0.09f;
-                        lungeT = 1f; lungeFrom = transform.position;
-                        lungeTo = transform.position + dir.normalized * (body * 0.35f);
-                        break;
-                    case Pattern.Slam:      // 내려찍기 — 점프해서 착지 광역
-                        jumpT = 1f;
-                        jumpFrom = transform.position;
-                        jumpTo = lockedDest - dir.normalized * (body * 0.35f);
-                        break;
-                    case Pattern.Sweep:     // 꼬리 휩쓸기 — 제자리 회전 광역
-                        strikeT = 0.14f;
-                        if (motion != null) motion.Punch();
-                        break;
-                    default:                // Charge — 기 모으고 돌진 콰앙
-                        dashFrom = transform.position;
-                        dashTo = lockedDest;
-                        dashT = 1f;
-                        atkCd = AtkPeriod + 0.9f;
-                        break;
-                }
-                break;
-        }
-    }
-
-    // 지연 타격 실행 — 금속 쾅 / 번개 지짓 (모션 절정과 동기)
-    void DoStrike()
-    {
-        if (dead) return;
-        if (mat == Mat.Metal)
-        {
-            float aoe = body * 1.15f;
-            FX.Burst(transform.position, new Color(0.9f, 0.92f, 1f, 0.9f), 18, body * 0.09f, body * 0.5f);
-            FollowCam.Shake(body * 0.02f);
-            foreach (var u in EnemiesWithin(aoe))
-                if (TryHit(u, Damage)) u.Airborne(0.4f, u.body * 0.12f);
-        }
-        else if (mat == Mat.Lightning && target != null && target.Alive)
-        {
-            if (TryHit(target, Damage)) target.slowT = 1.6f;
-            FX.Bolt(transform.position + Vector3.up * body * 0.35f,
-                    target.transform.position + Vector3.up * target.body * 0.3f,
-                    new Color(1.8f, 2.3f, 3.2f), body * 0.02f);
-        }
-        else if (mat == Mat.Basic)
-        {
-            if (pattern == Pattern.Sweep)
-            {   // 꼬리 휩쓸기 — 제자리 광역 + 약한 넉백
-                float aoe = body * 1.3f;
-                FX.Sweep(transform.position, transform.eulerAngles.y - 120f, 240f, aoe,
-                         new Color(1.3f, 1.25f, 1.0f, 0.75f), 0.3f, 0.22f);
-                FollowCam.Shake(body * 0.014f);
-                foreach (var u in EnemiesWithin(aoe))
-                    if (InSwingArc(u, aoe, 120f) && TryHit(u, Damage))   // 240° 밖으로 빠지면 안 맞음
-                    {
-                        u.Knock(u.transform.position - transform.position, body * 0.10f);
-                    }
-            }
-            else if (target != null && target.Alive)
-            {
-                if (rangeMul >= rangedThreshold)
-                {   // ★원거리 종 — 붙지 않고 뱉는다. 날아가는 동안 피할 수 있다
-                    PetProjectile.Throw(this, target, Damage, false,
-                        new Color(0.85f, 0.95f, 0.6f), body * 0.06f, 0.32f, body * 0.08f);
-                }
-                // Bite — 단일 물기. 무는 순간 앞에 없으면 허공을 문다
-                else if (InSwingArc(target, AtkRange, biteHalfAngle)) TryHit(target, Damage);
-                else FX.Burst(transform.position + transform.forward * body * 0.8f + Vector3.up * body * 0.3f,
-                              new Color(0.9f, 0.9f, 0.9f, 0.5f), 5, body * 0.05f, body * 0.3f);   // 헛침
-            }
-        }
-    }
-
-    [Header("난이도 — 회피가 너무 쉬우면 여기를 올린다")]
-    [Tooltip("평타가 닿는 좌우 각도 (°) — 좁을수록 피하기 쉽다")]
-    public float biteHalfAngle = 70f;
-    [Tooltip("예고 중 조준이 따라오는 속도 (m/s) — 0이면 완전 고정, 크면 못 피한다")]
-    public float windupTrack = 5f;
-    [Tooltip("예고 시간 배수 — 낮출수록 반응 시간이 짧아진다")]
-    [Range(0.3f, 1.5f)] public float windupScale = 0.65f;
-    [Tooltip("사거리 배수가 이 값 이상이면 원거리 종 — 붙지 않고 뱉는다")]
-    public float rangedThreshold = 1.8f;
-
-    IEnumerable<PetUnit> EnemiesWithin(float radius)
-    {
-        foreach (var u in All)
-        {
-            if (u == this || !u.Alive || u.team == team) continue;
-            if (Dist(u.transform.position) <= radius) yield return u;
-        }
-    }
-
-    // 빨간 범위 텔레그래프 — 공격 종류마다 모양이 다르다 (보고 피하라고 있는 것)
-    float teleW, teleH; float teleYaw;
-    void MakeTele(Vector3 center, float radius)
-    {
-        KillTele();
-        teleRadius = radius;
-        // ★패턴별 모양: 물기=작은 원 / 돌진=경로 타원 / 내려찍기=큰 원 / 휩쓸기=자기 주변 대원
-        var dir = (lockedAim - transform.position); dir.y = 0f;
-        float dist = dir.magnitude;
-        if (dir.sqrMagnitude > 1e-4f) dir.Normalize(); else dir = transform.forward;
-        teleYaw = Quaternion.LookRotation(dir).eulerAngles.y;
-        switch (pattern)
-        {
-            case Pattern.Bite:      // 코앞을 문다 — 작은 원
-                teleW = teleH = body * 0.75f;
-                center = transform.position + dir * (body * 0.5f);
-                break;
-            case Pattern.Charge:    // 달려드는 경로 — 길쭉한 타원
-                teleW = body * 0.85f;
-                teleH = Mathf.Max(body * 1.2f, dist + body * 0.6f);
-                center = transform.position + dir * (teleH * 0.5f - body * 0.15f);
-                break;
-            case Pattern.Slam:      // 착지 지점 — 큰 원
-                teleW = teleH = body * 1.5f;
-                break;
-            default:                // 꼬리 휩쓸기 — 자기 주변 대원
-                teleW = teleH = body * 2.4f;
-                center = transform.position;
-                break;
-        }
-
-        var q = GameObject.CreatePrimitive(PrimitiveType.Quad);
-        Object.Destroy(q.GetComponent<Collider>());
-        q.name = "tele_" + name;
-        q.transform.SetParent(SceneBuckets.Fx);
-        if (terrain != null) center.y = terrain.SampleHeight(center) + terrain.transform.position.y;
-        q.transform.position = center + Vector3.up * 0.25f;
-        q.transform.rotation = Quaternion.Euler(90f, teleYaw, 0f);
-        q.transform.localScale = new Vector3(teleW, teleH, 1f);
-        var mm = q.GetComponent<MeshRenderer>();
-        mm.material = new Material(Shader.Find("Toyrassic/GroundDecal"));   // 잔디가 못 가림 (ZTest Always)
-        // 공격 종류마다 모양 자체가 다르다 — 경로=막대 / 휩쓸기=도넛 / 나머지=원
-        mm.material.mainTexture = pattern == Pattern.Charge ? FX.RectTex()
-                                : pattern == Pattern.Sweep ? FX.RingTex()
-                                : FX.CircleTex();
-        mm.material.color = new Color(1f, 0.15f, 0.10f, 0.85f);
-        mm.sortingOrder = -10;   // 투명체 중에선 제일 먼저 — 몸·이펙트가 원 위에 그려짐
-        mm.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
-        tele = q.transform;
-    }
-
-    void KillTele() { if (tele != null) { Destroy(tele.gameObject); tele = null; } }
-
-    // 기본 공격 돌진 — 가속하며 몸통 박치기, 도착 지점 광역 타격
-    void DashAdvance()
-    {
-        dashT -= Time.deltaTime / 0.24f;
-        float k = 1f - Mathf.Clamp01(dashT);
-        float kh = k * k;                                        // 가속 곡선 — 슈우웅 팍!
-        var p = Vector3.Lerp(dashFrom, dashTo, kh);
-        transform.position = new Vector3(p.x, transform.position.y, p.z);
-        airY = Mathf.Sin(k * Mathf.PI) * body * 0.15f;           // 낮게 붕 떠서 박음
-        var d2 = dashTo - dashFrom; d2.y = 0; Face(d2);
-        if (dashT <= 0f)
-        {
-            airY = 0f;
-            KillTele();
-            if (motion != null) motion.Punch();
-            FX.Burst(transform.position + transform.forward * body * 0.3f,
-                     new Color(1f, 0.95f, 0.85f, 0.9f), 14, body * 0.08f, body * 0.5f);
-            foreach (var u in All)
-            {
-                if (u == this || !u.Alive || u.team == team) continue;
-                var dd = u.transform.position - transform.position; dd.y = 0;
-                if (dd.magnitude < body * 0.75f + u.body * 0.4f) TryHit(u, Damage);
-            }
-        }
-    }
-
-    // 돌 점프 진행 — 포물선으로 날아가 착지 순간 쾅
-    void JumpAdvance()
-    {
-        jumpT -= Time.deltaTime / 0.45f;
-        float k = 1f - Mathf.Clamp01(jumpT);
-        float kh = k * k * (3f - 2f * k);                               // 수평: 가속-감속 S곡선
-        var p = Vector3.Lerp(jumpFrom, jumpTo, kh);
-        transform.position = new Vector3(p.x, transform.position.y, p.z);
-        airY = Mathf.Sin(Mathf.Pow(k, 1.6f) * Mathf.PI) * body * 0.45f; // 수직: 붕 떠서 마지막에 콰앙 내리꽂힘
-        var d2 = jumpTo - jumpFrom; d2.y = 0; Face(d2);
-        if (jumpT <= 0f)
-        {
-            airY = 0f;
-            float aoe = body * 1.2f;
-            FX.Burst(transform.position - Vector3.up * footOff * 0.5f,
-                     new Color(0.75f, 0.68f, 0.55f, 0.95f), 22, body * 0.10f, body * 0.55f);
-            FollowCam.Shake(body * 0.022f);
-            if (motion != null) motion.Punch();
-            foreach (var u in EnemiesWithin(aoe))
-                if (TryHit(u, Damage))
-                {
-                    u.Knock(u.transform.position - transform.position, body * 0.12f);   // 약간 넉백
-                }
-        }
-    }
-
-    /// 회피 판정 포함 타격
-    /// ★타격 순간에 '지금도 궤적 안인가'를 다시 본다.
-    /// 예고를 보고 빠져나갔으면 빗나가야 한다 (예전엔 시작할 때 사거리 안이면 무조건 맞았다).
-    bool InSwingArc(PetUnit victim, float reach, float halfAngle)
-    {
-        var d = victim.transform.position - transform.position; d.y = 0f;
-        if (d.magnitude > reach + victim.body * 0.35f) return false;      // 너무 멀면 빗나감
-        if (halfAngle >= 179f) return true;                               // 360° 기술은 각도 무시
-        var f = transform.forward; f.y = 0f;
-        if (d.sqrMagnitude < 1e-4f || f.sqrMagnitude < 1e-4f) return true;
-        // 덩치가 크면 가장자리로도 걸린다 — 몸 반경만큼 각도 여유
-        float slack = Mathf.Rad2Deg * Mathf.Atan2(victim.body * 0.35f, Mathf.Max(0.5f, d.magnitude));
-        return Vector3.Angle(f, d) <= halfAngle + slack;
-    }
-
-    bool TryHit(PetUnit victim, float dmg)
-    {
-        if (Random.value < Mathf.Min(0.35f, victim.agi * 0.008f)) return false;
-        victim.TakeDamage(dmg, this);
-        victim.OnHit();
-        FX.Burst(victim.transform.position + Vector3.up * victim.body * 0.30f,
-                 Color.white, 9, victim.body * 0.07f, victim.body * 0.45f);
-        return true;
-    }
 
     public void TakeDamage(float dmg, PetUnit attacker = null)
     {
@@ -853,17 +292,7 @@ public class PetUnit : MonoBehaviour
         FX.DamageNum(transform.position + Vector3.up * body * 0.8f, dmg,
                      team == Team.Player ? new Color(1f, 0.35f, 0.3f) : new Color(1f, 0.95f, 0.6f),
                      Mathf.Clamp(body * 0.22f, 0.9f, 3.5f) / 3f);   // ★하한 0.9 가 축소를 막으므로 결과를 나눈다 (2026-07-28)
-        // 어그로: 때린 놈에게 위협 전액 + 근처 무리에게도 일부 (무리 어그로 — 업계 정공법)
-        if (attacker != null && attacker.team != team)
-        {
-            AddThreat(attacker, dmg);
-            foreach (var u in All)
-            {
-                if (u == this || u == attacker || !u.Alive || u.team != team) continue;
-                if (u.isAvatar || u.isStructure || u.mounted) continue;
-                if (Dist(u.transform.position) < 22f + body) u.AddThreat(attacker, dmg * 0.4f);
-            }
-        }
+        // ※어그로(위협 테이블)는 행동과 함께 삭제됨 (2026-07-28) — 맞아도 반응하지 않는다
         if (hp <= 0f)
         {
             if (isAvatar)
@@ -911,7 +340,6 @@ public class PetUnit : MonoBehaviour
     void Die()
     {
         dead = true;
-        KillTele();
         if (isStructure)   // 건물(부화기) — 파괴 처리는 소유 컴포넌트(Incubator)가 함
         {
             if (barRoot != null) barRoot.gameObject.SetActive(false);
@@ -1056,16 +484,6 @@ public class PetUnit : MonoBehaviour
             p.z += (Random.value - 0.5f) * amp * 2f;
         }
         transform.position = p;
-    }
-
-    void LungeFx()
-    {
-        if (lungeT <= 0f) return;
-        lungeT -= Time.deltaTime * 5.5f;
-        float t = Mathf.Clamp01(lungeT);
-        float q = 1f - t;
-        float arc = Mathf.Sin(q * q * (3f - 2f * q) * Mathf.PI);
-        if (!dead) transform.position = Vector3.Lerp(lungeFrom, lungeTo, arc * 0.8f) + Vector3.up * (transform.position.y - lungeFrom.y);
     }
 
     void HitFlash()
