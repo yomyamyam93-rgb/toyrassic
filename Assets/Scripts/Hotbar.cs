@@ -25,10 +25,12 @@ public class Hotbar : MonoBehaviour
     // ★탑승 칸 삭제 (2026-07-28) — 탑승 시스템 자체가 없어졌다. 10칸 전부 장비 칸이다.
     /// 지금 들고 있는 장비
     public GearKind Current => slots[selected];
+    /// 지금 고른 칸 번호 (0~2) — 이 칸에 묶인 펫이 E 로 나간다
+    public int SelectedIndex => selected;
 
     Font font;
     GameObject canvasRoot;
-    Image[] frameImgs; Image[] iconImgs; Text[] fallbacks; Text[] numLabels;
+    Image[] frameImgs; Image[] iconImgs; Text[] fallbacks; Text[] numLabels; Text[] petLabels;
     GearDrag[] slotDrags;
     MenuUI menu;
 
@@ -67,6 +69,8 @@ public class Hotbar : MonoBehaviour
         // 예약해 둔 무기 교체 — 스윙이 끝나는 순간 반영 (창이 열려 있어도 처리한다)
         if (queuedSelect >= 0 && !SwingBusy) Apply(queuedSelect);
 
+        RefreshPetLabels();
+
         // 건축 모드·창 열림 중엔 숫자키를 그쪽이 쓴다 (입력 충돌 방지)
         if (BuildSystem.IsBuilding || MenuUI.IsOpen || PetNameUI.IsOpen) return;
 #if ENABLE_INPUT_SYSTEM
@@ -90,6 +94,21 @@ public class Hotbar : MonoBehaviour
     /// 스윙 중에 누른 숫자키 — 스윙이 끝나는 즉시 이 칸으로 바꾼다.
     /// 그냥 무시하면 "키를 눌렀는데 안 먹었다"가 되므로 예약해 둔다.
     int queuedSelect = -1;
+
+    /// 칸에 묶인 펫 이름을 갱신한다 — 펫은 게임 도중에 생기고 죽으므로 매 프레임 확인한다.
+    /// ★바뀌었을 때만 대입한다. Text.text 는 대입할 때마다 UI 를 다시 그리므로
+    ///   매 프레임 같은 값을 넣으면 그것만으로 부담이 된다.
+    void RefreshPetLabels()
+    {
+        if (petLabels == null) return;
+        for (int i = 0; i < Slots; i++)
+        {
+            if (petLabels[i] == null) continue;
+            var bound = i < PetCommand.SlotPet.Length ? PetCommand.SlotPet[i] : null;
+            string want = bound != null && bound.Alive ? bound.name : "";
+            if (petLabels[i].text != want) petLabels[i].text = want;
+        }
+    }
 
     public void Select(int i)
     {
@@ -188,7 +207,7 @@ public class Hotbar : MonoBehaviour
         panel.sizeDelta = new Vector2(Slots * ss + (Slots - 1) * gap, ss);
 
         frameImgs = new Image[Slots]; iconImgs = new Image[Slots];
-        fallbacks = new Text[Slots]; numLabels = new Text[Slots];
+        fallbacks = new Text[Slots]; numLabels = new Text[Slots]; petLabels = new Text[Slots];
         slotDrags = new GearDrag[Slots];
         for (int i = 0; i < Slots; i++)
         {
@@ -236,6 +255,14 @@ public class Hotbar : MonoBehaviour
             numLabels[i].rectTransform.offsetMin = new Vector2(4, 0);
             numLabels[i].text = (i + 1).ToString();
             numLabels[i].raycastTarget = false;
+
+            // ★칸 아래에 묶인 펫 이름 (2026-07-28) — 무기와 펫이 한 칸에 묶였으니
+            //   뭘 던지게 되는지 여기서 보여야 한다. 안 보이면 모르고 던진다.
+            petLabels[i] = MakeText(inner, 11, false, TextAnchor.LowerCenter);
+            StretchRT(petLabels[i].rectTransform);
+            petLabels[i].rectTransform.offsetMin = new Vector2(0, 2);
+            petLabels[i].color = new Color(0.35f, 0.75f, 1f);
+            petLabels[i].raycastTarget = false;
         }
         RefreshSel();
     }

@@ -17,13 +17,34 @@ public class PetCommand : MonoBehaviour
     [Tooltip("동시에 밖에 내놓을 수 있는 펫 수 — 펫 보관함이 쓴다")]
     public int maxParty = 4;
 
-    /// 고를 수 있는 펫들 — 내 편이고 살아 있는 놈들 (구조물·캐릭터 제외)
-    public static readonly List<PetUnit> Choices = new List<PetUnit>();
-    static int sel;
+    // ── 무기 슬롯에 결합된 펫 ──────────────────────────────────────────
+    //
+    // ★E 로 펫을 따로 고르던 것을 폐기하고, **무기 칸에 펫을 묶는다** (2026-07-28 사용자).
+    //   이유: 펫을 따로 고르면 전투 중에 'E 여러 번 + 1·2·3' 두 단계를 밟아야 해서
+    //   실제로는 한두 조합밖에 못 쓴다. 무기에 묶으면 **키 하나로 '무엇을 어떻게'가
+    //   동시에 정해진다** — 조합 수는 3으로 줄지만 전투 중 실제로 쓰는 조합은 늘어난다.
+    //
+    //   역할이 이렇게 갈린다:  무기 = *어떻게* 나오나 (궤적·착탄·배치 모양)
+    //                          펫   = *무엇이* 나오나 (스탯·마릿수·행동)
+    public static readonly PetUnit[] SlotPet = new PetUnit[Hotbar.Slots];
 
-    /// 지금 고른 펫 (없으면 null)
-    public static PetUnit Selected =>
-        sel >= 0 && sel < Choices.Count ? Choices[sel] : null;
+    /// 지금 든 무기에 묶인 펫 (없으면 null)
+    public static PetUnit Selected
+    {
+        get
+        {
+            int i = Hotbar.I != null ? Hotbar.I.SelectedIndex : 0;
+            return i >= 0 && i < SlotPet.Length ? SlotPet[i] : null;
+        }
+    }
+
+    /// 칸에 펫을 묶는다 (같은 펫이 다른 칸에 있으면 그쪽은 비운다)
+    public static void Bind(int slot, PetUnit pet)
+    {
+        if (slot < 0 || slot >= SlotPet.Length) return;
+        for (int i = 0; i < SlotPet.Length; i++) if (SlotPet[i] == pet) SlotPet[i] = null;
+        SlotPet[slot] = pet;
+    }
 
     [Header("전투 종료 판정 — 값은 지금 세계 기준 m")]
     [Tooltip("이 거리 안에 살아있는 야생이 없으면 전투가 끝난 것으로 본다")]
@@ -40,7 +61,12 @@ public class PetCommand : MonoBehaviour
     public static float CoolOf(PetUnit p) => p != null && cool.TryGetValue(p, out float t) ? Mathf.Max(0f, t) : 0f;
     public static void StartCool(PetUnit p, float sec) { if (p != null) cool[p] = sec; }
 
-    void Awake() { I = this; Choices.Clear(); cool.Clear(); sel = 0; }
+    void Awake()
+    {
+        I = this;
+        for (int i = 0; i < SlotPet.Length; i++) SlotPet[i] = null;
+        cool.Clear();
+    }
 
     void Update()
     {
@@ -106,35 +132,26 @@ public class PetCommand : MonoBehaviour
         if (any) SquadHUD.Toast("전투 종료 — 펫이 돌아온다");
     }
 
-    /// 목록 갱신 — 죽거나 사라진 놈을 걷어내고 새로 생긴 내 펫을 넣는다.
-    /// ★고른 놈을 '이름'이 아니라 '참조'로 유지한다 — 목록 순서가 바뀌어도
-    ///   손에 든 펫이 제멋대로 바뀌지 않게.
+    /// 결합 정리 — 죽거나 사라진 펫을 칸에서 빼고, 아직 안 묶인 내 펫을 빈 칸에 채운다.
+    /// ★자동 채움은 임시다. 제대로 된 편성 UI(펫 창에서 무기 칸으로 드래그)가 생기면
+    ///   그쪽이 Bind() 를 부르고, 여기서는 죽은 놈 정리만 하면 된다.
     static void Refresh()
     {
-        var keep = Selected;
-        Choices.Clear();
+        for (int i = 0; i < SlotPet.Length; i++)
+            if (SlotPet[i] == null || !SlotPet[i].Alive) SlotPet[i] = null;
+
         foreach (var u in PetUnit.All)
         {
             if (u == null || !u.Alive) continue;
             if (u.team != PetUnit.Team.Player || u.isAvatar || u.isStructure) continue;
-            if (u.summoned) continue;   // 투척으로 나온 분신은 고르는 대상이 아니다
-            Choices.Add(u);
-        }
-        sel = keep != null ? Mathf.Max(0, Choices.IndexOf(keep)) : Mathf.Clamp(sel, 0, Mathf.Max(0, Choices.Count - 1));
-    }
+            if (u.summoned) continue;   // 투척으로 나온 분신은 편성 대상이 아니다
 
-    /// E — 다음 펫으로 넘긴다
-    public static void Next()
-    {
-        Refresh();
-        if (Choices.Count == 0) { SquadHUD.Toast("데리고 있는 펫이 없다"); return; }
-        sel = (sel + 1) % Choices.Count;
-        var p = Selected;
-        if (p != null)
-        {
-            SquadHUD.Toast($"{p.name} 선택");
-            FX.Burst(p.transform.position + Vector3.up * p.body * 0.6f,
-                     new Color(0.6f, 1.4f, 1.9f, 0.9f), 12, p.body * 0.06f, p.body * 0.5f);
+            bool bound = false;
+            for (int i = 0; i < SlotPet.Length; i++) if (SlotPet[i] == u) { bound = true; break; }
+            if (bound) continue;
+
+            for (int i = 0; i < SlotPet.Length; i++)
+                if (SlotPet[i] == null) { SlotPet[i] = u; break; }
         }
     }
 }

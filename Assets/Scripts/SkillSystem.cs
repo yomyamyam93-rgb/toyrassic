@@ -92,19 +92,14 @@ public class SkillSystem : MonoBehaviour
                      : gear == GearKind.Axe ? ("스킬_회전베기", "회전 베기", true)
                      : ("스킬_관통사격", "무기 필요", false);
             case 1:
-                {   // E — 지금 고른 펫. 이름을 그대로 띄워서 뭘 던지는지 보이게 한다
-                    var p = PetCommand.Selected;
-                    int n = PetCommand.Choices.Count;
-                    return ("스킬_소집", p != null ? $"{p.name}  ({n}종)" : "펫 없음", p != null);
-                }
-            case 2: return ("스킬_구르기", "구르기", true);                 // Space
-            default:
-                {   // R — 대규모 투척
+                {   // E — 대규모 출현. 지금 무기에 묶인 펫이 몇 마리 나오는지 그대로 보여준다
                     var p = PetCommand.Selected;
                     return ("스킬_돌격",
-                            p != null ? $"투척 {PetUnit.CountFor(throwBudget, p.supply)}마리" : "던질 펫 없음",
+                            p != null ? $"{p.name} {PetUnit.CountFor(throwBudget, p.supply)}마리" : "묶인 펫 없음",
                             p != null);
                 }
+            case 2: return ("스킬_구르기", "구르기", true);                 // Space
+            default: return ("스킬_소집", "", false);                       // R — 비움
         }
     }
 
@@ -177,16 +172,17 @@ public class SkillSystem : MonoBehaviour
         if (k == null) return;
         // ★키 배치 (2026-07-28 확정) — 1·2·3 무기 / 좌클릭 공격 / Q 무기 스킬 /
         //   E 펫 선택 / R 대규모 투척 / Space 구르기 / F 줍기
-        // R 슬롯의 쿨 표시는 '지금 고른 펫'의 쿨을 그대로 비춘다 (펫마다 따로 돌기 때문)
-        cd[3] = PetCommand.CoolOf(PetCommand.Selected);
-        cdMax[3] = throwCooldown;
+        // 출현 슬롯의 쿨 표시 — 지금 무기에 묶인 펫의 쿨을 비춘다 (펫마다 따로 돌기 때문)
+        cd[1] = PetCommand.CoolOf(PetCommand.Selected);
+        cdMax[1] = throwCooldown;
 
-        aiming = k.qKey.isPressed ? 0 : k.rKey.isPressed ? 3 : k.spaceKey.isPressed ? 2 : -1;
+        // ★키 배치 (2026-07-28 확정) — 1·2·3 무기(펫이 묶여 따라온다) / 좌클릭 공격 /
+        //   Q 무기 스킬 / E 대규모 출현 / Space 구르기. R 은 비워 뒀다.
+        aiming = k.qKey.isPressed ? 0 : k.eKey.isPressed ? 1 : k.spaceKey.isPressed ? 2 : -1;
         UpdatePreview();
         if (k.qKey.wasReleasedThisFrame) TryQ();        // 무기 스킬
         if (k.spaceKey.wasReleasedThisFrame) TryE();    // 구르기
-        if (k.eKey.wasPressedThisFrame) PetCommand.Next();   // 펫 선택 — 누르는 즉시 넘어간다
-        if (k.rKey.wasReleasedThisFrame) TryThrow();    // 대규모 투척 (조준하고 놓으면 날아간다)
+        if (k.eKey.wasReleasedThisFrame) TryThrow();    // 대규모 출현 (조준하고 놓으면 날아간다)
 #endif
     }
 
@@ -640,8 +636,8 @@ public class SkillSystem : MonoBehaviour
                 // ★실제 판정과 똑같은 영역을 그대로 보여준다 (QArea 한 곳에서 나온다)
                 else QArea(gear, dir, out circleAt, out circleR, out circleIn);
                 break;
-            case 3:
-                // ★R 투척 — 어디에 떨어져 몇 명이 나오는지 던지기 전에 보여준다.
+            case 1:
+                // ★E 대규모 출현 — 어디에 떨어져 몇 마리가 나오는지 던지기 전에 보여준다.
                 //   착탄 반경 = 실제로 무리가 퍼지는 반경 그대로 (보이는 것과 나오는 것이 같게)
                 circleAt = ThrowSpot();
                 circleR = throwSpread;
@@ -651,8 +647,8 @@ public class SkillSystem : MonoBehaviour
 
         // ★R 투척 — 곧은 선이 아니라 실제로 날아갈 포물선을 그린다 (2026-07-28).
         //   던지기 전에 "저기로 이렇게 날아간다"가 보여야 조준이 된다.
-        if (aiming == 3)
-        {
+        if (aiming == 1)
+        {   // E 대규모 출현 — 실제로 날아갈 포물선을 그린다
             var from = body + Vector3.up * 0.25f * WorldScale.K;
             previewLine.enabled = true;
             previewLine.startWidth = 0.35f * WorldScale.K;
