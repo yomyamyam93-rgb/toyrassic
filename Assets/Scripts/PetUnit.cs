@@ -219,7 +219,8 @@ public class PetUnit : MonoBehaviour
         if (motion == null) motion = gameObject.AddComponent<PetMotion>();
         MakeBar(r);
         // 평소엔 바를 숨긴다 — 전투에 들어가면 Bar() 가 켠다 (한 프레임 깜빡임 방지)
-        if (barRoot != null) barRoot.gameObject.SetActive(false);
+        // 소환된 내 분신은 처음부터 켜 둔다 — 나오자마자 상태가 보여야 한다
+        if (barRoot != null) barRoot.gameObject.SetActive(summoned);
         // ★목표 탐색 시점을 개체마다 어긋나게 — 50마리가 같은 프레임에 훑으면 뚝뚝 끊긴다
         retargetT = Random.value * 0.5f;
         homePos = transform.position;   // 리쉬 기준 — 여기서 너무 멀어지면 추격을 포기한다
@@ -1040,8 +1041,12 @@ public class PetUnit : MonoBehaviour
             //   ①어슬렁거리는 야생 위에 체력바가 떠 있으면 평화로운 장면이 안 나온다.
             //   ②50대50 이면 바가 100개다. 하나하나 매 프레임 위치·카메라 정렬·거리 보정을
             //     하면 그것만으로 프레임이 무너진다. 안 보일 땐 여기서 바로 빠져나간다.
+            //
+            // ★단, **내가 소환한 분신은 늘 보인다** (2026-07-28 사용자).
+            //   내 부대가 얼마나 버티는지는 다시 던질지 말지를 정하는 정보라 계속 보여야 한다.
+            //   돌아와 흡수될 때까지 유지된다. 야생과 달리 몇 마리뿐이라 부담도 없다.
             barShowT -= Time.deltaTime;
-            bool show = InCombat || barShowT > 0f;
+            bool show = summoned || InCombat || barShowT > 0f;
             if (barRoot.gameObject.activeSelf != show) barRoot.gameObject.SetActive(show);
             if (!show) return;
         }
