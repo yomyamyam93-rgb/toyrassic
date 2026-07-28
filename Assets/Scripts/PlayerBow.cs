@@ -260,7 +260,39 @@ public class PlayerBow : MonoBehaviour
     public Vector3 AimDir => aimDir;
 
     /// 조준을 즉시 끊는다 — 구르기처럼 '지금 당장' 나가야 하는 동작이 부른다 (2026-07-28)
-    public void CancelDraw() { drawing = false; drawT = 0f; aimLen = 0f; }
+    public void CancelDraw() { drawing = false; drawT = 0f; aimLen = 0f; charging = false; chargeT = 0f; }
+
+    // ── 좌클릭 차징 (2026-07-28 사용자 개편) ────────────────────────────
+    //
+    // ★무기 스킬을 쿨타임에서 **차징**으로 옮겼다.
+    //   예전엔 '무기를 바꾸고 Q 를 누른다' 라 손이 두 번 움직였고, 쿨이 도는 동안은
+    //   아예 못 썼다. 이제 **좌클릭을 쥐고 있으면 준비동작까지만 진행되고 멈춘다** —
+    //   놓는 순간 그 단계의 공격이 나간다. 쿨 대신 '기다린 만큼 세진다' 가 대가다.
+    //
+    //   1단 = 평타 · 2단 = 강타 · 3단 = 무기 고유기.
+    //   차징 중에는 발이 느려진다 — 활을 당길 때처럼. 그게 위험을 만든다.
+    [Header("좌클릭 차징")]
+    [Tooltip("2단까지 걸리는 시간 (초)")] public float chargeStep2 = 0.45f;
+    [Tooltip("3단(꽉 참)까지 걸리는 시간 (초)")] public float chargeStep3 = 1.1f;
+    [Tooltip("꽉 찼을 때 이동 속도 배수 (1 = 안 느려짐)")] [Range(0.2f, 1f)]
+    public float chargeMoveSlow = 0.45f;
+    [Tooltip("2단 피해·범위 배수")] public float charge2Dmg = 1.9f, charge2Range = 1.25f;
+    [Tooltip("3단 피해·범위 배수")] public float charge3Dmg = 3.2f, charge3Range = 1.6f;
+
+    float chargeT; bool charging;
+
+    /// 지금 차징 단계 (1~3)
+    public int ChargeLevel => chargeT >= chargeStep3 ? 3 : chargeT >= chargeStep2 ? 2 : 1;
+    /// 게이지 표시용 0~1
+    public float Charge01 => Mathf.Clamp01(chargeT / Mathf.Max(0.05f, chargeStep3));
+    /// 차징 중인가 (게이지를 띄울지, 발을 늦출지)
+    public bool IsCharging => charging;
+    /// 차징으로 느려지는 이동 배수 — PlayerMove 가 읽는다
+    public float ChargeMoveMul =>
+        charging ? Mathf.Lerp(1f, chargeMoveSlow, Charge01) : 1f;
+
+    float ChargeDmgMul(int lv) => lv >= 3 ? charge3Dmg : lv >= 2 ? charge2Dmg : 1f;
+    float ChargeRangeMul(int lv) => lv >= 3 ? charge3Range : lv >= 2 ? charge2Range : 1f;
 
     /// 지금 든 무기의 잔상 켜기/끄기 — 애니메이션 이벤트에서 부른다 (2026-07-28)
     public void SetTrail(bool on)
@@ -832,37 +864,54 @@ public class PlayerBow : MonoBehaviour
             if (pressedNow) TryPlaceIncubator(mp);
             drawing = false; drawT = 0f; aimLen = 0f;
         }
-        else if (gear == GearKind.Axe || gear == GearKind.Pick || gear == GearKind.Sword)
-        {   // 도구 장착: 클릭 = 그냥 휘두른다 — 노드·몹·허공 뭐든 (효율만 다름)
-            if (pressed && gather != null)
-                gather.TrySwing(mp, gear == GearKind.Pick, aimDir, gear == GearKind.Sword);
+        else if (gear == GearKind.Axe || gear == GearKind.Pick || gear == GearKind.Sword
+              || gear == GearKind.None)
+        {
+            // ★근접·맨손 — 쥐고 있으면 준비동작만, 놓으면 그 단계로 한 번 휘두른다.
+            //   예전처럼 누르고 있는 동안 계속 휘두르지 않는다. 기다린 만큼 세진다.
+            bool bare = gear == GearKind.None;
+            if (pressed)
+            {
+                charging = true;
+                chargeT += Time.deltaTime;
+            }
+            else if (released && charging)
+            {
+                int lv = ChargeLevel;
+                if (gather != null)
+                    gather.SkillSwing(aimDir, gear == GearKind.Pick,
+                                      gear == GearKind.Sword,
+                                      ChargeDmgMul(lv), ChargeRangeMul(lv));
+                if (lv >= 2) FollowCam.Shake(lv >= 3 ? 0.3f : 0.15f);
+                charging = false; chargeT = 0f;
+            }
             drawing = false; drawT = 0f; aimLen = 0f;
         }
         else if (gear == GearKind.Bow || gear == GearKind.Sling)
-        {   // 활·새총: 조준해서 쏜다 (새총은 사거리·위력이 낮고 느리다)
+        {   // 활·새총: 당길수록 세진다. 꽉 당기면 3단 — 관통 강사가 나간다
             bool sling = gear == GearKind.Sling;
             var shot = sling ? weapons.Find(x => x.id == "새총") : null;   // 수치는 그 무기 것
             float range = shot != null ? arrowRange * shot.shotRangeMul : arrowRange;
             if (pressed)
             {
+                charging = true;
+                chargeT += Time.deltaTime;
                 drawing = true;
                 drawT = Mathf.Min(drawTime, drawT + Time.deltaTime);
                 aimLen = Mathf.MoveTowards(aimLen, range, range / Mathf.Max(0.05f, aimFillTime) * Time.deltaTime);
             }
-            if (released && drawing && cd <= 0f)
+            if (released && drawing)
             {
+                int lv = ChargeLevel;
                 // ★최소 비행거리를 사거리 비율로 (2026-07-28). 예전엔 10m 고정이라
                 //   arrowRange 를 7 로 줄여도 화살이 늘 10m 를 날아갔다 — 클램프 상수 함정
-                Fire(Mathf.Max(range * 0.15f, aimLen), shot);
-                cd = shot != null ? fireCooldown * shot.shotCooldownMul : fireCooldown;
+                float len = Mathf.Max(range * 0.15f, aimLen);
+                if (lv >= 3) FireCharged(len, shot);   // 꽉 당김 = 무기 고유기
+                else Fire(len, shot, ChargeDmgMul(lv));
+                charging = false; chargeT = 0f;
             }
         }
-        else
-        {   // ★맨손 — 아주 느리고 약하지만 칠 수는 있다 (첫 나뭇가지를 못 모으면 시작을 못 한다)
-            if (pressed && gather != null) gather.TrySwing(mp, false, aimDir);
-            drawing = false; drawT = 0f; aimLen = 0f;
-        }
-        if (released) { drawing = false; drawT = 0f; aimLen = 0f; }
+        if (released) { drawing = false; drawT = 0f; aimLen = 0f; charging = false; chargeT = 0f; }
     }
 
     /// 통통 바운스를 걸러낸 안정 발사점 — 활 중앙 위치에서, 위아래로 안 떨림
@@ -902,15 +951,50 @@ public class PlayerBow : MonoBehaviour
     }
 
     /// shot 이 있으면 그 무기(새총 등)의 배수로 쏜다. null 이면 활.
-    void Fire(float range, WeaponDef shot = null)
+    void Fire(float range, WeaponDef shot = null, float dmgMul = 1f)
     {
         var from = ShotFrom(shot);   // 무기마다 나가는 지점이 다르다
         float spd = shot != null ? arrowSpeed * shot.shotSpeedMul : arrowSpeed;
-        float dmg = (shot != null ? arrowDamage * shot.shotDamageMul : arrowDamage) * PlayerLevel.DamageMul;
-        ArrowProj.Throw(from, aimDir, spd, dmg, range);   // 관통은 추후 스킬로
+        float dmg = (shot != null ? arrowDamage * shot.shotDamageMul : arrowDamage)
+                  * PlayerLevel.DamageMul * dmgMul;
+        ArrowProj.Throw(from, aimDir, spd, dmg, range);
         FX.Burst(from, shot != null ? new Color(1.4f, 1.3f, 1.1f, 0.85f)   // 새총 — 돌멩이 튀는 느낌
                                     : new Color(2.2f, 1.9f, 0.8f, 0.9f),
                  shot != null ? 6 : 10, 0.14f, 2f, 0.2f);
+    }
+
+    [Header("3단 (꽉 당김) — 무기 고유기")]
+    [Tooltip("활: 관통 강사 — 몇 명을 꿰뚫나")] public int chargedPierce = 5;
+    [Tooltip("활: 관통 강사 피해 배수")] public float chargedBowDmg = 3.2f;
+    [Tooltip("새총: 한 번에 나가는 탄 수")] public int chargedSlingShots = 5;
+    [Tooltip("새총: 퍼지는 각도 (°)")] public float chargedSlingSpread = 8f;
+
+    /// 꽉 당겼을 때 나가는 무기 고유기.
+    /// ★활은 '하나를 꿰뚫는' 쪽, 새총은 '여럿을 뿌리는' 쪽 — 같은 원거리라도 성격이 갈려야
+    ///   무기를 바꿀 이유가 생긴다.
+    void FireCharged(float range, WeaponDef shot)
+    {
+        var from = ShotFrom(shot);
+        float spd = shot != null ? arrowSpeed * shot.shotSpeedMul : arrowSpeed;
+        float baseDmg = (shot != null ? arrowDamage * shot.shotDamageMul : arrowDamage) * PlayerLevel.DamageMul;
+
+        if (shot != null)
+        {   // 새총 — 산탄
+            for (int i = 0; i < Mathf.Max(1, chargedSlingShots); i++)
+            {
+                float off = (i - (chargedSlingShots - 1) * 0.5f) * chargedSlingSpread;
+                var d = Quaternion.Euler(0f, off, 0f) * aimDir;
+                ArrowProj.Throw(from, d, spd, baseDmg, range);
+            }
+            FX.Burst(from, new Color(1.8f, 1.6f, 1.1f, 0.95f), 18, 0.16f, 3f, 0.25f);
+        }
+        else
+        {   // 활 — 관통 강사
+            ArrowProj.Throw(from, aimDir, spd * 1.3f, baseDmg * chargedBowDmg, range * 1.3f,
+                            Mathf.Max(1, chargedPierce));
+            FX.Burst(from, new Color(2.6f, 2.2f, 1.0f, 1f), 22, 0.18f, 3.5f, 0.3f);
+        }
+        FollowCam.Shake(0.3f);
     }
 
     /// 조준 방향이 몸 정면에서 몇 도 벌어져 있나 (리그 로컬 회전으로 바로 쓴다).

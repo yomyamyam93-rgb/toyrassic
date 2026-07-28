@@ -101,8 +101,12 @@ public class PlayerMove : MonoBehaviour
         InputDir = dir.sqrMagnitude > 1e-4f ? dir.normalized : Vector3.zero;
 
         float top = moveSpeed * PlayerLevel.MoveMul;   // 민첩 = 이동 속도 (아주 조금)
-        // 활을 당길수록 점점 느려짐 — 최대 당김 = fullDrawSpeed 배 (멈추진 않음)
-        if (bow != null && bow.IsDrawing)
+        // ★차징할수록 느려진다 (2026-07-28) — 활뿐 아니라 근접도 마찬가지다.
+        //   기다린 만큼 세지는 대신 그동안 발이 묶이는 것이 차징의 대가다.
+        //   그게 없으면 그냥 "항상 꽉 채워 쓰는" 게 정답이 되어 선택이 사라진다.
+        if (bow != null && bow.IsCharging)
+            top *= bow.ChargeMoveMul;
+        else if (bow != null && bow.IsDrawing)
             top *= Mathf.Lerp(1f, fullDrawSpeed, bow.Draw01);
         float gy = GroundAt(transform.position);
         bool wet = gy < waterY;

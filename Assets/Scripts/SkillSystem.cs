@@ -166,6 +166,7 @@ public class SkillSystem : MonoBehaviour
         for (int i = 0; i < cd.Length; i++) cd[i] = Mathf.Max(0f, cd[i] - Time.deltaTime);
         AdvanceDash();
         AdvanceRoll();
+        ChargePose();
         RefreshHUD();
 
         // 창·건축 모드에선 스킬 입력 잠금 (Q·E 가 건축 조작과 겹치지 않게)
@@ -547,8 +548,24 @@ public class SkillSystem : MonoBehaviour
     [Tooltip("젖히는 시간 (초)")] public float throwWindupTime = 0.1f;
     [Tooltip("앞으로 채는 시간 (초)")] public float throwSnapTime = 0.16f;
 
+    bool throwPosing;
+
+    // ★차징 준비 자세 (2026-07-28) — 근접은 차징 중에 클립이 안 돌아 자세가 안 잡힌다.
+    //   쥐고 있는 동안 몸을 뒤로 젖혀 '힘을 모으는' 것이 보여야 한다.
+    //   모션 저작 원칙 그대로 — 예비동작은 가려는 방향의 반대다.
+    [Tooltip("차징할 때 뒤로 젖히는 각도 (°)")] public float chargeLeanDeg = 14f;
+
+    void ChargePose()
+    {
+        if (blob == null || rollT > 0f || throwPosing) return;   // 구르기·던지기가 잡고 있으면 양보
+        bool ch = bow != null && bow.IsCharging;
+        float want = ch ? -chargeLeanDeg * bow.Charge01 : 0f;
+        blob.skillPitch = Mathf.Lerp(blob.skillPitch, want, 14f * Time.deltaTime);
+    }
+
     System.Collections.IEnumerator ThrowMotion()
     {
+        throwPosing = true;
         float t = 0f;
         while (t < 1f)   // ① 뒤로 젖힘
         {
@@ -566,6 +583,7 @@ public class SkillSystem : MonoBehaviour
             yield return null;
         }
         blob.skillPitch = 0f;
+        throwPosing = false;
     }
 
     [Tooltip("테두리가 얼마나 빛나나 (1 = 원래, 5 = 블룸으로 확 빛남)")]
@@ -1317,7 +1335,9 @@ public class SkillSystem : MonoBehaviour
         panel.anchoredPosition = new Vector2(0, bottom);
         panel.sizeDelta = new Vector2(4 * size + 3 * gap, size);
 
-        string[] keys = { "Q", "E", "Space", "R" };   // 무기 / 펫 / 유틸 / 합동 (F=상호작용)
+        BuildChargeGauge(cgo.transform, bottom + size + 16f);
+
+        string[] keys = { "Q", "E", "Space", "R" };   // 1번펫 / 2번펫 / 구르기 / 3번펫
         icons = new Image[4]; fills = new Image[4]; labels = new Text[4];
         iconImgs = new Image[4]; lockTexts = new Text[4];
         var round = St != null ? St.Round() : null;
@@ -1390,8 +1410,100 @@ public class SkillSystem : MonoBehaviour
         }
     }
 
+    // ── 차징 게이지 ────────────────────────────────────────────────────
+    //
+    // ★게이지가 없으면 차징은 '감으로 쥐고 있는 것' 이 된다 (2026-07-28).
+    //   얼마나 찼는지, 다음 단이 언제인지가 보여야 "조금만 더 쥐자" 는 판단이 생긴다.
+    //   눈금을 2·3단 자리에 박아 두어 언제 놓아야 하는지가 한눈에 보이게 한다.
+    RectTransform chargeRoot;
+    Image chargeFill;
+    Text chargeLabel;
+
+    void BuildChargeGauge(Transform parent, float bottom)
+    {
+        var round = St != null ? St.Round() : null;
+        const float w = 220f, h = 14f;
+
+        var root = new GameObject("ChargeGauge", typeof(RectTransform)).GetComponent<RectTransform>();
+        root.SetParent(parent, false);
+        root.anchorMin = root.anchorMax = root.pivot = new Vector2(0.5f, 0f);
+        root.anchoredPosition = new Vector2(0f, bottom);
+        root.sizeDelta = new Vector2(w, h);
+        var bg = root.gameObject.AddComponent<Image>();
+        bg.sprite = round; bg.type = Image.Type.Sliced;
+        bg.color = new Color(0.08f, 0.08f, 0.10f, 0.85f);
+
+        var fillRt = new GameObject("fill", typeof(RectTransform)).GetComponent<RectTransform>();
+        fillRt.SetParent(root, false);
+        fillRt.anchorMin = new Vector2(0f, 0f); fillRt.anchorMax = new Vector2(0f, 1f);
+        fillRt.pivot = new Vector2(0f, 0.5f);
+        fillRt.offsetMin = new Vector2(2f, 2f); fillRt.offsetMax = new Vector2(2f, -2f);
+        fillRt.sizeDelta = new Vector2(0f, fillRt.sizeDelta.y);
+        chargeFill = fillRt.gameObject.AddComponent<Image>();
+        chargeFill.sprite = round; chargeFill.type = Image.Type.Sliced;
+
+        // 2·3단 눈금 — 언제 놓아야 하는지가 보여야 한다
+        foreach (float at in new[] { 0f, 1f })
+        {
+            var tick = new GameObject("tick", typeof(RectTransform)).GetComponent<RectTransform>();
+            tick.SetParent(root, false);
+            tick.anchorMin = tick.anchorMax = tick.pivot = new Vector2(0f, 0.5f);
+            tick.sizeDelta = new Vector2(2f, h);
+            tickMarks.Add(tick);
+            var ti = tick.gameObject.AddComponent<Image>();
+            ti.color = new Color(1f, 1f, 1f, 0.55f);
+        }
+
+        var lrt = new GameObject("label", typeof(RectTransform)).GetComponent<RectTransform>();
+        lrt.SetParent(root, false);
+        lrt.anchorMin = lrt.anchorMax = lrt.pivot = new Vector2(0.5f, 0.5f);
+        lrt.sizeDelta = new Vector2(w, 20f);
+        lrt.anchoredPosition = new Vector2(0f, h + 9f);
+        chargeLabel = lrt.gameObject.AddComponent<Text>();
+        chargeLabel.font = font;
+        chargeLabel.fontSize = 13;
+        chargeLabel.fontStyle = FontStyle.Bold;
+        chargeLabel.alignment = TextAnchor.MiddleCenter;
+        chargeLabel.raycastTarget = false;
+
+        chargeRoot = root;
+        chargeRoot.gameObject.SetActive(false);
+    }
+
+    readonly System.Collections.Generic.List<RectTransform> tickMarks = new System.Collections.Generic.List<RectTransform>();
+
+    void RefreshChargeGauge()
+    {
+        if (chargeRoot == null) return;
+        bool on = bow != null && bow.IsCharging;
+        if (chargeRoot.gameObject.activeSelf != on) chargeRoot.gameObject.SetActive(on);
+        if (!on) return;
+
+        float w = chargeRoot.sizeDelta.x - 4f;
+        float k = bow.Charge01;
+        int lv = bow.ChargeLevel;
+
+        var frt = chargeFill.rectTransform;
+        frt.sizeDelta = new Vector2(w * k, frt.sizeDelta.y);
+        // 단계마다 색이 확 달라져야 눈으로 단을 읽는다 (숫자를 안 봐도)
+        chargeFill.color = lv >= 3 ? new Color(1f, 0.55f, 0.2f)
+                         : lv >= 2 ? new Color(1f, 0.9f, 0.35f)
+                                   : new Color(0.55f, 0.85f, 1f);
+
+        // 눈금 위치 — 인스펙터에서 단계 시간을 바꿔도 따라온다
+        float t2 = Mathf.Clamp01(bow.chargeStep2 / Mathf.Max(0.05f, bow.chargeStep3));
+        if (tickMarks.Count > 0 && tickMarks[0] != null)
+            tickMarks[0].anchoredPosition = new Vector2(2f + w * t2, 0f);
+        if (tickMarks.Count > 1 && tickMarks[1] != null)
+            tickMarks[1].anchoredPosition = new Vector2(2f + w, 0f);
+
+        chargeLabel.text = lv >= 3 ? "3단 — 고유기!" : lv >= 2 ? "2단" : "1단";
+        chargeLabel.color = chargeFill.color;
+    }
+
     void RefreshHUD()
     {
+        RefreshChargeGauge();
         if (fills == null) return;
         var accent = St != null ? St.accent : new Color(0.95f, 0.81f, 0.29f);
         var border = St != null ? St.slotBorder : new Color(0.71f, 0.64f, 0.53f);
