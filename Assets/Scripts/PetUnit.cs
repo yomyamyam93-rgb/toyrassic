@@ -249,7 +249,13 @@ public class PetUnit : MonoBehaviour
     // ★거리 값은 전부 '지금 세계의 m' 이다 (캐릭터 키 0.42m).
     //   인스펙터에서 눈으로 보며 맞추라고 노출했다 — WorldScale.K 를 또 곱하지 말 것.
     [Header("전투 — 값은 지금 세계 기준 m (캐릭터 키 0.42m)")]
-    [Tooltip("적을 알아채는 거리")] public float aggroRange = 3f;
+    [Tooltip("평소 적을 알아채는 거리 (어슬렁거릴 때)")] public float aggroRange = 3f;
+    // ★한 번 전투가 열리면 훨씬 멀리까지 본다 (2026-07-28).
+    //   평소 거리(3m)만 쓰면 50대50 에서 **뒷줄이 그냥 서 있는다** — 제 주변 3m 안에는
+    //   아군만 있고 적은 앞줄 너머에 있기 때문이다. 앞줄만 싸우고 뒤는 구경하는 그림이 됐다.
+    //   전투에 들어간 개체는 전장 전체를 보고 달려가야 '떼 싸움' 이 된다.
+    [Tooltip("전투에 들어간 뒤 적을 찾는 거리 — 전장 크기만큼 넓어야 한다")]
+    public float joinRange = 14f;
     [Tooltip("때릴 수 있는 거리")] public float reach = 0.5f;
     [Tooltip("공격 간격 (초)")] public float atkPeriod = 1.1f;
     // ★밸런스 기준점 (2026-07-28): 펫 대 펫이 **5초 안팎**에 정리되게 잡았다.
@@ -262,7 +268,9 @@ public class PetUnit : MonoBehaviour
     [Tooltip("플레이어를 얼마나 뒤로 미루나 — 거리에 이 값을 곱해 따진다 (1=동등, 크면 펫부터 노린다)")]
     public float avatarBias = 2.5f;
     [Tooltip("나를 때린 놈을 이 시간 동안 우선한다 (초)")] public float grudgeTime = 4f;
-    [Tooltip("처음 있던 자리에서 이보다 멀어지면 추격을 포기하고 돌아간다 (m)")] public float leashRange = 12f;
+    // ★리쉬는 참전 거리보다 넉넉해야 한다 (2026-07-28). 12m 로 뒀더니 전장을 가로질러
+    //   달려가다 리쉬에 걸려 도로 돌아섰다 — 참전하려다 포기하는 우스운 그림이 됐다.
+    [Tooltip("처음 있던 자리에서 이보다 멀어지면 추격을 포기하고 돌아간다 (m)")] public float leashRange = 26f;
 
     PetUnit target;
     float atkCd, retargetT;
@@ -319,15 +327,24 @@ public class PetUnit : MonoBehaviour
     ///   ② 펫들 사이에서는 '때린 놈 우선' 이 살아 있다 — 맞고도 무시하면 이상하다.
     ///   ③ 주변에 적 펫이 하나도 없을 때만 플레이어를 노린다. 단 아주 가까울 때만
     ///      (aggroRange ÷ avatarBias). 원거리에서 쏘는 주인공을 잡으러 달려오진 않는다.
+    /// 이미 전투에 들어간 상태인가 — 그러면 전장 전체를 본다.
+    /// ★내 펫은 싸우라고 내보낸 것이니 늘 참전 상태다. 야생은 무리가 깨어난 뒤부터.
+    ///   (야생이 평소에도 멀리까지 보면 벌판이 늘 시끄러워져 '평화로운 장면' 이 사라진다)
+    bool Engaged => team == Team.Player || packWoken || grudgeT > 0f;
+
+    float SearchRange => Engaged ? joinRange : aggroRange;
+
     PetUnit FindTarget()
     {
+        float range = SearchRange;
+
         // ① 적 펫 — 앙심 우선, 그다음 가장 가까운 놈
         if (grudgeT > 0f && lastAttacker != null && lastAttacker.Alive
             && !lastAttacker.isAvatar && lastAttacker.team != team
-            && Dist(lastAttacker.transform.position) <= aggroRange * 1.6f)
+            && Dist(lastAttacker.transform.position) <= range * 1.6f)
             return lastAttacker;
 
-        PetUnit best = null; float bd = aggroRange;
+        PetUnit best = null; float bd = range;
         foreach (var u in All)
         {
             if (u == null || !u.Alive || u.team == team || u.isAvatar) continue;
@@ -576,7 +593,7 @@ public class PetUnit : MonoBehaviour
                 target = null; returning = true;
                 ReturnStep(); return;
             }
-            if (target == null || !target.Alive || Dist(target.transform.position) > aggroRange * 1.6f)
+            if (target == null || !target.Alive || Dist(target.transform.position) > SearchRange * 1.6f)
                 target = FindTarget();
             if (target != null) WakePack();   // 야생: 처음 적을 본 순간 퐁! 하고 무리가 된다
         }
