@@ -244,20 +244,33 @@ public class PlayerGather : MonoBehaviour
     /// 부채꼴 판정: wp 가 스윙 범위 안인가
     /// ★거리는 '표면'까지로 잰다 — 덩치 큰 놈은 중심이 멀어도 몸이 닿으면 맞아야 한다.
     ///   각도도 덩치만큼 넓혀준다 (멀수록 같은 몸집이 좁은 각을 차지하므로).
+    /// ★진단용 (2026-07-29) — 왜 안 맞는지 숫자로 본다. 다 잡으면 끈다.
+    [Header("진단")]
+    [Tooltip("켜면 스윙할 때마다 제일 가까운 야생 펫과의 판정 숫자를 콘솔에 한 줄 찍는다")]
+    public bool debugSwing;
+    string lastReject;
+
     bool InArc(Vector3 wp, float extra)
     {
         var d = wp - SwingOrigin;
         // 높이 차가 크면 제외 — 예전엔 y 를 아예 버려서 절벽 위 아래가 서로 맞았다
-        if (Mathf.Abs(d.y) > swingHeightTolerance + extra) return false;
+        float dy = Mathf.Abs(d.y), dyMax = swingHeightTolerance + extra;
         d.y = 0f;
-        float dist = d.magnitude;
-        if (dist > SwingReach + extra) return false;
-        if (dist < 0.05f) return true;                  // 발밑은 무조건
+        float dist = d.magnitude, reach = SwingReach + extra;
         var a = pendingAim; a.y = 0f;
+        float ang = (dist >= 0.05f && a.sqrMagnitude >= 1e-4f) ? Vector3.Angle(a, d) : 0f;
+        float widen = (extra > 0.01f && dist >= 0.05f) ? Mathf.Asin(Mathf.Clamp01(extra / dist)) * Mathf.Rad2Deg : 0f;
+        float angMax = SwingSpread * 0.5f + widen;
+
+        if (debugSwing)
+            lastReject = $"높이차 {dy:F2}/{dyMax:F2} · 거리 {dist:F2}/{reach:F2} · 각도 {ang:F0}°/{angMax:F0}°";
+
+        if (dy > dyMax) return false;
+        if (dist > reach) return false;
+        if (dist < 0.05f) return true;                  // 발밑은 무조건
         if (a.sqrMagnitude < 1e-4f) return true;
         // 덩치가 차지하는 각도만큼 여유 (asin) — 원기둥 대 부채꼴의 정확한 판정
-        float widen = extra > 0.01f ? Mathf.Asin(Mathf.Clamp01(extra / dist)) * Mathf.Rad2Deg : 0f;
-        return Vector3.Angle(a, d) <= SwingSpread * 0.5f + widen;
+        return ang <= angMax;
     }
 
     /// 타격 구간 내내 매 프레임 훑는 부분 — 몹·구조물·깨어난 노드.
@@ -273,6 +286,27 @@ public class PlayerGather : MonoBehaviour
 
         // ① 야생 몹 — 전부
         float mobDmg = DmgMob;
+        if (debugSwing)
+        {   // 제일 가까운 야생 펫 하나만 재서 한 줄로 알려준다
+            PetUnit near = null; float best = float.MaxValue; int wild = 0;
+            foreach (var u in PetUnit.All)
+            {
+                if (u == null || !u.Alive || u.team != PetUnit.Team.Wild) continue;
+                wild++;
+                float dd = FlatDist(u.transform.position, SwingOrigin);
+                if (dd < best) { best = dd; near = u; }
+            }
+            if (near == null) Debug.Log($"[스윙진단] 야생 펫이 하나도 없다 (전체 {PetUnit.All.Count})");
+            else
+            {
+                lastReject = null;
+                bool ok = InArc(near.transform.position, near.body * 0.5f);
+                Debug.Log($"[스윙진단] 야생 {wild}마리 · 최근접 {near.name} → {(ok ? "맞음" : "빗나감")}\n" +
+                          $"  {lastReject}\n" +
+                          $"  SwingReach={SwingReach:F2} (swingRange x 무기배율 x 스킬배율) · " +
+                          $"SwingSpread={SwingSpread:F0}° · 높이허용={swingHeightTolerance:F2} · 펫몸={near.body:F2}");
+            }
+        }
         foreach (var u in PetUnit.All)
         {
             if (u == null || !u.Alive || u.team != PetUnit.Team.Wild) continue;

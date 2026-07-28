@@ -3311,6 +3311,7 @@ MonoBehaviour:
   bareRangeMul: 0.7
   bareAngleMul: 0.7
   swingHeightTolerance: 1.6
+  debugSwing: 1
 --- !u!114 &107336123
 MonoBehaviour:
   m_ObjectHideFlags: 0
