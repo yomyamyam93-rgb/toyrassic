@@ -46,8 +46,16 @@ public class PetMotion : MonoBehaviour
     {
         baseScale = transform.localScale;
         var r = GetComponentInChildren<Renderer>();
-        if (r != null) bodyH = Mathf.Max(0.5f, r.bounds.size.y);
-        sizeK = Mathf.Sqrt(bodyH / 1.5f);          // 1.5m 몸 = 기준 템포
+        // ★하한 0.5m 와 기준 1.5m 는 옛 스케일(캐릭터 4.2m) 값이다 (2026-07-28).
+        //   1/10 세계의 펫은 0.3m 남짓이라 ①하한에 걸려 전부 0.5 로 뭉개지고
+        //   ②그 0.5 를 1.5m 기준으로 재니 "아주 작은 꼬맹이" 로 판정돼
+        //   걸음 박자가 8.6Hz 까지 치솟았다(의도는 5.8Hz). 초당 8.6번 통통거리는 데다
+        //   MovePulse(착지 멈칫·공중 쭉)가 그 박자에 얹혀 앞으로 튕기는 스터터가 됐다.
+        //   = 모션이 조잡하고 빨라 보이던 원인.
+        //   기준 몸높이도 세계와 같이 줄인다. 그러면 0.3m 펫이 '기준보다 큰 놈'이 되어
+        //   원래 의도대로 묵직해진다.
+        if (r != null) bodyH = Mathf.Max(0.02f, r.bounds.size.y);
+        sizeK = Mathf.Sqrt(bodyH / (1.5f * WorldScale.K));   // 기준 몸높이 = 1.5m × 세계 배율
 
         // 벤드 준비: 긴축(오브젝트 공간)과 몸·외곽선 렌더러들
         var mf = GetComponent<MeshFilter>();

@@ -14,7 +14,12 @@ public class Hotbar : MonoBehaviour
 {
     public static Hotbar I;
 
-    readonly GearKind[] slots = new GearKind[10];
+    /// ★무기 칸은 3개다 (2026-07-28 조작 확정) — 1·2·3 으로 고른다.
+    ///   예전엔 10칸이었지만, 조작을 "1·2·3 무기 / Q 스킬 / E 펫 / R 투척" 으로 좁히면서
+    ///   칸이 많을 이유가 없어졌다. 칸이 적어야 뭘 눌러야 할지 헷갈리지 않는다.
+    public const int Slots = 3;
+
+    readonly GearKind[] slots = new GearKind[Slots];
     int selected;
 
     // ★탑승 칸 삭제 (2026-07-28) — 탑승 시스템 자체가 없어졌다. 10칸 전부 장비 칸이다.
@@ -36,11 +41,13 @@ public class Hotbar : MonoBehaviour
         menu = GetComponent<MenuUI>();
         font = (UIStyle.I != null && UIStyle.I.font != null) ? UIStyle.I.font : Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
         // ★맨손으로 시작 — 가진 장비만 핫바에 오른다 (활도 만들어야 쓴다)
+        // ★칸이 3개뿐이라 순서가 곧 우선순위다 (2026-07-28).
+        //   칼(근접) · 활(원거리) · 도끼(채집) 세 갈래를 먼저 채운다.
+        //   나머지(곡괭이·새총·둥지)는 Tab 인벤토리에서 끌어다 바꾼다.
+        if (Stock.HasSword) AutoAssign(GearKind.Sword);
         if (Stock.HasBow) AutoAssign(GearKind.Bow);
-        // 보유 장비 자동 배치 (테스트 지급·재시작 복원)
         if (Stock.HasAxe) AutoAssign(GearKind.Axe);
         if (Stock.HasPick) AutoAssign(GearKind.Pick);
-        if (Stock.HasSword) AutoAssign(GearKind.Sword);
         if (Stock.HasSling) AutoAssign(GearKind.Sling);
         if (Stock.HasIncubator) AutoAssign(GearKind.Incubator);
         Build();
@@ -65,13 +72,12 @@ public class Hotbar : MonoBehaviour
 #if ENABLE_INPUT_SYSTEM
         var k = Keyboard.current;
         if (k == null) return;
-        var keys = new[] { k.digit1Key, k.digit2Key, k.digit3Key, k.digit4Key, k.digit5Key,
-                           k.digit6Key, k.digit7Key, k.digit8Key, k.digit9Key, k.digit0Key };
-        for (int i = 0; i < 10; i++)
+        var keys = new[] { k.digit1Key, k.digit2Key, k.digit3Key };
+        for (int i = 0; i < Slots; i++)
             if (keys[i].wasPressedThisFrame) { Select(i); break; }
 #else
-        for (int i = 0; i < 10; i++)
-            if (Input.GetKeyDown(KeyCode.Alpha1 + (i == 9 ? -1 : i)) && i < 9) { Select(i); break; }
+        for (int i = 0; i < Slots; i++)
+            if (Input.GetKeyDown(KeyCode.Alpha1 + i)) { Select(i); break; }
 #endif
     }
 
@@ -94,14 +100,14 @@ public class Hotbar : MonoBehaviour
     void Apply(int i)
     {
         queuedSelect = -1;
-        selected = Mathf.Clamp(i, 0, 9);
+        selected = Mathf.Clamp(i, 0, Slots - 1);
         RefreshSel();
     }
 
     /// 드래그로 장착 — 같은 장비는 한 칸만
     public void Assign(int slot, GearKind kind)
     {
-        for (int i = 0; i < 10; i++) if (slots[i] == kind) slots[i] = GearKind.None;
+        for (int i = 0; i < Slots; i++) if (slots[i] == kind) slots[i] = GearKind.None;
         slots[slot] = kind;
         RefreshAll();
     }
@@ -109,7 +115,7 @@ public class Hotbar : MonoBehaviour
     /// 핫바 안 이동 — 목적지에 다른 장비가 있으면 서로 자리 교환
     public void Move(int from, int to, GearKind kind)
     {
-        if (to < 0 || to > 9) return;
+        if (to < 0 || to >= Slots) return;
         if (from == to) return;
         if (from >= 0)
         {
@@ -124,18 +130,18 @@ public class Hotbar : MonoBehaviour
     /// 장착 해제 (칸 비움) — 장비는 인벤토리에 그대로 있음
     public void Clear(int i)
     {
-        if (i < 0 || i > 9) return;
+        if (i < 0 || i >= Slots) return;
         slots[i] = GearKind.None;
         RefreshAll();
     }
 
-    public GearKind SlotKind(int i) => i >= 0 && i < 10 ? slots[i] : GearKind.None;
+    public GearKind SlotKind(int i) => i >= 0 && i < Slots ? slots[i] : GearKind.None;
 
     /// 제작 직후 빈 칸에 자동 장착
     public void AutoAssign(GearKind kind)
     {
-        for (int i = 0; i < 10; i++) if (slots[i] == kind) return;
-        for (int i = 0; i < 10; i++)
+        for (int i = 0; i < Slots; i++) if (slots[i] == kind) return;
+        for (int i = 0; i < Slots; i++)
             if (slots[i] == GearKind.None) { slots[i] = kind; RefreshAll(); return; }
     }
 
@@ -156,7 +162,7 @@ public class Hotbar : MonoBehaviour
     /// 특정 장비를 핫바에서 제거 (설치 소모 등)
     public void RemoveKind(GearKind kind)
     {
-        for (int i = 0; i < 10; i++) if (slots[i] == kind) slots[i] = GearKind.None;
+        for (int i = 0; i < Slots; i++) if (slots[i] == kind) slots[i] = GearKind.None;
         RefreshAll();
     }
 
@@ -179,12 +185,12 @@ public class Hotbar : MonoBehaviour
         panel.SetParent(cgo.transform, false);
         panel.anchorMin = panel.anchorMax = panel.pivot = new Vector2(0.5f, 0f);
         panel.anchoredPosition = new Vector2(0, St != null ? St.hotbarBottom : 16f);
-        panel.sizeDelta = new Vector2(10 * ss + 9 * gap, ss);
+        panel.sizeDelta = new Vector2(Slots * ss + (Slots - 1) * gap, ss);
 
-        frameImgs = new Image[10]; iconImgs = new Image[10];
-        fallbacks = new Text[10]; numLabels = new Text[10];
-        slotDrags = new GearDrag[10];
-        for (int i = 0; i < 10; i++)
+        frameImgs = new Image[Slots]; iconImgs = new Image[Slots];
+        fallbacks = new Text[Slots]; numLabels = new Text[Slots];
+        slotDrags = new GearDrag[Slots];
+        for (int i = 0; i < Slots; i++)
         {
             int idx = i;
             var srt = new GameObject("hslot" + i, typeof(RectTransform)).GetComponent<RectTransform>();
@@ -228,7 +234,7 @@ public class Hotbar : MonoBehaviour
             numLabels[i] = MakeText(inner, 12, true, TextAnchor.UpperLeft);
             StretchRT(numLabels[i].rectTransform);
             numLabels[i].rectTransform.offsetMin = new Vector2(4, 0);
-            numLabels[i].text = i == 9 ? "0" : (i + 1).ToString();
+            numLabels[i].text = (i + 1).ToString();
             numLabels[i].raycastTarget = false;
         }
         RefreshSel();
@@ -254,7 +260,7 @@ public class Hotbar : MonoBehaviour
     void RefreshAll()
     {
         if (iconImgs == null) return;
-        for (int i = 0; i < 10; i++)
+        for (int i = 0; i < Slots; i++)
         {
             var sp = KindSprite(slots[i]);
             iconImgs[i].enabled = sp != null;
@@ -276,7 +282,7 @@ public class Hotbar : MonoBehaviour
         if (frameImgs == null) return;
         var sel = St != null ? St.accent : new Color(0.95f, 0.81f, 0.29f);
         var nor = St != null ? St.slotBorder : new Color(0.71f, 0.64f, 0.53f);
-        for (int i = 0; i < 10; i++)
+        for (int i = 0; i < Slots; i++)
             frameImgs[i].color = i == selected ? sel : nor;
     }
 }
@@ -341,7 +347,7 @@ public class GearDrag : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndDrag
         if (slot != null)
         {   // 핫바 칸에 놓음 — 장착 or 이동(교환)
             Hotbar.I.Move(fromHotbar, slot.index, kind);
-            SquadHUD.Toast($"슬롯 {(slot.index == 9 ? 0 : slot.index + 1)}번에 장착!");
+            SquadHUD.Toast($"슬롯 {(slot.index + 1)}번에 장착!");
         }
         else if (fromHotbar >= 0)
         {   // 핫바 밖에 놓음 — 장착 해제 (장비는 인벤토리에 그대로)
@@ -414,7 +420,7 @@ public class InvDrag : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndDragH
             if (kind != GearKind.None && Hotbar.I != null)
             {
                 Hotbar.I.Assign(hb.index, kind);
-                SquadHUD.Toast($"슬롯 {(hb.index == 9 ? 0 : hb.index + 1)}번에 장착!");
+                SquadHUD.Toast($"슬롯 {(hb.index + 1)}번에 장착!");
             }
         }
         else

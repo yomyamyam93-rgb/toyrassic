@@ -30,6 +30,9 @@ public class PetUnit : MonoBehaviour
     public static PetUnit Avatar;
     [Tooltip("건물(부화기 등) — AI·모션 없이 서서 맞기만 함")]
     public bool isStructure = false;
+    /// R 투척으로 불려 나온 분신 — 본체가 아니다. E 펫 선택 목록에 안 뜨고,
+    /// 다시 던지면 먼저 나와 있던 분신들이 걷힌다 (무한 누적 방지).
+    [HideInInspector] public bool summoned;
     [Tooltip("목표 크기(최대 변, m). 0 = 티어 기본값 사용. 인스펙터 슬라이더가 조절")]
     public float sizeM = 0f;
     public int level = 1;

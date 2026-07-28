@@ -91,9 +91,18 @@ public class SkillSystem : MonoBehaviour
                      : gear == GearKind.Sword ? ("스킬_연속베기", "연속 베기", true)
                      : gear == GearKind.Axe ? ("스킬_회전베기", "회전 베기", true)
                      : ("스킬_관통사격", "무기 필요", false);
-            case 1: return ("스킬_소집", "펫 선택 (준비 중)", false);      // E
+            case 1:
+                {   // E — 지금 고른 펫. 이름을 그대로 띄워서 뭘 던지는지 보이게 한다
+                    var p = PetCommand.Selected;
+                    int n = PetCommand.Choices.Count;
+                    return ("스킬_소집", p != null ? $"{p.name}  ({n}종)" : "펫 없음", p != null);
+                }
             case 2: return ("스킬_구르기", "구르기", true);                 // Space
-            default: return ("스킬_돌격", "대규모 투척 (준비 중)", false);  // R
+            default:
+                {   // R — 대규모 투척
+                    var p = PetCommand.Selected;
+                    return ("스킬_돌격", p != null ? $"투척 {throwCount}마리" : "던질 펫 없음", p != null);
+                }
         }
     }
 
@@ -162,17 +171,137 @@ public class SkillSystem : MonoBehaviour
 #if ENABLE_INPUT_SYSTEM
         var k = Keyboard.current;
         if (k == null) return;
-        // ★키 배치 — Q 무기 스킬 / Space 구르기 / F 줍기
-        //   E·R(소집·돌격)은 펫 행동과 함께 삭제됨 (2026-07-28) — 눌러도 아무 일 없다
-        aiming = k.qKey.isPressed ? 0 : k.spaceKey.isPressed ? 2 : -1;
+        // ★키 배치 (2026-07-28 확정) — 1·2·3 무기 / 좌클릭 공격 / Q 무기 스킬 /
+        //   E 펫 선택 / R 대규모 투척 / Space 구르기 / F 줍기
+        aiming = k.qKey.isPressed ? 0 : k.rKey.isPressed ? 3 : k.spaceKey.isPressed ? 2 : -1;
         UpdatePreview();
         if (k.qKey.wasReleasedThisFrame) TryQ();        // 무기 스킬
         if (k.spaceKey.wasReleasedThisFrame) TryE();    // 구르기
+        if (k.eKey.wasPressedThisFrame) PetCommand.Next();   // 펫 선택 — 누르는 즉시 넘어간다
+        if (k.rKey.wasReleasedThisFrame) TryThrow();    // 대규모 투척 (조준하고 놓으면 날아간다)
 #endif
     }
 
     bool Ready(int i) => cd[i] <= 0f;
     void Use(int i, float cool) { cd[i] = cool; cdMax[i] = cool; }
+
+    // ── R: 대규모 투척 — 고른 펫을 던져 착탄 지점에 무리로 소환한다 ──────────
+    //
+    // ★펫은 소모품이 아니다 (2026-07-28 사용자). 던진다고 사라지지 않는다.
+    //   던지기는 '배치' 수단이고, 쿨타임이 돌면 다시 던진다. 그래서 부화로 얻은
+    //   한 마리가 계속 내 것으로 남고, 애착·육성이 그대로 산다.
+    [Header("R — 대규모 투척 (펫 소환)")]
+    [Tooltip("다시 던질 수 있을 때까지 (초)")] public float throwCooldown = 12f;
+    [Tooltip("던질 수 있는 최대 거리 (m) — 지금 세계 기준")] public float throwRange = 8f;
+    [Tooltip("착탄 지점에 몇 마리가 나오나")] public int throwCount = 10;
+    [Tooltip("나온 무리가 퍼지는 반경 (m)")] public float throwSpread = 1.4f;
+    [Tooltip("포물선을 나는 시간 (초)")] public float throwFlyTime = 0.55f;
+    [Tooltip("포물선 최고 높이 (m)")] public float throwArc = 1.6f;
+
+    void TryThrow()
+    {
+        if (!Ready(3)) return;
+        var pet = PetCommand.Selected;
+        if (pet == null) { SquadHUD.Toast("던질 펫이 없다 — E 로 고른다"); return; }
+
+        var spot = ThrowSpot();
+        Use(3, throwCooldown);
+        StartCoroutine(ThrowFlight(pet, spot));
+    }
+
+    /// 던질 지점 — 마우스가 가리키는 곳, 사거리 안으로 잘라서
+    Vector3 ThrowSpot()
+    {
+        var spot = AimSpot();
+        var d = spot - transform.position; d.y = 0f;
+        if (d.magnitude > throwRange) spot = transform.position + d.normalized * throwRange;
+        return Ground(spot);
+    }
+
+    Vector3 Ground(Vector3 p)
+    {
+        var t = Terrain.activeTerrain;
+        if (t != null) p.y = t.SampleHeight(p) + t.transform.position.y;
+        return p;
+    }
+
+    /// 날아가는 알 → 착탄 쿵 → 그 자리에서 무리가 투웅 하고 솟는다
+    System.Collections.IEnumerator ThrowFlight(PetUnit pet, Vector3 spot)
+    {
+        var from = transform.position + Vector3.up * 0.25f * WorldScale.K;
+
+        // 날아가는 덩어리 — 알 하나가 포물선을 그린다
+        var ball = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+        Destroy(ball.GetComponent<Collider>());
+        ball.name = "throw_" + pet.name;
+        ball.transform.SetParent(SceneBuckets.Fx);
+        ball.transform.localScale = Vector3.one * 0.22f * WorldScale.K;
+        var bm = ball.GetComponent<MeshRenderer>();
+        bm.material = new Material(Shader.Find("Universal Render Pipeline/Lit"));
+        bm.material.color = new Color(1.5f, 1.3f, 0.7f);
+        bm.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+
+        float t = 0f, dur = Mathf.Max(0.05f, throwFlyTime);
+        while (t < 1f)
+        {
+            t += Time.deltaTime / dur;
+            float k = Mathf.Clamp01(t);
+            var p = Vector3.Lerp(from, spot, k);
+            p.y += Mathf.Sin(k * Mathf.PI) * throwArc;          // 포물선
+            ball.transform.position = p;
+            ball.transform.Rotate(720f * Time.deltaTime, 480f * Time.deltaTime, 0f);
+            yield return null;
+        }
+        Destroy(ball);
+
+        // ── 착탄: 쿵! ──
+        FX.Burst(spot, new Color(0.85f, 0.78f, 0.62f, 0.95f), 34, 0.14f * WorldScale.K * 10f, 6f * WorldScale.K, 0.6f);
+        FX.Sweep(spot, 0f, 360f, throwSpread, new Color(1.8f, 1.5f, 0.7f, 0.8f), 0.45f, 0.3f);
+        FollowCam.Shake(0.3f);
+        yield return new WaitForSeconds(0.08f);   // 쿵 하고 아주 잠깐 뜸 들인 뒤 솟는다
+
+        // ── 투웅! 무리가 솟는다 ──
+        SummonPack(pet, spot);
+    }
+
+    /// 고른 펫을 본으로 삼아 착탄 지점에 여러 마리를 세운다.
+    /// ★원본은 그대로 둔다 — 소모되지 않는다. 나오는 것은 '분신'이고,
+    ///   쿨타임이 돌면 같은 펫을 다시 던진다.
+    void SummonPack(PetUnit pet, Vector3 spot)
+    {
+        // ★먼저 나와 있던 분신을 걷는다 (2026-07-28). 안 그러면 12초마다 10마리씩
+        //   영원히 쌓여서 50대50 은커녕 500마리가 된다. 같은 부대를 다시 배치하는 개념이다.
+        for (int i = PetUnit.All.Count - 1; i >= 0; i--)
+        {
+            var old = PetUnit.All[i];
+            if (old == null || !old.summoned || old.team != PetUnit.Team.Player) continue;
+            FX.Burst(old.transform.position + Vector3.up * old.body * 0.3f,
+                     new Color(0.6f, 1.2f, 1.6f, 0.7f), 6, old.body * 0.05f, old.body * 0.4f, 0.3f);
+            Destroy(old.gameObject);
+        }
+
+        int n = Mathf.Max(1, throwCount);
+        for (int i = 0; i < n; i++)
+        {
+            float a = (i / (float)n) * Mathf.PI * 2f;
+            float rr = throwSpread * (0.35f + 0.65f * (i % 3) / 2f);   // 안팎으로 흩어지게
+            var pos = Ground(spot + new Vector3(Mathf.Cos(a), 0f, Mathf.Sin(a)) * rr);
+
+            var g = Instantiate(pet.gameObject, pos, Quaternion.Euler(0f, Random.Range(0f, 360f), 0f));
+            g.name = pet.name;
+            var u = g.GetComponent<PetUnit>();
+            if (u != null)
+            {
+                u.team = PetUnit.Team.Player;
+                u.packSize = 1;          // 분신은 스스로 안 불어난다
+                u.collectible = false;
+                u.summoned = true;       // 목록(E 선택)에 안 뜨게 — 본체만 고른다
+            }
+            FX.Burst(pos + Vector3.up * pet.body * 0.3f,
+                     new Color(0.6f, 1.5f, 1.9f, 0.95f), 12, pet.body * 0.06f, pet.body * 0.6f, 0.4f);
+        }
+        SquadHUD.Toast($"{pet.name} {n}마리 소환!");
+    }
 
     // ── Q: 무기 스킬 ──
     void TryQ()
@@ -439,18 +568,45 @@ public class SkillSystem : MonoBehaviour
                 // ★실제 판정과 똑같은 영역을 그대로 보여준다 (QArea 한 곳에서 나온다)
                 else QArea(gear, dir, out circleAt, out circleR, out circleIn);
                 break;
-            // 소집·돌격(1·3)은 삭제됨 — 조준 자체가 안 걸리므로 여기 올 일이 없다
+            case 3:
+                // ★R 투척 — 어디에 떨어져 몇 명이 나오는지 던지기 전에 보여준다.
+                //   착탄 반경 = 실제로 무리가 퍼지는 반경 그대로 (보이는 것과 나오는 것이 같게)
+                circleAt = ThrowSpot();
+                circleR = throwSpread;
+                break;
             default: break;   // 구르기 등 — 영역 표시 없음
         }
 
-        // 라인 (경로형)
-        previewLine.enabled = lineLen > 0f;
-        if (lineLen > 0f)
+        // ★R 투척 — 곧은 선이 아니라 실제로 날아갈 포물선을 그린다 (2026-07-28).
+        //   던지기 전에 "저기로 이렇게 날아간다"가 보여야 조준이 된다.
+        if (aiming == 3)
         {
-            var from = body + Vector3.up * 0.6f * WorldScale.K;
-            previewLine.startWidth = lineWidth; previewLine.endWidth = lineWidth * 0.7f;
-            previewLine.SetPosition(0, from);
-            previewLine.SetPosition(1, from + dir * lineLen);
+            var from = body + Vector3.up * 0.25f * WorldScale.K;
+            previewLine.enabled = true;
+            previewLine.startWidth = 0.35f * WorldScale.K;
+            previewLine.endWidth = 0.12f * WorldScale.K;
+            const int seg = 16;
+            previewLine.positionCount = seg + 1;
+            for (int i = 0; i <= seg; i++)
+            {
+                float kk = i / (float)seg;
+                var p = Vector3.Lerp(from, circleAt, kk);
+                p.y += Mathf.Sin(kk * Mathf.PI) * throwArc;
+                previewLine.SetPosition(i, p);
+            }
+        }
+        else
+        {
+            // 라인 (경로형)
+            if (previewLine.positionCount != 2) previewLine.positionCount = 2;
+            previewLine.enabled = lineLen > 0f;
+            if (lineLen > 0f)
+            {
+                var from = body + Vector3.up * 0.6f * WorldScale.K;
+                previewLine.startWidth = lineWidth; previewLine.endWidth = lineWidth * 0.7f;
+                previewLine.SetPosition(0, from);
+                previewLine.SetPosition(1, from + dir * lineLen);
+            }
         }
         // 원 (광역형)
         previewCircle.gameObject.SetActive(circleR > 0f);
