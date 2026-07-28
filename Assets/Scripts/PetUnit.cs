@@ -38,14 +38,30 @@ public class PetUnit : MonoBehaviour
     public int level = 1;
     public float xp;
 
-    public float XpNeed => 25f + 20f * (level - 1);   // 레벨업 필요 경험치 (완만 증가)
+    // ── 경험치 곡선 (2026-07-29 사용자) ──────────────────────────────
+    //
+    // ★"레벨업이 너무 쉽게 되진 않았으면, 고렙으로 갈수록 빡세지는 건 당연"
+    //
+    //   예전엔 `25 + 20*(lv-1)` 직선이라 100렙이 1렙의 80배밖에 안 됐다.
+    //   직선은 고렙이 '조금 더 걸리는' 정도지 **빡세지지 않는다.**
+    //   지수를 쓰면 후반이 진짜 벽이 된다 (1렙 50 → 100렙 10,095, 200배).
+    //
+    //   야생 격파 한 번이 18~72 경험치이므로 대략 —
+    //     20렙 ≈ 150마리 · 50렙 ≈ 1,550마리 · 100렙 ≈ 9,500마리
+    //   초반은 금방 오르고 100렙은 끝까지 남는 목표가 된다.
+    public const float XpBase = 45f;    // 어느 레벨이든 깔리는 몫 (초반이 너무 쉽지 않게)
+    public const float XpGrow = 5f;     // 지수 항의 계수
+    public const float XpExp = 1.65f;   // 클수록 후반이 가팔라진다
 
-    /// 남은 스탯 포인트 — 레벨업하면 쌓이고, 스탯 창에서 직접 찍는다
+    public float XpNeed => XpNeedAt(level);
+
+    /// ★펫은 포인트를 안 쓴다 (2026-07-29) — 성격대로 저절로 오른다 (ApplyGrowth).
+    ///   필드는 남겨 둔다: 캐릭터(아바타) 스탯 창이 아직 이걸 읽는다.
     public int points;
-    [Tooltip("레벨업마다 주는 포인트")] public const int PointsPerLevel = 5;
+    public const int PointsPerLevel = 0;
 
     /// 레벨업 필요 경험치 — 레벨만 알면 되므로 정적으로도 쓴다 (종 단위 계산)
-    public static float XpNeedAt(int lv) => 25f + 20f * (lv - 1);
+    public static float XpNeedAt(int lv) => XpBase + XpGrow * Mathf.Pow(Mathf.Max(1, lv), XpExp);
 
     /// ★경험치는 **개체가 아니라 종(species)이 받는다** (2026-07-29 사용자).
     ///
@@ -117,10 +133,8 @@ public class PetUnit : MonoBehaviour
     {
         if (level >= MaxLevel) { xp = 0f; return; }
         level++;
-        // ★자동으로 세지지 않는다 — 포인트를 주고 직접 찍게 한다.
-        //   (자동 배수는 종 특성을 덮어써서 전부 비슷해진다)
-        points += PointsPerLevel;
-        maxHp = vit * 10f; hp = maxHp;                      // 레벨업 = 풀회복
+        ApplyGrowth();                                      // 성격대로 저절로 오른다
+        hp = maxHp;                                         // 레벨업 = 풀회복
         if (fx)
         {
             SquadHUD.Toast($"{name}  레벨 {level}!  스탯 포인트 {points}점 (Tab → 펫)");
@@ -142,11 +156,55 @@ public class PetUnit : MonoBehaviour
     /// 펫 교체 시 레벨 이어받기 — 보관함에서 꺼낼 때
     public void ApplyLevels(int targetLevel)
     {
-        int add = Mathf.Clamp(targetLevel, 1, MaxLevel) - level;
-        if (add <= 0) return;
-        level += add;
-        points += add * PointsPerLevel;
-        maxHp = vit * 10f; hp = maxHp;
+        int want = Mathf.Clamp(targetLevel, 1, MaxLevel);
+        if (want <= level) return;
+        level = want;
+        ApplyGrowth();
+        hp = maxHp;
+    }
+
+    // ── 성격대로 저절로 오른다 (2026-07-29 사용자) ─────────────────────
+    //
+    // ★"펫의 능력치 상승은 각 펫의 성격에 맞게 알아서 오르는 쪽으로 가자"
+    //   "5포인트 고정 아니고 밸런스 확인해서 정해줘"
+    //
+    // ★포인트를 직접 찍는 방식을 걷어냈다. 펫이 10종씩 되면 찍는 것 자체가 일이 되고,
+    //   무엇보다 **잘 찍은 펫과 못 찍은 펫**이 갈려서 "어떤 종이 센가" 가 흐려진다.
+    //   종의 성격이 곧 성장 방향이면, 고를 때 이미 판단이 끝난다.
+    //
+    // ★배수 (사용자: "성능차이가 나겠지만 너무 많이 나진 않았음")
+    //   레벨당 복리로 붙어서 100렙에 —
+    //     주력  +1.1%/렙 → 2.95배      (그 종이 뾰족한 스탯)
+    //     보조  +0.7%/렙 → 2.00배
+    //     약점  +0.4%/렙 → 1.48배      (끝까지 약점으로 남는다)
+    //   야생이 100렙에 4배인 것보다 완만하다. 성격은 끝까지 유지된다.
+    public const float GrowMain = 0.011f, GrowMid = 0.007f, GrowWeak = 0.004f;
+
+    /// 성격(공격 패턴)별 성장 방향 — 뾰족한 것이 더 뾰족해진다
+    void GrowthRates(out float rStr, out float rAgi, out float rVit)
+    {
+        switch (pattern)
+        {
+            case Pattern.Bite:                                   // 암살자 — 빠르고 자주
+                rStr = GrowMid; rAgi = GrowMain; rVit = GrowWeak; break;
+            case Pattern.Charge:                                 // 돌격병 — 한 방이 세다
+                rStr = GrowMain; rAgi = GrowMid; rVit = GrowWeak; break;
+            case Pattern.Sweep:                                  // 거인 — 힘으로 쓸어버린다
+                rStr = GrowMain; rAgi = GrowWeak; rVit = GrowMid; break;
+            default:                                             // 방패(Slam) — 버틴다
+                rStr = GrowMid; rAgi = GrowWeak; rVit = GrowMain; break;
+        }
+    }
+
+    void ApplyGrowth()
+    {
+        EnsureBase();
+        GrowthRates(out float rs, out float ra, out float rv);
+        float n = Mathf.Max(0, level - 1);
+        str = baseStr * Mathf.Pow(1f + rs, n);
+        agi = baseAgi * Mathf.Pow(1f + ra, n);
+        vit = baseVit * Mathf.Pow(1f + rv, n);
+        maxHp = vit * 10f;
     }
 
     [Header("코어 스탯 (코어가 전부 정함)")]
