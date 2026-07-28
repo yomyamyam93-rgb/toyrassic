@@ -254,6 +254,9 @@ public static class FX
     /// 월드 텍스트용 폰트 (체력바 레벨 등도 같은 것을 쓴다)
     public static TMPro.TMP_FontAsset WorldFont() => PopFont();
 
+    /// ★피해·획득 숫자 크기 배수 — 여기 하나만 만지면 전부 같이 커진다 (2026-07-29)
+    public static float popSizeMul = 6.5f;
+
     static TMPro.TMP_FontAsset PopFont()
     {
         if (popFontTried) return popFont;   // 1회만 시도 — 피격마다 재시도해서 렉 걸리던 것 방지
@@ -354,8 +357,12 @@ public static class FX
         t.text = text;
         // ★1/10 스케일에 맞춰 글자 크기를 줄인다 (2026-07-28). 월드 스페이스 텍스트라
         //   캐릭터가 작아진 만큼 상대적으로 거대해 보였다. 아이템 획득(Item)이 특히 컸다.
+        // ★크기 (2026-07-29 사용자 — "피격 데미지랑 루팅 텍스트가 너무 작다").
+        //   TMP fontSize 는 폰트 포인트 기준이라 월드 크기가 직관과 다르다.
+        //   실측 fontSize 1 ≈ 0.074 월드단위 → 예전 값(치명 3.3)은 0.24m, 캐릭터(0.42m)의
+        //   절반밖에 안 됐다. 배수를 3 → 6.5 로 올려 캐릭터 키를 넘게 한다.
         t.fontSize = (style == PopStyle.Crit ? 11f : style == PopStyle.Hit ? 9f : 7.5f)
-                   * WorldScale.K * 3f;
+                   * WorldScale.K * popSizeMul;
         t.alignment = TMPro.TextAlignmentOptions.Center;
         t.fontStyle = TMPro.FontStyles.Bold;
         // 스타일별 그라디언트 (위→아래)

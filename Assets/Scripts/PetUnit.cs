@@ -1051,6 +1051,8 @@ public class PetUnit : MonoBehaviour
     [Header("체력바")]
     [Tooltip("머리 위로 띄우는 간격 — 붙어 보이면 올리고, 너무 뜨면 내린다")]
     public float barGap = 5f;
+    [Tooltip("바 왼쪽 레벨 숫자 크기 — 5.7 이면 바 높이와 비슷하다")]
+    public float barLevelSize = 5.5f;
     void MakeBar(Renderer r)
     {
         ghostHp = hp;
@@ -1113,7 +1115,10 @@ public class PetUnit : MonoBehaviour
         if (fnt != null) barLevel.font = fnt;
         // ★숫자만, 바의 아예 왼쪽 끝, 검정 테두리 (2026-07-29 사용자).
         //   "Lv." 를 빼서 체력 숫자와 안 겹치게 하고, 테두리로 어떤 배경에서도 읽히게 한다.
-        barLevel.fontSize = 0.5f;                     // barRoot 로컬 단위 (바 높이 0.42)
+        // ★TMP 의 fontSize 는 월드 단위가 아니라 폰트 포인트 기준이다 (2026-07-29).
+        //   0.5 로 잡았더니 글자 높이가 0.037 — 바 높이(0.42)의 1/11 이라 있어도 안 보였다.
+        //   실측: fontSize 1 당 약 0.074 단위. 바 높이만큼 하려면 5.7 쯤 필요하다.
+        barLevel.fontSize = barLevelSize;
         barLevel.alignment = TMPro.TextAlignmentOptions.Center;
         barLevel.fontStyle = TMPro.FontStyles.Bold;
         barLevel.color = Color.white;
