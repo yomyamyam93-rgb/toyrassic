@@ -242,6 +242,15 @@ public class PlayerBow : MonoBehaviour
 
     /// 지금 재생 중인 조준 상태 이름 — 바뀔 때만 Play 한다 (매 프레임 되감기 방지)
     string aimStateNow;
+
+    /// 이름으로 자손 전체에서 찾는다 — 사람이 계층을 옮겨도 코드가 따라가게
+    static Transform FindDeep(Transform root, string name)
+    {
+        if (root == null) return null;
+        foreach (var t in root.GetComponentsInChildren<Transform>(true))
+            if (t != root && t.name == name) return t;
+        return null;
+    }
     LineRenderer bowString, aimLine;
     Transform nockArrow;
     float cd, drawT, aimLen; bool drawing;
@@ -766,12 +775,16 @@ public class PlayerBow : MonoBehaviour
         hasRest = handL != null && handR != null;
 
         // 활 — 뭉뚝한 튜브 아치 메시 (외곽선 가능). 껍데기는 씬에, 안쪽은 런타임.
-        bowRoot = rigT.Find("Bow");
+        // ★어디에 있든 찾는다 (2026-07-29 사용자가 활을 왼손 밑으로 옮김).
+        //   예전엔 HandRig 바로 밑만 봤다. 사용자가 HandRig/HandL/Bow 로 옮기자
+        //   못 찾고 **빈 Bow 를 새로 만들어**, 진짜 활은 왼손에 있는데 시위와 화살은
+        //   엉뚱한 데 생겼다. 계층을 사람이 자유롭게 짜도 코드가 따라가야 한다.
+        bowRoot = FindDeep(rigT, "Bow");
         if (bowRoot == null)
         {
-            Debug.LogError("[PlayerBow] 씬에 HandRig/Bow 가 없다 — 활이 안 보인다");
+            Debug.LogError("[PlayerBow] 리그 안에 Bow 가 없다 — 활이 안 보인다");
             bowRoot = new GameObject("Bow").transform;
-            bowRoot.SetParent(rigT, false);
+            bowRoot.SetParent(handL != null ? handL : rigT, false);
         }
         if (rig != null) rig.BowRoot = bowRoot;
 
