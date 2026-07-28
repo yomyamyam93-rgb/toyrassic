@@ -39,38 +39,23 @@ public class SkillSystem : MonoBehaviour
     [Tooltip("파고드는 시간(짧을수록 '싹' 하고 끊긴다) · 초승달이 지나가는 시간")]
     public float qComboLunge = 0.07f, qComboSlashTime = 0.13f;
 
-    [Header("F — 펫 공격기 (제자리 강공격, 펫 특성별)")]
-    public float wCooldown = 9f;
-    [Tooltip("물기형: 연속 물어뜯기 — 전방 좁게 3연타")] public float biteDamage = 22f, biteRange = 7f, biteAngle = 70f;
-    [Tooltip("돌진형: 뿔 올려치기 — 전방 부채꼴 + 띄우기")] public float goreDamage = 55f, goreRange = 9f, goreAngle = 110f;
-    [Tooltip("내려찍기형: 발구르기 — 주변 원형 광역")] public float stompDamage = 60f, stompRadius = 11f;
-    [Tooltip("휩쓸기형: 꼬리 회전 — 360° 광역 넉백")] public float tailDamage = 40f, tailRadius = 13f, tailKnock = 6f;
-
     [Header("Space — 구르기 (기본 회피, 항상 사용 가능)")]
     public float rollCooldown = 3f;
     public float rollDist = 11f, rollTime = 0.26f;
 
-    [Header("E — 펫 이동기 (펫 특성별)")]
-    public float eCooldown = 6f;
-    [Tooltip("물기형(늑대·호랑이): 그림자 도약 — 길게 파고들기")] public float leapDist = 19f, leapTime = 0.3f;
-    [Tooltip("돌진형(트리케라): 박치기 밀치기 — 적을 밀며 전진")] public float bashDist = 14f, bashTime = 0.4f;
-    public float bashDamage = 18f, bashKnock = 6f;
-    [Tooltip("내려찍기형(티라노): 도약 — 포물선으로 뛰어 착지 충격")] public float hopDist = 15f, hopTime = 0.5f;
-    public float hopDamage = 30f, hopRadius = 7f;
-    [Tooltip("휩쓸기형(브론토): 돌파 — 묵직하게 밀고 나감")] public float breakDist = 13f, breakTime = 0.5f;
-    public float breakDamage = 14f, breakKnock = 8f;
+    // ★펫 특성에 묶여 있던 스킬을 전부 삭제 (2026-07-28).
+    //   탑승한 펫의 종류(물기·돌진·내려찍기·휩쓸기)로 갈리던 것들이라, 탑승이 없어진
+    //   지금은 근거 자체가 사라졌다. 지운 것 —
+    //     · 펫 공격기 4종 (연속 물어뜯기·뿔 올려치기·발구르기·꼬리 회전)
+    //     · 펫 이동기 4종 (그림자 도약·박치기·도약 착지·돌파)
+    //     · 협동 기술 (탑승 중 광역)
+    //   남은 것은 무기에 묶인 Q 스킬과 Space 구르기뿐이다.
+    //   앞으로 E = 무기 스왑, R = 펫 스왑이 그 자리에 들어온다.
 
-    [Header("R — 협동 기술 (탑승 시)")]
-    public float rCooldown = 30f;
-    public float rRadius = 16f;
-    public float rDamage = 90f;
-    public float rKnockback = 7f;
-
-    float[] cd = new float[5];      // 0=Q 1=F 2=E 3=R 4=Space(구르기)
+    float[] cd = new float[5];      // 0=Q 4=Space(구르기) — 1·3 은 E·R 스왑 자리로 비워 둠
     float[] cdMax = new float[5];
     // 대시 진행
     float dashT, dashDur; Vector3 dashDir; float dashSpeed; bool dashDamages; float dashDmg, dashKb;
-    bool hopLanding;   // 도약 착지 충격 예약
     readonly System.Collections.Generic.HashSet<PetUnit> dashHit = new System.Collections.Generic.HashSet<PetUnit>();
 
     PlayerMove move;
@@ -78,20 +63,16 @@ public class SkillSystem : MonoBehaviour
     PlayerGather gather;   // 무기 스킬이 평타와 같은 스윙 모션을 쓴다
     Camera cam;
 
-    /// ★탑승 삭제 자리 (2026-07-28). 예전엔 '타고 있는 펫'을 돌려줬고, 스킬들이
-    ///   그 펫을 기준점·발동 조건으로 썼다. 탑승이 없어졌으니 늘 null 이고,
-    ///   그 결과 펫 기준이던 스킬은 전부 '내 자리 기준'으로 떨어진다.
-    ///   ※펫 패턴에 묶인 이동기·궁(CurPetAtk·CurMoveSkill)은 지금 쓸 수 없다 —
-    ///     Q 무기 궁으로 다시 짤 때 이 property 째로 걷어낸다.
-    static PetUnit MountedPet => null;
-
     // HUD
     Image[] icons; Image[] fills; Text[] labels; Image[] iconImgs; Text[] lockTexts;
     GameObject canvasRoot;
     Font font;
     UIStyle St => UIStyle.I;
 
-    /// 슬롯별 현재 스킬 정보 — 장비·탑승 상태에 따라 바뀐다.
+    /// 슬롯별 현재 스킬 정보 — 든 무기에 따라 바뀐다.
+    /// ★조작 확정 (2026-07-28): 1·2·3 무기 선택 / 좌클릭 기본 공격 / Q 무기 스킬 /
+    ///   E 펫 선택 / R 대규모 투척 / Space 구르기.
+    ///   E·R 은 아직 비어 있다 — 펫 소환을 만들 때 채운다.
     /// 아이콘 파일은 Resources/Icons/<이름>.png (아이템 아이콘과 같은 방식, 없으면 글자 표시)
     /// 근접 무기 — 도끼·곡괭이·칼은 같은 무기 스킬(회전 베기)을 쓴다
     static bool IsMelee(GearKind g)
@@ -99,7 +80,6 @@ public class SkillSystem : MonoBehaviour
 
     (string icon, string label, bool usable) SkillInfo(int slot)
     {
-        bool hasPet = MountedPet != null;
         var gear = Hotbar.I != null ? Hotbar.I.Current : GearKind.None;
         switch (slot)
         {
@@ -111,11 +91,9 @@ public class SkillSystem : MonoBehaviour
                      : gear == GearKind.Sword ? ("스킬_연속베기", "연속 베기", true)
                      : gear == GearKind.Axe ? ("스킬_회전베기", "회전 베기", true)
                      : ("스킬_관통사격", "무기 필요", false);
-            // ★E·R(소집·돌격)은 펫 행동과 함께 비워 둠 (2026-07-28).
-            //   펫이 스스로 안 움직이니 불러도 따라올 수가 없다. 행동을 다시 만들면 되살린다.
-            case 1: return ("스킬_소집", "소집 (준비 중)", false);
-            case 2: return ("스킬_구르기", "구르기", true);
-            default: return ("스킬_돌격", "돌격 (준비 중)", false);
+            case 1: return ("스킬_소집", "펫 선택 (준비 중)", false);      // E
+            case 2: return ("스킬_구르기", "구르기", true);                 // Space
+            default: return ("스킬_돌격", "대규모 투척 (준비 중)", false);  // R
         }
     }
 
@@ -233,8 +211,7 @@ public class SkillSystem : MonoBehaviour
     /// (따로 계산하면 보이는 범위와 맞는 범위가 어긋난다)
     public void QArea(GearKind gear, Vector3 dir, out Vector3 center, out float radius, out float inner)
     {
-        var mount = MountedPet;
-        var body = mount != null ? mount.transform.position : transform.position;
+        var body = transform.position;
         inner = 0f;
         if (gear == GearKind.Pick)        { center = body + dir * qSlamStep; radius = qSlamRadius; }
         else if (gear == GearKind.Sword)  { center = body + dir * (qComboStep * qComboHits * 0.5f); radius = qSpinRadius * 0.8f; }
@@ -386,121 +363,7 @@ public class SkillSystem : MonoBehaviour
         if (sword != null) sword.hFlip = baseFlip;   // 원래대로 (평타가 안 바뀌게)
     }
 
-    /// 펫 공격기 종류 (제자리 강공격 — 이동 없음)
-    public enum PetAtk { Bite, Gore, Stomp, Tail }
-    PetAtk CurPetAtk()
-    {
-        var m = MountedPet;
-        if (m == null) return PetAtk.Bite;
-        switch (m.pattern)
-        {
-            case PetUnit.Pattern.Bite: return PetAtk.Bite;
-            case PetUnit.Pattern.Charge: return PetAtk.Gore;
-            case PetUnit.Pattern.Slam: return PetAtk.Stomp;
-            default: return PetAtk.Tail;
-        }
-    }
-
-    // ── F: 펫 공격기 (제자리 — 이동기와 역할 분리) ──
-    void TryW()
-    {
-        if (!Ready(1)) return;
-        var mount = MountedPet;
-        if (mount == null) { SquadHUD.Toast("펫이 있어야 쓸 수 있다"); return; }
-        var dir = AimDir();
-        var c = mount.transform.position;
-        switch (CurPetAtk())
-        {
-            case PetAtk.Bite:    // 연속 물어뜯기 — 전방 좁게 3연타
-                StartCoroutine(BiteCombo(dir));
-                break;
-            case PetAtk.Gore:    // 뿔 올려치기 — 전방 부채꼴 + 띄우기
-                FX.Sweep(c, Quaternion.LookRotation(dir).eulerAngles.y - goreAngle * 0.5f, goreAngle,
-                         goreRange, new Color(1.5f, 1.3f, 0.9f, 0.85f), 0.28f, 0.22f);
-                foreach (var u in InCone(c, dir, goreRange, goreAngle))
-                {
-                    u.TakeDamage(goreDamage, PetUnit.Avatar); u.OnHit();
-                    u.Airborne(0.5f, u.body * 0.18f);
-                    FX.Burst(u.transform.position + Vector3.up * u.body * 0.5f, Color.white, 14, u.body * 0.07f, u.body * 0.5f);
-                }
-                FollowCam.Shake(0.3f);
-                SquadHUD.Toast("뿔 올려치기!");
-                break;
-            case PetAtk.Stomp:   // 발구르기 — 주변 원형 광역
-                FX.Burst(c, new Color(0.9f, 0.82f, 0.65f, 0.95f), 40, 0.55f, 10f, 0.7f);
-                HitAround(c, stompRadius, stompDamage, 3f);
-                FollowCam.Shake(0.45f);
-                SquadHUD.Toast("발구르기!");
-                break;
-            default:             // 꼬리 회전 — 360° 광역 넉백
-                FX.Sweep(c, mount.transform.eulerAngles.y, 360f, tailRadius,
-                         new Color(1.4f, 1.3f, 1.0f, 0.8f), 0.4f, 0.3f);
-                HitAround(c, tailRadius, tailDamage, tailKnock);
-                FollowCam.Shake(0.35f);
-                SquadHUD.Toast("꼬리 회전!");
-                break;
-        }
-        Use(1, wCooldown);
-    }
-
-    System.Collections.IEnumerator BiteCombo(Vector3 dir)
-    {
-        for (int i = 0; i < 3; i++)
-        {
-            var mount = MountedPet;
-            var c = mount != null ? mount.transform.position : transform.position;
-            FX.Sweep(c, Quaternion.LookRotation(dir).eulerAngles.y - biteAngle * 0.5f, biteAngle,
-                     biteRange, new Color(1.5f, 1.2f, 1.0f, 0.8f), 0.15f, 0.12f);
-            foreach (var u in InCone(c, dir, biteRange, biteAngle))
-            {
-                u.TakeDamage(biteDamage, PetUnit.Avatar); u.OnHit();
-                FX.Burst(u.transform.position + Vector3.up * u.body * 0.4f, Color.white, 8, u.body * 0.05f, u.body * 0.4f);
-            }
-            FollowCam.Shake(0.12f);
-            yield return new WaitForSeconds(0.16f);
-        }
-    }
-
-    System.Collections.Generic.List<PetUnit> InCone(Vector3 c, Vector3 dir, float range, float angle)
-    {
-        var list = new System.Collections.Generic.List<PetUnit>();
-        foreach (var u in PetUnit.All)
-        {
-            if (u == null || !u.Alive || u.team != PetUnit.Team.Wild) continue;
-            var d = u.transform.position - c; d.y = 0f;
-            if (d.magnitude > range + u.body * 0.3f) continue;
-            if (Vector3.Angle(dir, d) > angle * 0.5f) continue;
-            list.Add(u);
-        }
-        return list;
-    }
-
-    // ── Space: 구르기 (기본 회피) ──
-    void TryRoll()
-    {
-        if (!Ready(4)) return;
-        StartDash(AimDir(), rollDist, rollTime, false, 0f, 0f);
-        FX.Burst(transform.position, new Color(0.9f, 0.95f, 1.1f, 0.8f), 12, 0.25f, 4f);
-        Use(4, rollCooldown);
-    }
-
-    /// 펫 이동기 종류 — 탑승한 펫의 특성에 따라 달라진다 (구르기는 Space 로 분리)
-    public enum MoveSkill { Roll, Leap, Bash, Hop, Break }
-    MoveSkill CurMoveSkill()
-    {
-        var m = MountedPet;
-        if (m == null) return MoveSkill.Roll;               // 펫 없음 = 사용 불가 표시용
-        switch (m.pattern)
-        {
-            case PetUnit.Pattern.Bite: return MoveSkill.Leap;    // 날렵 = 파고들기
-            case PetUnit.Pattern.Charge: return MoveSkill.Bash;  // 뿔 = 박치기 밀치기
-            case PetUnit.Pattern.Slam: return MoveSkill.Hop;     // 거구 = 도약 착지
-            default: return MoveSkill.Break;                     // 육중 = 돌파
-        }
-    }
-
-    // ── E: 이동기 (펫 특성별) ──
-    /// Space — 구르기 (지금은 전부 공통, 펫 특성별 이동기는 추후)
+    // ── Space: 구르기 (기본 회피, 무기·펫과 무관하게 항상 쓸 수 있다) ──
     void TryE()
     {
         if (!Ready(2)) return;
@@ -511,55 +374,6 @@ public class SkillSystem : MonoBehaviour
         Use(2, rollCooldown);
     }
 
-    /// (보류) 펫 특성별 이동기 — 나중에 세분화할 때 되살릴 코드
-    void TryPetMove()
-    {
-        var mount = MountedPet;
-        var dir = AimDir();
-        switch (CurMoveSkill())
-        {
-            case MoveSkill.Leap:    // 그림자 도약 — 길고 빠르게 파고듦
-                StartDash(dir, leapDist, leapTime, false, 0f, 0f);
-                FX.Burst(transform.position, new Color(0.85f, 1.1f, 1.4f, 0.9f), 20, 0.3f, 7f, 0.35f);
-                break;
-            case MoveSkill.Bash:    // 박치기 밀치기 — 앞의 적을 밀며 전진
-                StartDash(dir, bashDist, bashTime, true, bashDamage, bashKnock);
-                FX.Burst(transform.position + dir * 2f, new Color(1.3f, 1.1f, 0.8f, 0.9f), 18, 0.35f, 6f);
-                FollowCam.Shake(0.15f);
-                break;
-            case MoveSkill.Hop:     // 도약 — 포물선으로 뛰어 착지 충격
-                StartDash(dir, hopDist, hopTime, false, 0f, 0f);
-                hopLanding = true;
-                if (mount != null) mount.Airborne(hopTime, mount.body * 0.55f);
-                FX.Burst(transform.position, new Color(0.9f, 0.85f, 0.7f, 0.9f), 16, 0.4f, 5f);
-                break;
-            case MoveSkill.Break:   // 돌파 — 묵직하게 밀고 나감
-                StartDash(dir, breakDist, breakTime, true, breakDamage, breakKnock);
-                FX.Burst(transform.position, new Color(1.1f, 1.0f, 0.85f, 0.9f), 22, 0.45f, 6f);
-                FollowCam.Shake(0.18f);
-                break;
-            default:                // 구르기 — 짧고 빠른 회피
-                StartDash(dir, rollDist, rollTime, false, 0f, 0f);
-                FX.Burst(transform.position, new Color(0.9f, 0.95f, 1.1f, 0.8f), 12, 0.25f, 4f);
-                break;
-        }
-        Use(2, eCooldown);
-    }
-
-    // ── R: 협동 기술 ──
-    void TryR()
-    {
-        if (!Ready(3)) return;
-        var mount = MountedPet;
-        if (mount == null) { SquadHUD.Toast("펫과 함께해야 쓸 수 있다"); return; }
-        var c = transform.position;
-        FX.Burst(c, new Color(2.2f, 1.6f, 0.6f, 1f), 60, 0.5f, 14f, 0.8f);
-        FX.Sweep(c, transform.eulerAngles.y, 360f, rRadius, new Color(2.0f, 1.4f, 0.5f, 0.9f), 0.5f, 0.4f);
-        HitAround(c, rRadius, rDamage, rKnockback);
-        FollowCam.Shake(0.5f);
-        SquadHUD.Toast($"협동기 — {mount.name} 와(과) 합동 공격!");
-        Use(3, rCooldown);
-    }
 
     // ── 조준 영역 미리보기 (활 에임 라인과 같은 결) ──
     int aiming = -1;
@@ -610,8 +424,7 @@ public class SkillSystem : MonoBehaviour
 
         var dir = AimDir();
         var origin = transform.position;
-        var mount = MountedPet;
-        var body = mount != null ? mount.transform.position : origin;
+        var body = origin;
         var gear = Hotbar.I != null ? Hotbar.I.Current : GearKind.None;
 
         float lineLen = 0f, lineWidth = 0f, circleR = 0f, circleIn = 0f;
@@ -710,22 +523,12 @@ public class SkillSystem : MonoBehaviour
         if (dashT <= 0f) return;
         dashT -= Time.deltaTime;
         if (dashT <= 0f && move != null) move.suppressMove = false;   // 대시 끝 — 조작 복귀
-        if (dashT <= 0f && hopLanding)
-        {   // 도약 착지 — 쿵! 광역 충격
-            hopLanding = false;
-            var m2 = MountedPet;
-            var c = m2 != null ? m2.transform.position : transform.position;
-            FX.Burst(c, new Color(0.85f, 0.78f, 0.62f, 0.95f), 30, 0.5f, 8f, 0.6f);
-            HitAround(c, hopRadius, hopDamage, 3f);
-            FollowCam.Shake(0.3f);
-        }
         float k = 1f - Mathf.Clamp01(dashT / Mathf.Max(0.05f, dashDur));
         float speed = dashSpeed * Mathf.Lerp(1.5f, 0.4f, k);   // 초반 빠르게 → 감속
-        var mount = MountedPet;
-        var body = mount != null ? mount.transform : transform;
+        var body = transform;
         // ★한 프레임에 크게 움직이면 벽 너머로 착지해 반대편으로 밀려난다(= 관통).
         //   0.5m 씩 쪼개서 매 단계마다 충돌을 풀어 벽을 뚫지 못하게 한다
-        float bodyR = mount != null ? mount.body * 0.32f : 1.5f;
+        float bodyR = 1.5f * WorldScale.K;
         float total = speed * Time.deltaTime;
         int steps = Mathf.Clamp(Mathf.CeilToInt(total / 0.5f), 1, 12);
         var np = body.position;
