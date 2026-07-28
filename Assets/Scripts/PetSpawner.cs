@@ -38,7 +38,8 @@ public class PetSpawner : MonoBehaviour
 
     [Header("유지 수·주기")]
     [Tooltip("주변에 항상 유지할 야생 수 (어슬렁거리는 '무리 대표' 수)")] public int cap = 6;
-    [Tooltip("★야생 한 마리가 어그로 시 몇 마리로 불어나나 (전쟁 규모)")] public int wildPackSize = 8;
+    [Tooltip("★야생 무리 인구수 예산 — 실제 마릿수 = 예산 ÷ 등급. 작은 놈은 떼로, 큰 놈은 몇 마리만")]
+    public int wildPackBudget = 12;
     [Tooltip("빈자리 보충 간격 (초)")] public float respawnDelay = 25f;
 
     [Header("지형 조건")]
@@ -310,9 +311,10 @@ public class PetSpawner : MonoBehaviour
         pu.intel = 8;
         ApplyRole(pu, RoleOf(e.species, e.tier), e);        // 역할별 특성 (뾰족하게)
         pu.SetWildLevel(WildLevelAt(pos, e.tier));          // 멀수록 강하다
-        // ★야생은 어그로가 끌리면 이 수까지 퐁 하고 불어난다 (2026-07-28).
+        // ★야생은 어그로가 끌리면 퐁퐁퐁 튀어나와 무리가 된다 (2026-07-28).
         //   벌판에는 한 마리만 어슬렁거리고, 싸움이 붙어야 무리가 나타난다.
-        pu.packSize = Mathf.Max(1, wildPackSize);
+        //   마릿수는 예산 ÷ 등급 — 작은 놈은 떼로, 브론토 같은 놈은 두어 마리만.
+        pu.packBudget = Mathf.Max(0, wildPackBudget);
         return unit;
     }
 
@@ -331,7 +333,7 @@ public class PetSpawner : MonoBehaviour
         if (pu == null) return null;
         pu.team = PetUnit.Team.Player;
         pu.collectible = false;
-        pu.packSize = 1;             // 내 펫은 스스로 안 불어난다 (R 투척으로 소환한다)
+        pu.packBudget = 0;           // 내 펫은 스스로 안 불어난다 (R 투척으로 소환한다)
         pu.SetWildLevel(1);          // 거리 기반 레벨 보정을 취소 — 내 펫은 1레벨부터
         PetBox.Register(pu, e.species, e.tier);
         return go;

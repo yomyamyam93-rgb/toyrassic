@@ -101,7 +101,9 @@ public class SkillSystem : MonoBehaviour
             default:
                 {   // R — 대규모 투척
                     var p = PetCommand.Selected;
-                    return ("스킬_돌격", p != null ? $"투척 {throwCount}마리" : "던질 펫 없음", p != null);
+                    return ("스킬_돌격",
+                            p != null ? $"투척 {PetUnit.CountFor(throwBudget, p.supply)}마리" : "던질 펫 없음",
+                            p != null);
                 }
         }
     }
@@ -197,7 +199,10 @@ public class SkillSystem : MonoBehaviour
     [Header("R — 대규모 투척 (펫 소환)")]
     [Tooltip("다시 던질 수 있을 때까지 (초)")] public float throwCooldown = 12f;
     [Tooltip("던질 수 있는 최대 거리 (m) — 지금 세계 기준")] public float throwRange = 8f;
-    [Tooltip("착탄 지점에 몇 마리가 나오나")] public int throwCount = 10;
+    [Tooltip("★인구수 예산 — 실제 마릿수 = 이 값 ÷ 등급. 작은 펫은 떼로, 큰 펫은 몇 마리만")]
+    public int throwBudget = 12;
+    [Tooltip("착탄 순간 주변에 주는 피해 (팡!)")] public float throwImpactDamage = 45f;
+    [Tooltip("착탄 피해가 닿는 반경 (m)")] public float throwImpactRadius = 1.6f;
     [Tooltip("나온 무리가 퍼지는 반경 (m)")] public float throwSpread = 1.4f;
     [Tooltip("포물선을 나는 시간 (초)")] public float throwFlyTime = 0.55f;
     [Tooltip("포물선 최고 높이 (m)")] public float throwArc = 1.6f;
@@ -234,22 +239,15 @@ public class SkillSystem : MonoBehaviour
         return p;
     }
 
-    /// 날아가는 알 → 착탄 쿵 → 그 자리에서 무리가 투웅 하고 솟는다
+    /// ★던지는 것은 '알'이 아니라 **펫 그 자체**다 (2026-07-28 사용자).
+    ///   펫 하나가 슈웅 날아가 → 팡! 피해를 주고 → 그 자리에서 무리가 튀어나온다.
+    ///   날아가는 동안 보이는 건 그 펫의 실제 모양이다 (메시·재질만 빌려 쓴다 —
+    ///   진짜 PetUnit 을 날리면 그 동안 목록에 잡혀 전투 판정에 끼어든다).
     System.Collections.IEnumerator ThrowFlight(PetUnit pet, Vector3 spot)
     {
         var from = transform.position + Vector3.up * 0.25f * WorldScale.K;
 
-        // 날아가는 덩어리 — 알 하나가 포물선을 그린다
-        var ball = GameObject.CreatePrimitive(PrimitiveType.Sphere);
-        Destroy(ball.GetComponent<Collider>());
-        ball.name = "throw_" + pet.name;
-        ball.transform.SetParent(SceneBuckets.Fx);
-        ball.transform.localScale = Vector3.one * 0.22f * WorldScale.K;
-        var bm = ball.GetComponent<MeshRenderer>();
-        bm.material = new Material(Shader.Find("Universal Render Pipeline/Lit"));
-        bm.material.color = new Color(1.5f, 1.3f, 0.7f);
-        bm.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
-
+        var ghost = MakeFlyingCopy(pet);
         float t = 0f, dur = Mathf.Max(0.05f, throwFlyTime);
         while (t < 1f)
         {
@@ -257,20 +255,47 @@ public class SkillSystem : MonoBehaviour
             float k = Mathf.Clamp01(t);
             var p = Vector3.Lerp(from, spot, k);
             p.y += Mathf.Sin(k * Mathf.PI) * throwArc;          // 포물선
-            ball.transform.position = p;
-            ball.transform.Rotate(720f * Time.deltaTime, 480f * Time.deltaTime, 0f);
+            if (ghost != null)
+            {
+                ghost.transform.position = p;
+                ghost.transform.Rotate(0f, 900f * Time.deltaTime, 0f);   // 빙글빙글 날아간다
+            }
             yield return null;
         }
-        Destroy(ball);
+        if (ghost != null) Destroy(ghost);
 
-        // ── 착탄: 쿵! ──
-        FX.Burst(spot, new Color(0.85f, 0.78f, 0.62f, 0.95f), 34, 0.14f * WorldScale.K * 10f, 6f * WorldScale.K, 0.6f);
-        FX.Sweep(spot, 0f, 360f, throwSpread, new Color(1.8f, 1.5f, 0.7f, 0.8f), 0.45f, 0.3f);
+        // ── 착탄: 팡! 피해까지 준다 ──
+        FX.Burst(spot, new Color(1.9f, 1.5f, 0.6f, 1f), 34, 0.14f, 0.6f, 0.6f);
+        FX.Sweep(spot, 0f, 360f, throwImpactRadius, new Color(1.9f, 1.4f, 0.6f, 0.85f), 0.45f, 0.3f);
         FollowCam.Shake(0.3f);
-        yield return new WaitForSeconds(0.08f);   // 쿵 하고 아주 잠깐 뜸 들인 뒤 솟는다
+        foreach (var u in PetUnit.All)
+        {
+            if (u == null || !u.Alive || u.team != PetUnit.Team.Wild) continue;
+            var d = u.transform.position - spot; d.y = 0f;
+            if (d.magnitude > throwImpactRadius + u.body * 0.4f) continue;
+            u.TakeDamage(throwImpactDamage, PetUnit.Avatar);
+            u.OnHit();
+            u.Knock(d, u.body * 0.5f);
+        }
 
-        // ── 투웅! 무리가 솟는다 ──
+        yield return new WaitForSeconds(0.06f);   // 팡 하고 아주 잠깐 뜸 들인 뒤 튀어나온다
         SummonPack(pet, spot);
+    }
+
+    /// 날아가는 동안 보여줄 껍데기 — 메시·재질만 빌린다 (컴포넌트 없음)
+    GameObject MakeFlyingCopy(PetUnit pet)
+    {
+        var mf = pet.GetComponent<MeshFilter>();
+        var mr = pet.GetComponent<MeshRenderer>();
+        if (mf == null || mr == null) return null;
+        var g = new GameObject("throw_" + pet.name);
+        g.transform.SetParent(SceneBuckets.Fx);
+        g.transform.localScale = pet.transform.lossyScale;
+        g.AddComponent<MeshFilter>().sharedMesh = mf.sharedMesh;
+        var r = g.AddComponent<MeshRenderer>();
+        r.sharedMaterial = mr.sharedMaterial;
+        r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+        return g;
     }
 
     /// 고른 펫을 본으로 삼아 착탄 지점에 여러 마리를 세운다.
@@ -278,36 +303,38 @@ public class SkillSystem : MonoBehaviour
     ///   쿨타임이 돌면 같은 펫을 다시 던진다.
     void SummonPack(PetUnit pet, Vector3 spot)
     {
-        // ★먼저 나와 있던 분신을 걷는다 (2026-07-28). 안 그러면 12초마다 10마리씩
-        //   영원히 쌓여서 50대50 은커녕 500마리가 된다. 같은 부대를 다시 배치하는 개념이다.
+        // ★같은 펫의 분신만 걷는다 (2026-07-28 수정).
+        //   예전엔 '모든 분신'을 지워서, 2번 펫을 던지면 1번 펫이 사라졌다 — 그게 버그였다.
+        //   3종을 전부 깔아 두는 게 이 게임의 핵심(3무기 × 3펫 조합)이라 공존해야 한다.
+        //   같은 펫을 다시 던졌을 때만 그 펫의 옛 부대를 걷는다 (무한 누적 방지).
         for (int i = PetUnit.All.Count - 1; i >= 0; i--)
         {
             var old = PetUnit.All[i];
-            if (old == null || !old.summoned || old.team != PetUnit.Team.Player) continue;
+            if (old == null || !old.summoned || old.owner != pet) continue;
             FX.Burst(old.transform.position + Vector3.up * old.body * 0.3f,
                      new Color(0.6f, 1.2f, 1.6f, 0.7f), 6, old.body * 0.05f, old.body * 0.4f, 0.3f);
             Destroy(old.gameObject);
         }
 
-        int n = Mathf.Max(1, throwCount);
+        // ★마릿수는 등급으로 나눈다 — 작은 펫은 떼로, 큰 펫은 몇 마리만
+        int n = PetUnit.CountFor(throwBudget, pet.supply);
         for (int i = 0; i < n; i++)
         {
             float a = (i / (float)n) * Mathf.PI * 2f;
             float rr = throwSpread * (0.35f + 0.65f * (i % 3) / 2f);   // 안팎으로 흩어지게
             var pos = Ground(spot + new Vector3(Mathf.Cos(a), 0f, Mathf.Sin(a)) * rr);
 
-            var g = Instantiate(pet.gameObject, pos, Quaternion.Euler(0f, Random.Range(0f, 360f), 0f));
+            var g = Instantiate(pet.gameObject, spot, Quaternion.Euler(0f, Random.Range(0f, 360f), 0f));
             g.name = pet.name;
             var u = g.GetComponent<PetUnit>();
-            if (u != null)
-            {
-                u.team = PetUnit.Team.Player;
-                u.packSize = 1;          // 분신은 스스로 안 불어난다
-                u.collectible = false;
-                u.summoned = true;       // 목록(E 선택)에 안 뜨게 — 본체만 고른다
-            }
-            FX.Burst(pos + Vector3.up * pet.body * 0.3f,
-                     new Color(0.6f, 1.5f, 1.9f, 0.95f), 12, pet.body * 0.06f, pet.body * 0.6f, 0.4f);
+            if (u == null) continue;
+            u.team = PetUnit.Team.Player;
+            u.packBudget = 0;         // 분신은 스스로 안 불어난다
+            u.collectible = false;
+            u.summoned = true;        // 목록(E 선택)에 안 뜨게 — 본체만 고른다
+            u.owner = pet;            // 어느 펫의 부대인지 — 다시 던질 때 이것만 걷는다
+            // 착탄 지점에서 퐁…퐁…퐁 단계적으로 튀어나온다 (야생 증식과 같은 연출)
+            u.LaunchTo(spot, pos, u.emergeTime, u.emergeArc, i * u.emergeStagger);
         }
         SquadHUD.Toast($"{pet.name} {n}마리 소환!");
     }

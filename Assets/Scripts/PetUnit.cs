@@ -321,6 +321,83 @@ public class PetUnit : MonoBehaviour
         Separate(); Ground(false); HitFlash(); Bar();
     }
 
+    // ── 등장 비행 — 뚝 생기지 않는다 (2026-07-28 사용자) ──────────────────
+    //
+    // ★"그냥 두둑 생기는 게 아니라 퐁퐁퐁 궤적을 그리면서 분해되는 방식".
+    //   무리는 대표 한 마리에서 **튀어나온다**. 제자리에서 시작해 짧은 포물선을 그리고
+    //   착지하며 퐁. 개체마다 출발이 조금씩 늦어 퐁-퐁-퐁 으로 들린다.
+    //   야생 증식과 내 투척 소환이 같은 연출을 쓴다.
+    float flyT, flyDur, flyDelay, flyArc;
+    Vector3 flyFrom, flyTo;
+
+    /// 지금 튀어나오는 중 — 웅크림·비행·착지 텀까지 포함. 이 동안은 아무 판단도 안 한다
+    public bool Emerging => flyDelay > 0f || flyT > 0f || landT > 0f;
+
+    /// R 투척으로 나온 분신의 본체 — 같은 본체를 다시 던질 때 이 분신들만 걷는다
+    [HideInInspector] public PetUnit owner;
+
+    /// from 자리에서 to 로 튀어나가게 한다. delay 만큼 늦게 출발한다.
+    public void LaunchTo(Vector3 from, Vector3 to, float dur, float arc, float delay)
+    {
+        flyFrom = from; flyTo = to;
+        flyDur = Mathf.Max(0.05f, dur); flyArc = arc; flyDelay = delay;
+        flyT = 1f;
+        transform.position = from;
+    }
+
+    [Tooltip("착지하고 몸을 추스르는 시간 (초) — 이 동안은 안 움직인다")] public float landTime = 0.22f;
+    float landT;
+
+    void FlyStep()
+    {
+        // ① 웅크림 — 튀어나가기 직전의 뜸. 이게 있어야 '쫀득'해진다
+        if (flyDelay > 0f)
+        {
+            flyDelay -= Time.deltaTime;
+            if (motion != null) motion.charge = Mathf.Max(motion.charge, 0.7f);   // 몸을 움츠린다
+            Bar(); HitFlash(); return;
+        }
+
+        // ③ 착지 후 텀 — 몸을 추스르는 동안 가만히 (뚝 나오고 바로 뛰는 게 안 되게)
+        if (flyT <= 0f)
+        {
+            landT -= Time.deltaTime;
+            if (landT <= 0f) { landT = 0f; }
+            if (motion != null) motion.speed01 = 0f;
+            Ground(false); Bar(); HitFlash(); return;
+        }
+
+        // ② 비행 — 튀어나갈 땐 빠르고 정점에서 느려진다 (체공감)
+        flyT -= Time.deltaTime / flyDur;
+        float raw = 1f - Mathf.Clamp01(flyT);
+        float k = raw * raw * (3f - 2f * raw);                  // 가속-감속 S곡선
+        var p = Vector3.Lerp(flyFrom, flyTo, k);
+        // 포물선을 앞쪽으로 치우치게 — 확 솟았다가 천천히 떨어진다
+        p.y += Mathf.Sin(Mathf.Pow(k, 0.75f) * Mathf.PI) * flyArc;
+        transform.position = p;
+        transform.Rotate(0f, 420f * Time.deltaTime, 0f);
+
+        // 공중에서 쭉 늘어났다가 착지에서 콩 눌리게 — 스쿼시&스트레치
+        if (motion != null)
+        {
+            motion.charge = 0f;
+            motion.speed01 = 1f;
+        }
+
+        if (flyT <= 0f)
+        {   // 착지 — 퐁!
+            flyT = 0f;
+            landT = Mathf.Max(0f, landTime);
+            transform.position = flyTo;
+            Ground(true);
+            homePos = transform.position;
+            if (motion != null) motion.Punch();      // 콩 눌렸다 돌아오는 반동
+            FX.Burst(transform.position + Vector3.up * body * 0.2f,
+                     new Color(1.6f, 1.4f, 0.85f, 0.95f), 12, body * 0.05f, body * 0.55f, 0.4f);
+        }
+        Bar(); HitFlash();
+    }
+
     /// 퐁 — 주인에게 흡수된다 (죽는 게 아니다)
     void Absorb()
     {
@@ -348,29 +425,43 @@ public class PetUnit : MonoBehaviour
     //   죽고 어디가 전장인지도 안 보인다. 평소엔 한 마리만 어슬렁거리다가, 싸움이
     //   붙는 순간 무리가 나타나 전투가 '열리는' 편이 읽기도 쉽고 훨씬 싸다.
     [Header("야생 — 어그로 시 증식")]
-    [Tooltip("전투에 들어가면 이 수까지 불어난다 (1 = 증식 안 함)")] public int packSize = 1;
+    [Tooltip("★인구수 예산. 실제 마릿수 = 이 값 ÷ 등급(supply). 작은 놈은 떼로, 큰 놈은 몇 마리만")]
+    public int packBudget = 0;                 // 0 = 증식 안 함 (PetSpawner 가 넣어준다)
     [Tooltip("불어난 무리가 퍼지는 반경 (m)")] public float packSpread = 1.2f;
+    [Tooltip("한 마리가 튀어나가는 시간 (초)")] public float emergeTime = 0.5f;
+    [Tooltip("튀어나갈 때 포물선 높이 (m)")] public float emergeArc = 0.75f;
+    [Tooltip("★한 마리씩 늦어지는 간격 (초) — 퐁…퐁…퐁 으로 단계적으로 나오게")]
+    public float emergeStagger = 0.09f;
     bool packWoken;
+
+    /// 등급으로 나눈 실제 마릿수 — S(1)는 떼로, XL(4)은 몇 마리만
+    public static int CountFor(int budget, int supply) =>
+        Mathf.Max(1, Mathf.RoundToInt(budget / (float)Mathf.Max(1, supply)));
 
     void WakePack()
     {
-        if (packWoken || packSize <= 1 || team != Team.Wild || isStructure || isAvatar) return;
+        if (packWoken || packBudget <= 0 || team != Team.Wild || isStructure || isAvatar) return;
         packWoken = true;
+
+        int n = CountFor(packBudget, supply);
+        if (n <= 1) return;
 
         FX.Burst(transform.position + Vector3.up * body * 0.3f,
                  new Color(1.6f, 1.2f, 0.5f, 0.95f), 26, body * 0.06f, body * 0.7f, 0.45f);
         FollowCam.Shake(0.12f);
 
-        for (int i = 1; i < packSize; i++)
+        var from = transform.position;
+        for (int i = 1; i < n; i++)
         {
-            float a = (i / (float)packSize) * Mathf.PI * 2f;
-            var pos = transform.position + new Vector3(Mathf.Cos(a), 0f, Mathf.Sin(a)) * packSpread;
-            var g = Instantiate(gameObject, pos, transform.rotation);
+            float a = (i / (float)n) * Mathf.PI * 2f;
+            var pos = from + new Vector3(Mathf.Cos(a), 0f, Mathf.Sin(a)) * packSpread;
+            var g = Instantiate(gameObject, from, transform.rotation);
             g.name = name;
             var u = g.GetComponent<PetUnit>();
-            if (u != null) { u.packSize = 1; u.packWoken = true; }   // 복제본은 다시 안 불어난다
-            FX.Burst(pos + Vector3.up * body * 0.3f,
-                     new Color(1.6f, 1.2f, 0.5f, 0.9f), 10, body * 0.05f, body * 0.5f, 0.35f);
+            if (u == null) continue;
+            u.packBudget = 0; u.packWoken = true;      // 튀어나온 놈은 다시 안 불어난다
+            // ★제자리에서 튀어나가 포물선을 그리고 착지 — 퐁…퐁…퐁 으로 단계적으로
+            u.LaunchTo(from, pos, emergeTime, emergeArc, i * emergeStagger);
         }
     }
 
@@ -391,6 +482,9 @@ public class PetUnit : MonoBehaviour
             Ground(false); Bar(); HitFlash();
             return;
         }
+
+        // 튀어나오는 중 — 착지할 때까지 아무 판단도 안 한다
+        if (Emerging) { FlyStep(); return; }
 
         // ★복귀 중이면 다른 건 아무것도 안 한다 — 새 전투가 열려도 멈추지 않는다
         if (returning) { ReturnStep(); return; }
