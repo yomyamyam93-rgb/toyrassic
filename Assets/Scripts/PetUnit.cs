@@ -376,13 +376,49 @@ public class PetUnit : MonoBehaviour
         return null;
     }
 
+    // ── 자석 복귀 (2026-07-28 사용자) ────────────────────────────────
+    //
+    // ★"내가 뛰고 있어서 내 몸으로 돌아오지 못하는 펫들" — 복귀 속도가 MoveSpd*1.25 라
+    //   이속 25.5 로 달아나는 주인을 **영영 못 잡는다.** 펫이 뒤에 줄줄이 매달린 채
+    //   전투가 끝나도 흡수가 안 되고, 쿨은 돌았는데 던질 펫이 없는 상태가 된다.
+    //
+    //   그래서 일정 시간이 지나면 **걸어오기를 포기하고 빨려 들어온다.** 땅을 밟지 않고
+    //   곧장 날아오므로 지형에 걸리지도 않는다. 속도가 계속 오르니 반드시 따라잡는다.
+    [Header("자석 복귀")]
+    [Tooltip("걸어서 돌아오다 이 시간이 지나면 빨려 들어오기 시작한다 (초)")]
+    public float magnetAfter = 2.2f;
+    [Tooltip("최고 속도까지 가속하는 데 걸리는 시간 (초)")]
+    public float magnetRamp = 0.55f;
+    [Tooltip("빨려 들어오는 최고 속도 (m/s) — ★플레이어 이속(25.5)보다 확실히 빨라야 잡는다")]
+    public float magnetSpeed = 62f;
+    [Tooltip("빨려 들어올 때 도는 속도 (°/s) — 돌아야 '빨려간다'로 읽힌다")]
+    public float magnetSpin = 720f;
+
+    float returnT;
+
     /// 복귀 한 걸음 — 소환 분신은 주인에게, 야생은 원래 자리로
     void ReturnStep()
     {
         var goal = summoned && Avatar != null ? Avatar.transform.position : homePos;
+        float near = summoned ? (body + (Avatar != null ? Avatar.body : 0.3f)) * 0.6f : 0.4f;
+
+        // 내 분신만 빨려 들어온다. 야생은 안 움직이는 제자리로 가므로 늘 도착한다.
+        if (summoned && Avatar != null && returnT > magnetAfter)
+        {
+            // 주인 몸 한가운데로 — 발밑이 아니라 몸으로 빨려 들어가는 그림
+            var into = goal + Vector3.up * (Avatar.body * 0.5f);
+            float k = Mathf.Clamp01((returnT - magnetAfter) / Mathf.Max(0.05f, magnetRamp));
+            float spd = Mathf.Lerp(MoveSpd * 1.25f, magnetSpeed, k * k);   // 처음엔 스르륵, 곧 확
+            transform.position = Vector3.MoveTowards(transform.position, into, spd * Time.deltaTime);
+            transform.Rotate(Vector3.up, magnetSpin * Time.deltaTime, Space.World);
+            if (Vector3.Distance(transform.position, into) <= near) { Absorb(); return; }
+            // 땅에 붙이지도, 서로 밀어내지도 않는다 — 공중으로 곧장 끌려간다
+            HitFlash(); Bar();
+            return;
+        }
+
         var to = goal - transform.position; to.y = 0f;
         float d = to.magnitude;
-        float near = summoned ? (body + (Avatar != null ? Avatar.body : 0.3f)) * 0.6f : 0.4f;
 
         if (d > near)
         {
@@ -593,7 +629,8 @@ public class PetUnit : MonoBehaviour
         if (Emerging) { FlyStep(); return; }
 
         // ★복귀 중이면 다른 건 아무것도 안 한다 — 새 전투가 열려도 멈추지 않는다
-        if (returning) { ReturnStep(); return; }
+        if (returning) { returnT += Time.deltaTime; ReturnStep(); return; }
+        returnT = 0f;   // 복귀가 아니면 시계를 되돌린다 (다음 복귀가 처음부터 세게)
 
         grudgeT = Mathf.Max(0f, grudgeT - Time.deltaTime);
 
