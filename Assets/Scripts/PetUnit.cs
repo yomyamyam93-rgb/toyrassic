@@ -222,6 +222,7 @@ public class PetUnit : MonoBehaviour
         if (barRoot != null) barRoot.gameObject.SetActive(false);
         // ★목표 탐색 시점을 개체마다 어긋나게 — 50마리가 같은 프레임에 훑으면 뚝뚝 끊긴다
         retargetT = Random.value * 0.5f;
+        homePos = transform.position;   // 리쉬 기준 — 여기서 너무 멀어지면 추격을 포기한다
         Ground(true);
     }
 
@@ -251,10 +252,26 @@ public class PetUnit : MonoBehaviour
     [Tooltip("적을 알아채는 거리")] public float aggroRange = 3f;
     [Tooltip("때릴 수 있는 거리")] public float reach = 0.5f;
     [Tooltip("공격 간격 (초)")] public float atkPeriod = 1.1f;
-    [Tooltip("한 대 피해 = 힘 × 이 값")] public float dmgPerStr = 0.8f;
+    // ★밸런스 기준점 (2026-07-28): 펫 대 펫이 **5초 안팎**에 정리되게 잡았다.
+    //   M등급 체력 150(vit 15×10) ÷ (str 9 × 3.5 ÷ 1.1초) ≈ 5.2초.
+    //   0.8 로 뒀더니 23초가 걸려서, 펫 군단이 주인공인데 펫끼리는 아무것도 못 죽였다.
+    //   (참고: 플레이어 칼은 초당 100 — 한 마리를 1.5초에 잡는다)
+    [Tooltip("한 대 피해 = 힘 × 이 값")] public float dmgPerStr = 3.5f;
+
+    [Header("어그로")]
+    [Tooltip("플레이어를 얼마나 뒤로 미루나 — 거리에 이 값을 곱해 따진다 (1=동등, 크면 펫부터 노린다)")]
+    public float avatarBias = 2.5f;
+    [Tooltip("나를 때린 놈을 이 시간 동안 우선한다 (초)")] public float grudgeTime = 4f;
+    [Tooltip("처음 있던 자리에서 이보다 멀어지면 추격을 포기하고 돌아간다 (m)")] public float leashRange = 12f;
 
     PetUnit target;
     float atkCd, retargetT;
+    PetUnit lastAttacker; float grudgeT;
+    Vector3 homePos;
+
+    /// 복귀 중 — ★한 번 돌아가기로 하면 끝까지 간다 (2026-07-28 사용자).
+    /// 도중에 새 전투가 열려도 멈추지 않는다. 멈추면 '정리되는' 느낌이 사라진다.
+    [HideInInspector] public bool returning;
 
     /// 지금 싸우는 중인가 — 체력바 표시와 야생 증식이 이걸 본다
     public bool InCombat => target != null && target.Alive;
@@ -262,16 +279,55 @@ public class PetUnit : MonoBehaviour
     float AtkRange => reach * rangeMul;
     float AtkPeriodNow => atkPeriod / Mathf.Max(0.1f, atkSpeedMul);
 
-    PetUnit FindNearestEnemy()
+    /// ★어그로 규칙 (2026-07-28)
+    ///   ① 나를 때린 놈이 있으면 잠깐은 무조건 그놈부터 — 때렸는데 무시당하면 이상하다
+    ///   ② 아니면 가장 가까운 적. 단 **플레이어 본인은 거리를 뻥튀기해 후순위로 민다.**
+    ///      안 그러면 야생이 전부 플레이어만 쫓아와 펫이 벽 역할을 못 한다.
+    ///      (야생이 계속 플레이어만 따라오던 문제의 원인이 이것이다)
+    PetUnit FindTarget()
     {
-        PetUnit best = null; float bd = aggroRange;
+        if (grudgeT > 0f && lastAttacker != null && lastAttacker.Alive
+            && lastAttacker.team != team
+            && Dist(lastAttacker.transform.position) <= aggroRange * 1.6f)
+            return lastAttacker;
+
+        PetUnit best = null; float bs = aggroRange;
         foreach (var u in All)
         {
             if (u == null || !u.Alive || u.team == team) continue;
             float d = Dist(u.transform.position);
-            if (d < bd) { bd = d; best = u; }
+            float score = u.isAvatar ? d * avatarBias : d;   // 플레이어는 아주 가까워야 노린다
+            if (score < bs) { bs = score; best = u; }
         }
         return best;
+    }
+
+    /// 복귀 한 걸음 — 소환 분신은 주인에게, 야생은 원래 자리로
+    void ReturnStep()
+    {
+        var goal = summoned && Avatar != null ? Avatar.transform.position : homePos;
+        var to = goal - transform.position; to.y = 0f;
+        float d = to.magnitude;
+        float near = summoned ? (body + (Avatar != null ? Avatar.body : 0.3f)) * 0.6f : 0.4f;
+
+        if (d > near)
+        {
+            Step(to, MoveSpd * 1.25f);          // 복귀는 조금 빠르게 — 늘어지지 않게
+            if (motion != null) motion.speed01 = 1f;
+        }
+        else if (summoned) { Absorb(); return; }   // 퐁! 하고 주인에게 들어간다
+        else { returning = false; }                // 야생: 제자리로 돌아왔다
+
+        Separate(); Ground(false); HitFlash(); Bar();
+    }
+
+    /// 퐁 — 주인에게 흡수된다 (죽는 게 아니다)
+    void Absorb()
+    {
+        if (motion != null) motion.ClearEmission();
+        FX.Burst(transform.position + Vector3.up * body * 0.4f,
+                 new Color(0.6f, 1.5f, 1.9f, 0.95f), 14, body * 0.06f, body * 0.6f, 0.35f);
+        Destroy(gameObject);
     }
 
     /// 한 대 때린다 — 사거리 판정은 부르는 쪽이 이미 했다
@@ -336,13 +392,25 @@ public class PetUnit : MonoBehaviour
             return;
         }
 
+        // ★복귀 중이면 다른 건 아무것도 안 한다 — 새 전투가 열려도 멈추지 않는다
+        if (returning) { ReturnStep(); return; }
+
+        grudgeT = Mathf.Max(0f, grudgeT - Time.deltaTime);
+
         // ① 목표 갱신 — 0.5초마다. 개체마다 시점이 어긋나 있어 한 프레임에 몰리지 않는다
         retargetT -= Time.deltaTime;
         if (retargetT <= 0f)
         {
             retargetT = 0.5f;
+            // ★리쉬 — 원래 자리에서 너무 멀어지면 포기하고 돌아간다 (2026-07-28).
+            //   없으면 야생이 섬 끝까지 플레이어를 쫓아온다.
+            if (team == Team.Wild && Dist(homePos) > leashRange)
+            {
+                target = null; returning = true;
+                ReturnStep(); return;
+            }
             if (target == null || !target.Alive || Dist(target.transform.position) > aggroRange * 1.6f)
-                target = FindNearestEnemy();
+                target = FindTarget();
             if (target != null) WakePack();   // 야생: 처음 적을 본 순간 퐁! 하고 무리가 된다
         }
 
@@ -388,7 +456,13 @@ public class PetUnit : MonoBehaviour
         FX.DamageNum(transform.position + Vector3.up * body * 0.8f, dmg,
                      team == Team.Player ? new Color(1f, 0.35f, 0.3f) : new Color(1f, 0.95f, 0.6f),
                      Mathf.Clamp(body * 0.22f, 0.9f, 3.5f) / 3f);   // ★하한 0.9 가 축소를 막으므로 결과를 나눈다 (2026-07-28)
-        // ※어그로(위협 테이블)는 행동과 함께 삭제됨 (2026-07-28) — 맞아도 반응하지 않는다
+        // 때린 놈을 기억한다 — 잠깐은 그놈을 우선해서 문다 (FindTarget ①)
+        if (attacker != null && attacker.team != team && !returning)
+        {
+            lastAttacker = attacker;
+            grudgeT = grudgeTime;
+            if (target == null || !target.Alive) target = attacker;   // 즉시 보복
+        }
         if (hp <= 0f)
         {
             if (isAvatar)

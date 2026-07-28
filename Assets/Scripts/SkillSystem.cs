@@ -173,6 +173,10 @@ public class SkillSystem : MonoBehaviour
         if (k == null) return;
         // ★키 배치 (2026-07-28 확정) — 1·2·3 무기 / 좌클릭 공격 / Q 무기 스킬 /
         //   E 펫 선택 / R 대규모 투척 / Space 구르기 / F 줍기
+        // R 슬롯의 쿨 표시는 '지금 고른 펫'의 쿨을 그대로 비춘다 (펫마다 따로 돌기 때문)
+        cd[3] = PetCommand.CoolOf(PetCommand.Selected);
+        cdMax[3] = throwCooldown;
+
         aiming = k.qKey.isPressed ? 0 : k.rKey.isPressed ? 3 : k.spaceKey.isPressed ? 2 : -1;
         UpdatePreview();
         if (k.qKey.wasReleasedThisFrame) TryQ();        // 무기 스킬
@@ -200,12 +204,17 @@ public class SkillSystem : MonoBehaviour
 
     void TryThrow()
     {
-        if (!Ready(3)) return;
         var pet = PetCommand.Selected;
         if (pet == null) { SquadHUD.Toast("던질 펫이 없다 — E 로 고른다"); return; }
+        // ★쿨은 펫마다 따로 돈다 — 슬롯 공용이 아니다 (2026-07-28)
+        if (PetCommand.CoolOf(pet) > 0f)
+        {
+            SquadHUD.Toast($"{pet.name} 준비 중 ({PetCommand.CoolOf(pet):F0}초)");
+            return;
+        }
 
         var spot = ThrowSpot();
-        Use(3, throwCooldown);
+        PetCommand.StartCool(pet, throwCooldown);
         StartCoroutine(ThrowFlight(pet, spot));
     }
 

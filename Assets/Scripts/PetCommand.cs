@@ -25,9 +25,86 @@ public class PetCommand : MonoBehaviour
     public static PetUnit Selected =>
         sel >= 0 && sel < Choices.Count ? Choices[sel] : null;
 
-    void Awake() { I = this; Choices.Clear(); sel = 0; }
+    [Header("전투 종료 판정 — 값은 지금 세계 기준 m")]
+    [Tooltip("이 거리 안에 살아있는 야생이 없으면 전투가 끝난 것으로 본다")]
+    public float combatRadius = 6f;
+    [Tooltip("적이 사라지고 이만큼 조용하면 펫을 회수한다 (초)")]
+    public float calmDelay = 1.5f;
+    float calmT;
 
-    void Update() => Refresh();
+    // ── 펫별 쿨타임 ────────────────────────────────────────────────────
+    // ★공용 쿨이 아니라 **펫마다 따로** 돈다 (2026-07-28 사용자).
+    //   그래야 "이 펫은 방금 썼으니 저 펫을 던진다" 는 판단이 생긴다.
+    //   그리고 전투가 끝나면 전부 즉시 초기화된다 — 쿨은 전투 안에서만 의미가 있다.
+    static readonly Dictionary<PetUnit, float> cool = new Dictionary<PetUnit, float>();
+    public static float CoolOf(PetUnit p) => p != null && cool.TryGetValue(p, out float t) ? Mathf.Max(0f, t) : 0f;
+    public static void StartCool(PetUnit p, float sec) { if (p != null) cool[p] = sec; }
+
+    void Awake() { I = this; Choices.Clear(); cool.Clear(); sel = 0; }
+
+    void Update()
+    {
+        Refresh();
+        TickCool();
+        CheckCombatEnd();
+    }
+
+    void TickCool()
+    {
+        if (cool.Count == 0) return;
+        var keys = new List<PetUnit>(cool.Keys);
+        foreach (var k in keys)
+        {
+            if (k == null) { cool.Remove(k); continue; }
+            float v = cool[k] - Time.deltaTime;
+            if (v <= 0f) cool.Remove(k); else cool[k] = v;
+        }
+    }
+
+    /// 전투가 끝났나 — 내 쪽(플레이어·소환 분신) 근처에 살아있는 야생이 하나도 없으면 끝.
+    void CheckCombatEnd()
+    {
+        bool fighting = false;
+        foreach (var u in PetUnit.All)
+        {
+            if (u == null || !u.Alive || u.team != PetUnit.Team.Wild) continue;
+            if (NearMine(u.transform.position)) { fighting = true; break; }
+        }
+        if (fighting) { calmT = 0f; return; }
+
+        calmT += Time.deltaTime;
+        if (calmT < calmDelay) return;
+        calmT = 0f;
+        EndCombat();
+    }
+
+    bool NearMine(Vector3 p)
+    {
+        var me = PetUnit.Avatar;
+        if (me != null && Flat(p, me.transform.position) < combatRadius) return true;
+        foreach (var u in PetUnit.All)
+        {
+            if (u == null || !u.Alive || !u.summoned || u.returning) continue;
+            if (Flat(p, u.transform.position) < combatRadius) return true;
+        }
+        return false;
+    }
+
+    static float Flat(Vector3 a, Vector3 b) { a.y = 0f; b.y = 0f; return Vector3.Distance(a, b); }
+
+    /// 전투 종료 — 분신은 각자 알아서 걸어 돌아와 퐁 하고 들어가고, 쿨타임은 즉시 풀린다
+    void EndCombat()
+    {
+        bool any = false;
+        foreach (var u in PetUnit.All)
+        {
+            if (u == null || !u.Alive || !u.summoned || u.returning) continue;
+            u.returning = true;   // 한 번 켜지면 새 전투가 열려도 안 멈춘다
+            any = true;
+        }
+        cool.Clear();             // ★전투가 끝나면 쿨타임 즉시 초기화
+        if (any) SquadHUD.Toast("전투 종료 — 펫이 돌아온다");
+    }
 
     /// 목록 갱신 — 죽거나 사라진 놈을 걷어내고 새로 생긴 내 펫을 넣는다.
     /// ★고른 놈을 '이름'이 아니라 '참조'로 유지한다 — 목록 순서가 바뀌어도
