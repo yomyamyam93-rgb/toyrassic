@@ -165,13 +165,17 @@ public class SkillSystem : MonoBehaviour
         AdvanceRoll();
         RefreshHUD();
 
-        // 창·건축 모드에선 스킬 입력 잠금 (Q·E·R 이 건축 조작과 겹치지 않게)
-        if (MenuUI.IsOpen || PetNameUI.IsOpen || BuildSystem.IsBuilding) { aiming = -1; UpdatePreview(); return; }
+        // 창·건축 모드에선 스킬 입력 잠금 (Q·E 가 건축 조작과 겹치지 않게)
+        if (MenuUI.IsOpen || PetNameUI.IsOpen || BuildSystem.IsBuilding)
+        {
+            aiming = -1; UpdatePreview();
+            // ★조준 중에 창을 열면 발이 묶인 채로 남는다 — 여기서 풀어 준다
+            if (move != null && dashT <= 0f) move.suppressMove = false;
+            return;
+        }
 #if ENABLE_INPUT_SYSTEM
         var k = Keyboard.current;
         if (k == null) return;
-        // ★키 배치 (2026-07-28 확정) — 1·2·3 무기 / 좌클릭 공격 / Q 무기 스킬 /
-        //   E 펫 선택 / R 대규모 투척 / Space 구르기 / F 줍기
         // 출현 슬롯의 쿨 표시 — 지금 무기에 묶인 펫의 쿨을 비춘다 (펫마다 따로 돌기 때문)
         cd[1] = PetCommand.CoolOf(PetCommand.Selected);
         cdMax[1] = throwCooldown;
@@ -180,6 +184,12 @@ public class SkillSystem : MonoBehaviour
         //   Q 무기 스킬 / E 대규모 출현 / Space 구르기. R 은 비워 뒀다.
         aiming = k.qKey.isPressed ? 0 : k.eKey.isPressed ? 1 : k.spaceKey.isPressed ? 2 : -1;
         UpdatePreview();
+
+        // ★E 로 조준하는 동안엔 발이 묶인다 (2026-07-28 사용자).
+        //   E 는 WASD 와 동시에 누르기 불편한 자리다. 어차피 같이 못 쓸 바엔
+        //   서서 겨누게 하는 편이 낫다 — 조준선이 안 흔들려 착탄 지점도 정확해진다.
+        //   대시 중에는 손대지 않는다 (그쪽이 suppressMove 를 쥐고 있다).
+        if (move != null && dashT <= 0f) move.suppressMove = aiming == 1;
         if (k.qKey.wasReleasedThisFrame) TryQ();        // 무기 스킬
         if (k.spaceKey.wasReleasedThisFrame) TryE();    // 구르기
         if (k.eKey.wasReleasedThisFrame) TryThrow();    // 대규모 출현 (조준하고 놓으면 날아간다)
