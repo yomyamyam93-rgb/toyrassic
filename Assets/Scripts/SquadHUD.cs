@@ -49,9 +49,14 @@ public class SquadHUD : MonoBehaviour
     void Start()
     {
         font = (UIStyle.I != null && UIStyle.I.font != null) ? UIStyle.I.font : Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-        round = Sprite.Create(FX.RoundedTex(),
-            new Rect(0, 0, 64, 24), new Vector2(0.5f, 0.5f), 100f, 0,
-            SpriteMeshType.FullRect, new Vector4(11, 11, 11, 11));   // 9-슬라이스 라운드 12px
+        // ★크기를 하드코딩하지 않는다 (2026-07-29). 예전엔 Rect(0,0,64,24) 로 박아 놨는데
+        //   FX.RoundedTex 를 512x192 로 다시 그리자 왼쪽 아래 귀퉁이만 잘라 쓰게 되어
+        //   좌상단 체력바가 깨졌다. 텍스처 크기를 물어보고, 테두리도 같은 비율로 환산한다.
+        var rt = FX.RoundedTex();
+        float bor = rt.height * (11f / 24f);      // 원래 비율(24px 높이에 11px 테두리) 유지
+        round = Sprite.Create(rt,
+            new Rect(0, 0, rt.width, rt.height), new Vector2(0.5f, 0.5f), 100f, 0,
+            SpriteMeshType.FullRect, new Vector4(bor, bor, bor, bor));
         toastDur = toastTime;
         Build();
     }

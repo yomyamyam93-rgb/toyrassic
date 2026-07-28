@@ -136,7 +136,8 @@ public class Incubator : MonoBehaviour
             q.localScale = new Vector3(scale.x, scale.y, 1f);
             var mm = q.GetComponent<MeshRenderer>();
             mm.material = new Material(Shader.Find("Toyrassic/GroundDecal"));
-            mm.material.mainTexture = FX.RoundedTex();
+            // 각진 바 — 체력바와 같은 규칙 (CLAUDE.md). 흰 1픽셀이라 안 뭉개진다
+            mm.material.mainTexture = Texture2D.whiteTexture;
             mm.material.color = c;
             mm.sortingOrder = order;
             mm.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;

@@ -1043,8 +1043,8 @@ public class PetUnit : MonoBehaviour
     const float barRefDist = 20f;
 
     /// ★체력바 전체 크기 배수. 여기만 만지면 모든 유닛의 바가 같이 커진다.
-    ///   3 → 4.5 (2026-07-29 사용자 "1.5배만 더").
-    const float barSizeMul = 4.5f;
+    ///   3 → 4.5 → 2.25 (2026-07-29 사용자 "너무 커졌어, 2분의 1로").
+    const float barSizeMul = 2.25f;
     void MakeBar(Renderer r)
     {
         ghostHp = hp;
@@ -1078,7 +1078,9 @@ public class PetUnit : MonoBehaviour
             q.localPosition = new Vector3(0, 0, z);
             var mm = q.GetComponent<MeshRenderer>();
             mm.material = new Material(Shader.Find("Toyrassic/GroundDecal"));   // ZTest Always — 몸·나무에 절대 안 가림
-            mm.material.mainTexture = FX.RoundedTex();
+            // ★각진 바 (2026-07-29 사용자 — "차징게이지처럼, 둥근 바가 아니라 그냥 바").
+            //   흰 1픽셀 텍스처라 어떤 크기로 늘려도 뭉개지지 않는다 (CLAUDE.md 바 규칙).
+            mm.material.mainTexture = Texture2D.whiteTexture;
             mm.material.color = c;
             mm.sortingOrder = order;   // ★그리기 순서 고정 — 투명 정렬 뒤섞임(색 이상해짐) 방지
             mm.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
@@ -1102,15 +1104,31 @@ public class PetUnit : MonoBehaviour
         barLevel = lvGo.AddComponent<TMPro.TextMeshPro>();
         var fnt = FX.WorldFont();
         if (fnt != null) barLevel.font = fnt;
-        barLevel.fontSize = 0.62f;                    // barRoot 로컬 단위 (바 높이 0.42 대비 조금 크게)
-        barLevel.alignment = TMPro.TextAlignmentOptions.Right;
+        // ★숫자만, 바의 아예 왼쪽 끝, 검정 테두리 (2026-07-29 사용자).
+        //   "Lv." 를 빼서 체력 숫자와 안 겹치게 하고, 테두리로 어떤 배경에서도 읽히게 한다.
+        barLevel.fontSize = 0.5f;                     // barRoot 로컬 단위 (바 높이 0.42)
+        barLevel.alignment = TMPro.TextAlignmentOptions.Center;
         barLevel.fontStyle = TMPro.FontStyles.Bold;
-        barLevel.color = new Color(1f, 0.95f, 0.75f);
+        barLevel.color = Color.white;
         barLevel.enableWordWrapping = false;
         barLevel.raycastTarget = false;
+        // 검정 외곽선 + 밑판 — 피해 숫자와 같은 방식 (밝은 땅·어두운 몸 어디서든 읽힌다)
+        var lmat = barLevel.fontMaterial;             // 인스턴스 머티리얼 (다른 텍스트에 안 번진다)
+        lmat.EnableKeyword("OUTLINE_ON");
+        lmat.SetFloat(TMPro.ShaderUtilities.ID_OutlineWidth, 0.30f);
+        lmat.SetColor(TMPro.ShaderUtilities.ID_OutlineColor, Color.black);
+        lmat.EnableKeyword("UNDERLAY_ON");
+        lmat.SetColor(TMPro.ShaderUtilities.ID_UnderlayColor, Color.black);
+        lmat.SetFloat(TMPro.ShaderUtilities.ID_UnderlayOffsetX, 0f);
+        lmat.SetFloat(TMPro.ShaderUtilities.ID_UnderlayOffsetY, 0f);
+        lmat.SetFloat(TMPro.ShaderUtilities.ID_UnderlayDilate, 0.4f);
+        lmat.SetFloat(TMPro.ShaderUtilities.ID_UnderlaySoftness, 0f);
+        lmat.SetFloat("_ZTestMode", (float)UnityEngine.Rendering.CompareFunction.Always);
+        lmat.renderQueue = 4500;                      // 몸·나무보다 항상 앞
         var lrt = (RectTransform)lvGo.transform;
-        lrt.sizeDelta = new Vector2(1.4f, 0.5f);
-        lrt.localPosition = new Vector3(-1.05f, 0f, -0.02f);   // 바 왼쪽 바깥, 살짝 앞
+        lrt.sizeDelta = new Vector2(0.6f, 0.5f);
+        // 바 반폭이 0.95 — 그 왼쪽 끝에 얹는다 (바깥이 아니라 끝에 물리게)
+        lrt.localPosition = new Vector3(-0.95f, 0f, -0.02f);
         var lmr = barLevel.GetComponent<MeshRenderer>();
         if (lmr != null)
         {
@@ -1176,7 +1194,7 @@ public class PetUnit : MonoBehaviour
         if (barLevel != null && barLevelShown != level)
         {
             barLevelShown = level;
-            barLevel.text = "Lv." + level;
+            barLevel.text = level.ToString();   // 숫자만 — 체력 숫자와 안 겹치게
         }
         // 롤식: 실체력은 즉시, 잔상 바는 잠깐 머물다 스르륵 따라 내려옴
         ghostHp = hp > ghostHp ? hp : Mathf.MoveTowards(ghostHp, hp, maxHp * 0.45f * Time.deltaTime);
