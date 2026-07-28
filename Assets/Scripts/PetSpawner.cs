@@ -122,7 +122,7 @@ public class PetSpawner : MonoBehaviour
             if (near) continue;
 
             pos.y = h;
-            Spawn(Pick(), pos);
+            Spawn(PickAt(pos), pos);   // ★그 자리에 어울리는 종 (거리 등급 + 무리 짓기)
             return true;
         }
         return false;
@@ -220,14 +220,89 @@ public class PetSpawner : MonoBehaviour
         u.maxHp = u.vit * 10f; u.hp = u.maxHp;
     }
 
-    Entry Pick()
+    // ── 분포 — 어디에 무엇이 사는가 ────────────────────────────────────
+    //
+    // ★여태 종 선택이 순수 무작위였다 (2026-07-28). 시작 지점 옆에서 초대형이 나오고,
+    //   벌판 어디를 가도 같은 구성이 나와 **탐험할 이유가 없었다.**
+    //   둘을 넣는다:
+    //     ① 거리 = 등급 — 멀수록 강한 것이 산다. 알(둥지)도 같은 규칙을 쓴다.
+    //        그래야 "저 멀리 큰 알이 있다" 가 목표가 되고, 지도가 난이도 지도가 된다.
+    //     ② 무리 짓기 — 같은 종이 지역별로 뭉쳐 산다. 완전 무작위면 벌판이 균질해서
+    //        "여긴 라푸토르 골짜기" 같은 장소 기억이 안 생긴다.
+    [Header("★분포 — 멀수록 강한 것이 산다")]
+    [Tooltip("등급 한 칸 오르는 데 걸리는 거리 (m). 야생·알 분포에 함께 쓴다")]
+    public float tierPerMeters = 800f;
+    [Tooltip("분포의 뾰족함 — 클수록 그 거리엔 그 등급만 나온다 (0 = 무작위)")]
+    public float tierSharpness = 1.6f;
+
+    [Header("★분포 — 같은 종이 뭉쳐 산다")]
+    [Tooltip("주변에 같은 종이 있으면 그 종으로 뽑을 확률")]
+    [Range(0f, 1f)] public float clusterChance = 0.65f;
+    [Tooltip("같은 무리로 볼 거리 (m)")] public float clusterRadius = 140f;
+
+    Vector3 Origin
     {
+        get
+        {
+            if (!originSet)
+            {
+                var p = levelOrigin != null ? levelOrigin : player;
+                originCache = p != null ? p.position : Vector3.zero;
+                originSet = true;
+            }
+            return originCache;
+        }
+    }
+
+    static int TierIndex(PetScale.Tier t) =>
+        t == PetScale.Tier.S ? 0 : t == PetScale.Tier.M ? 1 : t == PetScale.Tier.L ? 2 : 3;
+
+    /// 이 자리에 어울리는 등급 (0=소 ~ 3=초대) — 거리에 비례
+    public float TierWantAt(Vector3 pos)
+    {
+        var o = Origin;
+        float d = Vector3.Distance(new Vector3(pos.x, 0, pos.z), new Vector3(o.x, 0, o.z));
+        return Mathf.Clamp(d / Mathf.Max(50f, tierPerMeters), 0f, 3f);
+    }
+
+    /// 이 자리에서 이 등급이 뽑힐 가중치 배수 — 어울릴수록 크다
+    public float TierWeightAt(PetScale.Tier tier, Vector3 pos)
+    {
+        if (tierSharpness <= 0f) return 1f;
+        float gap = Mathf.Abs(TierIndex(tier) - TierWantAt(pos));
+        return 1f / (1f + gap * tierSharpness);
+    }
+
+    /// 그 자리에 어울리는 종을 뽑는다 (거리 + 무리 짓기)
+    public Entry PickAt(Vector3 pos)
+    {
+        if (entries.Count == 0) return null;
+
+        // ② 무리 짓기 — 근처에 사는 종이 있으면 그 종일 확률이 높다
+        if (clusterChance > 0f && Random.value < clusterChance)
+        {
+            Entry near = null; float bd = clusterRadius;
+            foreach (var u in PetUnit.All)
+            {
+                if (u == null || !u.Alive || u.team != PetUnit.Team.Wild) continue;
+                float d = Vector3.Distance(new Vector3(pos.x, 0, pos.z),
+                                           new Vector3(u.transform.position.x, 0, u.transform.position.z));
+                if (d >= bd) continue;
+                var e = entries.Find(x => x.species == u.species);
+                if (e == null) continue;
+                bd = d; near = e;
+            }
+            if (near != null) return near;
+        }
+
+        // ① 거리 = 등급
         float total = 0f;
-        foreach (var e in entries) total += Mathf.Max(0f, e.weight);
+        foreach (var e in entries) total += Mathf.Max(0f, e.weight) * TierWeightAt(e.tier, pos);
+        if (total <= 0f) return entries[Random.Range(0, entries.Count)];
         float r = Random.Range(0f, total);
         foreach (var e in entries)
         {
-            r -= Mathf.Max(0f, e.weight);
+            r -= Mathf.Max(0f, e.weight) * TierWeightAt(e.tier, pos);
             if (r <= 0f) return e;
         }
         return entries[entries.Count - 1];

@@ -105,15 +105,24 @@ public class NestSite : MonoBehaviour
     }
 
     /// 이 둥지 알의 주인 종을 고른다 (가중치)
+    /// ★알 등급도 '거리'가 정한다 (2026-07-28). 예전엔 순수 무작위라 시작 지점 옆
+    ///   둥지에서 초대형 알이 나올 수 있었다 — 그러면 탐험할 이유도, 지도를 볼 이유도 없다.
+    ///   가까우면 작은 알, 멀수록 큰 알. 야생 분포와 **같은 규칙**을 쓰므로
+    ///   "여기 사는 것들이 지키는 알" 이라는 앞뒤가 맞는다.
+    ///   무리 짓기(clusterChance)는 여기선 안 쓴다 — 둥지는 지역의 '주인' 이라
+    ///   주변에 흔한 종이 아니라 그 거리에 어울리는 종이어야 한다.
     PetSpawner.Entry PickEggEntry()
     {
         if (spawner == null || spawner.entries.Count == 0) return null;
+        var at = transform.position;
         float sum = 0f;
-        foreach (var e in spawner.entries) sum += Mathf.Max(0.01f, e.weight);
+        foreach (var e in spawner.entries)
+            sum += Mathf.Max(0.01f, e.weight) * spawner.TierWeightAt(e.tier, at);
+        if (sum <= 0f) return spawner.entries[0];
         float r = Random.Range(0f, sum);
         foreach (var e in spawner.entries)
         {
-            r -= Mathf.Max(0.01f, e.weight);
+            r -= Mathf.Max(0.01f, e.weight) * spawner.TierWeightAt(e.tier, at);
             if (r <= 0f) return e;
         }
         return spawner.entries[0];

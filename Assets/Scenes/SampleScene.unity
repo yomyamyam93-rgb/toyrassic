@@ -389,8 +389,15 @@ MonoBehaviour:
   spawner: {fileID: 1834216757}
   egg: {fileID: 2104160909}
   triggerRadius: 2.6000001
-  swarmSize: 12
-  swarmInterval: 0.4
+  nestBurst: 10
+  burstInterval: 0.07
+  fieldRush: 14
+  fieldRadius: 16
+  rushInterval: 0.16
+  tierScaleS: 0.7
+  tierScaleM: 1
+  tierScaleL: 1.45
+  tierScaleXL: 1.95
   sizeMul: 0.55
   hpMul: 0.3
   dmgMul: 0.5
@@ -3186,6 +3193,7 @@ MonoBehaviour:
   rangeMul: 1
   basicOnly: 0
   aggroRange: 3
+  joinRange: 14
   reach: 0.5
   atkPeriod: 1.1
   dmgPerStr: 0.8
@@ -7604,8 +7612,15 @@ MonoBehaviour:
   spawner: {fileID: 1834216757}
   egg: {fileID: 2135888176}
   triggerRadius: 2.6000001
-  swarmSize: 12
-  swarmInterval: 0.4
+  nestBurst: 10
+  burstInterval: 0.07
+  fieldRush: 14
+  fieldRadius: 16
+  rushInterval: 0.16
+  tierScaleS: 0.7
+  tierScaleM: 1
+  tierScaleL: 1.45
+  tierScaleXL: 1.95
   sizeMul: 0.55
   hpMul: 0.3
   dmgMul: 0.5
@@ -8224,8 +8239,15 @@ MonoBehaviour:
   spawner: {fileID: 1834216757}
   egg: {fileID: 393710297}
   triggerRadius: 2.6000001
-  swarmSize: 12
-  swarmInterval: 0.4
+  nestBurst: 10
+  burstInterval: 0.07
+  fieldRush: 14
+  fieldRadius: 16
+  rushInterval: 0.16
+  tierScaleS: 0.7
+  tierScaleM: 1
+  tierScaleL: 1.45
+  tierScaleXL: 1.95
   sizeMul: 0.55
   hpMul: 0.3
   dmgMul: 0.5
@@ -8785,8 +8807,15 @@ MonoBehaviour:
   spawner: {fileID: 1834216757}
   egg: {fileID: 1922377085}
   triggerRadius: 2.6000001
-  swarmSize: 12
-  swarmInterval: 0.4
+  nestBurst: 10
+  burstInterval: 0.07
+  fieldRush: 14
+  fieldRadius: 16
+  rushInterval: 0.16
+  tierScaleS: 0.7
+  tierScaleM: 1
+  tierScaleL: 1.45
+  tierScaleXL: 1.95
   sizeMul: 0.55
   hpMul: 0.3
   dmgMul: 0.5
@@ -9717,8 +9746,15 @@ MonoBehaviour:
   spawner: {fileID: 1834216757}
   egg: {fileID: 1173493909}
   triggerRadius: 2.6000001
-  swarmSize: 12
-  swarmInterval: 0.4
+  nestBurst: 10
+  burstInterval: 0.07
+  fieldRush: 14
+  fieldRadius: 16
+  rushInterval: 0.16
+  tierScaleS: 0.7
+  tierScaleM: 1
+  tierScaleL: 1.45
+  tierScaleXL: 1.95
   sizeMul: 0.55
   hpMul: 0.3
   dmgMul: 0.5
@@ -10265,8 +10301,15 @@ MonoBehaviour:
   spawner: {fileID: 1834216757}
   egg: {fileID: 1499861500}
   triggerRadius: 2.6000001
-  swarmSize: 12
-  swarmInterval: 0.4
+  nestBurst: 10
+  burstInterval: 0.07
+  fieldRush: 14
+  fieldRadius: 16
+  rushInterval: 0.16
+  tierScaleS: 0.7
+  tierScaleM: 1
+  tierScaleL: 1.45
+  tierScaleXL: 1.95
   sizeMul: 0.55
   hpMul: 0.3
   dmgMul: 0.5
@@ -11278,8 +11321,15 @@ MonoBehaviour:
   spawner: {fileID: 1834216757}
   egg: {fileID: 538333299}
   triggerRadius: 2.6000001
-  swarmSize: 12
-  swarmInterval: 0.4
+  nestBurst: 10
+  burstInterval: 0.07
+  fieldRush: 14
+  fieldRadius: 16
+  rushInterval: 0.16
+  tierScaleS: 0.7
+  tierScaleM: 1
+  tierScaleL: 1.45
+  tierScaleXL: 1.95
   sizeMul: 0.55
   hpMul: 0.3
   dmgMul: 0.5
@@ -11575,8 +11625,15 @@ MonoBehaviour:
   spawner: {fileID: 1834216757}
   egg: {fileID: 1095814938}
   triggerRadius: 2.6000001
-  swarmSize: 12
-  swarmInterval: 0.4
+  nestBurst: 10
+  burstInterval: 0.07
+  fieldRush: 14
+  fieldRadius: 16
+  rushInterval: 0.16
+  tierScaleS: 0.7
+  tierScaleM: 1
+  tierScaleL: 1.45
+  tierScaleXL: 1.95
   sizeMul: 0.55
   hpMul: 0.3
   dmgMul: 0.5
@@ -19534,8 +19591,15 @@ MonoBehaviour:
   spawner: {fileID: 1834216757}
   egg: {fileID: 168583772}
   triggerRadius: 2.6000001
-  swarmSize: 5
-  swarmInterval: 0.4
+  nestBurst: 10
+  burstInterval: 0.07
+  fieldRush: 14
+  fieldRadius: 16
+  rushInterval: 0.16
+  tierScaleS: 0.7
+  tierScaleM: 1
+  tierScaleL: 1.45
+  tierScaleXL: 1.95
   sizeMul: 0.55
   hpMul: 0.3
   dmgMul: 0.5
@@ -20606,8 +20670,15 @@ MonoBehaviour:
   spawner: {fileID: 1834216757}
   egg: {fileID: 693626892}
   triggerRadius: 2.6000001
-  swarmSize: 5
-  swarmInterval: 0.4
+  nestBurst: 10
+  burstInterval: 0.07
+  fieldRush: 14
+  fieldRadius: 16
+  rushInterval: 0.16
+  tierScaleS: 0.7
+  tierScaleM: 1
+  tierScaleL: 1.45
+  tierScaleXL: 1.95
   sizeMul: 0.55
   hpMul: 0.3
   dmgMul: 0.5
@@ -21917,8 +21988,15 @@ MonoBehaviour:
   spawner: {fileID: 1834216757}
   egg: {fileID: 1135767574}
   triggerRadius: 2.6000001
-  swarmSize: 12
-  swarmInterval: 0.4
+  nestBurst: 10
+  burstInterval: 0.07
+  fieldRush: 14
+  fieldRadius: 16
+  rushInterval: 0.16
+  tierScaleS: 0.7
+  tierScaleM: 1
+  tierScaleL: 1.45
+  tierScaleXL: 1.95
   sizeMul: 0.55
   hpMul: 0.3
   dmgMul: 0.5
@@ -24044,8 +24122,15 @@ MonoBehaviour:
   spawner: {fileID: 1834216757}
   egg: {fileID: 2020407798}
   triggerRadius: 2.6000001
-  swarmSize: 12
-  swarmInterval: 0.4
+  nestBurst: 10
+  burstInterval: 0.07
+  fieldRush: 14
+  fieldRadius: 16
+  rushInterval: 0.16
+  tierScaleS: 0.7
+  tierScaleM: 1
+  tierScaleL: 1.45
+  tierScaleXL: 1.95
   sizeMul: 0.55
   hpMul: 0.3
   dmgMul: 0.5
@@ -24124,8 +24209,15 @@ MonoBehaviour:
   spawner: {fileID: 1834216757}
   egg: {fileID: 902360234}
   triggerRadius: 2.6000001
-  swarmSize: 5
-  swarmInterval: 0.4
+  nestBurst: 10
+  burstInterval: 0.07
+  fieldRush: 14
+  fieldRadius: 16
+  rushInterval: 0.16
+  tierScaleS: 0.7
+  tierScaleM: 1
+  tierScaleL: 1.45
+  tierScaleXL: 1.95
   sizeMul: 0.55
   hpMul: 0.3
   dmgMul: 0.5
@@ -24474,8 +24566,15 @@ MonoBehaviour:
   spawner: {fileID: 1834216757}
   egg: {fileID: 185422016}
   triggerRadius: 2.6000001
-  swarmSize: 12
-  swarmInterval: 0.4
+  nestBurst: 10
+  burstInterval: 0.07
+  fieldRush: 14
+  fieldRadius: 16
+  rushInterval: 0.16
+  tierScaleS: 0.7
+  tierScaleM: 1
+  tierScaleL: 1.45
+  tierScaleXL: 1.95
   sizeMul: 0.55
   hpMul: 0.3
   dmgMul: 0.5
@@ -28311,8 +28410,15 @@ MonoBehaviour:
   spawner: {fileID: 1834216757}
   egg: {fileID: 83664943}
   triggerRadius: 2.6000001
-  swarmSize: 12
-  swarmInterval: 0.4
+  nestBurst: 10
+  burstInterval: 0.07
+  fieldRush: 14
+  fieldRadius: 16
+  rushInterval: 0.16
+  tierScaleS: 0.7
+  tierScaleM: 1
+  tierScaleL: 1.45
+  tierScaleXL: 1.95
   sizeMul: 0.55
   hpMul: 0.3
   dmgMul: 0.5
@@ -30358,8 +30464,15 @@ MonoBehaviour:
   spawner: {fileID: 1834216757}
   egg: {fileID: 782868380}
   triggerRadius: 2.6000001
-  swarmSize: 12
-  swarmInterval: 0.4
+  nestBurst: 10
+  burstInterval: 0.07
+  fieldRush: 14
+  fieldRadius: 16
+  rushInterval: 0.16
+  tierScaleS: 0.7
+  tierScaleM: 1
+  tierScaleL: 1.45
+  tierScaleXL: 1.95
   sizeMul: 0.55
   hpMul: 0.3
   dmgMul: 0.5
@@ -32700,8 +32813,15 @@ MonoBehaviour:
   spawner: {fileID: 1834216757}
   egg: {fileID: 474248543}
   triggerRadius: 2.6000001
-  swarmSize: 12
-  swarmInterval: 0.4
+  nestBurst: 10
+  burstInterval: 0.07
+  fieldRush: 14
+  fieldRadius: 16
+  rushInterval: 0.16
+  tierScaleS: 0.7
+  tierScaleM: 1
+  tierScaleL: 1.45
+  tierScaleXL: 1.95
   sizeMul: 0.55
   hpMul: 0.3
   dmgMul: 0.5
@@ -34443,8 +34563,15 @@ MonoBehaviour:
   spawner: {fileID: 1834216757}
   egg: {fileID: 857880392}
   triggerRadius: 2.6000001
-  swarmSize: 12
-  swarmInterval: 0.4
+  nestBurst: 10
+  burstInterval: 0.07
+  fieldRush: 14
+  fieldRadius: 16
+  rushInterval: 0.16
+  tierScaleS: 0.7
+  tierScaleM: 1
+  tierScaleL: 1.45
+  tierScaleXL: 1.95
   sizeMul: 0.55
   hpMul: 0.3
   dmgMul: 0.5
@@ -39201,8 +39328,15 @@ MonoBehaviour:
   spawner: {fileID: 1834216757}
   egg: {fileID: 1749370172}
   triggerRadius: 2.6000001
-  swarmSize: 5
-  swarmInterval: 0.4
+  nestBurst: 10
+  burstInterval: 0.07
+  fieldRush: 14
+  fieldRadius: 16
+  rushInterval: 0.16
+  tierScaleS: 0.7
+  tierScaleM: 1
+  tierScaleL: 1.45
+  tierScaleXL: 1.95
   sizeMul: 0.55
   hpMul: 0.3
   dmgMul: 0.5
@@ -39976,8 +40110,15 @@ MonoBehaviour:
   spawner: {fileID: 1834216757}
   egg: {fileID: 2036224728}
   triggerRadius: 2.6000001
-  swarmSize: 12
-  swarmInterval: 0.4
+  nestBurst: 10
+  burstInterval: 0.07
+  fieldRush: 14
+  fieldRadius: 16
+  rushInterval: 0.16
+  tierScaleS: 0.7
+  tierScaleM: 1
+  tierScaleL: 1.45
+  tierScaleXL: 1.95
   sizeMul: 0.55
   hpMul: 0.3
   dmgMul: 0.5
@@ -41975,8 +42116,15 @@ MonoBehaviour:
   spawner: {fileID: 1834216757}
   egg: {fileID: 62672447}
   triggerRadius: 2.6000001
-  swarmSize: 12
-  swarmInterval: 0.4
+  nestBurst: 10
+  burstInterval: 0.07
+  fieldRush: 14
+  fieldRadius: 16
+  rushInterval: 0.16
+  tierScaleS: 0.7
+  tierScaleM: 1
+  tierScaleL: 1.45
+  tierScaleXL: 1.95
   sizeMul: 0.55
   hpMul: 0.3
   dmgMul: 0.5
@@ -43607,8 +43755,15 @@ MonoBehaviour:
   spawner: {fileID: 1834216757}
   egg: {fileID: 680266727}
   triggerRadius: 2.6000001
-  swarmSize: 12
-  swarmInterval: 0.4
+  nestBurst: 10
+  burstInterval: 0.07
+  fieldRush: 14
+  fieldRadius: 16
+  rushInterval: 0.16
+  tierScaleS: 0.7
+  tierScaleM: 1
+  tierScaleL: 1.45
+  tierScaleXL: 1.95
   sizeMul: 0.55
   hpMul: 0.3
   dmgMul: 0.5
@@ -43808,8 +43963,15 @@ MonoBehaviour:
   spawner: {fileID: 1834216757}
   egg: {fileID: 145786205}
   triggerRadius: 2.6000001
-  swarmSize: 12
-  swarmInterval: 0.4
+  nestBurst: 10
+  burstInterval: 0.07
+  fieldRush: 14
+  fieldRadius: 16
+  rushInterval: 0.16
+  tierScaleS: 0.7
+  tierScaleM: 1
+  tierScaleL: 1.45
+  tierScaleXL: 1.95
   sizeMul: 0.55
   hpMul: 0.3
   dmgMul: 0.5
@@ -44189,8 +44351,15 @@ MonoBehaviour:
   spawner: {fileID: 1834216757}
   egg: {fileID: 526800523}
   triggerRadius: 2.6000001
-  swarmSize: 12
-  swarmInterval: 0.4
+  nestBurst: 10
+  burstInterval: 0.07
+  fieldRush: 14
+  fieldRadius: 16
+  rushInterval: 0.16
+  tierScaleS: 0.7
+  tierScaleM: 1
+  tierScaleL: 1.45
+  tierScaleXL: 1.95
   sizeMul: 0.55
   hpMul: 0.3
   dmgMul: 0.5
@@ -45866,8 +46035,15 @@ MonoBehaviour:
   spawner: {fileID: 1834216757}
   egg: {fileID: 202252895}
   triggerRadius: 2.6000001
-  swarmSize: 12
-  swarmInterval: 0.4
+  nestBurst: 10
+  burstInterval: 0.07
+  fieldRush: 14
+  fieldRadius: 16
+  rushInterval: 0.16
+  tierScaleS: 0.7
+  tierScaleM: 1
+  tierScaleL: 1.45
+  tierScaleXL: 1.95
   sizeMul: 0.55
   hpMul: 0.3
   dmgMul: 0.5
@@ -46822,8 +46998,15 @@ MonoBehaviour:
   spawner: {fileID: 1834216757}
   egg: {fileID: 1240982393}
   triggerRadius: 2.6000001
-  swarmSize: 12
-  swarmInterval: 0.4
+  nestBurst: 10
+  burstInterval: 0.07
+  fieldRush: 14
+  fieldRadius: 16
+  rushInterval: 0.16
+  tierScaleS: 0.7
+  tierScaleM: 1
+  tierScaleL: 1.45
+  tierScaleXL: 1.95
   sizeMul: 0.55
   hpMul: 0.3
   dmgMul: 0.5
@@ -46902,8 +47085,15 @@ MonoBehaviour:
   spawner: {fileID: 1834216757}
   egg: {fileID: 1864640563}
   triggerRadius: 2.6000001
-  swarmSize: 12
-  swarmInterval: 0.4
+  nestBurst: 10
+  burstInterval: 0.07
+  fieldRush: 14
+  fieldRadius: 16
+  rushInterval: 0.16
+  tierScaleS: 0.7
+  tierScaleM: 1
+  tierScaleL: 1.45
+  tierScaleXL: 1.95
   sizeMul: 0.55
   hpMul: 0.3
   dmgMul: 0.5
@@ -50181,8 +50371,15 @@ MonoBehaviour:
   spawner: {fileID: 1834216757}
   egg: {fileID: 1156017777}
   triggerRadius: 2.6000001
-  swarmSize: 12
-  swarmInterval: 0.4
+  nestBurst: 10
+  burstInterval: 0.07
+  fieldRush: 14
+  fieldRadius: 16
+  rushInterval: 0.16
+  tierScaleS: 0.7
+  tierScaleM: 1
+  tierScaleL: 1.45
+  tierScaleXL: 1.95
   sizeMul: 0.55
   hpMul: 0.3
   dmgMul: 0.5
@@ -50441,8 +50638,15 @@ MonoBehaviour:
   spawner: {fileID: 1834216757}
   egg: {fileID: 800691948}
   triggerRadius: 2.6000001
-  swarmSize: 12
-  swarmInterval: 0.4
+  nestBurst: 10
+  burstInterval: 0.07
+  fieldRush: 14
+  fieldRadius: 16
+  rushInterval: 0.16
+  tierScaleS: 0.7
+  tierScaleM: 1
+  tierScaleL: 1.45
+  tierScaleXL: 1.95
   sizeMul: 0.55
   hpMul: 0.3
   dmgMul: 0.5
@@ -52873,8 +53077,15 @@ MonoBehaviour:
   spawner: {fileID: 1834216757}
   egg: {fileID: 868668395}
   triggerRadius: 2.6000001
-  swarmSize: 5
-  swarmInterval: 0.4
+  nestBurst: 10
+  burstInterval: 0.07
+  fieldRush: 14
+  fieldRadius: 16
+  rushInterval: 0.16
+  tierScaleS: 0.7
+  tierScaleM: 1
+  tierScaleL: 1.45
+  tierScaleXL: 1.95
   sizeMul: 0.55
   hpMul: 0.3
   dmgMul: 0.5
@@ -53226,8 +53437,15 @@ MonoBehaviour:
   spawner: {fileID: 1834216757}
   egg: {fileID: 1151667100}
   triggerRadius: 2.6000001
-  swarmSize: 12
-  swarmInterval: 0.4
+  nestBurst: 10
+  burstInterval: 0.07
+  fieldRush: 14
+  fieldRadius: 16
+  rushInterval: 0.16
+  tierScaleS: 0.7
+  tierScaleM: 1
+  tierScaleL: 1.45
+  tierScaleXL: 1.95
   sizeMul: 0.55
   hpMul: 0.3
   dmgMul: 0.5
@@ -54029,6 +54247,10 @@ MonoBehaviour:
   levelOrigin: {fileID: 0}
   metersPerLevel: 45
   levelJitter: 3
+  tierPerMeters: 1300
+  tierSharpness: 1.6
+  clusterChance: 0.65
+  clusterRadius: 140
   startPets: 3
   startPetGap: 1.5
 --- !u!4 &1834216758
@@ -58122,8 +58344,15 @@ MonoBehaviour:
   spawner: {fileID: 1834216757}
   egg: {fileID: 30686766}
   triggerRadius: 2.6000001
-  swarmSize: 5
-  swarmInterval: 0.4
+  nestBurst: 10
+  burstInterval: 0.07
+  fieldRush: 14
+  fieldRadius: 16
+  rushInterval: 0.16
+  tierScaleS: 0.7
+  tierScaleM: 1
+  tierScaleL: 1.45
+  tierScaleXL: 1.95
   sizeMul: 0.55
   hpMul: 0.3
   dmgMul: 0.5
