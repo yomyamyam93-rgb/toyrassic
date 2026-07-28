@@ -85,6 +85,60 @@ public static class FX
 
     /// ★스킬 영역용 — 테두리는 얇게, 대신 진하게. 속은 거의 비워 지형이 잘 보이게.
     /// 표시된 원의 바깥 끝(r=1)이 곧 실제 피격 반경이다.
+    // ★스킬 장판의 '벽' 에 쓰는 세로 그라데이션 (2026-07-28).
+    //   바닥은 진하고 위로 갈수록 사라진다 = 땅에서 빛이 솟아오르는 것처럼 보인다.
+    //   바닥 쪽에 아주 얇은 밝은 띠를 하나 넣어 지면과 닿는 선을 또렷하게 만든다 —
+    //   이게 없으면 어디까지가 범위인지 발밑에서 흐릿해진다.
+    static Texture2D wallFadeTex;
+    public static Texture2D WallFadeTex()
+    {
+        if (wallFadeTex != null) return wallFadeTex;
+        int h = 128;
+        wallFadeTex = new Texture2D(1, h, TextureFormat.RGBA32, false);
+        for (int y = 0; y < h; y++)
+        {
+            float v = y / (float)(h - 1);              // 0 = 바닥, 1 = 꼭대기
+            float a = Mathf.Pow(1f - v, 2.2f);         // 위로 갈수록 빠르게 사라짐
+            if (v < 0.05f) a = Mathf.Max(a, 1f);       // 바닥 접선 — 또렷하게
+            wallFadeTex.SetPixel(0, y, new Color(1f, 1f, 1f, a));
+        }
+        wallFadeTex.Apply();
+        wallFadeTex.wrapMode = TextureWrapMode.Clamp;
+        return wallFadeTex;
+    }
+
+    /// 원통 옆면 메시 — 뚜껑 없는 통. 장판 테두리에서 솟는 빛의 벽으로 쓴다.
+    /// 반지름 0.5 · 높이 1 로 만들어 두고 크기는 스케일로 준다.
+    /// 안쪽에서도 보이게 삼각형을 양면으로 넣는다 (범위 안에 서 있어도 벽이 보여야 한다).
+    static Mesh wallMesh;
+    public static Mesh WallMesh(int seg = 64)
+    {
+        if (wallMesh != null) return wallMesh;
+        var v = new Vector3[(seg + 1) * 2];
+        var uv = new Vector2[v.Length];
+        for (int i = 0; i <= seg; i++)
+        {
+            float t = i / (float)seg, a = t * Mathf.PI * 2f;
+            var d = new Vector3(Mathf.Cos(a) * 0.5f, 0f, Mathf.Sin(a) * 0.5f);
+            v[i * 2] = d; v[i * 2 + 1] = d + Vector3.up;
+            uv[i * 2] = new Vector2(t, 0f); uv[i * 2 + 1] = new Vector2(t, 1f);
+        }
+        var tri = new int[seg * 12];
+        int k = 0;
+        for (int i = 0; i < seg; i++)
+        {
+            int a = i * 2, b = i * 2 + 1, c = i * 2 + 2, d2 = i * 2 + 3;
+            tri[k++] = a; tri[k++] = b; tri[k++] = c;      // 바깥면
+            tri[k++] = b; tri[k++] = d2; tri[k++] = c;
+            tri[k++] = c; tri[k++] = b; tri[k++] = a;      // 안쪽면
+            tri[k++] = c; tri[k++] = d2; tri[k++] = b;
+        }
+        wallMesh = new Mesh { name = "SkillAreaWall" };
+        wallMesh.vertices = v; wallMesh.uv = uv; wallMesh.triangles = tri;
+        wallMesh.RecalculateBounds();
+        return wallMesh;
+    }
+
     static Texture2D circleThinTex;
     public static Texture2D CircleThinTex()
     {

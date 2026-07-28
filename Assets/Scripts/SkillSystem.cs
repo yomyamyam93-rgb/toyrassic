@@ -119,6 +119,8 @@ public class SkillSystem : MonoBehaviour
     PetCommand cmd;
 
     /// 마우스가 가리키는 땅 지점 (돌격 명령용)
+    float aimStableY;   // 통통 튐을 걸러낸 조준 평면 높이
+
     Vector3 AimSpot()
     {
         if (cam == null) cam = Camera.main;
@@ -129,8 +131,15 @@ public class SkillSystem : MonoBehaviour
 #else
         Vector2 mp = Input.mousePosition;
 #endif
+        // ★조준 평면 높이는 '통통 튐을 걸러낸 값' 을 쓴다 (2026-07-28).
+        //   플레이어 y 를 그대로 쓰면 홉 모션으로 매 프레임 위아래로 흔들리고,
+        //   비스듬한 카메라라 그 높이차가 그대로 좌우 오차가 되어 **장판이 부들부들 떨렸다.**
+        //   (활은 이미 같은 이유로 stableY 를 쓰고 있었다 — 스킬 조준만 빠져 있었다)
+        if (aimStableY == 0f) aimStableY = transform.position.y;
+        else aimStableY = Mathf.Lerp(aimStableY, transform.position.y, 5f * Time.deltaTime);
+
         var ray = cam.ScreenPointToRay(mp);
-        var plane = new Plane(Vector3.up, transform.position);
+        var plane = new Plane(Vector3.up, new Vector3(0f, aimStableY, 0f));
         return plane.Raycast(ray, out float e) ? ray.GetPoint(e)
                                                : transform.position + transform.forward * 10f;
     }
@@ -234,13 +243,24 @@ public class SkillSystem : MonoBehaviour
         StartCoroutine(ThrowFlight(pet, spot));
     }
 
+    Vector3 throwSpotSmooth; bool throwSpotSet;
+
     /// 던질 지점 — 마우스가 가리키는 곳, 사거리 안으로 잘라서
+    /// ★한 번 더 부드럽게 따라가게 한다 (2026-07-28). 마우스 손떨림과 지형 굴곡이
+    ///   그대로 장판에 실리면 원이 계속 잘게 흔들려 조준이 안 된다.
+    ///   시정수를 짧게(≈40ms) 잡아 지연은 안 느껴지고 떨림만 걸러진다.
+    ///   크게 움직이면 그냥 따라붙는다 — 멀리 겨눌 때 원이 뒤늦게 미끄러져 오면 답답하다.
     Vector3 ThrowSpot()
     {
         var spot = AimSpot();
         var d = spot - transform.position; d.y = 0f;
         if (d.magnitude > throwRange) spot = transform.position + d.normalized * throwRange;
-        return Ground(spot);
+
+        if (!throwSpotSet) { throwSpotSmooth = spot; throwSpotSet = true; }
+        else if ((spot - throwSpotSmooth).sqrMagnitude > 4f) throwSpotSmooth = spot;   // 큰 이동은 즉시
+        else throwSpotSmooth = Vector3.Lerp(throwSpotSmooth, spot, 1f - Mathf.Exp(-25f * Time.deltaTime));
+
+        return Ground(throwSpotSmooth);
     }
 
     Vector3 Ground(Vector3 p)
@@ -704,7 +724,7 @@ public class SkillSystem : MonoBehaviour
     int aiming = -1;
     float holdT;
     LineRenderer previewLine;
-    Transform previewCircle;
+    Transform previewCircle, previewWall;
 
     void MakePreview()
     {
@@ -715,8 +735,24 @@ public class SkillSystem : MonoBehaviour
         previewLine.positionCount = 2;
         previewLine.material = new Material(Shader.Find("Sprites/Default"));
         previewLine.startWidth = 1.6f; previewLine.endWidth = 1.0f;
-        previewLine.startColor = new Color(0.45f, 1.2f, 2.0f, 0.6f);   // 파란색 통일 (활 에임과 같은 계열)
-        previewLine.endColor = new Color(0.45f, 1.1f, 2.0f, 0.3f);
+        // ★궤적 그라데이션 (2026-07-28) — 손에서는 옅게 시작해 착탄점으로 갈수록 진해지고
+        //   밝아진다(HDR → 블룸). 어디로 떨어지는지가 끝에서 가장 또렷해야 조준이 된다.
+        //   양 끝은 알파를 죽여 허공에서 뚝 끊긴 선처럼 보이지 않게 한다.
+        var grad = new Gradient();
+        grad.SetKeys(
+            new[] {
+                new GradientColorKey(new Color(0.35f, 0.95f, 1.7f), 0f),
+                new GradientColorKey(new Color(0.7f, 1.7f, 2.6f), 0.75f),
+                new GradientColorKey(new Color(1.2f, 2.2f, 3.0f), 1f),
+            },
+            new[] {
+                new GradientAlphaKey(0f, 0f),
+                new GradientAlphaKey(0.55f, 0.15f),
+                new GradientAlphaKey(1f, 0.9f),
+                new GradientAlphaKey(0.85f, 1f),
+            });
+        previewLine.colorGradient = grad;
+        previewLine.numCapVertices = 4;          // 끝을 둥글게 — 각진 선은 조잡해 보인다
         previewLine.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
         previewLine.enabled = false;
 
@@ -732,8 +768,36 @@ public class SkillSystem : MonoBehaviour
         mr.sortingOrder = -9;
         mr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
         previewCircle = q.transform;
+
+        // ★테두리에서 솟는 빛의 벽 (2026-07-28 사용자).
+        //   바닥에 원만 깔면 비스듬한 카메라에서 납작하게 눌려 잘 안 보인다.
+        //   테두리를 따라 얇은 벽을 세우고 위로 갈수록 사라지게 하면 '그 자리에서 빛이
+        //   올라오는' 것처럼 보이고, 어디가 범위인지 멀리서도 읽힌다.
+        var w = new GameObject("SkillAimWall");
+        w.transform.SetParent(SceneBuckets.Fx);
+        w.AddComponent<MeshFilter>().sharedMesh = FX.WallMesh();
+        var wmr = w.AddComponent<MeshRenderer>();
+        var wmat = new Material(Shader.Find("Universal Render Pipeline/Unlit"));
+        wmat.SetFloat("_Surface", 1f);                       // Transparent
+        wmat.SetFloat("_Blend", 0f);                         // Alpha
+        wmat.SetFloat("_ZWrite", 0f);
+        wmat.renderQueue = 3000;
+        wmat.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
+        wmat.mainTexture = FX.WallFadeTex();
+        wmat.SetColor("_BaseColor", previewWallColor);
+        wmr.sharedMaterial = wmat;
+        wmr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+        previewWall = w.transform;
+
         previewCircle.gameObject.SetActive(false);
+        previewWall.gameObject.SetActive(false);
     }
+
+    [Header("조준 표시")]
+    [Tooltip("장판 테두리에서 솟는 빛의 색 (밝게 = 블룸)")]
+    public Color previewWallColor = new Color(0.5f, 1.6f, 2.6f, 0.85f);
+    [Tooltip("빛의 벽 높이 — 장판 반지름 대비")] [Range(0.05f, 1.5f)]
+    public float previewWallHeight = 0.45f;
 
     /// 조준 중인 스킬의 영역 표시 + 그 안의 대상 빨갛게 마킹
     void UpdatePreview()
@@ -744,6 +808,7 @@ public class SkillSystem : MonoBehaviour
         {
             previewLine.enabled = false;
             previewCircle.gameObject.SetActive(false);
+            if (previewWall != null) previewWall.gameObject.SetActive(false);
             return;
         }
 
@@ -779,9 +844,10 @@ public class SkillSystem : MonoBehaviour
         {   // E 대규모 출현 — 실제로 날아갈 포물선을 그린다
             var from = body + Vector3.up * 0.25f * WorldScale.K;
             previewLine.enabled = true;
-            previewLine.startWidth = 0.35f * WorldScale.K;
-            previewLine.endWidth = 0.12f * WorldScale.K;
-            const int seg = 16;
+            // 손 쪽이 가늘고 착탄점으로 갈수록 굵어진다 — 시선이 떨어질 자리로 끌린다
+            previewLine.startWidth = 0.14f * WorldScale.K;
+            previewLine.endWidth = 0.42f * WorldScale.K;
+            const int seg = 28;   // 촘촘해야 곡선이 매끈하다
             previewLine.positionCount = seg + 1;
             for (int i = 0; i <= seg; i++)
             {
@@ -817,6 +883,18 @@ public class SkillSystem : MonoBehaviour
             var want = circleIn > 0.01f ? FX.RingThinTex(circleIn / circleR) : FX.CircleThinTex();
             var pmr = previewCircle.GetComponent<MeshRenderer>();
             if (pmr.material.mainTexture != want) pmr.material.mainTexture = want;
+        }
+
+        // 테두리에서 솟는 빛의 벽 — 원과 같은 자리·같은 반지름
+        if (previewWall != null)
+        {
+            previewWall.gameObject.SetActive(circleR > 0f);
+            if (circleR > 0f)
+            {
+                previewWall.position = previewCircle.position;
+                previewWall.localScale = new Vector3(
+                    circleR * 2f, circleR * Mathf.Max(0.05f, previewWallHeight), circleR * 2f);
+            }
         }
 
         // 영역 안 대상 빨갛게 — 공격 조준일 때만. 소집·돌격은 적을 겨누는 게 아니다
