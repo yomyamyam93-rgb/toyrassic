@@ -264,8 +264,14 @@ public class SkillSystem : MonoBehaviour
 
     [Header("E — 날아가는 펫의 비행 피해")]
     [Tooltip("지나가며 부딪힐 때 주는 피해")] public float flyDamage = 22f;
-    [Tooltip("부딪힘 판정 반경 배수 (펫 몸 크기 대비)")] public float flyHitMul = 0.6f;
+    [Tooltip("부딪힘 판정 반경 배수 (펫 몸 크기 대비)")] public float flyHitMul = 1.2f;
     [Tooltip("부딪힌 적을 밀어내는 거리 (m)")] public float flyKnock = 0.35f;
+    // ★높이 판정을 따로 둔다 (2026-07-28). 3D 거리로만 재면 포물선으로 날아가는 동안
+    //   적 머리 위 1.5m 를 지나가므로 **거의 안 맞는다** — 실제로 도끼·칼이 그랬다.
+    //   수평으로 스치면 맞은 것으로 보되, 너무 높이 뜬 구간은 제외한다.
+    [Tooltip("이보다 높이 차가 크면 안 맞는다 (m)")] public float flyHitHeight = 0.6f;
+    [Tooltip("흩뿌리기 포물선 높이 (m) — 낮게 깔려야 지나가며 부딪힌다")]
+    public float scatterArc = 0.5f;
     [Tooltip("나온 무리가 퍼지는 반경 (m)")] public float throwSpread = 1.4f;
     [Tooltip("포물선을 나는 시간 (초)")] public float throwFlyTime = 0.55f;
     [Tooltip("포물선 최고 높이 (m)")] public float throwArc = 1.6f;
@@ -323,7 +329,8 @@ public class SkillSystem : MonoBehaviour
             // ★전부 같은 프레임에 출발한다 — 한 번의 휘두름으로 촥 뿌려진 것이니까.
             //   착지 시점만 조금씩 어긋나 '촥' 하고 흩어져 떨어진다.
             float fly = scatterFlyTime * (1f + Random.Range(-scatterTimeJitter, scatterTimeJitter));
-            StartCoroutine(BallFlight(pet, from, land, fly, throwArc * 0.7f, 1, 0f));
+            // ★낮게 깔려 날아간다 — 높이 띄우면 적 머리 위로 지나가 아무것도 안 부딪힌다
+            StartCoroutine(BallFlight(pet, from, land, fly, scatterArc, 1, 0f));
         }
         SquadHUD.Toast($"{pet.name} {n}마리 흩뿌림!");
         if (head != null) head.Show();
@@ -392,7 +399,12 @@ public class SkillSystem : MonoBehaviour
             {
                 if (u == null || !u.Alive || u.team != PetUnit.Team.Wild || hitSet.Contains(u)) continue;
                 var c = u.transform.position + Vector3.up * u.body * 0.5f;
-                if (SegDist(c, prev, p) > hitR + u.body * 0.5f) continue;
+                // ★수평 거리로 재고 높이는 따로 본다. 3D 로만 재면 포물선 구간에서
+                //   적 머리 위를 지나가며 한 번도 안 맞는다.
+                var q = ClosestOnSegFlat(c, prev, p);
+                var fd = c - q; fd.y = 0f;
+                if (fd.magnitude > hitR + u.body * 0.5f) continue;
+                if (Mathf.Abs(q.y - c.y) > flyHitHeight + u.body * 0.5f) continue;
                 hitSet.Add(u);
                 u.TakeDamage(flyDamage, PetUnit.Avatar);
                 u.OnHit();
@@ -413,13 +425,16 @@ public class SkillSystem : MonoBehaviour
         SummonAt(pet, landAt, summon, bounce);
     }
 
-    static float SegDist(Vector3 p, Vector3 a, Vector3 b)
+    /// 선분 a→b 위에서 p 에 수평으로 가장 가까운 점 (높이는 그 지점의 실제 높이를 돌려준다).
+    /// 수평으로 어디서 스쳤는지를 찾고, 그때 얼마나 높이 떠 있었는지를 따로 보기 위한 것.
+    static Vector3 ClosestOnSegFlat(Vector3 p, Vector3 a, Vector3 b)
     {
-        var ab = b - a;
-        float len2 = ab.sqrMagnitude;
-        if (len2 < 1e-6f) return Vector3.Distance(p, a);
-        float t = Mathf.Clamp01(Vector3.Dot(p - a, ab) / len2);
-        return Vector3.Distance(p, a + ab * t);
+        var ab = b - a; var abFlat = new Vector3(ab.x, 0f, ab.z);
+        float len2 = abFlat.sqrMagnitude;
+        if (len2 < 1e-6f) return a;
+        var ap = new Vector3(p.x - a.x, 0f, p.z - a.z);
+        float t = Mathf.Clamp01(Vector3.Dot(ap, abFlat) / len2);
+        return a + ab * t;
     }
 
     Vector3 throwSpotSmooth; bool throwSpotSet;
@@ -1139,7 +1154,9 @@ public class SkillSystem : MonoBehaviour
             {
                 float kk = i / (float)seg;
                 var p = Vector3.Lerp(from, circleAt, kk);
-                p.y += Mathf.Sin(kk * Mathf.PI) * throwArc;
+                // 실제 비행과 같은 높이로 그린다 — 흩뿌리기는 낮게 깔린다
+                p.y += Mathf.Sin(kk * Mathf.PI)
+                     * (StyleOf(gear) == ThrowStyle.Scatter ? scatterArc : throwArc);
                 previewLine.SetPosition(i, p);
             }
         }
