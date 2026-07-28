@@ -2815,12 +2815,6 @@ MonoBehaviour:
   waterY: 40
   wetFactor: 0.55
   cam: {fileID: 330585546}
-  saddleFollow: 0.75
-  saddleSpring: 22
-  saddleDamp: 0.86
-  saddleMax: 0.089999996
-  dropTime: 0.45
-  dropHeight: 0.25
   suppressMove: 0
 --- !u!114 &107336110
 MonoBehaviour:
@@ -2897,7 +2891,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PlayerBow
   fireCooldown: 0.45
-  arrowDamage: 50
+  arrowDamage: 18
   arrowSpeed: 106.6
   arrowRange: 12
   aimFillTime: 1.4
@@ -3169,8 +3163,7 @@ MonoBehaviour:
   species: player
   isAvatar: 1
   isStructure: 0
-  forceTarget: {fileID: 0}
-  mounted: 0
+  summoned: 0
   sizeM: 0
   level: 1
   xp: 0
@@ -3181,7 +3174,7 @@ MonoBehaviour:
   str: 8
   intel: 8
   agi: 14
-  vit: 20
+  vit: 45
   followTarget: {fileID: 0}
   hp: 0
   maxHp: 0
@@ -3191,17 +3184,21 @@ MonoBehaviour:
   moveSpeedMul: 1
   rangeMul: 1
   basicOnly: 0
-  mountDmgMul: 1
-  mountSpdMul: 1
-  following: 0
-  followSpot: {x: 0, y: 0, z: 0}
-  hasOrder: 0
-  orderSpot: {x: 0, y: 0, z: 0}
-  biteHalfAngle: 55
-  windupTrack: 0.5
-  windupScale: 0.65
-  rangedThreshold: 0.17999999
-  mountedBarGap: 0.120000005
+  aggroRange: 3
+  reach: 0.5
+  atkPeriod: 1.1
+  dmgPerStr: 0.8
+  avatarBias: 2.5
+  grudgeTime: 4
+  leashRange: 12
+  returning: 0
+  owner: {fileID: 0}
+  landTime: 0.22
+  packBudget: 0
+  packSpread: 1.2
+  emergeTime: 0.5
+  emergeArc: 0.75
+  emergeStagger: 0.09
 --- !u!114 &107336121
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -3243,19 +3240,18 @@ MonoBehaviour:
   axeVsRock: 3
   pickVsRock: 10
   pickVsTree: 4
-  axeVsMob: 20
-  pickVsMob: 26
-  swordVsMob: 38
+  axeVsMob: 9
+  pickVsMob: 11
+  swordVsMob: 16
   swordVsNode: 2
   arrowVsNode: 4
   arrowBlockRadius: 0.16000001
   SwingSeq: 0
   animDrivesImpact: 0
+  impactWindow: 0.14
   bareVsNode: 2.5
-  bareVsMob: 6
+  bareVsMob: 4
   bareCooldown: 0.85
-  mountedRangeBonus: 0.6
-  mountedAngleMul: 1.25
   swingHeightTolerance: 0.4
   showSwingArc: 1
 --- !u!114 &107336123
@@ -3433,40 +3429,17 @@ MonoBehaviour:
   qComboDamageMul: 1.1
   qComboLunge: 0.07
   qComboSlashTime: 0.13
-  wCooldown: 10
-  biteDamage: 22
-  biteRange: 0.7
-  biteAngle: 70
-  goreDamage: 55
-  goreRange: 0.90000004
-  goreAngle: 110
-  stompDamage: 60
-  stompRadius: 1.1
-  tailDamage: 40
-  tailRadius: 1.3000001
-  tailKnock: 0.6
   rollCooldown: 3
   rollDist: 1.1
   rollTime: 0.26
-  eCooldown: 4
-  leapDist: 1.9
-  leapTime: 0.3
-  bashDist: 1.4
-  bashTime: 0.4
-  bashDamage: 18
-  bashKnock: 0.6
-  hopDist: 1.5
-  hopTime: 0.5
-  hopDamage: 30
-  hopRadius: 0.7
-  breakDist: 1.3000001
-  breakTime: 0.5
-  breakDamage: 14
-  breakKnock: 0.8
-  rCooldown: 30
-  rRadius: 1.6
-  rDamage: 90
-  rKnockback: 0.7
+  throwCooldown: 12
+  throwRange: 8
+  throwBudget: 12
+  throwImpactDamage: 45
+  throwImpactRadius: 1.6
+  throwSpread: 1.4
+  throwFlyTime: 0.55
+  throwArc: 1.6
 --- !u!114 &107336128
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -54005,6 +53978,7 @@ MonoBehaviour:
   maxDist: 15
   despawnDist: 26
   cap: 6
+  wildPackBudget: 12
   respawnDelay: 25
   minHeight: 42
   maxHeight: 130
@@ -54015,6 +53989,8 @@ MonoBehaviour:
   levelOrigin: {fileID: 0}
   metersPerLevel: 45
   levelJitter: 3
+  startPets: 3
+  startPetGap: 1.5
 --- !u!4 &1834216758
 Transform:
   m_ObjectHideFlags: 0
@@ -57667,7 +57643,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!4 &2002184786
 Transform:
   m_ObjectHideFlags: 0
