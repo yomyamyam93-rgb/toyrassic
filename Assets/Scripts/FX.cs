@@ -16,8 +16,18 @@ public static class FX
     public static Texture2D RoundedTex()
     {
         if (roundTex != null) return roundTex;
-        int w = 64, h = 24, r = 10;
-        roundTex = new Texture2D(w, h, TextureFormat.RGBA32, false);
+        // ★해상도를 4배로 (2026-07-29 사용자 — "체력바 해상도가 너무 떨어져").
+        //   64x24 짜리를 화면에서 몇 배로 늘려 쓰고 있어서 모서리가 뭉개졌다.
+        //   256x96 으로 그리면 같은 모양이 또렷하게 나온다. 한 번만 만들어 캐시하므로
+        //   커져도 부담이 없다. 안티에일리어싱은 가장자리 알파로 낸다.
+        const int w = 256, h = 96, r = 40;
+        roundTex = new Texture2D(w, h, TextureFormat.RGBA32, false)
+        {
+            filterMode = FilterMode.Bilinear,
+            wrapMode = TextureWrapMode.Clamp,
+            anisoLevel = 4,
+        };
+        var px = new Color32[w * h];
         for (int y = 0; y < h; y++)
             for (int x = 0; x < w; x++)
             {
@@ -25,8 +35,9 @@ public static class FX
                 float dy = Mathf.Max(0, Mathf.Max(r - y, y - (h - 1 - r)));
                 float d = Mathf.Sqrt(dx * dx + dy * dy);
                 float a = Mathf.Clamp01(r - d + 0.5f);
-                roundTex.SetPixel(x, y, new Color(1f, 1f, 1f, a));
+                px[y * w + x] = new Color32(255, 255, 255, (byte)(a * 255f));
             }
+        roundTex.SetPixels32(px);
         roundTex.Apply();
         return roundTex;
     }

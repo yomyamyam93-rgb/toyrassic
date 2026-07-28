@@ -2818,9 +2818,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: a5e4f2f8682618448877c43d564e44f4, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PlayerMove
-  moveSpeed: 2.55
-  accel: 3.4
-  brake: 11
+  moveSpeed: 3.8249998
+  accel: 5.1000004
+  brake: 16.5
   fullDrawSpeed: 0.35
   wadeDepth: 1.2
   wetFactor: 0.55
@@ -3220,6 +3220,11 @@ MonoBehaviour:
   moveSpeedMul: 1
   rangeMul: 1
   basicOnly: 0
+  speedS: 4.4
+  speedM: 3.9
+  speedL: 3.3
+  speedXL: 2.5
+  agiSpeedPer: 0.01
   aggroRange: 3
   joinRange: 14
   reach: 0.5
@@ -3313,7 +3318,7 @@ MonoBehaviour:
   autoReachFromModel: 1
   reachSlack: 1.15
   swingHeightTolerance: 5
-  debugSwing: 1
+  debugSwing: 0
 --- !u!114 &107336123
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -6132,7 +6137,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 2387696732700100863, guid: 5c270e738435aee4b90db43a962c967c, type: 3}
       propertyPath: m_IsActive
-      value: 0
+      value: 1
       objectReference: {fileID: 0}
     - target: {fileID: 6108485557323672939, guid: 5c270e738435aee4b90db43a962c967c, type: 3}
       propertyPath: m_LocalScale.x
@@ -9188,7 +9193,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!4 &296566576
 Transform:
   m_ObjectHideFlags: 0
@@ -10024,7 +10029,7 @@ Camera:
     height: 1
   near clip plane: 0.01
   far clip plane: 1500
-  field of view: 60
+  field of view: 80
   orthographic: 0
   orthographic size: 5
   m_Depth: -1
@@ -10114,12 +10119,12 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::FollowCam
   target: {fileID: 107336113}
-  distance: 24.619003
-  minDist: 8
-  maxDist: 35
+  distance: 24.999998
+  minDist: 5
+  maxDist: 25
   height: 0.4
-  yaw: 116.54868
-  pitch: 22.699984
+  yaw: 96.94879
+  pitch: 48.860023
   minPitch: 2
   maxPitch: 87
   farLookUp: 0.71900004
@@ -46740,7 +46745,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!4 &1509133910
 Transform:
   m_ObjectHideFlags: 0

@@ -9,12 +9,17 @@ public static class PetScale
 
     public static float Target(Tier t)
     {
-        switch (t)   // 2026-07-25 재조정 ×1.8 (플레이어 4.5m 기준)
+        // ★격차를 크게 벌렸다 (2026-07-29 사용자 — "사이즈 격차가 너무 없어서").
+        //   예전 5.4 / 9 / 14.4 / 21.6 은 배율이 1 : 1.7 : 2.7 : 4.0 이라, 옆에 놓고
+        //   비교해야 겨우 구분됐다. 인구수가 1/2/3/4 로 4배 차이인데 눈에는 그게 안 읽혔다.
+        //   이제 1 : 2.2 : 4.5 : 8.5 — 한눈에 "쟤는 다른 급" 으로 보인다.
+        //   ★이속은 이 값과 무관하다 (PetUnit 이 등급으로 정한다) — 크기를 더 만져도 안 흔들린다.
+        switch (t)
         {
-            case Tier.S: return 5.4f;
-            case Tier.M: return 9f;
-            case Tier.L: return 14.4f;
-            default: return 21.6f;
+            case Tier.S: return 4.0f;
+            case Tier.M: return 8.8f;
+            case Tier.L: return 18f;
+            default: return 34f;
         }
     }
 

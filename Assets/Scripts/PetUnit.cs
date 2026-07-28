@@ -235,9 +235,38 @@ public class PetUnit : MonoBehaviour
     /// ★야생 습격병 — 스킬(원소기·패턴기)을 안 쓰고 평타만. 떼로 몰려와도 읽히게
     [HideInInspector] public bool basicOnly;
 
-    /// 걷는 속도
-    float MoveSpd => (8f + agi * 0.1f) * (0.8f + body * 0.035f) * (slowT > 0f ? 0.55f : 1f)
-                     * moveSpeedMul * WorldScale.K;
+    // ── 이동 속도 (2026-07-29 사용자 — "그냥 뒤로 가면서 치면 걍 발라서") ──────────
+    //
+    // ★예전 공식은 두 가지가 문제였다.
+    //   ① 플레이어(2.55)보다 모든 펫이 2~3배 느렸다 (0.79 ~ 1.24). 뒤로 걸으며
+    //      때리는 것이 언제나 정답이 되어 전투가 성립하지 않았다.
+    //   ② `0.8 + body*0.035` 라 **클수록 빨랐다.** 스웜이 느리고 타이탄이 빠른 셈이라
+    //      설계(스웜 ↔ 타이탄 상호 천적)와 정반대다.
+    //
+    // ★이제 작을수록 빠르다. 그래서 역할이 갈린다 —
+    //   소형 무리는 **플레이어보다 빨라서** 카이팅으로 못 벗어난다 (붙어서 싸워야 한다).
+    //   초대형은 느려서 달아나면 벗어나진다. 대신 붙으면 아프다.
+    // ★속도를 '재어 본 몸 크기(body)' 가 아니라 **등급(supply)** 으로 정한다.
+    //   body 는 모델 바운딩박스 실측값이라, 크기 격차를 조절하는 순간 이속이 같이 틀어진다.
+    //   등급은 S1 / M2 / L3 / XL4 로 명시된 값이라 모델을 어떻게 바꾸든 안 흔들린다.
+    [Header("이동 속도 (m/s) — 플레이어는 3.83")]
+    [Tooltip("S 소형 — ★플레이어보다 빨라야 한다. 뒤로 걸으며 때리는 걸로 못 벗어나게")]
+    public float speedS = 4.4f;
+    [Tooltip("M 중형 — 플레이어와 비슷하게")]
+    public float speedM = 3.9f;
+    [Tooltip("L 대형 — 조금 느리게")]
+    public float speedL = 3.3f;
+    [Tooltip("XL 초대형 — 확실히 느리게. 달아나면 벗어나진다. 대신 붙으면 아프다")]
+    public float speedXL = 2.5f;
+    [Tooltip("민첩 1당 더해지는 속도")]
+    public float agiSpeedPer = 0.01f;
+
+    float TierSpeed => supply <= 1 ? speedS : supply == 2 ? speedM : supply == 3 ? speedL : speedXL;
+
+    /// 걷는 속도 — 이미 최종 m/s 다 (WorldScale 을 다시 곱하지 않는다)
+    float MoveSpd => (TierSpeed + agi * agiSpeedPer)
+                     * (slowT > 0f ? 0.55f : 1f)
+                     * moveSpeedMul;
 
     // ── 전투 행동 (2026-07-28 재작성) ──────────────────────────────────────
     //
@@ -1009,7 +1038,9 @@ public class PetUnit : MonoBehaviour
     [Tooltip("캐릭터 체력바를 얼마나 더 올리나 (m) — 머리 위 펫을 안 가리게")]
     public float avatarBarLift = 0.45f;
     /// 거리 보정 배율 상한 — 넘어가면 화면에서 자연히 작아진다 (숨기지는 않음)
-    const float barMaxGrow = 2.0f;
+    /// ★화면 크기 고정의 기준 거리 (m). 카메라가 이 거리에 있을 때 barBaseScale 그대로 보인다.
+    ///   카메라 거리 범위가 12~30 이므로 그 한가운데를 잡았다.
+    const float barRefDist = 20f;
     void MakeBar(Renderer r)
     {
         ghostHp = hp;
@@ -1100,13 +1131,15 @@ public class PetUnit : MonoBehaviour
         // 혹시 숨겨져 있으면 되살린다 (구조물은 자기 규칙대로 barShowT 가 관리)
         if (!isStructure && !barRoot.gameObject.activeSelf) barRoot.gameObject.SetActive(true);
 
-        // ★화면 크기 고정 — 단 배율 상한을 낮게 잡는다.
-        //   예전엔 상한이 6배라 줌아웃 때 먼 적의 바가 월드 15m 판때기가 돼 화면을 덮었다.
-        //   상한을 넘으면 더 안 커지므로 멀수록 화면에서 자연히 작아진다 (숨기지는 않는다)
-        // ★42 를 K 로 나눠봤더니(2026-07-28) dist/4.2 가 늘 상한에 걸려 바가 너무 커졌다.
-        //   원래대로 42 를 쓰면 1/10 세계에서는 dist/42 가 늘 하한 0.85 에 걸리는데,
-        //   그게 오히려 **모든 유닛이 같은 크기**가 되어 일관성에는 맞다. 되돌린다.
-        barRoot.localScale = Vector3.one * barBaseScale * Mathf.Clamp(dist / 42f, 0.85f, barMaxGrow);
+        // ★화면에서 늘 같은 크기 (2026-07-29 사용자 — "스크롤로 확대 축소해도 크기가
+        //   변하지 않게 해달라 했잖아").
+        //
+        //   원근 카메라에서 화면 크기는 (월드 크기 ÷ 거리) 다. 그러니 **거리에 비례**해
+        //   월드 크기를 키워야 화면 크기가 그대로다.
+        //   예전 식은 Clamp(dist/42, 0.85, ...) 였는데, 1/10 세계라 카메라 거리가 12~30 이라
+        //   dist/42 가 늘 하한 0.85 에 걸렸다 = 월드 크기 고정 = **줌아웃하면 화면에서 작아짐.**
+        //   딱 반대로 동작하고 있었다.
+        barRoot.localScale = Vector3.one * barBaseScale * (dist / barRefDist);
         // 롤식: 실체력은 즉시, 잔상 바는 잠깐 머물다 스르륵 따라 내려옴
         ghostHp = hp > ghostHp ? hp : Mathf.MoveTowards(ghostHp, hp, maxHp * 0.45f * Time.deltaTime);
         float f = maxHp > 0 ? hp / maxHp : 0f;
