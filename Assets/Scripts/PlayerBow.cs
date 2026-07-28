@@ -237,6 +237,9 @@ public class PlayerBow : MonoBehaviour
              "끄면 예전처럼 코드가 휴대/조준 자세를 계산한다.")]
     public bool bowOwnedByClip = true;
 
+    [Tooltip("쏘고 나서 평소 자세로 돌아오는 시간 (초) — 0 이면 툭 끊긴다. 이게 발사의 여운이다")]
+    [Range(0f, 0.4f)] public float releaseBlend = 0.14f;
+
     /// 지금 재생 중인 조준 상태 이름 — 바뀔 때만 Play 한다 (매 프레임 되감기 방지)
     string aimStateNow;
     LineRenderer bowString, aimLine;
@@ -1297,7 +1300,12 @@ public class PlayerBow : MonoBehaviour
             if (aimStateNow != want)
             {
                 aimStateNow = want;
-                handAnim.Play(want, 0, 0f);
+                // ★놓는 순간을 잘라내지 않는다 (2026-07-29).
+                //   Play(..., 0f) 는 즉시 잘라 붙이는 것이라, 쏘는 순간 자세가 툭 끊겼다.
+                //   조준으로 **들어갈 때**는 즉시(당긴 정도를 Draw01 이 이미 잡고 있으므로),
+                //   조준을 **놓을 때**만 짧게 섞는다 — 그 짧은 되돌아옴이 곧 발사의 여운이다.
+                if (want == "Carry") handAnim.CrossFade(want, releaseBlend, 0, 0f);
+                else handAnim.Play(want, 0, 0f);
             }
         }
         else aimStateNow = null;
