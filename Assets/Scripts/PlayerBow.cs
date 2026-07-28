@@ -917,8 +917,9 @@ public class PlayerBow : MonoBehaviour
         aimLine.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
         aimLine.enabled = false;
 
-        // 재놓인 화살 (당길 때만 보임) — 씬에 있으면 그걸 쓴다 (키를 찍을 수 있게)
-        nockArrow = bowRoot.Find("NockArrow");
+        // 재놓인 화살 (당길 때만 보임) — 씬에 있으면 그걸 쓴다 (키를 찍을 수 있게).
+        // ★어디에 있든 찾는다. Nock 밑에 넣어 두면 시위를 당길 때 화살이 저절로 따라온다.
+        nockArrow = FindDeep(bowRoot, "NockArrow");
         if (nockArrow == null)
         {
             var na = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
