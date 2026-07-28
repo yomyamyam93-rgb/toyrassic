@@ -222,6 +222,8 @@ public class PlayerBow : MonoBehaviour
     Transform handL, handR, bowRoot, bowInst;
     /// 씬에서 잡아 둔 손의 '평소 자세' — 이게 기준이고, 흔들림·무기 보정만 위에 얹는다
     Vector3 restL, restR; bool hasRest;
+    /// 씬에서 잡아 둔 활의 '휴대 자세' — 조준할 때만 코드가 가져간다
+    Vector3 restBowPos; Quaternion restBowRot = Quaternion.identity; bool hasRestBow;
     Quaternion bowAutoRot = Quaternion.identity; float bowAutoScale = 1f; Vector3 bowAutoPos;
     /// 활 모델이 씬에 사람이 배치해 둔 것인가 — 그렇다면 코드가 자세·크기를 안 건드린다
     bool bowAuthored; Vector3 bowInstScale = Vector3.one;
@@ -659,6 +661,16 @@ public class PlayerBow : MonoBehaviour
         }
         if (rig != null) rig.BowRoot = bowRoot;
 
+        // ★활도 손과 같은 규칙 (2026-07-29 사용자 — "활이 위치와 각도가 조금 달라서 맞출 수가 없어").
+        //   휴대 자세를 carryEuler·bowCarryPos 로만 만들어서, 씬에서 활을 아무리 맞춰도
+        //   실행하면 그 계산값으로 갔다. 씬에서 잡은 자리가 기준이 되어야 눈으로 맞출 수 있다.
+        if (bowRoot != null)
+        {
+            restBowPos = bowRoot.localPosition;
+            restBowRot = bowRoot.localRotation;
+            hasRestBow = true;
+        }
+
         if (bowModel == null) bowModel = Resources.Load<GameObject>("Tools/tool_bow");
         if (bowModel != null)
         {   // ★3D 활대 — 시위·화살은 그대로 절차 유지 (당기는 연출을 살리려고)
@@ -1052,14 +1064,10 @@ public class PlayerBow : MonoBehaviour
         float baseDmg = (shot != null ? arrowDamage * shot.shotDamageMul : arrowDamage) * PlayerLevel.DamageMul;
 
         if (shot != null)
-        {   // 새총 — 산탄
-            for (int i = 0; i < Mathf.Max(1, chargedSlingShots); i++)
-            {
-                float off = (i - (chargedSlingShots - 1) * 0.5f) * chargedSlingSpread;
-                var d = Quaternion.Euler(0f, off, 0f) * aimDir;
-                ArrowProj.Throw(from, d, spd, baseDmg, range);
-            }
-            FX.Burst(from, new Color(1.8f, 1.6f, 1.1f, 0.95f), 18, 0.16f, 3f, 0.25f);
+        {   // ★새총 차징 = 연속 3발 (2026-07-29 사용자). 예전엔 한 프레임에 산탄 5발을
+            //   통째로 뿌렸다 — 눈에는 '한 방' 으로 뭉쳐 보이고, 생성 비용도 한 프레임에 몰렸다.
+            //   타-타-탕 으로 나가면 세 번 쏜 것이 읽히고, 부담도 세 프레임에 나뉜다.
+            StartCoroutine(SlingBurst(spd, baseDmg, range, shot));
         }
         else
         {   // 활 — 관통 강사
@@ -1068,6 +1076,28 @@ public class PlayerBow : MonoBehaviour
             FX.Burst(from, new Color(2.6f, 2.2f, 1.0f, 1f), 22, 0.18f, 3.5f, 0.3f);
         }
         FollowCam.Shake(0.3f);
+    }
+
+    [Header("새총 차징 — 연속 발사")]
+    [Tooltip("몇 발 나가나")] public int slingBurstShots = 3;
+    [Tooltip("발 사이 간격 (초) — 타-타-탕")] public float slingBurstInterval = 0.09f;
+    [Tooltip("발마다 좌우로 흩어지는 각도 (°) — 0 이면 한 점에 모인다")]
+    public float slingBurstSpread = 3.5f;
+
+    /// 새총 차징 연발 — 조준 방향은 발마다 다시 읽는다 (쏘는 도중 마우스를 돌리면 따라간다)
+    System.Collections.IEnumerator SlingBurst(float spd, float dmg, float range, WeaponDef shot)
+    {
+        int n = Mathf.Max(1, slingBurstShots);
+        for (int i = 0; i < n; i++)
+        {
+            var from = ShotFrom(shot);
+            float off = Random.Range(-slingBurstSpread, slingBurstSpread);
+            var d = Quaternion.Euler(0f, off, 0f) * aimDir;
+            ArrowProj.Throw(from, d, spd, dmg, range);
+            FX.Burst(from, new Color(1.8f, 1.6f, 1.1f, 0.95f), 6, 0.16f, 3f, 0.25f);
+            FollowCam.Shake(0.12f);
+            if (i < n - 1) yield return new WaitForSeconds(slingBurstInterval);
+        }
     }
 
     /// 조준 방향이 몸 정면에서 몇 도 벌어져 있나 (리그 로컬 회전으로 바로 쓴다).
@@ -1164,9 +1194,21 @@ public class PlayerBow : MonoBehaviour
         else
         {   // 휴대 자세 — 비스듬히 기울여 들고, 걸을수록 살랑살랑 각도가 흔들림
             float sway = (Mathf.Sin(Time.time * 2.6f) * 7f + Mathf.Sin(Time.time * 4.1f + 1.3f) * 3f) * carrySway;
-            var rest = localAim * Quaternion.Euler(carryEuler + new Vector3(0f, 0f, sway));
-            bowRoot.localRotation = Quaternion.Slerp(bowRoot.localRotation, rest, 6f * Time.deltaTime);
-            bowRoot.localPosition += bowRoot.localRotation * bowCarryPos * S * toLocal;   // 휴대 위치 보정 (활 기준)
+            if (hasRestBow)
+            {
+                // ★씬에서 잡은 자리·각도가 기준. 위에 얹는 건 살랑거림과 손의 숨쉬는 흔들림뿐.
+                //   그래야 편집 창에서 활을 옮긴 그대로 게임에 나온다.
+                var rest = restBowRot * Quaternion.Euler(0f, 0f, sway);
+                bowRoot.localRotation = Quaternion.Slerp(bowRoot.localRotation, rest, 6f * Time.deltaTime);
+                // 손이 흔들리는 만큼만 같이 흔들린다 (활은 왼손에 들려 있으므로)
+                bowRoot.localPosition = restBowPos + (handL.localPosition - restL);
+            }
+            else
+            {
+                var rest = localAim * Quaternion.Euler(carryEuler + new Vector3(0f, 0f, sway));
+                bowRoot.localRotation = Quaternion.Slerp(bowRoot.localRotation, rest, 6f * Time.deltaTime);
+                bowRoot.localPosition += bowRoot.localRotation * bowCarryPos * S * toLocal;   // 휴대 위치 보정 (활 기준)
+            }
         }
 
         float back = -0.85f * pull * bowSize;
@@ -1425,14 +1467,47 @@ public class ArrowProj : MonoBehaviour
     int pierceLeft;
     readonly System.Collections.Generic.HashSet<PetUnit> hitSet = new System.Collections.Generic.HashSet<PetUnit>();
 
+    // ★머티리얼·메시를 딱 한 번만 만든다 (2026-07-29 사용자 — "새총 차징 쓸 때 렉이 먹는다").
+    //
+    //   예전엔 발사체 **하나마다** `new Material(Shader.Find(...))` 를 두 번(몸통·꼬리) 했다.
+    //   Shader.Find 는 이름으로 뒤지는 느린 호출이라 한 번도 부담인데, 새총 차징은
+    //   한 프레임에 5발을 뿌린다 — **Shader.Find 10번 + 머티리얼 10개 할당이 한 프레임에** 몰렸다.
+    //   게다가 발마다 머티리얼이 달라 배칭도 안 되어, 날아가는 동안에도 드로우콜을 잡아먹었다.
+    //
+    //   공유 머티리얼로 바꾸면 생성 비용이 사라지고 배칭도 살아난다.
+    //   (색이 전부 같으므로 공유해도 보이는 것은 달라지지 않는다)
+    static Material bodyMat, trailMat;
+    static Mesh sharedMesh;
+
+    static void EnsureAssets()
+    {
+        if (bodyMat == null)
+        {
+            bodyMat = new Material(Shader.Find("Universal Render Pipeline/Unlit"));
+            bodyMat.color = new Color(2.4f, 1.9f, 0.6f);          // HDR — 블룸으로 반짝
+        }
+        if (trailMat == null)
+        {
+            trailMat = new Material(Shader.Find("Universal Render Pipeline/Unlit"));
+            trailMat.color = new Color(2.2f, 1.6f, 0.5f, 0.7f);
+        }
+        if (sharedMesh == null)
+        {   // 실린더 메시를 한 번만 얻어 둔다 — CreatePrimitive 는 콜라이더까지 만들어 비싸다
+            var tmp = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+            sharedMesh = tmp.GetComponent<MeshFilter>().sharedMesh;
+            Object.DestroyImmediate(tmp);
+        }
+    }
+
     public static void Throw(Vector3 from, Vector3 dir, float speed, float dmg, float range, int pierce = 1)
     {
-        var g = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
-        Object.Destroy(g.GetComponent<Collider>());
-        g.name = "arrow";
-        var m = new Material(Shader.Find("Universal Render Pipeline/Unlit"));
-        m.color = new Color(2.4f, 1.9f, 0.6f);                    // HDR — 블룸으로 반짝
-        g.GetComponent<MeshRenderer>().material = m;
+        EnsureAssets();
+        var g = new GameObject("arrow");
+        g.AddComponent<MeshFilter>().sharedMesh = sharedMesh;
+        var mr = g.AddComponent<MeshRenderer>();
+        mr.sharedMaterial = bodyMat;
+        mr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+        mr.receiveShadows = false;
         // ★화살 크기·꼬리도 세계 스케일 (2026-07-28). 실린더는 기본 높이가 2 라
         //   y=1.0 이면 2m 짜리 화살이었다 — 키 0.42m 캐릭터의 5배
         g.transform.localScale = new Vector3(0.16f, 1.0f, 0.16f) * WorldScale.K; // 굵고 길게 — 잘 보이게
@@ -1443,8 +1518,7 @@ public class ArrowProj : MonoBehaviour
         var tr = g.AddComponent<TrailRenderer>();
         tr.time = 0.18f;
         tr.startWidth = 0.28f * WorldScale.K; tr.endWidth = 0.02f * WorldScale.K;
-        tr.material = new Material(Shader.Find("Universal Render Pipeline/Unlit"));
-        tr.material.color = new Color(2.2f, 1.6f, 0.5f, 0.7f);
+        tr.sharedMaterial = trailMat;
         tr.startColor = new Color(1f, 0.9f, 0.5f, 0.85f);
         tr.endColor = new Color(1f, 0.7f, 0.3f, 0f);
 
