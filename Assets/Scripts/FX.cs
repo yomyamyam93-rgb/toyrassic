@@ -366,12 +366,46 @@ public static class FX
     }
 
     /// 뽁 터지는 버스트 — 타격·착지 먼지·격파
-    public static void Burst(Vector3 pos, Color c, int count, float size, float speed, float life = 0.45f)
+    // ★버스트를 돌려 쓴다 (2026-07-29 사용자 — "투사체 때문인지 렉이 엄청 심하다").
+    //
+    //   예전엔 부를 때마다 GameObject + ParticleSystem 을 새로 만들고 수명이 끝나면 파괴했다.
+    //   **ParticleSystem 생성은 비싼 축**인데, 화살은 한 발 맞을 때마다 두 번 부른다
+    //   (스파크 + 연기). 새총 연발까지 겹치면 한 프레임에 수십 개가 생겼다 사라진다.
+    //
+    //   만들어 둔 것을 껐다 켜서 돌려 쓰면 생성 비용이 사라진다. 파티클 설정만 바꿔 재생한다.
+    static readonly System.Collections.Generic.Stack<ParticleSystem> burstPool
+        = new System.Collections.Generic.Stack<ParticleSystem>();
+
+    static ParticleSystem RentBurst()
     {
+        while (burstPool.Count > 0)
+        {
+            var got = burstPool.Pop();
+            if (got != null) { got.gameObject.SetActive(true); return got; }   // 씬 전환으로 죽었을 수 있다
+        }
         var go = new GameObject("fx_burst");
         go.transform.SetParent(SceneBuckets.Fx);
+        var made = go.AddComponent<ParticleSystem>();
+        go.AddComponent<FXBurstReturn>();
+        var rr = go.GetComponent<ParticleSystemRenderer>();
+        rr.material = PMat();
+        rr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+        return made;
+    }
+
+    internal static void ReturnBurst(ParticleSystem ps)
+    {
+        if (ps == null) return;
+        ps.gameObject.SetActive(false);
+        if (burstPool.Count < 64) burstPool.Push(ps);   // 무한정 쌓지는 않는다
+        else Object.Destroy(ps.gameObject);
+    }
+
+    public static void Burst(Vector3 pos, Color c, int count, float size, float speed, float life = 0.45f)
+    {
+        var ps = RentBurst();
+        var go = ps.gameObject;
         go.transform.position = pos;
-        var ps = go.AddComponent<ParticleSystem>();
         ps.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);   // 설정 전 정지 (재생 중 설정 에러 방지)
         var main = ps.main;
         main.duration = 0.2f; main.loop = false;
@@ -391,11 +425,8 @@ public static class FX
         grad.SetKeys(new[] { new GradientColorKey(c, 0f), new GradientColorKey(c, 1f) },
                      new[] { new GradientAlphaKey(1f, 0f), new GradientAlphaKey(0f, 1f) });
         col.color = grad;
-        var r = go.GetComponent<ParticleSystemRenderer>();
-        r.material = PMat();
-        r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
         ps.Play();
-        Object.Destroy(go, life + 0.4f);
+        go.GetComponent<FXBurstReturn>().Arm(life + 0.4f);   // 파괴 대신 풀로 돌려보낸다
     }
 
     /// 한 방짜리 번개 볼트 — 두 점 사이 지그재그 (⚡번개 평타용). 잠깐 번쩍하고 사라짐
@@ -721,5 +752,21 @@ public class FxDmgNum : MonoBehaviour
         float pop = t < 0.18f ? Mathf.Lerp(0.6f, 1.25f, t / 0.18f) : Mathf.Lerp(1.25f, 0.95f, (t - 0.18f) / 0.82f);
         transform.localScale = Vector3.one * pop * distK;
         if (tm != null) tm.alpha = t > 0.6f ? Mathf.Lerp(1f, 0f, (t - 0.6f) / 0.4f) : 1f;
+    }
+}
+
+/// 풀에 돌려보내는 타이머 — Destroy 대신 이걸 쓴다 (FX.Burst 전용)
+public class FXBurstReturn : MonoBehaviour
+{
+    float t;
+
+    public void Arm(float seconds) { t = seconds; enabled = true; }
+
+    void Update()
+    {
+        t -= Time.deltaTime;
+        if (t > 0f) return;
+        enabled = false;
+        FX.ReturnBurst(GetComponent<ParticleSystem>());
     }
 }

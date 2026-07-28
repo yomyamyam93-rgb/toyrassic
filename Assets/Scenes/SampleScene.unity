@@ -2914,7 +2914,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::PlayerBow
   fireCooldown: 0.45
   arrowDamage: 18
-  arrowSpeed: 106.6
+  arrowSpeed: 26
   arrowRange: 12
   aimFillTime: 1.4
   drawTime: 0.9
@@ -3176,6 +3176,9 @@ MonoBehaviour:
   chargedBowDmg: 3.2
   chargedSlingShots: 5
   chargedSlingSpread: 8
+  slingBurstShots: 3
+  slingBurstInterval: 0.09
+  slingBurstSpread: 3.5
 --- !u!114 &107336118
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -3307,7 +3310,7 @@ MonoBehaviour:
   pickAngleMul: 0.55
   bareRangeMul: 0.7
   bareAngleMul: 0.7
-  swingHeightTolerance: 0.4
+  swingHeightTolerance: 1.6
 --- !u!114 &107336123
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -6124,6 +6127,10 @@ PrefabInstance:
       propertyPath: m_Name
       value: tool_bow
       objectReference: {fileID: 0}
+    - target: {fileID: 2387696732700100863, guid: 5c270e738435aee4b90db43a962c967c, type: 3}
+      propertyPath: m_IsActive
+      value: 0
+      objectReference: {fileID: 0}
     - target: {fileID: 6108485557323672939, guid: 5c270e738435aee4b90db43a962c967c, type: 3}
       propertyPath: m_LocalScale.x
       value: 1.0026511
@@ -6138,11 +6145,11 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 6108485557323672939, guid: 5c270e738435aee4b90db43a962c967c, type: 3}
       propertyPath: m_LocalPosition.x
-      value: -0.08
+      value: 0.05
       objectReference: {fileID: 0}
     - target: {fileID: 6108485557323672939, guid: 5c270e738435aee4b90db43a962c967c, type: 3}
       propertyPath: m_LocalPosition.y
-      value: -0.14
+      value: -0.1
       objectReference: {fileID: 0}
     - target: {fileID: 6108485557323672939, guid: 5c270e738435aee4b90db43a962c967c, type: 3}
       propertyPath: m_LocalPosition.z
@@ -9178,7 +9185,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 0
+  m_IsActive: 1
 --- !u!4 &296566576
 Transform:
   m_ObjectHideFlags: 0
@@ -19609,19 +19616,19 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 1322001020118317501, guid: adf9c97db484d4645a7480e3c888cdd0, type: 3}
       propertyPath: m_LocalRotation.w
-      value: -0.7071068
+      value: -0.9995416
       objectReference: {fileID: 0}
     - target: {fileID: 1322001020118317501, guid: adf9c97db484d4645a7480e3c888cdd0, type: 3}
       propertyPath: m_LocalRotation.x
-      value: 0
+      value: -0
       objectReference: {fileID: 0}
     - target: {fileID: 1322001020118317501, guid: adf9c97db484d4645a7480e3c888cdd0, type: 3}
       propertyPath: m_LocalRotation.y
-      value: 0.7071068
+      value: -0.030276021
       objectReference: {fileID: 0}
     - target: {fileID: 1322001020118317501, guid: adf9c97db484d4645a7480e3c888cdd0, type: 3}
       propertyPath: m_LocalRotation.z
-      value: 0
+      value: -0
       objectReference: {fileID: 0}
     - target: {fileID: 1322001020118317501, guid: adf9c97db484d4645a7480e3c888cdd0, type: 3}
       propertyPath: m_LocalEulerAnglesHint.x
@@ -19629,7 +19636,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 1322001020118317501, guid: adf9c97db484d4645a7480e3c888cdd0, type: 3}
       propertyPath: m_LocalEulerAnglesHint.y
-      value: 0
+      value: 3.47
       objectReference: {fileID: 0}
     - target: {fileID: 1322001020118317501, guid: adf9c97db484d4645a7480e3c888cdd0, type: 3}
       propertyPath: m_LocalEulerAnglesHint.z

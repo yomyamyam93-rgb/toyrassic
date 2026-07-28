@@ -1510,20 +1510,49 @@ public class ArrowProj : MonoBehaviour
         mr.receiveShadows = false;
         // ★화살 크기·꼬리도 세계 스케일 (2026-07-28). 실린더는 기본 높이가 2 라
         //   y=1.0 이면 2m 짜리 화살이었다 — 키 0.42m 캐릭터의 5배
-        g.transform.localScale = new Vector3(0.16f, 1.0f, 0.16f) * WorldScale.K; // 굵고 길게 — 잘 보이게
+        g.transform.localScale = new Vector3(0.34f, 1.2f, 0.34f) * WorldScale.K; // 굵고 길게 — 잘 보이게
         g.transform.position = from;
         g.transform.rotation = Quaternion.LookRotation(dir) * Quaternion.Euler(90f, 0f, 0f);
 
-        // 빛 꼬리 — 궤적이 한눈에 보이게
+        // ★빛 꼬리 — 느려진 만큼 길고 두껍게 (2026-07-29 사용자 "날아가는 게 밋밋함").
+        //   속도를 106 → 26 으로 낮췄으니 눈이 따라올 수 있다. 그 시간 동안 볼 게 있어야 한다.
+        //   꼬리는 공유 머티리얼이라 굵게 해도 추가 비용이 없다 — 렉 없이 화려해지는 유일한 자리.
         var tr = g.AddComponent<TrailRenderer>();
-        tr.time = 0.18f;
-        tr.startWidth = 0.28f * WorldScale.K; tr.endWidth = 0.02f * WorldScale.K;
+        tr.time = 0.42f;
+        tr.startWidth = 0.85f * WorldScale.K; tr.endWidth = 0.02f * WorldScale.K;
         tr.sharedMaterial = trailMat;
+        tr.numCapVertices = 4;                       // 꼬리 끝을 둥글게 — 각지면 싸구려로 보인다
+        tr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
         tr.startColor = new Color(1f, 0.9f, 0.5f, 0.85f);
         tr.endColor = new Color(1f, 0.7f, 0.3f, 0f);
 
         var p = g.AddComponent<ArrowProj>();
         p.dir = dir.normalized; p.speed = speed; p.dmg = dmg; p.range = range; p.pierceLeft = Mathf.Max(1, pierce);
+    }
+
+    // ★언덕에서 쏘면 하나도 안 맞던 것 (2026-07-29 사용자) ─────────────────
+    //
+    //   화살은 조준 평면을 따라 **수평으로** 날아간다. 그런데 판정이 3D 거리 하나뿐이라
+    //   (반경 = 펫몸 x 0.55, 1/10 스케일에서 20cm 남짓), 언덕 위에서 쏘면 화살이
+    //   아래쪽 펫의 **머리 위를 그냥 지나갔다.** 지형에 높낮이가 생기기 전에는
+    //   모두가 같은 높이라 이 문제가 드러나지 않았다.
+    //
+    //   근접(InArc)은 이미 "수평 거리 + 높이 허용치" 로 나눠 재고 있었다. 화살도 같게 만든다.
+    //   수평은 지나간 자취 전체로, 높이는 넉넉한 창으로 — 언덕 위아래가 서로 닿는다.
+    [Tooltip("화살이 맞는 높이 폭 (m) — 언덕 위에서 쏴도 아래가 맞게")]
+    public static float HeightWindow = 1.6f;
+    [Tooltip("맞는 수평 반경에 더하는 여유 (m)")]
+    public static float HitPad = 0.22f;
+
+    /// 점 p 와 선분 a→b 의 수평(XZ) 최단 거리 — 높이는 따로 본다
+    static float SegDistFlat(Vector3 p, Vector3 a, Vector3 b)
+    {
+        p.y = 0f; a.y = 0f; b.y = 0f;
+        var ab = b - a;
+        float len2 = ab.sqrMagnitude;
+        if (len2 < 1e-6f) return Vector3.Distance(p, a);
+        float t = Mathf.Clamp01(Vector3.Dot(p - a, ab) / len2);
+        return Vector3.Distance(p, a + ab * t);
     }
 
     /// 점 p 와 선분 a→b 의 최단 거리 (3D)
@@ -1552,7 +1581,10 @@ public class ArrowProj : MonoBehaviour
         {
             if (u == null || !u.Alive || u.team != PetUnit.Team.Wild || hitSet.Contains(u)) continue;
             var center = u.transform.position + Vector3.up * u.body * 0.5f;   // 발밑이 아니라 몸통 중심
-            if (SegDist(center, prev, transform.position) < u.body * 0.55f)
+            // 수평은 지나간 자취 전체로, 높이는 넉넉한 창으로 (언덕 위아래가 서로 닿게)
+            float flat = SegDistFlat(center, prev, transform.position);
+            float dy = Mathf.Abs(center.y - transform.position.y);
+            if (flat < u.body * 0.55f + HitPad && dy < HeightWindow + u.body * 0.5f)
             {
                 hitSet.Add(u);           // 같은 놈 중복 타격 방지 — 관통해 지나감
                 u.TakeDamage(dmg, PetUnit.Avatar);   // 어그로: 쏜 사람(캐릭터)을 쫓아온다
