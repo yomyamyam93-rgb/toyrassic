@@ -400,18 +400,46 @@ public class PlayerGather : MonoBehaviour
     {
         skillDmgMul = Mathf.Max(0.1f, dmgMul);
         skillRangeMul = Mathf.Max(0.1f, rangeMul);
-        TrySwing(Vector2.zero, isPick, aimDir, isSword, true);
+        TrySwing(Vector2.zero, isPick, aimDir, isSword, keepMul: true, ignoreCooldown: true);
     }
+
+    /// ★평타 차징 — 공속을 지킨다 (2026-07-28 사용자).
+    ///
+    /// ★왜 따로 만들었나: 차징 개편이 평타에 SkillSwing 을 그대로 썼는데, 그건
+    ///   "연속 베기처럼 몰아치는 스킬용 — 쿨다운 무시" 로 만든 것이었다. 무시 규칙까지
+    ///   물려받아서 **광클하면 공속이 무한**이 됐다. 배율(차징 단계)은 그대로 받으면서
+    ///   공속만 지키는 길이 따로 필요하다.
+    ///
+    /// 쿨이 안 끝났으면 아무것도 안 하고 false 를 준다 — 예약할지는 부르는 쪽이 정한다.
+    public bool ChargedSwing(Vector3 aimDir, bool isPick, bool isSword, float dmgMul, float rangeMul)
+    {
+        if (cd > 0f) return false;
+        skillDmgMul = Mathf.Max(0.1f, dmgMul);
+        skillRangeMul = Mathf.Max(0.1f, rangeMul);
+        TrySwing(Vector2.zero, isPick, aimDir, isSword, keepMul: true, ignoreCooldown: false);
+        return true;
+    }
+
+    /// 지금 휘두를 수 있나 (공속 쿨이 끝났나)
+    public bool Ready => cd <= 0f;
+
     float skillDmgMul = 1f, skillRangeMul = 1f;
 
-    public void TrySwing(Vector2 mp, bool isPick, Vector3 aimDir, bool isSword = false, bool force = false)
+    /// keepMul       — 피해·범위 배율을 유지한다 (스킬·차징). false 면 맨평타라 배율 1.
+    /// ignoreCooldown — 공속을 무시하고 즉시 휘두른다. **스킬 전용.**
+    /// ★예전엔 force 하나가 둘을 겸했다. 그래서 차징 평타가 배율을 쓰려고 force 를 켜는
+    ///   순간 공속까지 같이 풀려 버렸다. 둘은 별개다.
+    public void TrySwing(Vector2 mp, bool isPick, Vector3 aimDir, bool isSword = false,
+                         bool keepMul = false, bool ignoreCooldown = false)
     {
-        if (cd > 0f && !force) return;
+        if (cd > 0f && !ignoreCooldown) return;
         if (terr == null) { terr = Terrain.activeTerrain; if (terr == null) return; }
-        if (!force) { skillDmgMul = 1f; skillRangeMul = 1f; }   // 평타는 배율 없음
+        if (!keepMul) { skillDmgMul = 1f; skillRangeMul = 1f; }   // 맨평타는 배율 없음
 
         // 맨손인지는 지금 든 장비로 판단 (무기 없이 치면 느리고 약하다)
-        pendingBare = !force && Hotbar.I != null && Hotbar.I.Current == GearKind.None;
+        // ★force 에 묶여 있던 것을 떼어냈다 — force=true 면 맨손이 절대 감지되지 않아,
+        //   맨손 공격이 bareCooldown(0.85) 이 아니라 axeCooldown(0.5) 으로 돌았다.
+        pendingBare = Hotbar.I != null && Hotbar.I.Current == GearKind.None;
         cd = (pendingBare ? bareCooldown : isSword ? swordCooldown : isPick ? pickCooldown : axeCooldown)
              / Mathf.Max(0.5f, PlayerLevel.AtkSpeedMul);   // 민첩 = 공격 속도
         swingT = 1f;

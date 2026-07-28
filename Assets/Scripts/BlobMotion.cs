@@ -130,6 +130,9 @@ public class BlobMotion : MonoBehaviour
     public float skillPitch;
     /// true 면 마우스 쪽으로 몸을 돌리지 않는다 (스킬이 회전을 잡고 있는 동안)
     public bool skillHoldFacing;
+    /// ★진행 방향(로컬 Z)으로 늘어나는 정도 — 대시용 (2026-07-28).
+    ///   부피는 보존한다: 늘어난 만큼 옆이 좁아져야 '빠르다'로 읽힌다.
+    public float skillStretch;
 
     void LateUpdate()
     {
@@ -154,7 +157,12 @@ public class BlobMotion : MonoBehaviour
         // 부피 보존: 세로로 늘면 가로는 줄어든다
         float sy = 1f + amp * (up * 0.9f - squash * 0.35f);
         float sxz = 1f / Mathf.Sqrt(Mathf.Max(0.05f, sy));
-        transform.localScale = new Vector3(baseScale.x * sxz, baseScale.y * sy, baseScale.z * sxz);
+        // 대시 — 진행 방향(로컬 Z)으로 늘리고 늘어난 만큼 옆을 좁힌다
+        float sz = 1f + skillStretch;
+        float dashN = 1f / Mathf.Sqrt(Mathf.Max(0.05f, sz));
+        transform.localScale = new Vector3(baseScale.x * sxz * dashN,
+                                           baseScale.y * sy * dashN,
+                                           baseScale.z * sxz * sz);
 
         // 도약 — 제자리에서도 통통 튄다
         float hop = up * bodyHeight * hopHeight * Mathf.Lerp(idleHopRatio, 1f, speed01);

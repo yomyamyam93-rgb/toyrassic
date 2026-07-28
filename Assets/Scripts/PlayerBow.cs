@@ -260,7 +260,45 @@ public class PlayerBow : MonoBehaviour
     public Vector3 AimDir => aimDir;
 
     /// 조준을 즉시 끊는다 — 구르기처럼 '지금 당장' 나가야 하는 동작이 부른다 (2026-07-28)
-    public void CancelDraw() { drawing = false; drawT = 0f; aimLen = 0f; charging = false; chargeT = 0f; }
+    public void CancelDraw()
+    {
+        drawing = false; drawT = 0f; aimLen = 0f; charging = false; chargeT = 0f;
+        meleeQ = false; shotQ = false;   // 스킬이 끊었으면 예약해 둔 평타도 버린다
+    }
+
+    // ── 공속 대기열 ──────────────────────────────────────────────────
+    //
+    // ★차징을 놓았는데 아직 공속 쿨이 안 끝났으면 여기 담아 두고, 끝나는 즉시 내보낸다.
+    //   그냥 무시하면 "클릭했는데 안 나갔다" 가 되어 연타 리듬이 들쭉날쭉해진다.
+    //   (핫바가 스윙 중 무기 교체를 예약해 두는 것과 같은 방식이다)
+    bool meleeQ; Vector3 meleeQAim; bool meleeQPick, meleeQSword; int meleeQLv;
+    bool shotQ; float shotQLen; int shotQLv; WeaponDef shotQDef;
+    float fireCd;
+
+    void TickAttackQueue()
+    {
+        fireCd = Mathf.Max(0f, fireCd - Time.deltaTime);
+
+        if (meleeQ && gather != null)
+        {
+            if (gather.ChargedSwing(meleeQAim, meleeQPick, meleeQSword,
+                                    ChargeDmgMul(meleeQLv), ChargeRangeMul(meleeQLv)))
+            {
+                if (meleeQLv >= 2) FollowCam.Shake(meleeQLv >= 3 ? 0.3f : 0.15f);
+                meleeQ = false;
+            }
+        }
+
+        if (shotQ && fireCd <= 0f)
+        {
+            if (shotQLv >= 3) FireCharged(shotQLen, shotQDef);   // 꽉 당김 = 무기 고유기
+            else Fire(shotQLen, shotQDef, ChargeDmgMul(shotQLv));
+            // 새총은 활보다 느리다. 민첩(공속)이 둘 다 줄여 준다.
+            float mul = shotQDef != null ? shotQDef.shotCooldownMul : 1f;
+            fireCd = fireCooldown * mul / Mathf.Max(0.5f, PlayerLevel.AtkSpeedMul);
+            shotQ = false;
+        }
+    }
 
     // ── 좌클릭 차징 (2026-07-28 사용자 개편) ────────────────────────────
     //
@@ -781,6 +819,7 @@ public class PlayerBow : MonoBehaviour
     void Update()
     {
         cd -= Time.deltaTime;
+        TickAttackQueue();   // 공속 쿨이 끝나면 예약해 둔 평타를 내보낸다
         if (cam == null) { cam = Camera.main; if (cam == null) return; }
 
 #if ENABLE_INPUT_SYSTEM
@@ -877,12 +916,14 @@ public class PlayerBow : MonoBehaviour
             }
             else if (released && charging)
             {
-                int lv = ChargeLevel;
-                if (gather != null)
-                    gather.SkillSwing(aimDir, gear == GearKind.Pick,
-                                      gear == GearKind.Sword,
-                                      ChargeDmgMul(lv), ChargeRangeMul(lv));
-                if (lv >= 2) FollowCam.Shake(lv >= 3 ? 0.3f : 0.15f);
+                // ★공속을 지킨다 (2026-07-28 사용자) — 예전엔 SkillSwing(쿨 무시)을 써서
+                //   광클하면 공속이 무한이었다. 쿨이 남았으면 버리지 않고 예약한다.
+                //   그냥 무시하면 "클릭했는데 안 나갔다" 가 된다.
+                meleeQ = true;
+                meleeQAim = aimDir;
+                meleeQPick = gear == GearKind.Pick;
+                meleeQSword = gear == GearKind.Sword;
+                meleeQLv = ChargeLevel;
                 charging = false; chargeT = 0f;
             }
             drawing = false; drawT = 0f; aimLen = 0f;
@@ -902,12 +943,15 @@ public class PlayerBow : MonoBehaviour
             }
             if (released && drawing)
             {
-                int lv = ChargeLevel;
                 // ★최소 비행거리를 사거리 비율로 (2026-07-28). 예전엔 10m 고정이라
                 //   arrowRange 를 7 로 줄여도 화살이 늘 10m 를 날아갔다 — 클램프 상수 함정
-                float len = Mathf.Max(range * 0.15f, aimLen);
-                if (lv >= 3) FireCharged(len, shot);   // 꽉 당김 = 무기 고유기
-                else Fire(len, shot, ChargeDmgMul(lv));
+                // ★활·새총도 공속을 지킨다 (2026-07-28). fireCooldown 은 선언만 돼 있고
+                //   실제로 발사를 막는 곳이 없었다 — Power 의 전투력 계산에만 쓰였다.
+                //   즉 표시되는 전투력은 0.45초 간격을 가정하는데 그 간격이 없었다.
+                shotQ = true;
+                shotQLen = Mathf.Max(range * 0.15f, aimLen);
+                shotQLv = ChargeLevel;
+                shotQDef = shot;
                 charging = false; chargeT = 0f;
             }
         }

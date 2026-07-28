@@ -986,9 +986,22 @@ public class SkillSystem : MonoBehaviour
         Use(RollHud, rollCooldown);
     }
 
-    // ── 구르는 모션 — 리깅이 없는 블롭이라 몸을 앞으로 한 바퀴 굴린다 ──
+    // ── 대시 모션 (2026-07-28 사용자) ────────────────────────────────
+    //
+    // ★구르기를 뺐다. 0.26초에 한 바퀴를 돌리니 "구르는 것"으로 안 보이고
+    //   그냥 홱 도는 것으로만 보였다 — 리깅이 없는 블롭에서 회전 한 바퀴는
+    //   너무 짧은 시간 안에 끝나 눈이 못 따라간다.
+    //   대신 **샤샥 빠져나가는 대시**로 바꾸고, 지나간 자리에 잔상을 남긴다.
+    //   속도감은 회전이 아니라 잔상이 만든다.
+    [Header("Space — 대시 잔상")]
+    [Tooltip("잔상을 찍는 간격 (초) — 짧을수록 촘촘하다")] public float ghostInterval = 0.028f;
+    [Tooltip("잔상 하나가 남아 있는 시간 (초)")] public float ghostLife = 0.34f;
+    [Tooltip("잔상 색 — 1을 넘으면 블룸에 걸려 빛난다")]
+    public Color ghostColor = new Color(0.5f, 0.85f, 1.6f, 1f);
+    [Tooltip("대시 중 진행 방향으로 늘어나는 정도")] public float dashStretch = 0.22f;
+
     BlobMotion blob;
-    float rollT;
+    float rollT, ghostT;
 
     void AdvanceRoll()
     {
@@ -996,13 +1009,28 @@ public class SkillSystem : MonoBehaviour
         if (rollT <= 0f) { blob.skillPitch = 0f; return; }
         rollT -= Time.deltaTime;
         float k = 1f - Mathf.Clamp01(rollT / Mathf.Max(0.05f, rollTime));
-        blob.skillPitch = k * 360f;                       // 한 바퀴
-        blob.skillHop = Mathf.Sin(k * Mathf.PI) * 0.12f * WorldScale.K * 3f;   // 살짝 떴다 내려온다
+
+        // ★회전 대신 '앞으로 기울고 늘어남'. 몸이 튀어나가는 방향으로 눕는다.
+        //   들어갈 때 확 기울고 나올 때 스르륵 펴진다 (예비 없이 바로 본동작 — 회피니까).
+        float lean = Mathf.Sin(k * Mathf.PI);
+        blob.skillPitch = lean * 26f;
+        blob.skillHop = 0f;                      // 뜨지 않는다. 땅을 스치듯 나가야 대시다
+        blob.skillStretch = lean * dashStretch;  // 진행 방향으로 쭉
+
+        // 잔상 — 일정 간격으로 그 순간의 몸을 찍는다
+        ghostT -= Time.deltaTime;
+        if (ghostT <= 0f)
+        {
+            ghostT = Mathf.Max(0.008f, ghostInterval);
+            DashGhost.Snap(transform, ghostColor, ghostLife);
+        }
+
         if (rollT <= 0f)
         {
             rollT = 0f;
             blob.skillPitch = 0f;
             blob.skillHop = 0f;
+            blob.skillStretch = 0f;
             blob.skillHoldFacing = false;
         }
     }
