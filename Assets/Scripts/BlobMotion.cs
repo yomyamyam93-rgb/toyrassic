@@ -95,8 +95,34 @@ public class BlobMotion : MonoBehaviour
         mode = m; speed01 = Mathf.Clamp01(speedNorm); wet = inWater;
     }
 
+    /// ★플레이를 멈출 때 원래 크기로 되돌린다 (2026-07-29).
+    ///
+    /// ★왜 (실측): 씬에 저장된 Player.localScale 이 (0.5218, 0.5529, 0.5218) 로 **비균등**이었다.
+    ///   스쿼시&스트레치로 눌린 그 순간의 값이 그대로 씬에 박힌 것이다.
+    ///   그러면 편집 창에서 **몸만 찌그러지고 손 리그는 안 찌그러진** 상태가 되어 어긋난다.
+    ///
+    /// ★더 나쁜 것은 누적이다. 다음 실행에서 Awake 가 그 찌그러진 값을 새 baseScale 로
+    ///   삼고, 거기서 또 눌러 저장한다 — 실행할 때마다 조금씩 틀어진다.
+    ///   (CLAUDE.md 가 무기 정렬에서 경고한 "지난 실행 결과를 다시 입력으로 읽는" 함정과 같다)
+    void OnDisable()
+    {
+        if (baseScale.sqrMagnitude > 1e-8f) transform.localScale = baseScale;
+    }
+
     void Awake()
     {
+        // ★이미 눌린 값을 기준으로 삼지 않게 되돌린다.
+        //   스쿼시는 **부피를 보존**하므로(세로 s배면 가로 1/√s배), 세 축을 곱해 세제곱근을
+        //   내면 눌리기 전 크기가 정확히 나온다. 최댓값이나 평균으로 잡으면 실행할 때마다
+        //   캐릭터가 조금씩 커지거나 작아진다.
+        //   실측: (0.5218, 0.5529, 0.5218) → 세제곱근 0.5320 = 원래 크기와 정확히 일치.
+        var s = transform.localScale;
+        if (Mathf.Abs(s.x - s.y) > 1e-4f || Mathf.Abs(s.y - s.z) > 1e-4f)
+        {
+            float v = Mathf.Abs(s.x * s.y * s.z);
+            float u = v > 1e-12f ? Mathf.Pow(v, 1f / 3f) : Mathf.Max(s.x, Mathf.Max(s.y, s.z));
+            transform.localScale = new Vector3(u, u, u);
+        }
         baseScale = transform.localScale;
         // ※꽃잎(ParticleSystemRenderer)은 시작 프레임에 원점까지 걸친 엉뚱한
         //   바운즈를 내놓는다 — 포함하면 발높이가 수십 m 로 튀어 블롭이 공중에 뜬다.
