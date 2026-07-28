@@ -24,6 +24,11 @@ using UnityEngine;
 /// 손은 이 리그의 '자식'이라 리그가 나중에 움직여도 함께 따라가므로 늦어도 문제없다.
 /// 단, 손 위치는 반드시 '리그 로컬 값'으로 써야 한다 — 월드 좌표를 리그 기준으로
 /// 역변환하면 한 프레임 묵은 리그를 쓰게 되어 미세하게 어긋난다.
+/// ★에디터에서도 따라가야 한다 (2026-07-28 사용자 — "캐릭터 위치 옮겼는데 손이 따라오질 않네").
+///   리그가 플레이어의 '형제'라, LateUpdate 가 안 도는 편집 모드에서는 캐릭터만 옮기면
+///   손이 제자리에 남는다. ExecuteAlways 로 편집 중에도 붙어 다니게 한다.
+///   (손의 로컬 자세는 안 건드린다 — 그건 클립·사람 몫이다. 리그 본체만 따라간다)
+[ExecuteAlways]
 [DefaultExecutionOrder(1000)]
 public class HandRig : MonoBehaviour
 {
@@ -53,6 +58,14 @@ public class HandRig : MonoBehaviour
         }
         if (blob == null) blob = player.GetComponent<BlobMotion>();
 
+        // ★편집 모드에서는 매 프레임 값을 써 넣으면 씬이 계속 '저장 안 됨' 으로 더러워진다.
+        //   실제로 달라졌을 때만 쓴다.
+        bool editing = !Application.isPlaying;
+        if (editing
+            && (transform.position - player.position).sqrMagnitude < 1e-8f
+            && Mathf.Abs(Mathf.DeltaAngle(transform.eulerAngles.y, player.eulerAngles.y)) < 0.01f)
+            return;
+
         // 위치 — 통통 튐(hop)은 따라간다. 예전 손도 그랬다.
         transform.position = player.position;
 
@@ -67,6 +80,9 @@ public class HandRig : MonoBehaviour
 
         // 크기 — ★찌그러지기 전 크기. 이래야 이 밑의 로컬 값이 예전 '플레이어 로컬'과
         //   단위가 같고, WorldScale.K 누락이 이 공간 안에서는 생길 수 없다.
-        transform.localScale = blob != null ? blob.BaseScale : player.localScale;
+        // ★편집 모드에서는 BlobMotion.Awake 가 안 돌아 BaseScale 이 0 이다.
+        //   그대로 쓰면 손이 크기 0 이 되어 사라진다 — 그때는 플레이어 크기를 쓴다.
+        var bs = blob != null ? blob.BaseScale : Vector3.zero;
+        transform.localScale = bs.sqrMagnitude > 1e-8f ? bs : player.localScale;
     }
 }

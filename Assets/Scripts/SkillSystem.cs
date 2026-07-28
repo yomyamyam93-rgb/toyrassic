@@ -224,6 +224,17 @@ public class SkillSystem : MonoBehaviour
         //   1·2·3 은 여전히 '들고 싸울 무기' 를 고르는 키다 (좌클릭 공격에 쓰인다).
         aiming = k.qKey.isPressed ? 0 : k.eKey.isPressed ? 1
                : k.rKey.isPressed ? 2 : k.spaceKey.isPressed ? RollHud : -1;
+
+        // ★조준하다 우클릭하면 취소 (2026-07-28 사용자) — 잘못 눌렀을 때 무르는 길이
+        //   없으면 일단 나간 뒤 쿨을 12초 기다려야 한다. 쿨이 도는 능력일수록 물러설 수
+        //   있어야 한다. (우클릭은 카메라 회전도 하지만, 취소가 우선이고 둘이 안 부딪힌다)
+        var ms = Mouse.current;
+        if (aiming >= 0 && ms != null && ms.rightButton.wasPressedThisFrame)
+        {
+            throwCancelled = true;
+            SquadHUD.Toast("취소");
+        }
+        if (throwCancelled) aiming = -1;   // 미리보기·장판도 즉시 사라진다
         UpdatePreview();
 
         // ★E 로 조준하는 동안엔 발이 묶인다 (2026-07-28 사용자).
@@ -231,10 +242,18 @@ public class SkillSystem : MonoBehaviour
         //   서서 겨누게 하는 편이 낫다 — 조준선이 안 흔들려 착탄 지점도 정확해진다.
         //   대시 중에는 손대지 않는다 (그쪽이 suppressMove 를 쥐고 있다).
         if (move != null && dashT <= 0f) move.suppressMove = AimSlot >= 0;
-        if (k.qKey.wasReleasedThisFrame) TryThrow(0);   // 1번 칸 펫
-        if (k.eKey.wasReleasedThisFrame) TryThrow(1);   // 2번 칸 펫
-        if (k.rKey.wasReleasedThisFrame) TryThrow(2);   // 3번 칸 펫
-        if (k.spaceKey.wasReleasedThisFrame) TryE();    // 구르기
+
+        bool anyReleased = k.qKey.wasReleasedThisFrame || k.eKey.wasReleasedThisFrame
+                        || k.rKey.wasReleasedThisFrame || k.spaceKey.wasReleasedThisFrame;
+        if (!throwCancelled)
+        {
+            if (k.qKey.wasReleasedThisFrame) TryThrow(0);   // 1번 칸 펫
+            if (k.eKey.wasReleasedThisFrame) TryThrow(1);   // 2번 칸 펫
+            if (k.rKey.wasReleasedThisFrame) TryThrow(2);   // 3번 칸 펫
+            if (k.spaceKey.wasReleasedThisFrame) TryE();    // 구르기
+        }
+        // 손을 떼야 취소가 풀린다 — 취소한 뒤 계속 쥐고 있으면 그대로 취소 상태다
+        if (anyReleased) throwCancelled = false;
 #endif
     }
 
@@ -251,6 +270,9 @@ public class SkillSystem : MonoBehaviour
 
     /// 지금 조준 중인 무기칸 (-1 = 투척 조준이 아님)
     int AimSlot => HudToSlot(aiming);
+
+    /// 조준 중 우클릭으로 물렀나 — 키에서 손을 뗄 때까지 유지된다
+    bool throwCancelled;
 
     /// 그 칸에 꽂힌 무기 — 투척 방식은 '지금 든 무기' 가 아니라 **그 칸의 무기** 가 정한다.
     /// ★이래야 무기를 바꾸지 않고도 세 가지 출현 방식을 다 쓸 수 있다 (2026-07-28).
