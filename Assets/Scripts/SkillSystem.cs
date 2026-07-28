@@ -223,6 +223,44 @@ public class SkillSystem : MonoBehaviour
     public int throwBudget = 20;
     [Tooltip("착탄 순간 주변에 주는 피해 (팡!)")] public float throwImpactDamage = 45f;
     [Tooltip("착탄 피해가 닿는 반경 (m)")] public float throwImpactRadius = 1.6f;
+
+    // ── 무기별 출현 방식 (2026-07-28 사용자 설계) ────────────────────────
+    //
+    // ★무기 = '어떻게 나오나'. 펫 = '무엇이 나오나'.
+    //   그 약속을 실제로 지키는 자리다. 셋 다 50마리 규모에서 한눈에 갈려야 하므로
+    //   화려함이 아니라 **모양**으로 구분한다 — 한 점에 찍히나, 부채꼴로 퍼지나, 일직선인가.
+    //
+    //   곡괭이 = 한 발이 찍힌다 → 그 자리에 무리가 통째로 (앞에서 하던 방식)
+    //   도끼·칼 = 부채꼴로 흩뿌린다 → 한 발에 한 마리씩, 넓게 깔린다
+    //   활·새총 = 에임 쪽으로 다다다 쏜다 → 한 발에 한 마리씩, 일직선으로 파고든다
+    //
+    // ★그리고 **날아가는 펫 자체가 무기다.** 지나가며 부딪히면 피해를 준다.
+    //   여러 발이 나가는 무기는 이 비행 피해가 실질 화력의 절반이다.
+    public enum ThrowStyle { Slam, Scatter, Rapid }
+
+    public static ThrowStyle StyleOf(GearKind g) =>
+          g == GearKind.Bow || g == GearKind.Sling ? ThrowStyle.Rapid
+        : g == GearKind.Axe || g == GearKind.Sword ? ThrowStyle.Scatter
+        : ThrowStyle.Slam;
+
+    [Header("E — 흩뿌리기 (도끼·칼)")]
+    [Tooltip("도끼가 퍼지는 각도 (°)")] public float axeScatterAngle = 90f;
+    [Tooltip("칼이 퍼지는 각도 (°) — 좁게 모아 꽂는다")] public float swordScatterAngle = 45f;
+    [Tooltip("흩뿌려 떨어지는 거리 폭 (m) — 앞뒤로도 흩어진다")] public float scatterDepth = 2.2f;
+    [Tooltip("한 발이 날아가는 시간 (초)")] public float scatterFlyTime = 0.6f;
+    [Tooltip("발마다 늦어지는 간격 (초) — 촤라락 퍼지는 소리")] public float scatterStagger = 0.045f;
+
+    [Header("E — 연발 (활·새총)")]
+    [Tooltip("날아가는 속도 (m/s) — 빠르게 쏜다")] public float rapidSpeed = 14f;
+    [Tooltip("발 사이 간격 (초) — 다다다")] public float rapidInterval = 0.07f;
+    [Tooltip("최대 사거리 (m)")] public float rapidRange = 9f;
+    [Tooltip("좌우 퍼짐 (°) — 기관총처럼 살짝 흔들린다")] public float rapidSpread = 7f;
+    [Tooltip("맞고 팅겨 오르는 높이 (m)")] public float rapidBounce = 0.5f;
+
+    [Header("E — 날아가는 펫의 비행 피해")]
+    [Tooltip("지나가며 부딪힐 때 주는 피해")] public float flyDamage = 22f;
+    [Tooltip("부딪힘 판정 반경 배수 (펫 몸 크기 대비)")] public float flyHitMul = 0.6f;
+    [Tooltip("부딪힌 적을 밀어내는 거리 (m)")] public float flyKnock = 0.35f;
     [Tooltip("나온 무리가 퍼지는 반경 (m)")] public float throwSpread = 1.4f;
     [Tooltip("포물선을 나는 시간 (초)")] public float throwFlyTime = 0.55f;
     [Tooltip("포물선 최고 높이 (m)")] public float throwArc = 1.6f;
@@ -238,9 +276,142 @@ public class SkillSystem : MonoBehaviour
             return;
         }
 
-        var spot = ThrowSpot();
         PetCommand.StartCool(pet, throwCooldown);
-        StartCoroutine(ThrowFlight(pet, spot));
+        var gear = Hotbar.I != null ? Hotbar.I.Current : GearKind.None;
+        switch (StyleOf(gear))
+        {
+            case ThrowStyle.Scatter: StartCoroutine(ScatterThrow(pet, gear)); break;
+            case ThrowStyle.Rapid:   StartCoroutine(RapidThrow(pet)); break;
+            default:                 StartCoroutine(ThrowFlight(pet, ThrowSpot())); break;
+        }
+    }
+
+    /// 도끼·칼 — 부채꼴로 흩뿌린다. 한 발에 한 마리씩, 발마다 조금씩 늦게 나가 촤라락 퍼진다.
+    System.Collections.IEnumerator ScatterThrow(PetUnit pet, GearKind gear)
+    {
+        var head = PetHeadDisplay.I;
+        if (blob != null) StartCoroutine(ThrowMotion());
+        yield return new WaitForSeconds(Mathf.Max(0f, throwWindupTime));
+
+        var from = head != null ? head.HeadPoint : transform.position + Vector3.up * 0.25f * WorldScale.K;
+        if (head != null) head.Hide();
+        FX.Burst(from, throwTrailColor, 12, 0.03f, 0.4f, 0.3f);
+        FollowCam.Shake(0.15f);
+
+        var center = ThrowSpot();
+        var to = center - transform.position; to.y = 0f;
+        float dist = Mathf.Max(0.5f, to.magnitude);
+        var dir = to.sqrMagnitude > 1e-4f ? to.normalized : transform.forward;
+        float half = (gear == GearKind.Sword ? swordScatterAngle : axeScatterAngle) * 0.5f;
+
+        int n = PetUnit.CountFor(throwBudget, pet.supply);
+        ClearOldSummons(pet);
+        for (int i = 0; i < n; i++)
+        {
+            // 부채꼴 안에 고르게 — 각도는 펼치고 거리는 앞뒤로 흩어 '깔리는' 그림을 만든다
+            float t = n > 1 ? (i / (float)(n - 1)) * 2f - 1f : 0f;      // -1 ~ 1
+            float ang = t * half + Random.Range(-3f, 3f);
+            float rr = dist + Random.Range(-scatterDepth, scatterDepth) * 0.5f;
+            var d2 = Quaternion.Euler(0f, ang, 0f) * dir;
+            var land = Ground(transform.position + d2 * Mathf.Max(0.4f, rr));
+            StartCoroutine(BallFlight(pet, from, land, scatterFlyTime, throwArc * 0.7f, 1, 0f));
+            if (scatterStagger > 0f) yield return new WaitForSeconds(scatterStagger);
+        }
+        SquadHUD.Toast($"{pet.name} {n}마리 흩뿌림!");
+        if (head != null) head.Show();
+    }
+
+    /// 활·새총 — 에임 쪽으로 다다다. 빠르게 날아가 부딪히면 팅기며 그 자리에 선다.
+    System.Collections.IEnumerator RapidThrow(PetUnit pet)
+    {
+        var head = PetHeadDisplay.I;
+        if (blob != null) StartCoroutine(ThrowMotion());
+        yield return new WaitForSeconds(Mathf.Max(0f, throwWindupTime));
+
+        if (head != null) head.Hide();
+        int n = PetUnit.CountFor(throwBudget, pet.supply);
+        ClearOldSummons(pet);
+
+        for (int i = 0; i < n; i++)
+        {
+            var from = head != null ? head.HeadPoint : transform.position + Vector3.up * 0.25f * WorldScale.K;
+            var dir = AimDir();
+            dir = Quaternion.Euler(0f, Random.Range(-rapidSpread, rapidSpread), 0f) * dir;
+            var land = Ground(transform.position + dir * rapidRange);
+            float dur = rapidRange / Mathf.Max(1f, rapidSpeed);
+            // 낮고 빠른 궤적 + 맞으면 그 자리에서 멈춘다(관통 안 함) → 팅기며 등장
+            StartCoroutine(BallFlight(pet, from, land, dur, 0.25f, 1, rapidBounce, true));
+            FX.Burst(from, throwTrailColor, 4, 0.02f, 0.25f, 0.2f);
+            FollowCam.Shake(0.05f);
+            yield return new WaitForSeconds(Mathf.Max(0.01f, rapidInterval));
+        }
+        SquadHUD.Toast($"{pet.name} {n}마리 발사!");
+        if (head != null) head.Show();
+    }
+
+    /// 한 발이 날아가 착지까지 — 지나가며 부딪히면 피해를 주고, 도착하면 그 자리에 소환한다.
+    /// stopOnHit 이면 첫 충돌 지점에서 멈춘다 (연발용 — 적에게 꽂혀 팅긴다).
+    System.Collections.IEnumerator BallFlight(PetUnit pet, Vector3 from, Vector3 to,
+                                              float dur, float arc, int summon,
+                                              float bounce, bool stopOnHit = false)
+    {
+        var ghost = MakeFlyingCopy(pet);
+        var flat = to - from; flat.y = 0f;
+        var spinAxis = flat.sqrMagnitude > 1e-4f
+                     ? Vector3.Cross(Vector3.up, flat.normalized) : Vector3.right;
+
+        var hitSet = new System.Collections.Generic.HashSet<PetUnit>();
+        float hitR = Mathf.Max(0.05f, pet.body * flyHitMul);
+        var prev = from;
+        var landAt = to;
+        float t = 0f;
+
+        while (t < 1f)
+        {
+            t += Time.deltaTime / Mathf.Max(0.05f, dur);
+            float k = Mathf.Clamp01(t);
+            var p = Vector3.Lerp(from, to, k);
+            p.y += Mathf.Sin(k * Mathf.PI) * arc;
+            if (ghost != null)
+            {
+                ghost.transform.position = p;
+                ghost.transform.Rotate(spinAxis, throwSpin * Time.deltaTime, Space.World);
+            }
+
+            // ★날아가는 펫이 곧 무기다 — 지나간 선분으로 훑는다 (한 프레임에 멀리 가므로)
+            bool struck = false;
+            foreach (var u in PetUnit.All)
+            {
+                if (u == null || !u.Alive || u.team != PetUnit.Team.Wild || hitSet.Contains(u)) continue;
+                var c = u.transform.position + Vector3.up * u.body * 0.5f;
+                if (SegDist(c, prev, p) > hitR + u.body * 0.5f) continue;
+                hitSet.Add(u);
+                u.TakeDamage(flyDamage, PetUnit.Avatar);
+                u.OnHit();
+                var kd = u.transform.position - p; kd.y = 0f;
+                u.Knock(kd, flyKnock);
+                FX.Burst(c, Color.white, 8, u.body * 0.05f, u.body * 0.5f, 0.3f);
+                struck = true;
+            }
+            prev = p;
+            if (struck && stopOnHit) { landAt = Ground(p); break; }
+            yield return null;
+        }
+        if (ghost != null) Destroy(ghost);
+
+        // 착지 — 팅김
+        FX.Burst(landAt, new Color(1.9f, 1.5f, 0.6f, 1f), 16, 0.06f, 0.5f, 0.45f);
+        FollowCam.Shake(0.08f);
+        SummonAt(pet, landAt, summon, bounce);
+    }
+
+    static float SegDist(Vector3 p, Vector3 a, Vector3 b)
+    {
+        var ab = b - a;
+        float len2 = ab.sqrMagnitude;
+        if (len2 < 1e-6f) return Vector3.Distance(p, a);
+        float t = Mathf.Clamp01(Vector3.Dot(p - a, ab) / len2);
+        return Vector3.Distance(p, a + ab * t);
     }
 
     Vector3 throwSpotSmooth; bool throwSpotSet;
@@ -466,12 +637,11 @@ public class SkillSystem : MonoBehaviour
     /// 고른 펫을 본으로 삼아 착탄 지점에 여러 마리를 세운다.
     /// ★원본은 그대로 둔다 — 소모되지 않는다. 나오는 것은 '분신'이고,
     ///   쿨타임이 돌면 같은 펫을 다시 던진다.
-    void SummonPack(PetUnit pet, Vector3 spot)
+    /// ★같은 펫의 분신만 걷는다 (2026-07-28).
+    ///   예전엔 '모든 분신'을 지워서, 2번 펫을 던지면 1번 펫이 사라졌다 — 그게 버그였다.
+    ///   3종을 전부 깔아 두는 게 이 게임의 핵심(무기×펫 조합)이라 공존해야 한다.
+    void ClearOldSummons(PetUnit pet)
     {
-        // ★같은 펫의 분신만 걷는다 (2026-07-28 수정).
-        //   예전엔 '모든 분신'을 지워서, 2번 펫을 던지면 1번 펫이 사라졌다 — 그게 버그였다.
-        //   3종을 전부 깔아 두는 게 이 게임의 핵심(3무기 × 3펫 조합)이라 공존해야 한다.
-        //   같은 펫을 다시 던졌을 때만 그 펫의 옛 부대를 걷는다 (무한 누적 방지).
         for (int i = PetUnit.All.Count - 1; i >= 0; i--)
         {
             var old = PetUnit.All[i];
@@ -480,16 +650,18 @@ public class SkillSystem : MonoBehaviour
                      new Color(0.6f, 1.2f, 1.6f, 0.7f), 6, old.body * 0.05f, old.body * 0.4f, 0.3f);
             Destroy(old.gameObject);
         }
+    }
 
-        // ★마릿수는 등급으로 나눈다 — 작은 펫은 떼로, 큰 펫은 몇 마리만
-        int n = PetUnit.CountFor(throwBudget, pet.supply);
+    /// 이 자리에 n마리를 세운다 (분신 정리는 부르는 쪽이 미리 한다)
+    void SummonAt(PetUnit pet, Vector3 spot, int n, float extraArc = 0f)
+    {
         for (int i = 0; i < n; i++)
         {
-            float a = (i / (float)n) * Mathf.PI * 2f;
-            float rr = throwSpread * (0.35f + 0.65f * (i % 3) / 2f);   // 안팎으로 흩어지게
+            float a = n > 1 ? (i / (float)n) * Mathf.PI * 2f : 0f;
+            float rr = n > 1 ? throwSpread * (0.35f + 0.65f * (i % 3) / 2f) : 0f;
             var pos = Ground(spot + new Vector3(Mathf.Cos(a), 0f, Mathf.Sin(a)) * rr);
 
-            // ★본체는 비활성 '틀' 이다 — 복제한 뒤 켜야 세계에 나온다 (2026-07-28)
+            // ★본체는 비활성 '틀' 이다 — 복제한 뒤 켜야 세계에 나온다
             var g = Instantiate(pet.gameObject, spot, Quaternion.Euler(0f, Random.Range(0f, 360f), 0f));
             g.name = pet.name;
             g.SetActive(true);
@@ -498,11 +670,19 @@ public class SkillSystem : MonoBehaviour
             u.team = PetUnit.Team.Player;
             u.packBudget = 0;         // 분신은 스스로 안 불어난다
             u.collectible = false;
-            u.summoned = true;        // 목록(E 선택)에 안 뜨게 — 본체만 고른다
+            u.summoned = true;        // 편성 목록에 안 뜨게 — 본체만 고른다
             u.owner = pet;            // 어느 펫의 부대인지 — 다시 던질 때 이것만 걷는다
-            // 착탄 지점에서 퐁…퐁…퐁 단계적으로 튀어나온다 (야생 증식과 같은 연출)
-            u.LaunchTo(spot, pos, u.emergeTime, u.emergeArc, i * u.emergeStagger);
+            // 착지 지점에서 퐁 하고 선다 (야생 증식과 같은 연출)
+            u.LaunchTo(spot, pos, u.emergeTime, u.emergeArc + extraArc, i * u.emergeStagger);
         }
+    }
+
+    /// 곡괭이 — 한 발이 찍히고 그 자리에 무리가 통째로 선다
+    void SummonPack(PetUnit pet, Vector3 spot)
+    {
+        ClearOldSummons(pet);
+        int n = PetUnit.CountFor(throwBudget, pet.supply);
+        SummonAt(pet, spot, n);
         SquadHUD.Toast($"{pet.name} {n}마리 소환!");
     }
 
@@ -858,17 +1038,39 @@ public class SkillSystem : MonoBehaviour
                 else QArea(gear, dir, out circleAt, out circleR, out circleIn);
                 break;
             case 1:
-                // ★E 대규모 출현 — 어디에 떨어져 몇 마리가 나오는지 던지기 전에 보여준다.
-                //   착탄 반경 = 실제로 무리가 퍼지는 반경 그대로 (보이는 것과 나오는 것이 같게)
-                circleAt = ThrowSpot();
-                circleR = throwSpread;
+                // ★E 대규모 출현 — 무기마다 나오는 모양이 다르니 표시도 달라야 한다.
+                //   "보이는 것과 나오는 것이 같다" 는 원칙을 여기서도 지킨다.
+                switch (StyleOf(gear))
+                {
+                    case ThrowStyle.Rapid:
+                        // 연발 — 에임 쪽으로 뻗는 직선 (여기로 다다다 나간다)
+                        lineLen = rapidRange; lineWidth = 0.3f * WorldScale.K;
+                        circleAt = Ground(transform.position + dir * rapidRange);
+                        circleR = throwSpread * 0.5f;   // 끝에 작은 원 — 어디까지 가는지
+                        break;
+                    case ThrowStyle.Scatter:
+                        // 흩뿌리기 — 부채꼴이 덮는 자리를 원으로. 반지름은 실제 퍼지는 폭에서 나온다
+                        circleAt = ThrowSpot();
+                        float sp = Vector3.Distance(
+                            new Vector3(circleAt.x, 0f, circleAt.z),
+                            new Vector3(transform.position.x, 0f, transform.position.z));
+                        float halfA = (gear == GearKind.Sword ? swordScatterAngle : axeScatterAngle) * 0.5f;
+                        circleR = Mathf.Max(scatterDepth,
+                                            sp * Mathf.Sin(halfA * Mathf.Deg2Rad));
+                        break;
+                    default:
+                        circleAt = ThrowSpot();
+                        circleR = throwSpread;
+                        break;
+                }
                 break;
             default: break;   // 구르기 등 — 영역 표시 없음
         }
 
         // ★R 투척 — 곧은 선이 아니라 실제로 날아갈 포물선을 그린다 (2026-07-28).
         //   던지기 전에 "저기로 이렇게 날아간다"가 보여야 조준이 된다.
-        if (aiming == 1)
+        // 연발은 포물선이 아니라 직선으로 나가므로 아래 일반 라인 처리에 맡긴다
+        if (aiming == 1 && StyleOf(gear) != ThrowStyle.Rapid)
         {   // E 대규모 출현 — 실제로 날아갈 포물선을 그린다
             var from = body + Vector3.up * 0.25f * WorldScale.K;
             previewLine.enabled = true;
