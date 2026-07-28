@@ -14,16 +14,24 @@ public class FollowCam : MonoBehaviour
     public float height = 4.5f;
     public float yaw = 35f, pitch = 28f;
 
-    [Header("각도 = 줌이 결정 (우클릭은 좌우 회전만)")]
-    [Tooltip("최대 확대(가까이)일 때 내려다보는 각도")]
-    public float nearPitch = 16f;
-    [Tooltip("최대 축소(멀리)일 때 내려다보는 각도")]
-    public float farPitch = 52f;
+    // ★상하 각도를 줌에 묶어 두던 것을 풀었다 (2026-07-28 사용자).
+    //   "높낮이 만들면서 너무 답답해졌다" — 지형이 1000m 로 높아지면서 산을 올려다보거나
+    //   골짜기를 내려다볼 일이 생겼는데, 각도가 줌으로만 정해지니 볼 수가 없었다.
+    //   이제 우클릭 드래그가 좌우(yaw)·상하(pitch)를 둘 다 쥔다. 줌은 거리만 정한다.
+    [Header("상하 각도 (우클릭 드래그로 직접)")]
+    [Tooltip("제일 낮게 볼 수 있는 각도 (°) — 작을수록 지면과 나란히, 0 은 수평")]
+    public float minPitch = 2f;
+    [Tooltip("제일 높이 볼 수 있는 각도 (°) — 90 은 바로 위에서 내려다봄")]
+    public float maxPitch = 87f;
     [Tooltip("줌아웃할수록 바라보는 지점을 이만큼 위로 올린다 (m)")]
     public float farLookUp = 4f;
 
     [Header("입력 감도")]
     public float rotSpeed = 0.16f, zoomSpeed = 0.10f;
+    [Tooltip("상하 감도 — 좌우와 따로 둔다 (세로는 조금만 움직여도 확 바뀐다)")]
+    public float pitchSpeed = 0.12f;
+    [Tooltip("체크하면 마우스를 올릴 때 시선이 내려간다 (비행 시뮬 방식)")]
+    public bool invertPitch = false;
     [Header("부드러움 (작을수록 빠르게 멈춤)")]
     [Tooltip("회전 스무스 시간(초). 작을수록 놓으면 바로 멈춤")]
     public float rotSmoothTime = 0.06f, zoomSmoothTime = 0.10f;
@@ -87,18 +95,20 @@ public class FollowCam : MonoBehaviour
         if (MapUI.PointerOverMap) sc = 0f;
         if (MapUI.IsFullOpen) { d = Vector2.zero; sc = 0f; }
 
-        // 목표값 갱신 — 우클릭 드래그는 '좌우(yaw)만' (상하는 줌이 정함)
+        // 목표값 갱신 — 우클릭 드래그가 좌우(yaw)·상하(pitch)를 둘 다 쥔다
         yawT += d.x * rotSpeed;
+        // ★마우스를 위로 올리면(+y) 시선이 올라간다 = pitch 가 내려간다.
+        //   pitch 는 '내려다보는 각도' 라 부호가 뒤집힌다.
+        pitchT -= d.y * pitchSpeed * (invertPitch ? -1f : 1f);
+        pitchT = Mathf.Clamp(pitchT, minPitch, maxPitch);
         if (Mathf.Abs(sc) > 0.0001f)
             distT = Mathf.Clamp(distT - sc * zoomSpeed * distT * 10f, minDist, maxDist);
 
         // SmoothDamp = 드래그 중엔 부드럽게, 놓으면 짧게 감속하고 멈춤(관성·밀림 없음)
         yaw = Mathf.SmoothDampAngle(yaw, yawT, ref yawVel, rotSmoothTime);
         distance = Mathf.SmoothDamp(distance, distT, ref distVel, zoomSmoothTime);
-        // 상하 각도 = 줌 비율로 자동 (확대=낮은 앵글, 축소=부감)
+        pitch = Mathf.SmoothDamp(pitch, pitchT, ref pitchVel, rotSmoothTime);
         float z01 = Mathf.InverseLerp(minDist, maxDist, distance);
-        pitchT = Mathf.Lerp(nearPitch, farPitch, z01);
-        pitch = Mathf.SmoothDamp(pitch, pitchT, ref pitchVel, 0.15f);
 
         // 바라보는 지점: 가로는 캐릭터, 세로는 '지면 높이'만 추적 → 통통 튐이 카메라에 안 옴
         float groundY = GroundAt(target.position);
