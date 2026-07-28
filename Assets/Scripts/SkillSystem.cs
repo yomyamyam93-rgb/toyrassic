@@ -78,29 +78,23 @@ public class SkillSystem : MonoBehaviour
     static bool IsMelee(GearKind g)
         => g == GearKind.Axe || g == GearKind.Pick || g == GearKind.Sword;
 
-    (string icon, string label, bool usable) SkillInfo(int slot)
+    /// 화면 스킬칸 하나의 표시 — Q·E·R 은 각각 1·2·3번 무기칸의 펫 투척이다.
+    /// ★칸 번호와 펫 이름을 같이 띄운다. 세 개가 동시에 보이므로 어느 게 어느 칸인지가
+    ///   즉시 읽혀야 손이 안 꼬인다 (그게 이번 개편의 목적이다).
+    (string icon, string label, bool usable) SkillInfo(int hud)
     {
-        var gear = Hotbar.I != null ? Hotbar.I.Current : GearKind.None;
-        switch (slot)
-        {
-            case 0:
-                // 무기마다 동작이 다르다 — 이름·아이콘도 각각 (아이콘 없으면 회전베기로 대체)
-                return gear == GearKind.Sling ? ("스킬_관통사격", "연발 사격", true)
-                     : gear == GearKind.Bow ? ("스킬_관통사격", "관통 사격", true)
-                     : gear == GearKind.Pick ? ("스킬_내리찍기", "내리찍기", true)
-                     : gear == GearKind.Sword ? ("스킬_연속베기", "연속 베기", true)
-                     : gear == GearKind.Axe ? ("스킬_회전베기", "회전 베기", true)
-                     : ("스킬_관통사격", "무기 필요", false);
-            case 1:
-                {   // E — 대규모 출현. 지금 무기에 묶인 펫이 몇 마리 나오는지 그대로 보여준다
-                    var p = PetCommand.Selected;
-                    return ("스킬_돌격",
-                            p != null ? $"{p.name} {PetUnit.CountFor(throwBudget, p.supply)}마리" : "묶인 펫 없음",
-                            p != null);
-                }
-            case 2: return ("스킬_구르기", "구르기", true);                 // Space
-            default: return ("스킬_소집", "", false);                       // R — 비움
-        }
+        if (hud == 2) return ("스킬_구르기", "구르기", true);   // Space
+
+        int slot = HudToSlot(hud);
+        var p = slot >= 0 && slot < PetCommand.SlotPet.Length ? PetCommand.SlotPet[slot] : null;
+        if (p == null) return ("스킬_돌격", $"{slot + 1}번 · 펫 없음", false);
+
+        var gear = SlotGear(slot);
+        string how = StyleOf(gear) == ThrowStyle.Scatter ? "흩뿌리기"
+                   : StyleOf(gear) == ThrowStyle.Rapid ? "연발" : "찍기";
+        return ("스킬_돌격",
+                $"{slot + 1}번 {p.name} {PetUnit.CountFor(throwBudget, p.supply)} · {how}",
+                true);
     }
 
     void Start()
@@ -185,28 +179,50 @@ public class SkillSystem : MonoBehaviour
 #if ENABLE_INPUT_SYSTEM
         var k = Keyboard.current;
         if (k == null) return;
-        // 출현 슬롯의 쿨 표시 — 지금 무기에 묶인 펫의 쿨을 비춘다 (펫마다 따로 돌기 때문)
-        cd[1] = PetCommand.CoolOf(PetCommand.Selected);
-        cdMax[1] = throwCooldown;
+        // 각 칸 펫의 쿨을 그 슬롯에 비춘다 (쿨은 펫마다 따로 돈다)
+        for (int s = 0; s < Hotbar.Slots; s++)
+        {
+            int hud = SlotToHud(s);
+            cd[hud] = PetCommand.CoolOf(PetCommand.SlotPet[s]);
+            cdMax[hud] = throwCooldown;
+        }
 
-        // ★키 배치 (2026-07-28 확정) — 1·2·3 무기(펫이 묶여 따라온다) / 좌클릭 공격 /
-        //   Q 무기 스킬 / E 대규모 출현 / Space 구르기. R 은 비워 뒀다.
-        aiming = k.qKey.isPressed ? 0 : k.eKey.isPressed ? 1 : k.spaceKey.isPressed ? 2 : -1;
+        // ★키 배치 (2026-07-28 개편) — 투척을 Q·E·R 로 흩었다.
+        //   예전엔 'E 하나 + 무기를 바꿔서' 던졌는데, 던지려면 매번 1·2·3 을 먼저 눌러야 해서
+        //   손이 꼬였다. 이제 **Q=1번칸 · E=2번칸 · R=3번칸** 펫이 각자 그 칸 무기 방식으로
+        //   바로 나간다 — 무기를 바꿀 필요가 없다.
+        //   1·2·3 은 여전히 '들고 싸울 무기' 를 고르는 키다 (좌클릭 공격에 쓰인다).
+        aiming = k.qKey.isPressed ? 0 : k.eKey.isPressed ? 1
+               : k.rKey.isPressed ? 3 : k.spaceKey.isPressed ? 2 : -1;
         UpdatePreview();
 
         // ★E 로 조준하는 동안엔 발이 묶인다 (2026-07-28 사용자).
         //   E 는 WASD 와 동시에 누르기 불편한 자리다. 어차피 같이 못 쓸 바엔
         //   서서 겨누게 하는 편이 낫다 — 조준선이 안 흔들려 착탄 지점도 정확해진다.
         //   대시 중에는 손대지 않는다 (그쪽이 suppressMove 를 쥐고 있다).
-        if (move != null && dashT <= 0f) move.suppressMove = aiming == 1;
-        if (k.qKey.wasReleasedThisFrame) TryQ();        // 무기 스킬
+        if (move != null && dashT <= 0f) move.suppressMove = AimSlot >= 0;
+        if (k.qKey.wasReleasedThisFrame) TryThrow(0);   // 1번 칸 펫
+        if (k.eKey.wasReleasedThisFrame) TryThrow(1);   // 2번 칸 펫
+        if (k.rKey.wasReleasedThisFrame) TryThrow(2);   // 3번 칸 펫
         if (k.spaceKey.wasReleasedThisFrame) TryE();    // 구르기
-        if (k.eKey.wasReleasedThisFrame) TryThrow();    // 대규모 출현 (조준하고 놓으면 날아간다)
 #endif
     }
 
     bool Ready(int i) => cd[i] <= 0f;
     void Use(int i, float cool) { cd[i] = cool; cdMax[i] = cool; }
+
+    // ── 슬롯(무기칸 0·1·2) ↔ 화면 스킬칸 대응 ──────────────────────────
+    //   화면 칸 순서는 Q · E · Space(구르기) · R 이라, 3번 칸만 자리가 떨어져 있다.
+    static int SlotToHud(int slot) => slot == 2 ? 3 : slot;
+    static int HudToSlot(int hud) => hud == 3 ? 2 : hud == 2 ? -1 : hud;
+
+    /// 지금 조준 중인 무기칸 (-1 = 투척 조준이 아님)
+    int AimSlot => HudToSlot(aiming);
+
+    /// 그 칸에 꽂힌 무기 — 투척 방식은 '지금 든 무기' 가 아니라 **그 칸의 무기** 가 정한다.
+    /// ★이래야 무기를 바꾸지 않고도 세 가지 출현 방식을 다 쓸 수 있다 (2026-07-28).
+    GearKind SlotGear(int slot) =>
+        Hotbar.I != null && slot >= 0 ? Hotbar.I.SlotKind(slot) : GearKind.None;
 
     // ── R: 대규모 투척 — 고른 펫을 던져 착탄 지점에 무리로 소환한다 ──────────
     //
@@ -276,10 +292,11 @@ public class SkillSystem : MonoBehaviour
     [Tooltip("포물선을 나는 시간 (초)")] public float throwFlyTime = 0.55f;
     [Tooltip("포물선 최고 높이 (m)")] public float throwArc = 1.6f;
 
-    void TryThrow()
+    void TryThrow(int slot)
     {
-        var pet = PetCommand.Selected;
-        if (pet == null) { SquadHUD.Toast("던질 펫이 없다 — E 로 고른다"); return; }
+        if (slot < 0 || slot >= PetCommand.SlotPet.Length) return;
+        var pet = PetCommand.SlotPet[slot];
+        if (pet == null) { SquadHUD.Toast($"{slot + 1}번 칸에 묶인 펫이 없다"); return; }
         // ★쿨은 펫마다 따로 돈다 — 슬롯 공용이 아니다 (2026-07-28)
         if (PetCommand.CoolOf(pet) > 0f)
         {
@@ -288,7 +305,7 @@ public class SkillSystem : MonoBehaviour
         }
 
         PetCommand.StartCool(pet, throwCooldown);
-        var gear = Hotbar.I != null ? Hotbar.I.Current : GearKind.None;
+        var gear = SlotGear(slot);   // 그 칸의 무기가 출현 방식을 정한다
         switch (StyleOf(gear))
         {
             case ThrowStyle.Scatter: StartCoroutine(ScatterThrow(pet, gear)); break;
@@ -1045,9 +1062,9 @@ public class SkillSystem : MonoBehaviour
                   ? Quaternion.LookRotation(new Vector3(dir.x, 0f, dir.z)).eulerAngles.y : 0f;
 
         // E 조준일 때만 무기별 모양을 쓴다. 나머지(Q 등)는 예전처럼 원.
-        var style = aiming == 1 ? StyleOf(gear) : ThrowStyle.Slam;
+        var style = AimSlot >= 0 ? StyleOf(gear) : ThrowStyle.Slam;
 
-        if (aiming == 1 && style == ThrowStyle.Scatter)
+        if (AimSlot >= 0 && style == ThrowStyle.Scatter)
         {
             float reach = Vector3.Distance(new Vector3(circleAt.x, 0f, circleAt.z),
                                            new Vector3(self.x, 0f, self.z)) + scatterDepth;
@@ -1059,7 +1076,7 @@ public class SkillSystem : MonoBehaviour
             return;
         }
 
-        if (aiming == 1 && style == ThrowStyle.Rapid)
+        if (AimSlot >= 0 && style == ThrowStyle.Rapid)
         {
             float wide = Mathf.Max(0.4f, rapidRange * Mathf.Sin(rapidSpread * Mathf.Deg2Rad) * 2f);
             wmf.sharedMesh = FX.CorridorWallMesh();
@@ -1094,22 +1111,18 @@ public class SkillSystem : MonoBehaviour
         var dir = AimDir();
         var origin = transform.position;
         var body = origin;
-        var gear = Hotbar.I != null ? Hotbar.I.Current : GearKind.None;
+        // ★투척 조준 중이면 '그 칸의 무기' 를 본다 — 지금 든 무기가 아니다 (2026-07-28).
+        //   Q·E·R 이 각자 다른 칸의 무기 방식으로 나가므로, 표시도 그 칸을 따라야 한다.
+        var gear = AimSlot >= 0 ? SlotGear(AimSlot)
+                 : Hotbar.I != null ? Hotbar.I.Current : GearKind.None;
 
         float lineLen = 0f, lineWidth = 0f, circleR = 0f, circleIn = 0f;
         Vector3 circleAt = body;
 
-        switch (aiming)
+        // Q·E·R = 각 칸 펫 투척. Space(2) = 구르기 (표시 없음).
+        if (AimSlot >= 0)
         {
-            case 0:
-                // ★표시용 리터럴에도 세계 스케일 (2026-07-28). 인스펙터 수치는 이미 1/10 인데
-                //   여기 상수만 안 줄어서 조준 표시가 실제 판정보다 훨씬 크게 그려졌다
-                if (gear == GearKind.Bow) { lineLen = bow != null ? bow.arrowRange : 70f * WorldScale.K; lineWidth = 1.4f * WorldScale.K; }
-                // ★실제 판정과 똑같은 영역을 그대로 보여준다 (QArea 한 곳에서 나온다)
-                else QArea(gear, dir, out circleAt, out circleR, out circleIn);
-                break;
-            case 1:
-                // ★E 대규모 출현 — 무기마다 나오는 모양이 다르니 표시도 달라야 한다.
+                // ★무기마다 나오는 모양이 다르니 표시도 달라야 한다.
                 //   "보이는 것과 나오는 것이 같다" 는 원칙을 여기서도 지킨다.
                 switch (StyleOf(gear))
                 {
@@ -1134,14 +1147,12 @@ public class SkillSystem : MonoBehaviour
                         circleR = throwSpread;
                         break;
                 }
-                break;
-            default: break;   // 구르기 등 — 영역 표시 없음
         }
 
         // ★R 투척 — 곧은 선이 아니라 실제로 날아갈 포물선을 그린다 (2026-07-28).
         //   던지기 전에 "저기로 이렇게 날아간다"가 보여야 조준이 된다.
         // 연발은 포물선이 아니라 직선으로 나가므로 아래 일반 라인 처리에 맡긴다
-        if (aiming == 1 && StyleOf(gear) != ThrowStyle.Rapid)
+        if (AimSlot >= 0 && StyleOf(gear) != ThrowStyle.Rapid)
         {   // E 대규모 출현 — 실제로 날아갈 포물선을 그린다
             var from = body + Vector3.up * 0.25f * WorldScale.K;
             previewLine.enabled = true;
@@ -1176,7 +1187,7 @@ public class SkillSystem : MonoBehaviour
         // 원 (광역형)
         // ★부채꼴·연발일 때는 바닥 원을 끈다 — 모양이 다른데 원을 깔면 거짓말이 된다.
         //   그 둘은 빛의 벽이 모양을 직접 보여준다.
-        bool shapedWall = aiming == 1 && StyleOf(gear) != ThrowStyle.Slam;
+        bool shapedWall = AimSlot >= 0 && StyleOf(gear) != ThrowStyle.Slam;
         previewCircle.gameObject.SetActive(circleR > 0f && !shapedWall);
         if (circleR > 0f && !shapedWall)
         {
@@ -1196,7 +1207,7 @@ public class SkillSystem : MonoBehaviour
         UpdateWall(gear, dir, circleAt, circleR);
 
         // 영역 안 대상 빨갛게 — 공격 조준일 때만. 소집·돌격은 적을 겨누는 게 아니다
-        if (aiming != 0) return;
+        if (AimSlot >= 0) return;
         foreach (var u in PetUnit.All)
         {
             if (u == null || !u.Alive || u.team != PetUnit.Team.Wild) continue;
