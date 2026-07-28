@@ -709,7 +709,10 @@ public class PetUnit : MonoBehaviour
     // ★죽은 놈이 원래 색 그대로 누워 있으면 산 놈과 헷갈린다 (2026-07-28 사용자).
     //   50대50 에서는 바닥에 시체가 깔리므로 한눈에 갈라져야 한다.
     [Header("사망 연출")]
-    [Tooltip("죽었을 때 몸 색 (회색조)")] public Color deadTint = new Color(0.32f, 0.32f, 0.35f);
+    // ★옅게 해야 눈에 안 띈다 (2026-07-28 사용자). 진한 회색으로 했더니 밝은 지형 위에서
+    //   오히려 더 도드라져 살아있는 놈보다 눈에 들어왔다. 시체는 '배경으로 물러나야' 한다.
+    [Tooltip("죽었을 때 몸 색 — 옅을수록 눈에 안 띈다")]
+    public Color deadTint = new Color(0.86f, 0.86f, 0.88f);
     [Tooltip("쓰러진 뒤 그대로 머무는 시간 (초)")] public float deathLinger = 1.1f;
     [Tooltip("부스러져 사라지는 시간 (초)")] public float dissolveTime = 0.9f;
     [Tooltip("사라질 때 흩어지는 입자 색 (밝게 = 빛남)")]
