@@ -221,6 +221,8 @@ public class PlayerBow : MonoBehaviour
 
     Transform handL, handR, bowRoot, bowInst;
     Quaternion bowAutoRot = Quaternion.identity; float bowAutoScale = 1f; Vector3 bowAutoPos;
+    /// 활 모델이 씬에 사람이 배치해 둔 것인가 — 그렇다면 코드가 자세·크기를 안 건드린다
+    bool bowAuthored; Vector3 bowInstScale = Vector3.one;
     LineRenderer bowString, aimLine;
     Transform nockArrow;
     float cd, drawT, aimLen; bool drawing;
@@ -652,8 +654,23 @@ public class PlayerBow : MonoBehaviour
             //   무기와 같은 규칙: 씬에 있으면 찾아 쓴다. 그래야 에디터에서 활이 보이고
             //   조준 자세를 만들 수 있다.
             var existing = bowRoot.Find(bowModel.name);
+            // ★씬에 있으면 그 자세가 정본이다 (2026-07-28 사용자).
+            //   근접 무기는 이미 sceneAuthored 로 이렇게 하고 있었는데 **활만 빠져 있었다.**
+            //   그래서 편집 창에서 활을 아무리 맞춰도 실행하면 코드가 계산한 자세로
+            //   갈아치워졌다 — "편집에서와 인게임에서가 달라" 의 정체다.
+            bowAuthored = existing != null;
             bowInst = existing != null ? existing : Instantiate(bowModel, bowRoot).transform;
             bowInst.name = bowModel.name;
+            if (bowAuthored)
+            {
+                // 씬에서 잡은 그대로 쓴다. 크기도 안 뺏는다.
+                bowAutoRot = bowInst.localRotation;
+                bowAutoPos = bowInst.localPosition;
+                bowAutoScale = 1f;
+                bowInstScale = bowInst.localScale;
+            }
+            else
+            {
             // ★계산 전에 모델 원본 자세로 되돌린다 — 아래가 인스턴스의 '현재' 값을 읽는데
             //   런타임이 그 값을 덮어쓰므로, 씬에 저장되면 실행마다 누적된다 (무기와 동일)
             bowInst.localPosition = bowModel.transform.localPosition;
@@ -675,6 +692,7 @@ public class PlayerBow : MonoBehaviour
                     bowAutoRot = extra * bowAutoRot;
                     bowAutoPos = extra * bowAutoPos;
                 }
+            }
             }
         }
         else
@@ -1177,11 +1195,21 @@ public class PlayerBow : MonoBehaviour
         if (bowRoot != null) bowRoot.gameObject.SetActive(gearV == GearKind.Bow);
         if (bowInst != null)
         {   // 활 모델 정렬 — 인스펙터 값 실시간 반영 (도구와 같은 방식)
-            float bs = bowAutoScale * bowModelScale;
-            var bfix = Quaternion.Euler(bowModelEuler);   // 손 기준 축으로 보정 (도구와 동일)
-            bowInst.localRotation = bfix * bowAutoRot;
-            bowInst.localPosition = bfix * (bowAutoPos * bs) + bowModelPos;
-            bowInst.localScale = Vector3.one * bs;
+            // ★씬에 배치한 활은 자세·크기를 건드리지 않는다 (근접 무기와 같은 규칙)
+            if (bowAuthored)
+            {
+                bowInst.localRotation = bowAutoRot;
+                bowInst.localPosition = bowAutoPos;
+                bowInst.localScale = bowInstScale;
+            }
+            else
+            {
+                float bs = bowAutoScale * bowModelScale;
+                var bfix = Quaternion.Euler(bowModelEuler);   // 손 기준 축으로 보정 (도구와 동일)
+                bowInst.localRotation = bfix * bowAutoRot;
+                bowInst.localPosition = bfix * (bowAutoPos * bs) + bowModelPos;
+                bowInst.localScale = Vector3.one * bs;
+            }
         }
         {
             string curId = GearId(gearV);
