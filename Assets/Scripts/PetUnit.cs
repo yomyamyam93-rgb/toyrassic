@@ -1043,8 +1043,8 @@ public class PetUnit : MonoBehaviour
     const float barRefDist = 20f;
 
     /// ★체력바 전체 크기 배수. 여기만 만지면 모든 유닛의 바가 같이 커진다.
-    ///   3 → 4.5 → 2.25 (2026-07-29 사용자 "너무 커졌어, 2분의 1로").
-    const float barSizeMul = 2.25f;
+    ///   3 → 4.5 → 2.25 → 1.35 (2026-07-29 사용자 "0.6배로").
+    const float barSizeMul = 1.35f;
     void MakeBar(Renderer r)
     {
         ghostHp = hp;
@@ -1062,8 +1062,7 @@ public class PetUnit : MonoBehaviour
         // ★바는 몸의 자식이 아니라 월드에 따로 있으므로 세계 스케일을 직접 곱한다 (2026-07-27)
         // ★크기 (2026-07-29 사용자: "3배는 키워야 한다").
         //   화면 크기는 이제 Bar() 에서 거리에 비례시켜 고정하므로, 여기 값이 곧
-        //   '화면에서 보이는 크기' 다. 늘려도 뭉개지지 않게 텍스처를 512x192 로 다시 그렸다
-        //   (FX.RoundedTex) — 스케일로 늘리는 게 아니라 처음부터 크게 그린 것이다.
+        //   '화면에서 보이는 크기' 다. 바는 각진 흰 1픽셀이라 아무리 키워도 안 뭉개진다.
         barBaseScale = 1.35f * WorldScale.K * 3.9f * barSizeMul;
         barRoot = new GameObject(name + "_hpbar").transform;
         barRoot.SetParent(SceneBuckets.Bars);   // 하이라키 정리
@@ -1125,10 +1124,17 @@ public class PetUnit : MonoBehaviour
         lmat.SetFloat(TMPro.ShaderUtilities.ID_UnderlaySoftness, 0f);
         lmat.SetFloat("_ZTestMode", (float)UnityEngine.Rendering.CompareFunction.Always);
         lmat.renderQueue = 4500;                      // 몸·나무보다 항상 앞
-        var lrt = (RectTransform)lvGo.transform;
-        lrt.sizeDelta = new Vector2(0.6f, 0.5f);
+        // ★RectTransform 설정은 TMP 를 붙인 **뒤에** 한다 — 붙일 때 TMP 가 값을 다시 잡는다.
+        //   좁은 rect 에 넣으면 글자가 안 보이는 일이 있어 넉넉히 준다.
+        barLevel.overflowMode = TMPro.TextOverflowModes.Overflow;
+        var lrt = barLevel.rectTransform;
+        lrt.anchorMin = lrt.anchorMax = lrt.pivot = new Vector2(0.5f, 0.5f);
+        lrt.sizeDelta = new Vector2(1.2f, 0.7f);
         // 바 반폭이 0.95 — 그 왼쪽 끝에 얹는다 (바깥이 아니라 끝에 물리게)
         lrt.localPosition = new Vector3(-0.95f, 0f, -0.02f);
+        lrt.localRotation = Quaternion.identity;
+        lrt.localScale = Vector3.one;
+        barLevel.text = level.ToString();   // 첫 프레임부터 보이게
         var lmr = barLevel.GetComponent<MeshRenderer>();
         if (lmr != null)
         {

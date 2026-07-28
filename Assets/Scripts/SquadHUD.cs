@@ -38,7 +38,6 @@ public class SquadHUD : MonoBehaviour
     public static void Toast(string msg) { toastMsg = msg; toastT = toastDur; }
 
     Font font;
-    Sprite round;
     Text myHpLabel, petTitle, petHpLabel, toastText;
     Image myHpFill, petHpFill, petXpFill;
     GameObject petBars;
@@ -49,14 +48,15 @@ public class SquadHUD : MonoBehaviour
     void Start()
     {
         font = (UIStyle.I != null && UIStyle.I.font != null) ? UIStyle.I.font : Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-        // ★크기를 하드코딩하지 않는다 (2026-07-29). 예전엔 Rect(0,0,64,24) 로 박아 놨는데
-        //   FX.RoundedTex 를 512x192 로 다시 그리자 왼쪽 아래 귀퉁이만 잘라 쓰게 되어
-        //   좌상단 체력바가 깨졌다. 텍스처 크기를 물어보고, 테두리도 같은 비율로 환산한다.
-        var rt = FX.RoundedTex();
-        float bor = rt.height * (11f / 24f);      // 원래 비율(24px 높이에 11px 테두리) 유지
-        round = Sprite.Create(rt,
-            new Rect(0, 0, rt.width, rt.height), new Vector2(0.5f, 0.5f), 100f, 0,
-            SpriteMeshType.FullRect, new Vector4(bor, bor, bor, bor));
+        // ★9-슬라이스를 아예 걷어냈다 (2026-07-29).
+        //
+        //   여기서 FX.RoundedTex 로 스프라이트를 직접 만들며 크기(64x24)와 테두리(11px)를
+        //   박아 놨었다. 텍스처를 512x192 로 다시 그리자 **테두리도 8배(88px)** 가 되어
+        //   패널이 화면을 덮는 거대한 덩어리가 됐다. 9-슬라이스 테두리는 텍스처 픽셀 단위라
+        //   원본 해상도가 바뀌면 반드시 같이 터진다.
+        //
+        //   바는 각지게(sprite = null → 흰 1픽셀), 패널은 프로젝트 표준 UIStyle.Round() 를
+        //   쓴다. 여기서 스프라이트를 따로 만들지 않으므로 같은 사고가 다시 안 난다.
         toastDur = toastTime;
         Build();
     }
@@ -95,12 +95,14 @@ public class SquadHUD : MonoBehaviour
 
     Image MakeBar(string n, Transform parent, float h, Color fillColor, out Image fill)
     {
+        // ★각진 바 (CLAUDE.md 바 규칙). sprite = null 이면 흰 1픽셀로 그려져
+        //   어떤 크기에서도 또렷하다 — 늘려 쓸 원본이 아예 없으니 뭉개질 수가 없다.
         var bg = RT(n, parent).gameObject.AddComponent<Image>();
-        bg.sprite = round; bg.type = Image.Type.Sliced; bg.color = BarBg;
+        bg.sprite = null; bg.color = BarBg;
         var le = bg.gameObject.AddComponent<LayoutElement>();
         le.minHeight = h; le.preferredHeight = h; le.flexibleWidth = 1;
         fill = RT("fill", bg.transform).gameObject.AddComponent<Image>();
-        fill.sprite = round; fill.type = Image.Type.Sliced;   // 9슬라이스 — 늘여도 모서리 안 깨짐
+        fill.sprite = null;
         fill.color = fillColor;
         var fr = fill.rectTransform;
         fr.anchorMin = Vector2.zero; fr.anchorMax = Vector2.one;
@@ -121,7 +123,9 @@ public class SquadHUD : MonoBehaviour
     {
         var p = RT(n, parent);
         var img = p.gameObject.AddComponent<Image>();
-        img.sprite = round; img.type = Image.Type.Sliced; img.color = PanelBg;
+        // 패널은 프로젝트 표준 둥근 스프라이트 (다른 창들과 같은 결)
+        img.sprite = UIStyle.I != null ? UIStyle.I.Round() : null;
+        img.type = Image.Type.Sliced; img.color = PanelBg;
         p.anchorMin = p.anchorMax = p.pivot = anchor;
         p.anchoredPosition = pos;
         p.sizeDelta = new Vector2(width, 100);
