@@ -692,6 +692,8 @@ public class PetUnit : MonoBehaviour
             transform.localScale = baseScale;
         }
         deathT = 0f; deathStartY = transform.position.y; deathDropped = false;
+        dissolveT = 0f; emitT = 0f;
+        Gray();                                    // ★죽은 놈은 회색 — 산 놈과 한눈에 구분되게
         if (barRoot != null) barRoot.gameObject.SetActive(false);
         if (team == Team.Wild)
         {   // 격파 경험치 → 캐릭터와 내 펫 둘 다. 펫 획득은 오직 부화로!
@@ -699,7 +701,70 @@ public class PetUnit : MonoBehaviour
             foreach (var u in All)
                 if (u.Alive && u.team == Team.Player && !u.isAvatar && !u.isStructure) { u.GainXP(supply * 18f); break; }
         }
-        Destroy(gameObject, 8f);
+        Destroy(gameObject, 20f);   // 안전망 — 정상 흐름은 부스러짐이 끝나면서 스스로 사라진다
+    }
+
+    // ── 사망 표시 ─────────────────────────────────────────────────────
+    //
+    // ★죽은 놈이 원래 색 그대로 누워 있으면 산 놈과 헷갈린다 (2026-07-28 사용자).
+    //   50대50 에서는 바닥에 시체가 깔리므로 한눈에 갈라져야 한다.
+    [Header("사망 연출")]
+    [Tooltip("죽었을 때 몸 색 (회색조)")] public Color deadTint = new Color(0.32f, 0.32f, 0.35f);
+    [Tooltip("쓰러진 뒤 그대로 머무는 시간 (초)")] public float deathLinger = 1.1f;
+    [Tooltip("부스러져 사라지는 시간 (초)")] public float dissolveTime = 0.9f;
+    [Tooltip("사라질 때 흩어지는 입자 색 (밝게 = 빛남)")]
+    public Color dissolveColor = new Color(2.2f, 1.7f, 0.9f, 1f);
+
+    float dissolveT, emitT;
+    Renderer[] bodyRends;
+    MaterialPropertyBlock deadMpb;
+
+    Renderer[] BodyRends()
+    {
+        if (bodyRends != null) return bodyRends;
+        var list = new List<Renderer>();
+        foreach (var r in GetComponentsInChildren<Renderer>())
+        {
+            if (r is ParticleSystemRenderer || r is LineRenderer || r is TrailRenderer) continue;
+            list.Add(r);
+        }
+        bodyRends = list.ToArray();
+        return bodyRends;
+    }
+
+    /// 몸을 회색으로 — 재질을 복제하지 않고 프로퍼티 블록으로 덮어쓴다 (50마리여도 싸다)
+    void Gray()
+    {
+        if (deadMpb == null) deadMpb = new MaterialPropertyBlock();
+        deadMpb.Clear();
+        // URP Lit 은 _BaseColor, 구식/커스텀은 _Color — 둘 다 넣어 둔다 (없는 건 무시된다)
+        deadMpb.SetColor("_BaseColor", deadTint);
+        deadMpb.SetColor("_Color", deadTint);
+        deadMpb.SetColor("_EmissionColor", Color.black);
+        foreach (var r in BodyRends()) if (r != null) r.SetPropertyBlock(deadMpb);
+    }
+
+    /// 부스러져 사라진다 — 몸이 줄어드는 만큼 빛나는 입자가 흩어져 올라간다
+    void Dissolve()
+    {
+        dissolveT += Time.deltaTime;
+        float k = Mathf.Clamp01(dissolveT / Mathf.Max(0.05f, dissolveTime));
+
+        // 몸은 오그라들고
+        transform.localScale = baseScale * (1f - k * 0.92f);
+
+        // 그만큼 입자가 된다 — 몸 여기저기서 조금씩, 끝으로 갈수록 잦게
+        emitT -= Time.deltaTime;
+        if (emitT <= 0f)
+        {
+            emitT = Mathf.Lerp(0.07f, 0.03f, k);
+            var at = transform.position
+                   + Random.insideUnitSphere * body * 0.35f * (1f - k * 0.6f)
+                   + Vector3.up * body * 0.15f;
+            FX.Burst(at, dissolveColor, 4, body * 0.045f, body * 0.55f, 0.55f);
+        }
+
+        if (k >= 1f) Destroy(gameObject);
     }
 
     // 사망 연출: ①고통 — 몸을 비틀며 파르르 + 헐떡 스쿼시 → ②스르륵 힘 빠지며 쓰러짐
@@ -717,8 +782,8 @@ public class PetUnit : MonoBehaviour
             transform.localScale = new Vector3(
                 baseScale.x / Mathf.Sqrt(gasp), baseScale.y * gasp, baseScale.z / Mathf.Sqrt(gasp));
         }
-        else
-        {
+        else if (deathT < 1.85f + deathLinger)
+        {   // ②스르륵 쓰러짐 → 잠깐 그대로 (k 가 1에서 멈추므로 자세가 유지된다)
             float k = Mathf.Clamp01((deathT - 0.85f) / 1.0f);
             float e = k * k * (3f - 2f * k);                                   // 스르륵 (S곡선)
             transform.rotation = Quaternion.Euler(0f, yaw, 82f * e);
@@ -733,6 +798,10 @@ public class PetUnit : MonoBehaviour
                 SpawnDrop();
             }
         }
+        else
+        {   // ③부스러져 빛으로 흩어진다
+            Dissolve();
+        }
     }
 
     /// 설계도 획득 시 내 군단으로 합류 — 쓰러진 그 개체가 그대로 일어난다
@@ -741,6 +810,10 @@ public class PetUnit : MonoBehaviour
         dead = false; hp = maxHp;
         team = Team.Player; collectible = false; followTarget = owner;
         transform.rotation = Quaternion.Euler(0f, transform.eulerAngles.y, 0f);
+        // 죽으며 씌운 회색·오그라듦을 되돌린다 (안 그러면 회색 시체가 일어난다)
+        transform.localScale = baseScale;
+        dissolveT = 0f;
+        foreach (var r in BodyRends()) if (r != null) r.SetPropertyBlock(null);
         if (motion != null) motion.enabled = true;
         if (barRoot != null) barRoot.gameObject.SetActive(true);
         if (barFill != null)
