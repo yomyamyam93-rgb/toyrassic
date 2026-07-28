@@ -16,16 +16,18 @@ public static class FX
     public static Texture2D RoundedTex()
     {
         if (roundTex != null) return roundTex;
-        // ★해상도를 4배로 (2026-07-29 사용자 — "체력바 해상도가 너무 떨어져").
-        //   64x24 짜리를 화면에서 몇 배로 늘려 쓰고 있어서 모서리가 뭉개졌다.
-        //   256x96 으로 그리면 같은 모양이 또렷하게 나온다. 한 번만 만들어 캐시하므로
-        //   커져도 부담이 없다. 안티에일리어싱은 가장자리 알파로 낸다.
-        const int w = 256, h = 96, r = 40;
-        roundTex = new Texture2D(w, h, TextureFormat.RGBA32, false)
+        // ★해상도를 8배로 (2026-07-29 사용자 — "스케일 늘리지 말고 고해상도로 다시 그려줘").
+        //   원래 64x24 짜리를 화면에서 몇 배로 늘려 쓰고 있어서 모서리가 뭉개졌다.
+        //   바를 3배로 키우면 그 뭉개짐도 3배가 되므로, 늘리는 대신 **처음부터 크게 그린다.**
+        //   512x192 면 화면에서 3배가 되어도 텍셀이 화면 픽셀보다 촘촘하다.
+        //   한 번만 만들어 캐시하므로 커져도 실행 중 부담은 없다 (약 393KB).
+        //   밉맵을 켜서 멀어졌을 때 지글거리는 것도 막는다.
+        const int w = 512, h = 192, r = 80;
+        roundTex = new Texture2D(w, h, TextureFormat.RGBA32, true)
         {
             filterMode = FilterMode.Bilinear,
             wrapMode = TextureWrapMode.Clamp,
-            anisoLevel = 4,
+            anisoLevel = 8,
         };
         var px = new Color32[w * h];
         for (int y = 0; y < h; y++)

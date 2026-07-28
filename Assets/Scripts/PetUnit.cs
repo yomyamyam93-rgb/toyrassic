@@ -1041,6 +1041,10 @@ public class PetUnit : MonoBehaviour
     /// ★화면 크기 고정의 기준 거리 (m). 카메라가 이 거리에 있을 때 barBaseScale 그대로 보인다.
     ///   카메라 거리 범위가 12~30 이므로 그 한가운데를 잡았다.
     const float barRefDist = 20f;
+
+    /// ★체력바 전체 크기 배수 (2026-07-29 사용자 "3배는 키워야 한다").
+    ///   여기만 만지면 모든 유닛의 바가 같이 커진다.
+    const float barSizeMul = 3f;
     void MakeBar(Renderer r)
     {
         ghostHp = hp;
@@ -1056,11 +1060,11 @@ public class PetUnit : MonoBehaviour
         if (isAvatar) barY += avatarBarLift;
         // ★전 유닛 동일 크기 (몸 크기 비례 폐지 — 제각각 버그 수정)
         // ★바는 몸의 자식이 아니라 월드에 따로 있으므로 세계 스케일을 직접 곱한다 (2026-07-27)
-        // ★1/10 스케일에서는 '비율'과 '가독성'을 동시에 만족할 수 없다 (2026-07-28).
-        //   ×1 = 원본 비율(바 너비 ÷ 캐릭터 높이 = 1.15배)이지만 읽을 수 없을 만큼 작다.
-        //   ×4 = 읽히지만 4.6배로 넓어져 납작하게 눌려 보인다. ×2 를 타협값으로 쓴다.
-        //   ★근본 해결은 월드 스페이스가 아니라 화면 스페이스(항상 같은 픽셀 크기)로 바꾸는 것.
-        barBaseScale = 1.35f * WorldScale.K * 3.9f;   // 2.6 → ×1.5 (2026-07-28)
+        // ★크기 (2026-07-29 사용자: "3배는 키워야 한다").
+        //   화면 크기는 이제 Bar() 에서 거리에 비례시켜 고정하므로, 여기 값이 곧
+        //   '화면에서 보이는 크기' 다. 늘려도 뭉개지지 않게 텍스처를 512x192 로 다시 그렸다
+        //   (FX.RoundedTex) — 스케일로 늘리는 게 아니라 처음부터 크게 그린 것이다.
+        barBaseScale = 1.35f * WorldScale.K * 3.9f * barSizeMul;
         barRoot = new GameObject(name + "_hpbar").transform;
         barRoot.SetParent(SceneBuckets.Bars);   // 하이라키 정리
         barRoot.localScale = Vector3.one * barBaseScale;
