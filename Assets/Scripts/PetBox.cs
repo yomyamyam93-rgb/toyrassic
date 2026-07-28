@@ -84,7 +84,11 @@ public static class PetBox
         d.active = false;
     }
 
-    /// 데이터 → 실제 펫 소환
+    /// 보관함 데이터 → 손에 드는 펫(본체 틀)
+    ///
+    /// ★세계에 세우지 않는다 (2026-07-28). 예전엔 플레이어 옆에 실제로 꺼내 놨는데,
+    ///   그러면 던지지도 않았는데 알아서 야생에게 달려가 싸우다 죽는다.
+    ///   본체는 비활성 틀이고, 세계에 나오는 것은 투척으로 만든 분신뿐이다.
     public static PetUnit Summon(PetData d, Transform player)
     {
         var sp = Object.FindFirstObjectByType<PetSpawner>();
@@ -93,16 +97,11 @@ public static class PetBox
         if (e == null) e = sp.entries.Find(x => x.koreanName == d.species);
         if (e == null) return null;
 
-        var pos = player.position + player.right * 5f;
-        var terr = Terrain.activeTerrain;
-        if (terr != null) pos.y = terr.SampleHeight(pos) + terr.transform.position.y;
-        var go = sp.Spawn(e, pos, 1f, 1f, 1f);
+        var pos = player.position;
+        var go = sp.SpawnPlayerPet(e, pos, false);   // 비활성 틀로 (이미 보관함에 있으니 재등록 안 함)
         if (go == null) return null;
         var u = go.GetComponent<PetUnit>();
         u.name = d.name;
-        u.team = PetUnit.Team.Player;
-        u.collectible = false;
-        u.followTarget = player;
         u.level = d.level; u.xp = d.xp;
         u.str = d.str; u.agi = d.agi; u.vit = d.vit; u.intel = d.intel;
         u.maxHp = u.hp = u.vit * 10f;

@@ -399,8 +399,18 @@ public class PetSpawner : MonoBehaviour
     public int startPets = 3;
     [Tooltip("지급한 펫이 내 주위 이 거리에 선다 (m)")] public float startPetGap = 1.5f;
 
-    /// 야생과 같은 방식으로 만들되 내 편으로 돌린다.
-    public GameObject SpawnPlayerPet(Entry e, Vector3 pos)
+    /// 내가 가진 펫 한 마리를 만든다.
+    ///
+    /// ★★★세계에 세우지 않는다 (2026-07-28 버그 수정).
+    ///   처음엔 플레이어 옆에 실제로 세웠는데, 내 편이라 알아서 야생에게 달려가
+    ///   **던지지도 않았는데 싸우다 죽고 사라졌다.** 설계상 본체 펫은 머리 위에
+    ///   얹혀 있다가 던져야만 나오는 것이라, 세계에 실존하면 안 된다.
+    ///   → 비활성 상태로 둔다. 이 오브젝트는 '틀' 이다 —
+    ///     · 머리 위 표시가 이 모양을 베끼고
+    ///     · 투척하면 이걸 복제해 분신을 만든다
+    ///   비활성이라 PetUnit.All 에 안 들어가므로 표적이 되지도, 싸우지도, 죽지도 않는다.
+    /// register=false 는 보관함에서 꺼내는 경우 — 이미 등록돼 있으니 또 넣으면 목록이 중복된다.
+    public GameObject SpawnPlayerPet(Entry e, Vector3 pos, bool register = true)
     {
         var go = Spawn(e, pos);
         if (go == null) return null;
@@ -408,9 +418,23 @@ public class PetSpawner : MonoBehaviour
         if (pu == null) return null;
         pu.team = PetUnit.Team.Player;
         pu.collectible = false;
-        pu.packBudget = 0;           // 내 펫은 스스로 안 불어난다 (R 투척으로 소환한다)
+        pu.packBudget = 0;           // 내 펫은 스스로 안 불어난다 (투척으로 소환한다)
         pu.SetWildLevel(1);          // 거리 기반 레벨 보정을 취소 — 내 펫은 1레벨부터
-        PetBox.Register(pu, e.species, e.tier);
+
+        // ★몸 크기를 지금 재 둔다. 비활성이 되면 Start 가 안 돌아 body 가 안 채워지는데,
+        //   머리 위 표시와 투척 이펙트가 이 값을 쓴다.
+        var rends = go.GetComponentsInChildren<MeshRenderer>();
+        if (rends.Length > 0)
+        {
+            var b = rends[0].bounds;
+            foreach (var r in rends) b.Encapsulate(r.bounds);
+            pu.body = Mathf.Max(0.05f, Mathf.Max(b.size.x, Mathf.Max(b.size.y, b.size.z)));
+        }
+        pu.maxHp = pu.hp = pu.vit * 10f;
+
+        if (register) PetBox.Register(pu, e.species, e.tier);
+        PetCommand.Own(pu);          // 보유 목록에 넣는다 (비활성이라 All 로는 못 찾는다)
+        go.SetActive(false);         // ★세계에서 내린다 — 던져야만 나온다
         return go;
     }
 

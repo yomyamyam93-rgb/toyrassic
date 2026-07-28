@@ -403,8 +403,10 @@ public class SkillSystem : MonoBehaviour
             float rr = throwSpread * (0.35f + 0.65f * (i % 3) / 2f);   // 안팎으로 흩어지게
             var pos = Ground(spot + new Vector3(Mathf.Cos(a), 0f, Mathf.Sin(a)) * rr);
 
+            // ★본체는 비활성 '틀' 이다 — 복제한 뒤 켜야 세계에 나온다 (2026-07-28)
             var g = Instantiate(pet.gameObject, spot, Quaternion.Euler(0f, Random.Range(0f, 360f), 0f));
             g.name = pet.name;
+            g.SetActive(true);
             var u = g.GetComponent<PetUnit>();
             if (u == null) continue;
             u.team = PetUnit.Team.Player;

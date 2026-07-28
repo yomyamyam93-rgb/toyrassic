@@ -89,11 +89,12 @@ public class PetHeadDisplay : MonoBehaviour
         }
 
         // 크기 — 캐릭터 키의 sizeRatio 만큼. 부모가 이미 스케일을 갖고 있으므로 나눠 준다
-        float petH = Mathf.Max(0.01f, srcMr.bounds.size.y);
+        // ★본체는 비활성이라 renderer.bounds 를 못 쓴다 (0 이 나온다). 만들 때 재 둔 body 를 쓴다.
+        float petH = Mathf.Max(0.01f, pet.body > 0.01f ? pet.body : srcMr.bounds.size.y);
         float ph = PlayerHeight();
         float wantWorld = ph * sizeRatio;
         float parentS = Mathf.Max(1e-4f, transform.lossyScale.y);
-        localScale = (wantWorld / petH) * (src.lossyScale.y / parentS);
+        localScale = (wantWorld / petH) * (src.lossyScale.y / Mathf.Max(1e-4f, parentS));
         root.localScale = Vector3.one * localScale;
 
         // 머리 꼭대기 위로

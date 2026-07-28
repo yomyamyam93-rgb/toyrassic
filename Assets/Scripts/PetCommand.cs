@@ -28,6 +28,16 @@ public class PetCommand : MonoBehaviour
     //                          펫   = *무엇이* 나오나 (스탯·마릿수·행동)
     public static readonly PetUnit[] SlotPet = new PetUnit[Hotbar.Slots];
 
+    /// ★내가 가진 펫(본체) 목록 — 이들은 **비활성 틀**이라 세계에 서 있지 않는다.
+    ///   그래서 PetUnit.All 로는 찾을 수 없어 따로 들고 있어야 한다.
+    ///   (세계에 세워뒀더니 던지지도 않았는데 알아서 싸우다 죽었다 — 2026-07-28)
+    public static readonly List<PetUnit> Owned = new List<PetUnit>();
+
+    public static void Own(PetUnit pet)
+    {
+        if (pet != null && !Owned.Contains(pet)) Owned.Add(pet);
+    }
+
     /// 지금 든 무기에 묶인 펫 (없으면 null)
     public static PetUnit Selected
     {
@@ -137,15 +147,13 @@ public class PetCommand : MonoBehaviour
     ///   그쪽이 Bind() 를 부르고, 여기서는 죽은 놈 정리만 하면 된다.
     static void Refresh()
     {
+        Owned.RemoveAll(p => p == null);
+
         for (int i = 0; i < SlotPet.Length; i++)
-            if (SlotPet[i] == null || !SlotPet[i].Alive) SlotPet[i] = null;
+            if (SlotPet[i] == null) SlotPet[i] = null;
 
-        foreach (var u in PetUnit.All)
+        foreach (var u in Owned)
         {
-            if (u == null || !u.Alive) continue;
-            if (u.team != PetUnit.Team.Player || u.isAvatar || u.isStructure) continue;
-            if (u.summoned) continue;   // 투척으로 나온 분신은 편성 대상이 아니다
-
             bool bound = false;
             for (int i = 0; i < SlotPet.Length; i++) if (SlotPet[i] == u) { bound = true; break; }
             if (bound) continue;
