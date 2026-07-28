@@ -44,11 +44,33 @@ public class PetUnit : MonoBehaviour
     public int points;
     [Tooltip("레벨업마다 주는 포인트")] public const int PointsPerLevel = 5;
 
+    /// 레벨업 필요 경험치 — 레벨만 알면 되므로 정적으로도 쓴다 (종 단위 계산)
+    public static float XpNeedAt(int lv) => 25f + 20f * (lv - 1);
+
+    /// ★경험치는 **개체가 아니라 종(species)이 받는다** (2026-07-29 사용자).
+    ///
+    /// ★왜: 던지는 것은 '배치' 지 새 개체를 만드는 게 아니다. 10마리를 던져도 그건
+    ///   한 펫의 분신이므로, 각자 따로 크면 안 된다 — 같은 종은 레벨을 공유한다.
+    ///
+    /// ★예전엔 살아 있는 분신 하나가 경험치를 먹었다. 그런데 분신은 돌아와 흡수되면서
+    ///   사라지므로, **먹은 경험치가 통째로 증발했다.** 키워도 안 크는 상태였다.
     public void GainXP(float amt)
     {
         if (dead || team != Team.Player) return;
+        if (!isAvatar && !string.IsNullOrEmpty(species))
+        {
+            PetBox.GainXP(species, amt);   // 종 기록에 쌓고, 살아 있는 같은 종 전부에 반영
+            return;
+        }
         xp += amt;
         while (xp >= XpNeed) { xp -= XpNeed; LevelUp(true); }
+    }
+
+    /// 종 기록이 올려준 레벨을 이 개체에 반영한다 (PetBox 가 부른다)
+    public void SyncFromSpecies(int lv, float restXp)
+    {
+        xp = restXp;
+        if (lv > level) ApplyLevels(lv);
     }
 
     /// ★펫 스탯 찍기 — 0=힘 1=민첩 2=체력.
@@ -801,8 +823,11 @@ public class PetUnit : MonoBehaviour
         if (team == Team.Wild)
         {   // 격파 경험치 → 캐릭터와 내 펫 둘 다. 펫 획득은 오직 부화로!
             PlayerLevel.Gain(supply * 12f + body * 0.6f);   // 덩치가 클수록 더 준다
-            foreach (var u in All)
-                if (u.Alive && u.team == Team.Player && !u.isAvatar && !u.isStructure) { u.GainXP(supply * 18f); break; }
+            // ★잡은 놈만 먹는 게 아니라 **가진 펫 전부가 같이 큰다** (2026-07-29 사용자).
+            //   예전엔 살아 있는 분신 하나만 골라 줬다(break). 그 분신은 흡수되며 사라지므로
+            //   경험치가 증발했고, 설령 남았어도 "때린 애만 크는" 게 되어
+            //   부대를 굴리는 게임과 안 맞았다. 이제 보관함의 모든 종이 함께 오른다.
+            PetBox.GainXPAll(supply * 18f);
         }
         Destroy(gameObject, 20f);   // 안전망 — 정상 흐름은 부스러짐이 끝나면서 스스로 사라진다
     }

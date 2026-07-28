@@ -784,6 +784,7 @@ public class SkillSystem : MonoBehaviour
             u.collectible = false;
             u.summoned = true;        // 편성 목록에 안 뜨게 — 본체만 고른다
             u.owner = pet;            // 어느 펫의 부대인지 — 다시 던질 때 이것만 걷는다
+            PetBox.ApplyTo(u);        // ★레벨은 종이 공유한다 — 분신도 그 레벨로 나온다
             // 착지 지점에서 퐁 하고 선다 (야생 증식과 같은 연출)
             u.LaunchTo(spot, pos, u.emergeTime, u.emergeArc + extraArc, i * u.emergeStagger);
         }
