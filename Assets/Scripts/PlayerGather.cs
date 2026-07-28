@@ -238,8 +238,8 @@ public class PlayerGather : MonoBehaviour
     [Header("판정 정밀도")]
     [Tooltip("이보다 높이 차이가 나면 안 맞는다 (절벽 위/아래 헛맞음 방지, m)")]
     public float swingHeightTolerance = 4f;
-    [Tooltip("휘두른 자리를 잠깐 보여준다 — 실제 판정 그대로")]
-    public bool showSwingArc = true;
+    // ※휘두를 때 바닥에 깔리던 부채꼴 표시는 삭제 (2026-07-28 사용자).
+    //   판정 확인용이었지만 매 스윙마다 깔려서 보기 싫다. 타격감은 잔상이 낸다.
 
     /// 부채꼴 판정: wp 가 스윙 범위 안인가
     /// ★거리는 '표면'까지로 잰다 — 덩치 큰 놈은 중심이 멀어도 몸이 닿으면 맞아야 한다.
@@ -322,13 +322,6 @@ public class PlayerGather : MonoBehaviour
     {
         SweepDamage();          // 첫 훑기 (화면 흔들림도 그쪽이 낸다)
         bool hitAny = false;    // 여기서는 지형 노드를 캤을 때만 흔든다
-
-        if (showSwingArc)
-        {
-            float yaw = Quaternion.LookRotation(pendingAim, Vector3.up).eulerAngles.y;
-            FX.Sweep(SwingOrigin, yaw - SwingSpread * 0.5f, SwingSpread, SwingReach,
-                     new Color(1.9f, 1.75f, 1.2f, 0.5f), 0.1f, 0.16f);
-        }
 
         // ③ 지형 노드 — 부채꼴 안 후보 수집 → ★한 번의 지형 재구성으로 배치 실체화 (스윙 렉 방지)
         if (terr != null)
