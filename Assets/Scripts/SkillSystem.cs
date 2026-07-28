@@ -199,8 +199,11 @@ public class SkillSystem : MonoBehaviour
     [Header("R — 대규모 투척 (펫 소환)")]
     [Tooltip("다시 던질 수 있을 때까지 (초)")] public float throwCooldown = 12f;
     [Tooltip("던질 수 있는 최대 거리 (m) — 지금 세계 기준")] public float throwRange = 8f;
+    // ★인구수 예산 (2026-07-28). 마릿수 = 예산 ÷ 등급(supply).
+    //   20 이면 S 20마리 / M 10 / L 7 / XL 5 — '중간 등급이 10마리' 가 기준이다.
+    //   12 로 뒀더니 중간 등급이 6마리라 "마릿수 제한이 걸린 것 같다" 는 인상을 줬다.
     [Tooltip("★인구수 예산 — 실제 마릿수 = 이 값 ÷ 등급. 작은 펫은 떼로, 큰 펫은 몇 마리만")]
-    public int throwBudget = 12;
+    public int throwBudget = 20;
     [Tooltip("착탄 순간 주변에 주는 피해 (팡!)")] public float throwImpactDamage = 45f;
     [Tooltip("착탄 피해가 닿는 반경 (m)")] public float throwImpactRadius = 1.6f;
     [Tooltip("나온 무리가 퍼지는 반경 (m)")] public float throwSpread = 1.4f;

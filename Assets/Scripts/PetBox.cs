@@ -52,10 +52,13 @@ public static class PetBox
         if (d == null || player == null) return false;
         if (d.active) return false;                 // 이미 나와 있다
 
+        // ★R 투척으로 나온 분신은 세지 않는다 (2026-07-28).
+        //   분신은 '임시 배치'지 데리고 다니는 부대원이 아니다. 세어버리면 한 번 던진
+        //   뒤로 "이미 9마리가 나와 있다"며 다른 펫을 못 꺼내게 된다 — 실제로 그랬다.
         int outNow = 0;
         foreach (var u in PetUnit.All)
             if (u != null && u.Alive && u.team == PetUnit.Team.Player
-                && !u.isAvatar && !u.isStructure) outNow++;
+                && !u.isAvatar && !u.isStructure && !u.summoned) outNow++;
         int cap = PetCommand.I != null ? PetCommand.I.maxParty : 4;
         if (outNow >= cap)
         {
