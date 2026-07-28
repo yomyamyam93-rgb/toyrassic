@@ -1124,23 +1124,12 @@ public class PetUnit : MonoBehaviour
         barLevel.color = Color.white;
         barLevel.enableWordWrapping = false;
         barLevel.raycastTarget = false;
-        // 검정 외곽선 + 밑판 — 피해 숫자와 같은 방식 (밝은 땅·어두운 몸 어디서든 읽힌다)
-        var lmat = barLevel.fontMaterial;             // 인스턴스 머티리얼 (다른 텍스트에 안 번진다)
-        lmat.EnableKeyword("OUTLINE_ON");
-        lmat.SetFloat(TMPro.ShaderUtilities.ID_OutlineWidth, 0.30f);
-        lmat.SetColor(TMPro.ShaderUtilities.ID_OutlineColor, Color.black);
-        lmat.EnableKeyword("UNDERLAY_ON");
-        lmat.SetColor(TMPro.ShaderUtilities.ID_UnderlayColor, Color.black);
-        lmat.SetFloat(TMPro.ShaderUtilities.ID_UnderlayOffsetX, 0f);
-        lmat.SetFloat(TMPro.ShaderUtilities.ID_UnderlayOffsetY, 0f);
-        lmat.SetFloat(TMPro.ShaderUtilities.ID_UnderlayDilate, 0.4f);
-        lmat.SetFloat(TMPro.ShaderUtilities.ID_UnderlaySoftness, 0f);
-        lmat.SetFloat("_ZTestMode", (float)UnityEngine.Rendering.CompareFunction.Always);
-        lmat.renderQueue = 4500;                      // 몸·나무보다 항상 앞
-        // ★외곽선을 켠 뒤 반드시 이걸 불러야 한다 (2026-07-29).
-        //   TMP 는 글자 메시에 '여백' 을 만들어 두고 그 안에 외곽선을 그린다. 두께를 바꾸고
-        //   여백을 다시 계산하지 않으면 외곽선이 메시 밖으로 나가 **잘려서 안 보인다.**
-        //   (설정은 들어갔는데 화면에 없던 이유가 이것이다)
+        // ★검정 획 — 피해 숫자가 쓰는 머티리얼을 **통째로** 붙인다 (2026-07-29).
+        //   앞서 fontMaterial 을 뒤늦게 주물럭거렸더니 획이 안 나왔다. TMP 는 머티리얼을
+        //   통째로 받을 때 글자 메시의 여백을 다시 계산하는데, 인스턴스를 나중에 고치면
+        //   그 계산을 놓쳐 획이 메시 밖으로 나가 잘린다.
+        var lm = FX.OutlineTextMat();
+        if (lm != null) barLevel.fontSharedMaterial = lm;
         barLevel.UpdateMeshPadding();
         // ★RectTransform 설정은 TMP 를 붙인 **뒤에** 한다 — 붙일 때 TMP 가 값을 다시 잡는다.
         //   좁은 rect 에 넣으면 글자가 안 보이는 일이 있어 넉넉히 준다.

@@ -257,6 +257,38 @@ public static class FX
     /// ★피해·획득 숫자 크기 배수 — 여기 하나만 만지면 전부 같이 커진다 (2026-07-29)
     public static float popSizeMul = 6.5f;
 
+    // ★검정 획 두른 월드 텍스트 머티리얼 (체력바 레벨 등) ─────────────────
+    //
+    //   피해 숫자(PopMat)와 **완전히 같은 방식**이다. 앞서 fontMaterial 을 나중에
+    //   주물럭거렸더니 획이 안 나왔다 — TMP 는 머티리얼을 통째로 받을 때 여백을
+    //   다시 계산하는데, 인스턴스를 뒤늦게 고치면 그 계산을 놓쳐 획이 잘려 버린다.
+    //   이미 잘 되는 길이 있으면 그 길로 간다.
+    static Material outlineMat;
+
+    public static Material OutlineTextMat()
+    {
+        if (outlineMat != null) return outlineMat;
+        var f = PopFont();
+        if (f == null || f.material == null) return null;
+        var m = new Material(f.material);
+        var overlay = Shader.Find("TextMeshPro/Distance Field Overlay");
+        if (overlay != null) m.shader = overlay;     // 큐가 제일 뒤 = 항상 맨 앞에 그림
+        m.EnableKeyword("OUTLINE_ON");
+        m.SetFloat(TMPro.ShaderUtilities.ID_OutlineWidth, 0.35f);
+        m.SetColor(TMPro.ShaderUtilities.ID_OutlineColor, Color.black);
+        m.EnableKeyword("UNDERLAY_ON");
+        m.SetColor(TMPro.ShaderUtilities.ID_UnderlayColor, Color.black);
+        m.SetFloat(TMPro.ShaderUtilities.ID_UnderlayOffsetX, 0f);
+        m.SetFloat(TMPro.ShaderUtilities.ID_UnderlayOffsetY, 0f);
+        m.SetFloat(TMPro.ShaderUtilities.ID_UnderlayDilate, 0.5f);
+        m.SetFloat(TMPro.ShaderUtilities.ID_UnderlaySoftness, 0f);
+        m.SetFloat(TMPro.ShaderUtilities.ID_FaceDilate, 0.12f);
+        m.SetFloat("_ZTestMode", (float)UnityEngine.Rendering.CompareFunction.Always);
+        m.renderQueue = 4500;
+        outlineMat = m;
+        return m;
+    }
+
     static TMPro.TMP_FontAsset PopFont()
     {
         if (popFontTried) return popFont;   // 1회만 시도 — 피격마다 재시도해서 렉 걸리던 것 방지
