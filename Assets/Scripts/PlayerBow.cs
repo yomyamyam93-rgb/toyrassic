@@ -24,6 +24,9 @@ public class PoseAttribute : System.Attribute
 /// 마우스 왼클릭 누르면 시위를 당기고, 놓으면 마우스 방향으로 화살 발사.
 public class PlayerBow : MonoBehaviour
 {
+    /// PlayerGather 가 무기 실측 길이를 물어보려고 쓴다 (같은 오브젝트에 붙어 있다)
+    public static PlayerBow I;
+
     [Header("공격")]
     [Tooltip("발사 간격 (초) — 공속")] public float fireCooldown = 0.45f;
     public float arrowDamage = 25f;
@@ -338,6 +341,58 @@ public class PlayerBow : MonoBehaviour
     float ChargeDmgMul(int lv) => lv >= 3 ? charge3Dmg : lv >= 2 ? charge2Dmg : 1f;
     float ChargeRangeMul(int lv) => lv >= 3 ? charge3Range : lv >= 2 ? charge2Range : 1f;
 
+    // ── 무기 길이 실측 (2026-07-29 사용자 — "모델링 기준으로 자동으로 맞춰질 순 없나") ──
+    //
+    // ★손으로 맞춘 숫자와 실제 모델이 따로 놀면 이런 일이 난다: 칼 모델이 1.53m 인데
+    //   판정 사거리가 0.79m 였다. 칼날이 닿는 게 눈에 보이는데 판정은 그 절반에서 끝났다.
+    //   무기를 바꾸거나 크기를 조절할 때마다 사람이 숫자를 다시 맞출 수도 없다.
+    //   **모델의 실제 바운즈에서 길이를 재면 저절로 맞는다.**
+    //
+    //   렌더러 바운즈는 월드 기준이라 스케일·회전이 이미 반영돼 있다 — 그대로 쓸 수 있다.
+    string reachId; float reachCache;
+
+    /// 지금 든 무기가 손에서 얼마나 뻗어 있나 (m). 무기가 없으면 0.
+    public float HeldWeaponReach
+    {
+        get
+        {
+            var id = GearId(Hotbar.I != null ? Hotbar.I.Current : GearKind.None);
+            if (id == null) { reachId = null; return 0f; }
+            if (id == reachId) return reachCache;            // 무기가 그대로면 다시 안 잰다
+            reachId = id;
+            reachCache = MeasureReach(id);
+            return reachCache;
+        }
+    }
+
+    float MeasureReach(string id)
+    {
+        if (!rigs.TryGetValue(id, out var rig) || rig.inst == null) return 0f;
+        var hand = id == "새총" ? handL : handR;
+        if (hand == null) return 0f;
+
+        Bounds wb = default; bool any = false;
+        foreach (var r in rig.inst.GetComponentsInChildren<Renderer>())
+        {
+            if (r is TrailRenderer || r is LineRenderer || r is ParticleSystemRenderer) continue;
+            if (!r.enabled) continue;
+            if (!any) { wb = r.bounds; any = true; } else wb.Encapsulate(r.bounds);
+        }
+        if (!any) return 0f;
+
+        // 손에서 가장 먼 모서리까지 = 무기 끝이 닿는 거리
+        float far = 0f;
+        var h = hand.position;
+        for (int i = 0; i < 8; i++)
+        {
+            var c = new Vector3((i & 1) == 0 ? wb.min.x : wb.max.x,
+                                (i & 2) == 0 ? wb.min.y : wb.max.y,
+                                (i & 4) == 0 ? wb.min.z : wb.max.z);
+            far = Mathf.Max(far, Vector3.Distance(c, h));
+        }
+        return far;
+    }
+
     /// 지금 든 무기의 잔상 켜기/끄기 — 애니메이션 이벤트에서 부른다 (2026-07-28)
     public void SetTrail(bool on)
     {
@@ -361,6 +416,7 @@ public class PlayerBow : MonoBehaviour
 
     void Start()
     {
+        I = this;
         PoseFrozen = false;   // static — 도메인 리로드를 껐을 때 이전 세션 상태가 남지 않게
         motion = GetComponent<BlobMotion>();
         gather = GetComponent<PlayerGather>();
@@ -1528,6 +1584,8 @@ public class ArrowProj : MonoBehaviour
 
         var p = g.AddComponent<ArrowProj>();
         p.dir = dir.normalized; p.speed = speed; p.dmg = dmg; p.range = range; p.pierceLeft = Mathf.Max(1, pierce);
+        // 쏜 자리의 '지면 위 고도' 를 기억한다 — 판정은 내내 이 고도를 유지한다
+        p.groundAlt = from.y - GroundAt(from);
     }
 
     // ★언덕에서 쏘면 하나도 안 맞던 것 (2026-07-29 사용자) ─────────────────
@@ -1543,6 +1601,34 @@ public class ArrowProj : MonoBehaviour
     public static float HeightWindow = 1.6f;
     [Tooltip("맞는 수평 반경에 더하는 여유 (m)")]
     public static float HitPad = 0.22f;
+
+    // ── 지면 기준 판정 (2026-07-29 사용자) ─────────────────────────────
+    //
+    // ★"투사체가 지면을 기준으로 날아가는 판정으로 못하나? 날아가는 투사체는 일자로 날아가더라도"
+    //
+    //   화살은 **보이기엔 일직선**으로 난다. 그런데 판정을 그 실제 높이로 하면,
+    //   언덕에서 쏠 때 땅은 아래로 떨어지는데 화살은 수평이라 **고도가 점점 벌어진다.**
+    //   그러면 아래쪽 펫과는 영영 높이가 안 맞는다.
+    //
+    //   그래서 **판정 높이만 따로 만든다.** 쏜 순간의 '지면 위 고도' 를 기억해 두고,
+    //   판정할 때는 "지금 발밑 지면 + 그 고도" 를 화살 높이로 친다.
+    //   땅이 꺼지면 판정 높이도 같이 꺼지므로, 어디서 쏘든 지면 위 같은 높이를 지나간다.
+    //   보이는 것은 그대로 일직선이다 — 눈과 판정이 따로 놀지만, 그게 이 게임에 맞다.
+    float groundAlt;              // 쏜 순간의 지면 위 고도 (m)
+    static Terrain terrCache;
+
+    static float GroundAt(Vector3 p)
+    {
+        if (terrCache == null) terrCache = Terrain.activeTerrain;
+        if (terrCache == null) return p.y;
+        var o = terrCache.transform.position;
+        var s = terrCache.terrainData.size;
+        if (p.x < o.x || p.z < o.z || p.x > o.x + s.x || p.z > o.z + s.z) return p.y;
+        return terrCache.SampleHeight(p) + o.y;
+    }
+
+    /// 판정에 쓰는 높이 — 실제 위치가 아니라 '지면 위 고도' 를 유지한 높이
+    float JudgeY(Vector3 at) => GroundAt(at) + groundAlt;
 
     /// 점 p 와 선분 a→b 의 수평(XZ) 최단 거리 — 높이는 따로 본다
     static float SegDistFlat(Vector3 p, Vector3 a, Vector3 b)
@@ -1581,9 +1667,9 @@ public class ArrowProj : MonoBehaviour
         {
             if (u == null || !u.Alive || u.team != PetUnit.Team.Wild || hitSet.Contains(u)) continue;
             var center = u.transform.position + Vector3.up * u.body * 0.5f;   // 발밑이 아니라 몸통 중심
-            // 수평은 지나간 자취 전체로, 높이는 넉넉한 창으로 (언덕 위아래가 서로 닿게)
+            // 수평은 지나간 자취 전체로, 높이는 **지면 기준** 으로 (언덕에서 쏴도 맞게)
             float flat = SegDistFlat(center, prev, transform.position);
-            float dy = Mathf.Abs(center.y - transform.position.y);
+            float dy = Mathf.Abs(center.y - JudgeY(transform.position));
             if (flat < u.body * 0.55f + HitPad && dy < HeightWindow + u.body * 0.5f)
             {
                 hitSet.Add(u);           // 같은 놈 중복 타격 방지 — 관통해 지나감

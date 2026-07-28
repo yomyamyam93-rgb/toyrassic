@@ -268,7 +268,32 @@ public class PlayerGather : MonoBehaviour
 
     // ★탑승 삭제 (2026-07-28) — 늘 내 자리에서 휘두른다
     Vector3 SwingOrigin => transform.position;
-    float SwingReach => swingRange * WeaponRangeMul * skillRangeMul;
+    [Header("사거리 — 무기 모델에서 자동")]
+    [Tooltip("★켜면 판정 사거리를 들고 있는 무기 모델의 실제 길이에서 뽑는다.\n" +
+             "끄면 아래 swingRange 숫자를 쓴다 (예전 방식)")]
+    public bool autoReachFromModel = true;
+    [Tooltip("무기 끝에서 이만큼 더 여유 (1.15 = 15% 더). 끝이 스칠 때도 맞게")]
+    public float reachSlack = 1.15f;
+
+    /// ★판정 사거리 — 들고 있는 무기 모델이 실제로 뻗은 길이가 기준이다 (2026-07-29 사용자).
+    ///
+    /// ★왜 바꿨나: 손으로 맞춘 숫자와 모델이 따로 놀았다. 칼 모델이 1.53m 인데
+    ///   사거리가 0.79m 여서, 칼날이 닿는 게 눈에 보이는데 판정은 절반에서 끝났다.
+    ///   모델에서 재면 무기를 바꾸거나 크기를 조절해도 저절로 맞는다 —
+    ///   숫자를 다시 맞출 일이 없어진다.
+    ///   맨손이거나 모델을 못 재면 예전 방식(swingRange)으로 돌아간다.
+    float SwingReach
+    {
+        get
+        {
+            if (autoReachFromModel && !pendingBare && PlayerBow.I != null)
+            {
+                float m = PlayerBow.I.HeldWeaponReach;
+                if (m > 0.01f) return m * reachSlack * skillRangeMul;
+            }
+            return swingRange * WeaponRangeMul * skillRangeMul;
+        }
+    }
     float SwingSpread => Mathf.Min(360f, swingAngle * WeaponAngleMul);
 
     [Header("판정 정밀도")]
