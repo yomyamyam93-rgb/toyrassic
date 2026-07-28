@@ -1051,8 +1051,8 @@ public class PetUnit : MonoBehaviour
     [Header("체력바")]
     [Tooltip("머리 위로 띄우는 간격 — 붙어 보이면 올리고, 너무 뜨면 내린다")]
     public float barGap = 5f;
-    [Tooltip("바 왼쪽 레벨 숫자 크기 — 5.7 이면 바 높이와 비슷하다")]
-    public float barLevelSize = 5.5f;
+    [Tooltip("바 왼쪽 레벨 숫자 크기 — 5.5 면 바 높이쯤, 11 이면 그 두 배")]
+    public float barLevelSize = 11f;
     void MakeBar(Renderer r)
     {
         ghostHp = hp;

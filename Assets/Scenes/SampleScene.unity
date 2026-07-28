@@ -2914,7 +2914,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::PlayerBow
   fireCooldown: 0.45
   arrowDamage: 18
-  arrowSpeed: 34
+  arrowSpeed: 68
   arrowRange: 12
   aimFillTime: 1.4
   drawTime: 0.9
@@ -3257,7 +3257,7 @@ MonoBehaviour:
   dissolveColor: {r: 2.2, g: 1.7, b: 0.9, a: 1}
   avatarBarLift: 0.45
   barGap: 5
-  barLevelSize: 5.5
+  barLevelSize: 11
 --- !u!114 &107336121
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -46827,6 +46827,7 @@ Transform:
   m_Children:
   - {fileID: 196614471}
   - {fileID: 1830156008}
+  - {fileID: 1519179459}
   m_Father: {fileID: 1159468425}
   m_LocalEulerAnglesHint: {x: 0, y: 94.208, z: 24.296}
 --- !u!1 &1516484810
@@ -46945,13 +46946,13 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1519179458}
   serializedVersion: 2
-  m_LocalRotation: {x: 0.7071068, y: 0, z: 0, w: 0.7071068}
-  m_LocalPosition: {x: 0, y: 0, z: 1}
-  m_LocalScale: {x: 0.09, y: 1, z: 0.09}
+  m_LocalRotation: {x: 0.92953473, y: -0.11218195, z: 0.05940742, w: 0.3461952}
+  m_LocalPosition: {x: 0.135, y: -0.383, z: 0.449}
+  m_LocalScale: {x: 0.057205845, y: 0.5673401, z: 0.057205845}
   m_ConstrainProportionsScale: 0
   m_Children: []
-  m_Father: {fileID: 1826680733}
-  m_LocalEulerAnglesHint: {x: 89.727, y: -89.996, z: -89.996}
+  m_Father: {fileID: 1509133910}
+  m_LocalEulerAnglesHint: {x: 138.93399, y: -2.4909973, z: 12.830002}
 --- !u!23 &1519179460
 MeshRenderer:
   m_ObjectHideFlags: 0
@@ -54391,8 +54392,7 @@ Transform:
   m_LocalPosition: {x: 0.404, y: 0.349, z: -0.311}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
-  m_Children:
-  - {fileID: 1519179459}
+  m_Children: []
   m_Father: {fileID: 1830156008}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &1827066613
