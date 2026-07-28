@@ -29,11 +29,76 @@ public class PixelRender : MonoBehaviour
     [Tooltip("정수배로만 확대 — 픽셀 크기가 균일해진다. 끄면 화면을 꽉 채우지만 들쭉날쭉해진다")]
     public bool integerScale = true;
 
-    [Header("색")]
-    [Tooltip("색 단계 수 (0 = 안 줄임). 16 쯤 주면 옛날 게임처럼 색이 뭉친다")]
-    [Range(0, 64)] public int colorSteps = 0;
+    // ── 아웃라인 보정 ──────────────────────────────────────────────────
+    //
+    // ★픽셀 모드에서 아웃라인이 흐릿하게 떨어지는 이유는 둘이다 (2026-07-28):
+    //   ① 색이 검정이 아니다 — 실제 값은 (0.16, 0.11, 0.08) 짙은 갈색이다.
+    //      고해상도에서는 '부드러운 갈색 테두리' 로 읽히지만, 픽셀에서는 색이 뭉쳐
+    //      그냥 탁해 보인다. 픽셀아트의 선명함은 **검은 선**에서 나온다.
+    //   ② 두께가 0.02 라 저해상도에서 1픽셀도 안 되는 구간이 생긴다 → 선이 끊긴다.
+    //      화면 픽셀이 5배 커졌으니 선도 그만큼 굵어져야 같은 굵기로 보인다.
+    //
+    // ★원래 값을 기억했다가 스위치를 끄면 되돌린다 — 실험용이므로 원본을 망치면 안 된다.
+    [Header("아웃라인 — 픽셀 모드일 때만 적용")]
+    [Tooltip("테두리를 완전한 검정으로")] public bool outlineBlack = true;
+    [Tooltip("테두리 두께 배수 — 저해상도에서 선이 끊기지 않게")]
+    [Range(1f, 8f)] public float outlineWidthMul = 3f;
 
-    Camera cam;
+    readonly System.Collections.Generic.Dictionary<Material, (Color c, float w)> outlineBackup
+        = new System.Collections.Generic.Dictionary<Material, (Color, float)>();
+    bool outlineApplied;
+
+    /// 씬에 있는 아웃라인 재질을 모은다 (같은 에셋을 여럿이 공유하므로 중복은 걸러진다)
+    void CollectOutlines(System.Collections.Generic.HashSet<Material> into)
+    {
+        var sp = FindFirstObjectByType<PetSpawner>();
+        if (sp != null && sp.outlineHull != null) into.Add(sp.outlineHull);
+        foreach (var r in FindObjectsByType<MeshRenderer>(FindObjectsSortMode.None))
+        {
+            if (r == null || !r.gameObject.name.StartsWith("Outline")) continue;
+            var m = r.sharedMaterial;
+            if (m != null && m.HasProperty("_OutlineColor")) into.Add(m);
+        }
+    }
+
+    bool lastBlack; float lastWidthMul;
+
+    void ApplyOutline()
+    {
+        // 플레이 중에 값을 돌리면 바로 반영한다 — 비교하려고 만든 스위치다
+        if (outlineApplied && (lastBlack != outlineBlack || !Mathf.Approximately(lastWidthMul, outlineWidthMul)))
+            RestoreOutline();
+        lastBlack = outlineBlack; lastWidthMul = outlineWidthMul;
+
+        if (outlineApplied) return;
+        var set = new System.Collections.Generic.HashSet<Material>();
+        CollectOutlines(set);
+        foreach (var m in set)
+        {
+            if (m == null || outlineBackup.ContainsKey(m)) continue;
+            var c = m.HasProperty("_OutlineColor") ? m.GetColor("_OutlineColor") : Color.black;
+            float w = m.HasProperty("_Width") ? m.GetFloat("_Width") : 0f;
+            outlineBackup[m] = (c, w);
+            if (outlineBlack) m.SetColor("_OutlineColor", new Color(0f, 0f, 0f, c.a));
+            if (m.HasProperty("_Width")) m.SetFloat("_Width", w * Mathf.Max(1f, outlineWidthMul));
+        }
+        outlineApplied = true;
+    }
+
+    void RestoreOutline()
+    {
+        foreach (var kv in outlineBackup)
+        {
+            var m = kv.Key;
+            if (m == null) continue;
+            if (m.HasProperty("_OutlineColor")) m.SetColor("_OutlineColor", kv.Value.c);
+            if (m.HasProperty("_Width")) m.SetFloat("_Width", kv.Value.w);
+        }
+        outlineBackup.Clear();
+        outlineApplied = false;
+    }
+
+    Camera cam, present;
     RenderTexture rt;
     Canvas canvas;
     RawImage screen;
@@ -91,6 +156,8 @@ public class PixelRender : MonoBehaviour
         cam.targetTexture = rt;
         screen.texture = rt;
         canvas.gameObject.SetActive(true);
+        if (present != null) present.enabled = true;
+        ApplyOutline();
         applied = true;
     }
 
@@ -99,6 +166,22 @@ public class PixelRender : MonoBehaviour
     ///   UI 는 선명하게 남는다. 세계만 픽셀화하는 것이 목적이다.
     void BuildScreen()
     {
+        // ★"No cameras rendering" 경고를 없애는 빈 카메라 (2026-07-28).
+        //   메인 카메라를 저해상도 텍스처에 그리게 돌리면 **화면을 담당하는 카메라가
+        //   하나도 없어져서** 유니티가 게임 화면 한가운데에 그 경고를 띄운다.
+        //   그림은 캔버스가 그리므로 정상인데 글자가 위에 겹쳐 보기 흉하다.
+        //   아무것도 안 비추는(cullingMask 0) 카메라를 하나 세워 두면 사라진다.
+        var pgo = new GameObject("PixelPresenter", typeof(Camera));
+        pgo.transform.SetParent(transform, false);
+        present = pgo.GetComponent<Camera>();
+        present.cullingMask = 0;
+        present.clearFlags = CameraClearFlags.SolidColor;
+        present.backgroundColor = Color.black;
+        present.depth = -100;                     // 제일 먼저 — 캔버스가 그 위에 그려진다
+        present.allowHDR = false; present.allowMSAA = false;
+        var extra = pgo.GetComponent<UnityEngine.Rendering.Universal.UniversalAdditionalCameraData>();
+        if (extra != null) extra.renderPostProcessing = false;
+
         var go = new GameObject("PixelScreen", typeof(Canvas), typeof(CanvasScaler));
         go.transform.SetParent(transform, false);
         canvas = go.GetComponent<Canvas>();
@@ -118,6 +201,8 @@ public class PixelRender : MonoBehaviour
     {
         if (cam != null) cam.targetTexture = null;
         if (canvas != null) canvas.gameObject.SetActive(false);
+        if (present != null) present.enabled = false;
+        RestoreOutline();
         Release();
         applied = false;
     }
