@@ -3460,6 +3460,19 @@ MonoBehaviour:
   throwBudget: 12
   throwImpactDamage: 45
   throwImpactRadius: 1.6
+  axeScatterAngle: 90
+  swordScatterAngle: 45
+  scatterDepth: 2.2
+  scatterFlyTime: 0.6
+  scatterStagger: 0.045
+  rapidSpeed: 14
+  rapidInterval: 0.07
+  rapidRange: 9
+  rapidSpread: 7
+  rapidBounce: 0.5
+  flyDamage: 22
+  flyHitMul: 0.6
+  flyKnock: 0.35
   throwSpread: 1.4
   throwFlyTime: 0.9
   throwArc: 2.2
@@ -3467,7 +3480,13 @@ MonoBehaviour:
   throwWindupTime: 0.1
   throwSnapTime: 0.16
   throwGlow: 3
+  throwBallRoundness: 1
+  throwSpin: 720
   throwTrailColor: {r: 2.2, g: 1.7, b: 0.9, a: 1}
+  throwOutlineColor: {r: 3.2, g: 2.6, b: 1.2, a: 1}
+  throwOutlineWidth: 2.2
+  previewWallColor: {r: 0.5, g: 1.6, b: 2.6, a: 0.85}
+  previewWallHeight: 0.5
 --- !u!114 &107336128
 MonoBehaviour:
   m_ObjectHideFlags: 0

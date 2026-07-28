@@ -1004,8 +1004,56 @@ public class SkillSystem : MonoBehaviour
     [Header("조준 표시")]
     [Tooltip("장판 테두리에서 솟는 빛의 색 (밝게 = 블룸)")]
     public Color previewWallColor = new Color(0.5f, 1.6f, 2.6f, 0.85f);
-    [Tooltip("빛의 벽 높이 — 장판 반지름 대비")] [Range(0.05f, 1.5f)]
-    public float previewWallHeight = 0.45f;
+    // ★높이는 영역 크기 비례가 아니라 **절대값(m)** 이다 (2026-07-28).
+    //   비례로 두면 부채꼴처럼 반경이 8m 까지 가는 모양에서 벽이 3.6m — 캐릭터 키(0.42m)의
+    //   여덟 배짜리 담장이 선다. 모양이 커도 벽 높이는 같아야 '테두리 빛' 으로 읽힌다.
+    [Tooltip("빛의 벽 높이 (m) — 캐릭터 키가 0.42m 인 세계다")] [Range(0.05f, 2f)]
+    public float previewWallHeight = 0.5f;
+
+    /// 빛의 벽을 지금 무기 모양에 맞춰 세운다.
+    /// ★모양이 곧 설명이다 — 부채꼴이 보이면 "퍼진다", 직선 띠가 보이면 "뚫고 간다"가
+    ///   글자 없이 전달된다. 원 하나로 다 처리하면 무기를 바꿀 이유가 안 보인다.
+    void UpdateWall(GearKind gear, Vector3 dir, Vector3 circleAt, float circleR)
+    {
+        if (previewWall == null) return;
+        var wmf = previewWall.GetComponent<MeshFilter>();
+        var self = Ground(transform.position);
+        float yaw = dir.sqrMagnitude > 1e-4f
+                  ? Quaternion.LookRotation(new Vector3(dir.x, 0f, dir.z)).eulerAngles.y : 0f;
+
+        // E 조준일 때만 무기별 모양을 쓴다. 나머지(Q 등)는 예전처럼 원.
+        var style = aiming == 1 ? StyleOf(gear) : ThrowStyle.Slam;
+
+        if (aiming == 1 && style == ThrowStyle.Scatter)
+        {
+            float reach = Vector3.Distance(new Vector3(circleAt.x, 0f, circleAt.z),
+                                           new Vector3(self.x, 0f, self.z)) + scatterDepth;
+            float ang = gear == GearKind.Sword ? swordScatterAngle : axeScatterAngle;
+            wmf.sharedMesh = FX.SectorWallMesh(ang);
+            previewWall.gameObject.SetActive(true);
+            previewWall.SetPositionAndRotation(self + Vector3.up * 0.05f, Quaternion.Euler(0f, yaw, 0f));
+            previewWall.localScale = new Vector3(reach * 2f, previewWallHeight, reach * 2f);
+            return;
+        }
+
+        if (aiming == 1 && style == ThrowStyle.Rapid)
+        {
+            float wide = Mathf.Max(0.4f, rapidRange * Mathf.Sin(rapidSpread * Mathf.Deg2Rad) * 2f);
+            wmf.sharedMesh = FX.CorridorWallMesh();
+            previewWall.gameObject.SetActive(true);
+            previewWall.SetPositionAndRotation(self + Vector3.up * 0.05f, Quaternion.Euler(0f, yaw, 0f));
+            previewWall.localScale = new Vector3(wide, previewWallHeight, rapidRange);
+            return;
+        }
+
+        // 원 — 찍기(곡괭이)와 무기 스킬
+        previewWall.gameObject.SetActive(circleR > 0f);
+        if (circleR <= 0f) return;
+        wmf.sharedMesh = FX.WallMesh();
+        previewWall.SetPositionAndRotation(previewCircle.position, Quaternion.identity);
+        previewWall.localScale = new Vector3(
+            circleR * 2f, Mathf.Max(0.05f, previewWallHeight), circleR * 2f);
+    }
 
     /// 조준 중인 스킬의 영역 표시 + 그 안의 대상 빨갛게 마킹
     void UpdatePreview()
@@ -1101,8 +1149,11 @@ public class SkillSystem : MonoBehaviour
             }
         }
         // 원 (광역형)
-        previewCircle.gameObject.SetActive(circleR > 0f);
-        if (circleR > 0f)
+        // ★부채꼴·연발일 때는 바닥 원을 끈다 — 모양이 다른데 원을 깔면 거짓말이 된다.
+        //   그 둘은 빛의 벽이 모양을 직접 보여준다.
+        bool shapedWall = aiming == 1 && StyleOf(gear) != ThrowStyle.Slam;
+        previewCircle.gameObject.SetActive(circleR > 0f && !shapedWall);
+        if (circleR > 0f && !shapedWall)
         {
             var c = circleAt;
             if (terrainRef == null) terrainRef = Terrain.activeTerrain;
@@ -1115,17 +1166,9 @@ public class SkillSystem : MonoBehaviour
             if (pmr.material.mainTexture != want) pmr.material.mainTexture = want;
         }
 
-        // 테두리에서 솟는 빛의 벽 — 원과 같은 자리·같은 반지름
-        if (previewWall != null)
-        {
-            previewWall.gameObject.SetActive(circleR > 0f);
-            if (circleR > 0f)
-            {
-                previewWall.position = previewCircle.position;
-                previewWall.localScale = new Vector3(
-                    circleR * 2f, circleR * Mathf.Max(0.05f, previewWallHeight), circleR * 2f);
-            }
-        }
+        // ★테두리에서 솟는 빛의 벽 — 실제 모양 그대로 (2026-07-28)
+        //   원으로만 그리면 거짓말이 된다. 도끼는 부채꼴, 활은 직선 통로로 세운다.
+        UpdateWall(gear, dir, circleAt, circleR);
 
         // 영역 안 대상 빨갛게 — 공격 조준일 때만. 소집·돌격은 적을 겨누는 게 아니다
         if (aiming != 0) return;

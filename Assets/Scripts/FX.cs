@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 
 /// 절차 이펙트 유틸 — 에셋 없이 코드로 만드는 타격 버스트·먼지·스윙 궤적.
@@ -140,6 +141,73 @@ public static class FX
         wallMesh.vertices = v; wallMesh.uv = uv; wallMesh.triangles = tri;
         wallMesh.RecalculateBounds();
         return wallMesh;
+    }
+
+    /// 임의의 바닥 윤곽(닫힌 다각형)을 위로 세운 벽. 스킬 영역 모양대로 빛이 솟게 한다.
+    /// ★모양을 원으로만 보여주면 거짓말이 된다 (2026-07-28) — 도끼는 부채꼴로 흩뿌리고
+    ///   활은 직선으로 나가는데 원으로 그리면 "보이는 것과 나오는 것이 같다" 가 깨진다.
+    /// 단위 크기(반지름 0.5 · 높이 1)로 만들고 실제 크기는 스케일로 준다.
+    static Mesh BuildWall(Vector3[] poly, bool closed)
+    {
+        int n = poly.Length;
+        int segs = closed ? n : n - 1;
+        var v = new Vector3[n * 2];
+        var uv = new Vector2[v.Length];
+        for (int i = 0; i < n; i++)
+        {
+            v[i * 2] = poly[i]; v[i * 2 + 1] = poly[i] + Vector3.up;
+            float t = i / (float)Mathf.Max(1, segs);
+            uv[i * 2] = new Vector2(t, 0f); uv[i * 2 + 1] = new Vector2(t, 1f);
+        }
+        var tri = new int[segs * 12];
+        int k = 0;
+        for (int i = 0; i < segs; i++)
+        {
+            int a = i * 2, b = i * 2 + 1;
+            int c = ((i + 1) % n) * 2, d = ((i + 1) % n) * 2 + 1;
+            tri[k++] = a; tri[k++] = b; tri[k++] = c;      // 바깥면
+            tri[k++] = b; tri[k++] = d; tri[k++] = c;
+            tri[k++] = c; tri[k++] = b; tri[k++] = a;      // 안쪽면 (범위 안에 서 있어도 보이게)
+            tri[k++] = c; tri[k++] = d; tri[k++] = b;
+        }
+        var m = new Mesh();
+        m.vertices = v; m.uv = uv; m.triangles = tri;
+        m.RecalculateBounds();
+        return m;
+    }
+
+    /// 부채꼴 벽 — 도끼·칼의 흩뿌리기 범위. 원점에서 +Z 를 중심으로 angle 만큼 벌어진다.
+    static readonly Dictionary<int, Mesh> sectorWalls = new Dictionary<int, Mesh>();
+    public static Mesh SectorWallMesh(float angleDeg, int seg = 32)
+    {
+        int key = Mathf.RoundToInt(angleDeg);
+        if (sectorWalls.TryGetValue(key, out var cached) && cached != null) return cached;
+        float half = Mathf.Clamp(angleDeg, 5f, 350f) * 0.5f * Mathf.Deg2Rad;
+        var poly = new Vector3[seg + 2];
+        poly[0] = Vector3.zero;                                  // 꼭짓점 = 던지는 사람
+        for (int i = 0; i <= seg; i++)
+        {
+            float a = Mathf.Lerp(-half, half, i / (float)seg);
+            poly[i + 1] = new Vector3(Mathf.Sin(a) * 0.5f, 0f, Mathf.Cos(a) * 0.5f);
+        }
+        var m = BuildWall(poly, true);
+        m.name = "SectorWall" + key;
+        sectorWalls[key] = m;
+        return m;
+    }
+
+    /// 직선 통로 벽 — 활·새총의 연발 경로. 폭 1(X) · 길이 1(+Z) · 높이 1.
+    static Mesh corridorWall;
+    public static Mesh CorridorWallMesh()
+    {
+        if (corridorWall != null) return corridorWall;
+        var poly = new[] {
+            new Vector3(-0.5f, 0f, 0f), new Vector3(-0.5f, 0f, 1f),
+            new Vector3( 0.5f, 0f, 1f), new Vector3( 0.5f, 0f, 0f),
+        };
+        corridorWall = BuildWall(poly, true);
+        corridorWall.name = "CorridorWall";
+        return corridorWall;
     }
 
     static Texture2D circleThinTex;
