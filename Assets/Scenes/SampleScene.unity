@@ -3204,6 +3204,7 @@ MonoBehaviour:
   atkAngle: 60
   sizeAngleStep: 0.5
   sizeReachStep: 0.35
+  alerted: 0
   owner: {fileID: 0}
   landTime: 0.22
   packBudget: 0
@@ -3215,6 +3216,7 @@ MonoBehaviour:
   deathLinger: 1.1
   dissolveTime: 0.9
   dissolveColor: {r: 2.2, g: 1.7, b: 0.9, a: 1}
+  avatarBarLift: 0.9
 --- !u!114 &107336121
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -3464,7 +3466,7 @@ MonoBehaviour:
   swordScatterAngle: 45
   scatterDepth: 2.2
   scatterFlyTime: 0.6
-  scatterStagger: 0.045
+  scatterTimeJitter: 0.18
   rapidSpeed: 14
   rapidInterval: 0.07
   rapidRange: 9
@@ -3473,6 +3475,8 @@ MonoBehaviour:
   flyDamage: 22
   flyHitMul: 0.6
   flyKnock: 0.35
+  flyHitHeight: 0.6
+  scatterArc: 0.5
   throwSpread: 1.4
   throwFlyTime: 0.9
   throwArc: 2.2
@@ -3522,11 +3526,11 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 35ed4565a5cab4c45b550243f4d32408, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PetHeadDisplay
-  sizeRatio: 0.7
+  sizeRatio: 1.4
   gapRatio: 0.12
   bobRatio: 0.04
   bobSpeed: 2.2
-  yawOffset: 180
+  yawOffset: 0
 --- !u!1 &110553655
 GameObject:
   m_ObjectHideFlags: 0

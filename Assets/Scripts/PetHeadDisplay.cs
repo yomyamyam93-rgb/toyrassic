@@ -15,18 +15,20 @@ public class PetHeadDisplay : MonoBehaviour
 {
     public static PetHeadDisplay I;
 
-    [Tooltip("캐릭터 키 대비 미니 펫 크기 (0.7 = 키의 70%)")]
-    public float sizeRatio = 0.7f;
+    [Tooltip("캐릭터 키 대비 미니 펫 크기 (1.4 = 키의 140%)")]
+    public float sizeRatio = 1.4f;
     [Tooltip("머리 꼭대기에서 얼마나 더 띄우나 (캐릭터 키 대비)")]
     public float gapRatio = 0.12f;
     [Tooltip("둥실둥실 뜨는 높이 (캐릭터 키 대비, 0 = 고정)")]
     public float bobRatio = 0.04f;
     [Tooltip("둥실거리는 빠르기")] public float bobSpeed = 2.2f;
-    // ★펫이 뒤를 보고 있었다 (2026-07-28). 모델의 앞면이 캐릭터 정면과 반대였다.
-    //   빙글빙글 돌리던 것도 뺐다 — 방향이 계속 바뀌면 '어느 쪽을 보는지' 가 안 읽힌다.
-    //   장착물처럼 캐릭터와 같은 곳을 봐야 한 몸으로 보인다.
-    [Tooltip("바라보는 방향 보정 (°) — 뒤를 보고 있으면 180")]
-    public float yawOffset = 180f;
+    // ★방향 보정은 0 이 맞다 (2026-07-28 정정).
+    //   처음 "뒤를 본다" 고 한 것은 미니 펫이 **빙글빙글 돌고 있어서** 그렇게 보인 것이었다.
+    //   회전을 빼면서 180 까지 같이 넣는 바람에 이번엔 진짜로 뒤를 보게 됐다.
+    //   펫도 플레이어도 LookRotation 으로 도는 같은 규약(+Z 가 앞)이라, 자식으로 붙이면
+    //   보정 없이 캐릭터와 같은 곳을 본다.
+    [Tooltip("바라보는 방향 보정 (°) — 0 이 캐릭터와 같은 방향")]
+    public float yawOffset = 0f;
 
     PetUnit shown;          // 지금 올려둔 펫 (바뀌면 다시 만든다)
     Transform mini;

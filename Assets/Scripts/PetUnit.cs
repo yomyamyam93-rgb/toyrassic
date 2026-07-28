@@ -968,6 +968,8 @@ public class PetUnit : MonoBehaviour
     // ── HP 바 (둥근 모서리 + 롤식 지연 감소) ──
     // ★몸에 안 붙임 — 스쿼시·통통 바운스에 안 흔들리게 월드 공간에서 부드럽게 따라감
     float barY, barSmoothY, barBaseScale;
+    [Tooltip("캐릭터 체력바를 얼마나 더 올리나 (m) — 머리 위 펫을 안 가리게")]
+    public float avatarBarLift = 0.9f;
     /// 거리 보정 배율 상한 — 넘어가면 화면에서 자연히 작아진다 (숨기지는 않음)
     const float barMaxGrow = 2.0f;
     void MakeBar(Renderer r)
@@ -980,6 +982,9 @@ public class PetUnit : MonoBehaviour
         // ★띄우는 간격도 바 크기에 맞춰야 한다 (2026-07-28). 바를 ×2 로 키워놨으므로
         //   간격만 비례(×1)로 두면 바가 머리에 딱 붙어 보인다. 같은 ×2 를 곱한다.
         barY = top + (isAvatar ? body * 1.0f + 1.2f : 1.4f + body * 0.03f) * WorldScale.K * 3f;   // ★점프 때 몸이 바를 넘어서 간격을 ×2→×3 (2026-07-28)
+        // ★캐릭터 머리 위에는 '들고 있는 펫' 이 얹혀 있다 (2026-07-28) — 그만큼 더 올린다.
+        //   안 올리면 체력바가 그 펫을 가려서 뭘 던지는지 안 보인다.
+        if (isAvatar) barY += avatarBarLift;
         // ★전 유닛 동일 크기 (몸 크기 비례 폐지 — 제각각 버그 수정)
         // ★바는 몸의 자식이 아니라 월드에 따로 있으므로 세계 스케일을 직접 곱한다 (2026-07-27)
         // ★1/10 스케일에서는 '비율'과 '가독성'을 동시에 만족할 수 없다 (2026-07-28).
