@@ -10014,7 +10014,7 @@ Camera:
     height: 1
   near clip plane: 0.01
   far clip plane: 1500
-  field of view: 80
+  field of view: 60
   orthographic: 0
   orthographic size: 5
   m_Depth: -1
@@ -10104,12 +10104,12 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::FollowCam
   target: {fileID: 107336113}
-  distance: 12
-  minDist: 12
-  maxDist: 30
+  distance: 24.619003
+  minDist: 8
+  maxDist: 35
   height: 0.4
-  yaw: 260.54877
-  pitch: 54.499996
+  yaw: 116.54868
+  pitch: 22.699984
   minPitch: 2
   maxPitch: 87
   farLookUp: 0.71900004

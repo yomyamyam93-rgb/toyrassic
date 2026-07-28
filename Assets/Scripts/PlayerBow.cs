@@ -220,6 +220,8 @@ public class PlayerBow : MonoBehaviour
     public Texture2D cursorAim;      // 조준 중 원형 타겟
 
     Transform handL, handR, bowRoot, bowInst;
+    /// 씬에서 잡아 둔 손의 '평소 자세' — 이게 기준이고, 흔들림·무기 보정만 위에 얹는다
+    Vector3 restL, restR; bool hasRest;
     Quaternion bowAutoRot = Quaternion.identity; float bowAutoScale = 1f; Vector3 bowAutoPos;
     /// 활 모델이 씬에 사람이 배치해 둔 것인가 — 그렇다면 코드가 자세·크기를 안 건드린다
     bool bowAuthored; Vector3 bowInstScale = Vector3.one;
@@ -637,6 +639,15 @@ public class PlayerBow : MonoBehaviour
             if (side < 0) handL = g.transform; else handR = g.transform;
         }
         if (rig != null) { rig.HandL = handL; rig.HandR = handR; }
+
+        // ★씬에서 잡아 둔 손 자세가 '평소 자세' 의 기준이다 (2026-07-29 사용자).
+        //   예전엔 평소 자세를 handSide·handUp 으로 계산해서, 씬에서 손을 아무리 옮겨도
+        //   실행하면 그 계산값으로 끌려갔다. 오른손은 근접무기일 때 애니메이션 클립이
+        //   소유하니 멀쩡해 보였고, **왼손만 늘 엉뚱한 데로 가서 "사라진" 것처럼 보였다.**
+        //   그게 "무기 든 손은 맞는데 반대쪽 손만 사라진다" 의 정체다.
+        restL = handL != null ? handL.localPosition : Vector3.zero;
+        restR = handR != null ? handR.localPosition : Vector3.zero;
+        hasRest = handL != null && handR != null;
 
         // 활 — 뭉뚝한 튜브 아치 메시 (외곽선 가능). 껍데기는 씬에, 안쪽은 런타임.
         bowRoot = rigT.Find("Bow");
@@ -1119,12 +1130,24 @@ public class PlayerBow : MonoBehaviour
         var heldW = weapons.Find(x => x.id == GearId(Hotbar.I != null ? Hotbar.I.Current : GearKind.None));
         var hoL = heldW != null ? heldW.handOffsetL : Vector3.zero;
         var hoR = heldW != null ? heldW.handOffsetR : Vector3.zero;
-        var idleL = new Vector3(-handSide * 0.92f + hoL.x * S,
+        // ★평소 자세 = 씬에서 잡아 둔 자리 + (숨쉬는 흔들림 + 무기별 보정).
+        //   씬 값이 기준이라 편집 창에서 손을 옮기면 그대로 게임에 나온다.
+        //   흔들림과 무기 보정은 '움직임' 이라 코드가 계속 얹는다.
+        Vector3 idleL, idleR;
+        if (hasRest)
+        {
+            idleL = restL + new Vector3(hoL.x * S, bobL + hoL.y * S, hoL.z * S) * toLocal;
+            idleR = restR + new Vector3(hoR.x * S, bobR + hoR.y * S, hoR.z * S) * toLocal;
+        }
+        else
+        {   // 씬에 손이 없을 때만 쓰는 예비값 (원래 계산식)
+            idleL = new Vector3(-handSide * 0.92f + hoL.x * S,
                                  handUp + bobL + hoL.y * S,
                                  0.5f * S + hoL.z * S) * toLocal;
-        var idleR = new Vector3( handSide + hoR.x * S,
+            idleR = new Vector3( handSide + hoR.x * S,
                                  handUp + bobR + hoR.y * S,
                                  0.3f * S + hoR.z * S) * toLocal;
+        }
 
         // ★쏠 때 손 위치 — 무기별로 따로 (활은 활 값, 새총은 새총 값)
         var ahL = heldW != null ? heldW.aimHandL : bowAimHandL;
