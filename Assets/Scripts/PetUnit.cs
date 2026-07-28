@@ -287,27 +287,42 @@ public class PetUnit : MonoBehaviour
 
     float AtkPeriodNow => atkPeriod / Mathf.Max(0.1f, atkSpeedMul);
 
-    /// ★어그로 규칙 (2026-07-28)
-    ///   ① 나를 때린 놈이 있으면 잠깐은 무조건 그놈부터 — 때렸는데 무시당하면 이상하다
-    ///   ② 아니면 가장 가까운 적. 단 **플레이어 본인은 거리를 뻥튀기해 후순위로 민다.**
-    ///      안 그러면 야생이 전부 플레이어만 쫓아와 펫이 벽 역할을 못 한다.
-    ///      (야생이 계속 플레이어만 따라오던 문제의 원인이 이것이다)
+    /// ★어그로 규칙 (2026-07-28 재설계)
+    ///
+    /// ★"나를 때린 놈 우선" 을 플레이어에게 적용하면 안 된다 — 전투는 **항상 플레이어가
+    ///   먼저 때려서 시작**되기 때문이다. 그렇게 짜면 전투마다 전원이 플레이어에게 몰려
+    ///   펫 부대가 있으나 마나가 된다. 실제로 그랬다.
+    ///
+    /// 그래서 규칙을 이렇게 세운다:
+    ///   ① **앞에 적 펫이 있으면 그쪽이 먼저다.** 플레이어는 쳐다보지도 않는다.
+    ///      = 부대를 깔면 그게 벽이 된다. 이게 이 게임에서 펫을 던지는 이유다.
+    ///   ② 펫들 사이에서는 '때린 놈 우선' 이 살아 있다 — 맞고도 무시하면 이상하다.
+    ///   ③ 주변에 적 펫이 하나도 없을 때만 플레이어를 노린다. 단 아주 가까울 때만
+    ///      (aggroRange ÷ avatarBias). 원거리에서 쏘는 주인공을 잡으러 달려오진 않는다.
     PetUnit FindTarget()
     {
+        // ① 적 펫 — 앙심 우선, 그다음 가장 가까운 놈
         if (grudgeT > 0f && lastAttacker != null && lastAttacker.Alive
-            && lastAttacker.team != team
+            && !lastAttacker.isAvatar && lastAttacker.team != team
             && Dist(lastAttacker.transform.position) <= aggroRange * 1.6f)
             return lastAttacker;
 
-        PetUnit best = null; float bs = aggroRange;
+        PetUnit best = null; float bd = aggroRange;
         foreach (var u in All)
         {
-            if (u == null || !u.Alive || u.team == team) continue;
+            if (u == null || !u.Alive || u.team == team || u.isAvatar) continue;
             float d = Dist(u.transform.position);
-            float score = u.isAvatar ? d * avatarBias : d;   // 플레이어는 아주 가까워야 노린다
-            if (score < bs) { bs = score; best = u; }
+            if (d < bd) { bd = d; best = u; }
         }
-        return best;
+        if (best != null) return best;
+
+        // ② 앞을 막아선 펫이 없다 — 그제야 주인공을 본다 (아주 가까울 때만)
+        var me = Avatar;
+        if (me != null && me.Alive && me.team != team
+            && Dist(me.transform.position) <= aggroRange / Mathf.Max(1f, avatarBias))
+            return me;
+
+        return null;
     }
 
     /// 복귀 한 걸음 — 소환 분신은 주인에게, 야생은 원래 자리로
@@ -559,7 +574,9 @@ public class PetUnit : MonoBehaviour
                      team == Team.Player ? new Color(1f, 0.35f, 0.3f) : new Color(1f, 0.95f, 0.6f),
                      Mathf.Clamp(body * 0.22f, 0.9f, 3.5f) / 3f);   // ★하한 0.9 가 축소를 막으므로 결과를 나눈다 (2026-07-28)
         // 때린 놈을 기억한다 — 잠깐은 그놈을 우선해서 문다 (FindTarget ①)
-        if (attacker != null && attacker.team != team && !returning)
+        // ★단 플레이어에게는 안 걸린다. 전투를 여는 건 늘 플레이어라, 걸어두면
+        //   전투마다 전원이 주인공에게 몰린다. 주인공은 '앞을 막은 펫이 없을 때'만 노려진다.
+        if (attacker != null && attacker.team != team && !attacker.isAvatar && !returning)
         {
             lastAttacker = attacker;
             grudgeT = grudgeTime;
