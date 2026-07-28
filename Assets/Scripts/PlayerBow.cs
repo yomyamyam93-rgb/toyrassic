@@ -236,6 +236,9 @@ public class PlayerBow : MonoBehaviour
              "코드가 남기는 건 자세와 무관한 것뿐: 들었을 때만 보이기 · 시위 당김 · 화살 걸기.\n" +
              "끄면 예전처럼 코드가 휴대/조준 자세를 계산한다.")]
     public bool bowOwnedByClip = true;
+
+    /// 지금 재생 중인 조준 상태 이름 — 바뀔 때만 Play 한다 (매 프레임 되감기 방지)
+    string aimStateNow;
     LineRenderer bowString, aimLine;
     Transform nockArrow;
     float cd, drawT, aimLen; bool drawing;
@@ -1271,13 +1274,33 @@ public class PlayerBow : MonoBehaviour
         //   ※클립은 HandR 만 그린다. 왼손·활은 어느 쪽이든 코드가 계속 담당한다.
         var gearHeld = Hotbar.I != null ? Hotbar.I.Current : GearKind.None;
         bool clipOwnsHandR = gearHeld == GearKind.Axe || gearHeld == GearKind.Pick || gearHeld == GearKind.Sword;
+        // ★활·새총도 클립이 그린다 (2026-07-29 사용자 — "새총이랑 활 둘 다 만들어야 하는데").
+        //   예전엔 근접일 때만 애니메이터를 켰다. 활을 들면 애니메이터가 꺼져 있어서
+        //   Aim 클립을 아무리 찍어도 나올 수가 없었다 (Aim 상태에 전이도 없었다).
+        bool ranged = gearHeld == GearKind.Bow || gearHeld == GearKind.Sling;
+        bool clipOwns = clipOwnsHandR || (ranged && bowOwnedByClip);
+
         var handAnim = HandRig.I != null ? HandRig.I.GetComponent<Animator>() : null;
-        if (handAnim != null && handAnim.enabled != clipOwnsHandR)
+        if (handAnim != null && handAnim.enabled != clipOwns)
         {
-            handAnim.enabled = clipOwnsHandR;
+            handAnim.enabled = clipOwns;
             // 켤 때도 다시 묶는다 — 꺼져 있는 동안 계층이 바뀌었을 수 있다
-            if (clipOwnsHandR) handAnim.Rebind();
+            if (clipOwns) handAnim.Rebind();
         }
+        // ★조준 상태 — 당긴 정도(Draw01)로 클립을 훑는다. 전이가 아니라 시간축 제어라
+        //   당기는 만큼 자세가 이어진다 (0 = 안 당김, 1 = 꽉 당김).
+        if (handAnim != null && handAnim.enabled && ranged && bowOwnedByClip)
+        {
+            handAnim.SetFloat("Draw01", drawing ? Mathf.Clamp01(drawT / Mathf.Max(0.01f, drawTime)) : 0f);
+            string want = !drawing ? "Carry"
+                        : gearHeld == GearKind.Sling ? "Aim_Sling" : "Aim_Bow";
+            if (aimStateNow != want)
+            {
+                aimStateNow = want;
+                handAnim.Play(want, 0, 0f);
+            }
+        }
+        else aimStateNow = null;
         // 타격 시점도 같이 넘긴다 — 클립이 그리면 클립의 이벤트가 때린다
         if (gather != null) gather.animDrivesImpact = clipOwnsHandR;
         float rigScale = motion != null ? motion.BaseScale.x : transform.localScale.x;
@@ -1315,7 +1338,10 @@ public class PlayerBow : MonoBehaviour
         var ahL = heldW != null ? heldW.aimHandL : bowAimHandL;
         var aimL = localAim * (new Vector3(ahL.x, ahL.y, ahL.z) * S * toLocal);
         float k = 13f * Time.deltaTime;
-        handL.localPosition = Vector3.Lerp(handL.localPosition, drawing ? aimL : idleL, k);
+        // ★활·새총을 클립이 그릴 땐 손도 클립 몫이다 — 코드가 같이 쓰면 서로 밀어내 떨린다
+        bool rangedClipOwns = ranged && bowOwnedByClip;
+        if (!rangedClipOwns)
+            handL.localPosition = Vector3.Lerp(handL.localPosition, drawing ? aimL : idleL, k);
 
         // ★활은 사람이 갖는다 (2026-07-29 사용자 — "활도 그냥 내가 지정해서 모션 만들어야겠다").
         //
@@ -1365,7 +1391,7 @@ public class PlayerBow : MonoBehaviour
         var aimR = useString
             ? bowRoot.localPosition + bowRoot.localRotation * new Vector3(0f, 0f, back)
             : localAim * (new Vector3(ahR.x, ahR.y, ahR.z) * S * toLocal);
-        if (!clipOwnsHandR)
+        if (!clipOwnsHandR && !rangedClipOwns)
             handR.localPosition = Vector3.Lerp(handR.localPosition, drawing ? aimR : idleR, drawing ? 22f * Time.deltaTime : k);
 
         nockArrow.gameObject.SetActive(drawing);
