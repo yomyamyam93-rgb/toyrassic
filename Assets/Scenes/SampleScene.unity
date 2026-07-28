@@ -3151,6 +3151,17 @@ MonoBehaviour:
   trailTime: 0.24
   cursorNormal: {fileID: 2800000, guid: 4bf08ee8d05021444b2ad7ca4a3f65dc, type: 3}
   cursorAim: {fileID: 2800000, guid: 4631aeae621d94042be7f7fe1077c650, type: 3}
+  chargeStep2: 0.45
+  chargeStep3: 1.1
+  chargeMoveSlow: 0.45
+  charge2Dmg: 1.9
+  charge2Range: 1.25
+  charge3Dmg: 3.2
+  charge3Range: 1.6
+  chargedPierce: 5
+  chargedBowDmg: 3.2
+  chargedSlingShots: 5
+  chargedSlingSpread: 8
 --- !u!114 &107336118
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -3483,6 +3494,7 @@ MonoBehaviour:
   throwWindupDeg: 16
   throwWindupTime: 0.1
   throwSnapTime: 0.16
+  chargeLeanDeg: 14
   throwGlow: 3
   throwBallRoundness: 1
   throwSpin: 720
@@ -9900,6 +9912,7 @@ GameObject:
   - component: {fileID: 330585544}
   - component: {fileID: 330585547}
   - component: {fileID: 330585548}
+  - component: {fileID: 330585549}
   m_Layer: 0
   m_Name: Main Camera
   m_TagString: MainCamera
@@ -10053,6 +10066,22 @@ MonoBehaviour:
   zoomSmoothTime: 0.1
   followXZ: 8
   followY: 4
+--- !u!114 &330585549
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 330585543}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f1eb62e1665e97f44b2dcbcb383d4855, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::PixelRender
+  pixelMode: 0
+  targetHeight: 216
+  integerScale: 1
+  colorSteps: 0
 --- !u!21 &347926330
 Material:
   serializedVersion: 8
