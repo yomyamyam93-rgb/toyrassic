@@ -283,9 +283,29 @@ public class PetUnit : MonoBehaviour
     ///   다시 파고드는 일이 반복돼 **상대를 계속 떠밀며 끌고 다녔다.**
     ///   두 몸 반지름을 더해 두면 사거리가 간격보다 항상 넉넉하다.
     float AtkRangeTo(PetUnit t) =>
-        reach * rangeMul + (body + (t != null ? t.body : 0f)) * 0.5f;
+        reach * rangeMul * SizeReachMul + (body + (t != null ? t.body : 0f)) * 0.5f;
 
     float AtkPeriodNow => atkPeriod / Mathf.Max(0.1f, atkSpeedMul);
+
+    // ── 덩치 = 공격 범위 ──────────────────────────────────────────────
+    //
+    // ★안 그러면 큰 펫이 일방적으로 손해다 (2026-07-28 사용자).
+    //   XL 은 인구 4를 먹어 5마리밖에 못 내는데, 공격이 S 와 똑같이 한 마리씩이면
+    //   힘이 2.5배라도 인구 4배를 못 갚는다.
+    //
+    // 규칙: **인구를 먹는 만큼 동시에 친다.** 한 번에 때리는 수 = 등급(supply).
+    //   S(1) 1마리 · M(2) 2 · L(3) 3 · XL(4) 4. 부채꼴 각도와 팔 길이도 같이 커진다.
+    //   → 인구 효율은 같아지고 성격이 갈린다: 큰 놈은 **뭉친 적**에 강하고
+    //     흩어진 적에겐 약하다. 작은 놈은 그 반대. (스웜 ↔ 타이탄 상호 천적)
+    [Tooltip("때리는 부채꼴 각도 (°) — 등급이 오를수록 넓어진다")] public float atkAngle = 60f;
+    [Tooltip("등급 한 칸당 각도 배수 증가")] public float sizeAngleStep = 0.5f;
+    [Tooltip("등급 한 칸당 팔 길이 배수 증가")] public float sizeReachStep = 0.35f;
+
+    int SizeTier => Mathf.Clamp(supply, 1, 4);
+    float SizeReachMul => 1f + (SizeTier - 1) * sizeReachStep;
+    float AtkSpread => Mathf.Min(360f, atkAngle * (1f + (SizeTier - 1) * sizeAngleStep));
+    /// 한 번에 때릴 수 있는 최대 마릿수 = 등급. 인구를 먹는 만큼 값을 한다
+    int MaxHits => SizeTier;
 
     /// ★어그로 규칙 (2026-07-28 재설계)
     ///
@@ -430,16 +450,46 @@ public class PetUnit : MonoBehaviour
         Destroy(gameObject);
     }
 
-    /// 한 대 때린다 — 사거리 판정은 부르는 쪽이 이미 했다
+    /// 한 번 휘두른다 — 앞쪽 부채꼴 안의 적을 등급 수만큼 때린다.
+    /// (목표는 무조건 포함된다 — 겨눈 놈을 놓치면 이상하다)
     void Strike()
     {
         if (target == null || !target.Alive) return;
         if (motion != null) motion.Punch();
-        target.TakeDamage(str * dmgPerStr, this);
-        target.OnHit();
-        // ★이펙트는 일부러 작게 (2026-07-28). 50마리가 동시에 때리면 화면이 흰 가루로 덮인다
-        FX.Burst(target.transform.position + Vector3.up * target.body * 0.3f,
-                 Color.white, 5, target.body * 0.04f, target.body * 0.3f);
+
+        float dmg = str * dmgPerStr;
+        int left = MaxHits;
+
+        Hit(target); left--;
+
+        if (left > 0)
+        {
+            var f = transform.forward; f.y = 0f;
+            float half = AtkSpread * 0.5f;
+            foreach (var u in All)
+            {
+                if (left <= 0) break;
+                // ★곁다리 타격에 주인공은 안 넣는다 — 부대를 벽으로 세워도 뒤에서
+                //   광역에 쓸려 나가면 어그로 설계(펫이 앞을 막는다)가 무의미해진다.
+                //   겨눈 대상이 주인공일 때는 위에서 이미 맞는다.
+                if (u == null || u == target || !u.Alive || u.team == team || u.isAvatar) continue;
+                float d = Dist(u.transform.position);
+                if (d > AtkRangeTo(u)) continue;
+                var to = u.transform.position - transform.position; to.y = 0f;
+                if (to.sqrMagnitude > 1e-4f && f.sqrMagnitude > 1e-4f
+                    && Vector3.Angle(f, to) > half) continue;   // 부채꼴 밖
+                Hit(u); left--;
+            }
+        }
+
+        void Hit(PetUnit v)
+        {
+            v.TakeDamage(dmg, this);
+            v.OnHit();
+            // ★이펙트는 일부러 작게 (2026-07-28). 50마리가 동시에 때리면 화면이 흰 가루로 덮인다
+            FX.Burst(v.transform.position + Vector3.up * v.body * 0.3f,
+                     Color.white, 5, v.body * 0.04f, v.body * 0.3f);
+        }
     }
 
     // ── 야생 증식 — 평소엔 한 마리, 어그로가 끌리면 퐁! 하고 무리가 된다 ──
