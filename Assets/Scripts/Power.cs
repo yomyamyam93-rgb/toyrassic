@@ -24,9 +24,8 @@ public static class Power
     {
         if (u == null || !u.Alive) return 0;
         // 초당 피해: 힘 × 공속. 사거리가 길면 안 맞고 때리므로 조금 얹어준다
-        // 타고 있으면 보정까지 (탄 펫은 두 몫을 한다)
-        float atk = u.str * u.mountDmgMul * u.atkSpeedMul * u.mountSpdMul
-                  * (1f + (u.rangeMul - 1f) * 0.25f);
+        // (탑승 보정은 2026-07-28 탑승 삭제와 함께 사라졌다)
+        float atk = u.str * u.atkSpeedMul * (1f + (u.rangeMul - 1f) * 0.25f);
         // 버티는 힘: 최대 체력. 빠르면 회피가 되므로 조금 얹어준다
         float sur = u.maxHp * (1f + (u.moveSpeedMul - 1f) * 0.2f);
         return Compress(atk, sur * 0.1f);   // 체력은 자릿수가 커서 눌러준다
@@ -71,13 +70,8 @@ public static class Power
         return Compress(atk, sur);
     }
 
-    /// 나 + 타고 있는 펫 — ★탑승 중엔 둘이 한 몸이라 그대로 더한다
-    public static int OfPlayerTotal()
-    {
-        int p = OfPlayer();
-        var mount = PetCommand.Mount;
-        return mount != null && mount.Alive ? p + Of(mount) : p;
-    }
+    /// 내 전투력 (탑승 삭제 — 예전엔 탄 펫 몫을 더했다)
+    public static int OfPlayerTotal() => OfPlayer();
 
     // ── 부대 ────────────────────────────────────────────────
     /// 부대 평균 전투력 (수비대·보관함 등 아무 목록이나)

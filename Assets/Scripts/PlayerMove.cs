@@ -27,27 +27,12 @@ public class PlayerMove : MonoBehaviour
     public Transform cam;
 
     BlobMotion motion;
-    [Header("안장 반동 — 탄 펫이 튀면 나도 같이 튄다")]
-    [Tooltip("펫의 상하 움직임을 얼마나 따라가나 (1=그대로)")] [Range(0f, 1.5f)] public float saddleFollow = 0.75f;
-    [Tooltip("원위치로 돌아오는 힘 (클수록 빨리 가라앉음)")] public float saddleSpring = 22f;
-    [Tooltip("흔들림이 잦아드는 정도 (1에 가까울수록 오래 출렁)")] [Range(0.5f, 0.99f)] public float saddleDamp = 0.86f;
-    [Tooltip("최대 반동 높이 (m)")] public float saddleMax = 0.9f;
-    float saddleOffset, saddleVel, lastMountY = float.NaN;
-
-    [Header("펫이 쓰러졌을 때 떨어지는 연출")]
-    [Tooltip("튕겨 올랐다 내려오는 시간")] public float dropTime = 0.45f;
-    [Tooltip("튕겨 오르는 높이 (m)")] public float dropHeight = 2.5f;
-    float dropT;
+    // ★탑승 삭제 (2026-07-28 사용자 결정) — "메리트가 없었다".
+    //   안장 반동·낙마 연출·탑승 이동이 함께 사라졌다. 펫은 이제 타는 것이 아니라
+    //   던져서 소환하는 것이다.
     PlayerBow bow;
     Vector3 vel;
     Terrain[] terrains;
-
-    // ── 탑승 (부화한 펫 = 탈것) ──
-    PetUnit mount;
-    /// 지금 타고 있는 펫 (스킬 시스템이 읽음)
-    public PetUnit Mount => mount;
-    Renderer mountRend;
-    PetMotion mountMotion;
 
     void Awake()
     {
@@ -96,44 +81,6 @@ public class PlayerMove : MonoBehaviour
 
     void Update()
     {
-        // ★탑승은 내가 고른다 — 핫바 마지막 칸에 올린 펫을 탄다 (PetCommand.Mount).
-        //   예전엔 살아있는 첫 펫을 자동으로 탔는데, 여러 마리를 데리고 다니면
-        //   어느 놈을 탈지 내가 정할 수 있어야 한다.
-        var m = PetCommand.Mount;
-        if (m != null && !m.Alive) { m = null; PetCommand.Mount = null; }
-        if (m != mount)
-        {
-            // ★펫이 쓰러져서 내리는 경우 — 퐁 하고 튕겨 떨어진다
-            if (mount != null && !mount.Alive)
-            {
-                var at = transform.position + Vector3.up * 1.2f;
-                FX.Burst(at, new Color(1f, 0.95f, 0.85f, 0.95f), 22, 0.35f, 6f, 0.5f);
-                FollowCam.Shake(0.25f);
-                dropT = dropTime;   // 잠깐 떴다가 착지
-                SquadHUD.Toast($"{mount.name} 쓰러짐! 이제 직접 맞습니다");
-            }
-            if (mount != null) mount.mounted = false;
-            // 안장 반동 초기화 — 내린 뒤에도 출렁이면 안 된다
-            saddleOffset = 0f; saddleVel = 0f; lastMountY = float.NaN;
-            if (motion != null && dropT <= 0f) motion.skillHop = 0f;
-            mount = m;
-            if (mount != null)
-            {
-                mount.mounted = true;
-                mountRend = mount.GetComponentInChildren<Renderer>();
-                mountMotion = mount.GetComponent<PetMotion>();
-                SquadHUD.Toast($"{mount.name} 탑승!");
-            }
-        }
-        // 낙하 연출 — 튕겨 올랐다 내려온다 (BlobMotion 의 스킬 훅 재사용)
-        if (dropT > 0f)
-        {
-            dropT -= Time.deltaTime;
-            float k = Mathf.Clamp01(dropT / dropTime);
-            if (motion != null) motion.skillHop = Mathf.Sin(k * Mathf.PI) * dropHeight;
-            if (dropT <= 0f && motion != null) motion.skillHop = 0f;
-        }
-
         float ix, iz;
         ReadInput(out ix, out iz);
         // 대시 중 / F1 자세 정지 중엔 조작 무시
@@ -171,36 +118,6 @@ public class PlayerMove : MonoBehaviour
                        : (curSpd > 0.01f && vel.sqrMagnitude > 1e-6f ? vel.normalized * curSpd : Vector3.zero);
         float sp = vel.magnitude;
 
-        if (mount != null)
-        {
-            // ── 탑승 이동: 펫이 WASD 방향을 보며 자기 홉 모션으로 달림 ──
-            float pulse = mountMotion != null ? mountMotion.MovePulse : 1f;
-            var mp = mount.transform.position + vel * pulse * Time.deltaTime;
-            mp.y = mount.transform.position.y;              // 높이는 PetUnit.Ground 가 처리
-            mp = TreeBlocker.Resolve(mp, mount.body * 0.32f);   // 나무·바위 못 뚫음
-            mount.transform.position = mp;
-            if (hasInput)
-            {
-                var want = Quaternion.LookRotation(dir.normalized, Vector3.up);
-                mount.transform.rotation = Quaternion.RotateTowards(mount.transform.rotation, want, 720f * Time.deltaTime);
-            }
-            if (mountMotion != null) mountMotion.speed01 = Mathf.Clamp01(sp / moveSpeed);
-            // ★안장 반동 — 펫이 통통 뛰면 나도 그 위에서 같이 튄다.
-            //   펫의 실제 높이 변화를 따라가되, 살짝 늦게·조금 덜 튀어야 '얹혀 있는' 느낌이 난다.
-            motion.GroundY = float.NaN;
-            motion.SetMotion(BlobMotion.Mode.Idle, 0f, false);
-            float petY = mount.transform.position.y;
-            if (float.IsNaN(lastMountY)) lastMountY = petY;
-            float dy = petY - lastMountY;
-            lastMountY = petY;
-            saddleVel += dy * saddleFollow;                       // 펫이 솟으면 나도 밀려 올라감
-            saddleVel -= saddleOffset * saddleSpring * Time.deltaTime;   // 원위치로 당김
-            saddleVel *= Mathf.Pow(saddleDamp, Time.deltaTime * 60f);
-            saddleOffset = Mathf.Clamp(saddleOffset + saddleVel, -saddleMax, saddleMax);
-            motion.skillHop = saddleOffset;
-            return;
-        }
-
         var np = transform.position + vel * Time.deltaTime;
         np = TreeBlocker.Resolve(np, 1.5f);   // 나무·바위 못 뚫음
         np.y = GroundAt(np);
@@ -216,12 +133,4 @@ public class PlayerMove : MonoBehaviour
         // 방향은 PlayerBow 가 마우스 위치로 정한다 (이동 방향과 분리 — 무빙샷)
     }
 
-    void LateUpdate()
-    {
-        // 안장 위치 고정 — 펫 등 위에 착 붙어 함께 통통
-        if (mount == null || mountRend == null) return;
-        var mpos = mount.transform.position;
-        float seatY = mountRend.bounds.max.y - mount.body * 0.10f;
-        transform.position = new Vector3(mpos.x, seatY, mpos.z);
-    }
 }

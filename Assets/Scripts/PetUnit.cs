@@ -30,8 +30,6 @@ public class PetUnit : MonoBehaviour
     public static PetUnit Avatar;
     [Tooltip("건물(부화기 등) — AI·모션 없이 서서 맞기만 함")]
     public bool isStructure = false;
-    [Tooltip("탑승 중 — 이동은 PlayerMove 가 조종, AI 정지")]
-    [HideInInspector] public bool mounted;
     [Tooltip("목표 크기(최대 변, m). 0 = 티어 기본값 사용. 인스펙터 슬라이더가 조절")]
     public float sizeM = 0f;
     public int level = 1;
@@ -222,21 +220,6 @@ public class PetUnit : MonoBehaviour
     /// ★야생 습격병 — 스킬(원소기·패턴기)을 안 쓰고 평타만. 떼로 몰려와도 읽히게
     [HideInInspector] public bool basicOnly;
 
-    // ── 탑승 보정 — 타고 있는 동안 두 몫을 한다 ──
-    [HideInInspector] public float mountDmgMul = 1f, mountSpdMul = 1f;
-    float mountHpMul = 1f;
-    public void SetMountBuff(float dmg, float hp, float spd)
-    {
-        mountDmgMul = dmg; mountSpdMul = spd;
-        if (!Mathf.Approximately(mountHpMul, hp))
-        {
-            float ratio = maxHp > 0f ? this.hp / maxHp : 1f;   // 비율 유지 (탈 때 회복 아님)
-            mountHpMul = hp;
-            maxHp = vit * 10f * mountHpMul;
-            this.hp = Mathf.Min(maxHp, maxHp * ratio);
-        }
-    }
-
     /// 걷는 속도 — 이동 부품용으로 남겨 둔다 (행동을 다시 만들 때 여기서 시작한다)
     float MoveSpd => (8f + agi * 0.1f) * (0.8f + body * 0.035f) * (slowT > 0f ? 0.55f : 1f)
                      * moveSpeedMul * WorldScale.K;
@@ -246,7 +229,6 @@ public class PetUnit : MonoBehaviour
         if (dead) { DeathAnim(); return; }
         if (isAvatar) { HitFlash(); Bar(); return; }             // 캐릭터: 피격·바만
         if (isStructure) { HitFlash(); Bar(); return; }          // 건물
-        if (mounted) { HitFlash(); Ground(false); Bar(); return; }   // 탑승 중 — 이동은 PlayerMove 가 시킨다
         slowT = Mathf.Max(0f, slowT - Time.deltaTime);
 
         // 에어본 — 붕 떴다 내려올 때까지 아무것도 못 한다
@@ -279,13 +261,6 @@ public class PetUnit : MonoBehaviour
     public void TakeDamage(float dmg, PetUnit attacker = null)
     {
         if (dead) return;
-        // ★탑승 중이면 펫이 대신 맞는다 — 타고 있는 동안 주인은 무적,
-        //   펫이 쓰러지면 그때부터 주인이 맞는다 (PlayerMove 가 자동으로 내려준다)
-        if (isAvatar)
-        {
-            var mnt = PetCommand.Mount;
-            if (mnt != null && mnt.Alive) { mnt.TakeDamage(dmg, attacker); return; }
-        }
         hp -= dmg;
         barShowT = 3f;   // 구조물 체력바 — 맞을 때만 잠깐 보인다
         // 피해 숫자 — 내 편이 맞으면 빨강, 적이 맞으면 밝은 노랑
@@ -503,8 +478,6 @@ public class PetUnit : MonoBehaviour
     // ── HP 바 (둥근 모서리 + 롤식 지연 감소) ──
     // ★몸에 안 붙임 — 스쿼시·통통 바운스에 안 흔들리게 월드 공간에서 부드럽게 따라감
     float barY, barSmoothY, barBaseScale;
-    [Tooltip("탄 펫의 체력바를 캐릭터 머리 위로 얼마나 더 띄우나 (m)")]
-    public float mountedBarGap = 1.2f;
     /// 거리 보정 배율 상한 — 넘어가면 화면에서 자연히 작아진다 (숨기지는 않음)
     const float barMaxGrow = 2.0f;
     void MakeBar(Renderer r)
@@ -558,13 +531,6 @@ public class PetUnit : MonoBehaviour
     void Bar()
     {
         if (barRoot == null || Camera.main == null) return;
-        // ★탑승 중엔 바가 하나여야 한다 — 실제로 맞는 건 펫이니 내 바는 숨긴다
-        //   (안 그러면 캐릭터 바와 펫 바가 겹쳐서 둘로 보인다)
-        if (isAvatar && PetCommand.Mount != null && PetCommand.Mount.Alive)
-        {
-            if (barRoot.gameObject.activeSelf) barRoot.gameObject.SetActive(false);
-            return;
-        }
         if (isAvatar && !barRoot.gameObject.activeSelf) barRoot.gameObject.SetActive(true);
         if (isStructure)
         {   // 구조물은 평소 숨김 — 피격·변화 때만 잠깐
@@ -576,13 +542,6 @@ public class PetUnit : MonoBehaviour
         // 가로는 즉시, 세로는 스무딩 — 통통 튀어도 바는 차분하게
         var p = transform.position;
         float wantY = p.y + barY;
-        // ★내가 탄 펫은 등 위에 캐릭터가 앉아 있다 — 원래 높이면 바가 캐릭터와 겹친다.
-        //   실제 캐릭터 머리 꼭대기를 재서 그 위로 올린다 (덩치 짐작 대신 실측).
-        if (mounted && Avatar != null)
-        {
-            float headY = Avatar.transform.position.y + Avatar.body * 1.0f * WorldScale.K + mountedBarGap;
-            if (headY > wantY) wantY = headY;
-        }
         if (Mathf.Abs(wantY - barSmoothY) > 6f) barSmoothY = wantY;   // 순간이동·스폰 직후엔 스냅 (미끄러져 오는 버그 방지)
         else barSmoothY = Mathf.Lerp(barSmoothY, wantY, 7f * Time.deltaTime);
         barRoot.position = new Vector3(p.x, barSmoothY, p.z);
@@ -666,10 +625,9 @@ public class BlueprintPickup : MonoBehaviour
     float bobT, hideT = 3f;
     static Transform player;
 
-    /// 지금 '주력' 펫 — 타고 있으면 그놈, 아니면 아무거나 하나 (스탯창 표시용)
+    /// 지금 '주력' 펫 — 살아있는 내 펫 아무거나 하나 (스탯창 표시용)
     public static PetUnit MyPet()
     {
-        if (PetCommand.Mount != null && PetCommand.Mount.Alive) return PetCommand.Mount;
         foreach (var u in PetUnit.All)
             if (u.Alive && u.team == PetUnit.Team.Player && !u.isAvatar && !u.isStructure) return u;
         return null;

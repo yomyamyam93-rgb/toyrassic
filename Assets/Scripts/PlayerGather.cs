@@ -207,32 +207,10 @@ public class PlayerGather : MonoBehaviour
         if (Time.time < windowEnd) SweepDamage();
     }
 
-    // ★탑승 중이면 펫 등 위에서 휘두른다 — 기준점도 펫이고, 펫 덩치만큼 팔이 짧아진 셈이라
-    //   그만큼 사거리를 늘려줘야 발밑의 적에게 닿는다 (안 늘리면 아무것도 안 맞는다)
-    PlayerMove moveRef;
-    PetUnit Mount
-    {
-        get
-        {
-            if (moveRef == null) moveRef = GetComponent<PlayerMove>();
-            return moveRef != null ? moveRef.Mount : null;
-        }
-    }
-    [Header("탑승 중 공격")]
-    [Tooltip("탄 펫 덩치의 몇 배만큼 사거리를 더 주나")] public float mountedRangeBonus = 0.6f;
-    [Tooltip("탑승 중 부채꼴 각도 배수 (넓게 쓸어야 발밑이 맞는다)")] public float mountedAngleMul = 1.25f;
-
-    /// 공격 기준점 — 걸을 땐 나, 탈 땐 펫
-    Vector3 SwingOrigin { get { var m = Mount; return m != null ? m.transform.position : transform.position; } }
-    float SwingReach
-    {
-        get
-        {
-            var m = Mount;
-            return swingRange * skillRangeMul + (m != null ? m.body * mountedRangeBonus : 0f);
-        }
-    }
-    float SwingSpread => swingAngle * (Mount != null ? mountedAngleMul : 1f);
+    // ★탑승 삭제 (2026-07-28) — 늘 내 자리에서 휘두른다
+    Vector3 SwingOrigin => transform.position;
+    float SwingReach => swingRange * skillRangeMul;
+    float SwingSpread => swingAngle;
 
     [Header("판정 정밀도")]
     [Tooltip("이보다 높이 차이가 나면 안 맞는다 (절벽 위/아래 헛맞음 방지, m)")]

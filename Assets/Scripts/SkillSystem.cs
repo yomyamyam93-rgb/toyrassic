@@ -78,6 +78,13 @@ public class SkillSystem : MonoBehaviour
     PlayerGather gather;   // 무기 스킬이 평타와 같은 스윙 모션을 쓴다
     Camera cam;
 
+    /// ★탑승 삭제 자리 (2026-07-28). 예전엔 '타고 있는 펫'을 돌려줬고, 스킬들이
+    ///   그 펫을 기준점·발동 조건으로 썼다. 탑승이 없어졌으니 늘 null 이고,
+    ///   그 결과 펫 기준이던 스킬은 전부 '내 자리 기준'으로 떨어진다.
+    ///   ※펫 패턴에 묶인 이동기·궁(CurPetAtk·CurMoveSkill)은 지금 쓸 수 없다 —
+    ///     Q 무기 궁으로 다시 짤 때 이 property 째로 걷어낸다.
+    static PetUnit MountedPet => null;
+
     // HUD
     Image[] icons; Image[] fills; Text[] labels; Image[] iconImgs; Text[] lockTexts;
     GameObject canvasRoot;
@@ -92,7 +99,7 @@ public class SkillSystem : MonoBehaviour
 
     (string icon, string label, bool usable) SkillInfo(int slot)
     {
-        bool hasPet = move != null && move.Mount != null;
+        bool hasPet = MountedPet != null;
         var gear = Hotbar.I != null ? Hotbar.I.Current : GearKind.None;
         switch (slot)
         {
@@ -226,7 +233,7 @@ public class SkillSystem : MonoBehaviour
     /// (따로 계산하면 보이는 범위와 맞는 범위가 어긋난다)
     public void QArea(GearKind gear, Vector3 dir, out Vector3 center, out float radius, out float inner)
     {
-        var mount = move != null ? move.Mount : null;
+        var mount = MountedPet;
         var body = mount != null ? mount.transform.position : transform.position;
         inner = 0f;
         if (gear == GearKind.Pick)        { center = body + dir * qSlamStep; radius = qSlamRadius; }
@@ -383,7 +390,7 @@ public class SkillSystem : MonoBehaviour
     public enum PetAtk { Bite, Gore, Stomp, Tail }
     PetAtk CurPetAtk()
     {
-        var m = move != null ? move.Mount : null;
+        var m = MountedPet;
         if (m == null) return PetAtk.Bite;
         switch (m.pattern)
         {
@@ -398,7 +405,7 @@ public class SkillSystem : MonoBehaviour
     void TryW()
     {
         if (!Ready(1)) return;
-        var mount = move != null ? move.Mount : null;
+        var mount = MountedPet;
         if (mount == null) { SquadHUD.Toast("펫이 있어야 쓸 수 있다"); return; }
         var dir = AimDir();
         var c = mount.transform.position;
@@ -440,7 +447,7 @@ public class SkillSystem : MonoBehaviour
     {
         for (int i = 0; i < 3; i++)
         {
-            var mount = move != null ? move.Mount : null;
+            var mount = MountedPet;
             var c = mount != null ? mount.transform.position : transform.position;
             FX.Sweep(c, Quaternion.LookRotation(dir).eulerAngles.y - biteAngle * 0.5f, biteAngle,
                      biteRange, new Color(1.5f, 1.2f, 1.0f, 0.8f), 0.15f, 0.12f);
@@ -481,7 +488,7 @@ public class SkillSystem : MonoBehaviour
     public enum MoveSkill { Roll, Leap, Bash, Hop, Break }
     MoveSkill CurMoveSkill()
     {
-        var m = move != null ? move.Mount : null;
+        var m = MountedPet;
         if (m == null) return MoveSkill.Roll;               // 펫 없음 = 사용 불가 표시용
         switch (m.pattern)
         {
@@ -507,7 +514,7 @@ public class SkillSystem : MonoBehaviour
     /// (보류) 펫 특성별 이동기 — 나중에 세분화할 때 되살릴 코드
     void TryPetMove()
     {
-        var mount = move != null ? move.Mount : null;
+        var mount = MountedPet;
         var dir = AimDir();
         switch (CurMoveSkill())
         {
@@ -543,7 +550,7 @@ public class SkillSystem : MonoBehaviour
     void TryR()
     {
         if (!Ready(3)) return;
-        var mount = move != null ? move.Mount : null;
+        var mount = MountedPet;
         if (mount == null) { SquadHUD.Toast("펫과 함께해야 쓸 수 있다"); return; }
         var c = transform.position;
         FX.Burst(c, new Color(2.2f, 1.6f, 0.6f, 1f), 60, 0.5f, 14f, 0.8f);
@@ -603,7 +610,7 @@ public class SkillSystem : MonoBehaviour
 
         var dir = AimDir();
         var origin = transform.position;
-        var mount = move != null ? move.Mount : null;
+        var mount = MountedPet;
         var body = mount != null ? mount.transform.position : origin;
         var gear = Hotbar.I != null ? Hotbar.I.Current : GearKind.None;
 
@@ -706,7 +713,7 @@ public class SkillSystem : MonoBehaviour
         if (dashT <= 0f && hopLanding)
         {   // 도약 착지 — 쿵! 광역 충격
             hopLanding = false;
-            var m2 = move != null ? move.Mount : null;
+            var m2 = MountedPet;
             var c = m2 != null ? m2.transform.position : transform.position;
             FX.Burst(c, new Color(0.85f, 0.78f, 0.62f, 0.95f), 30, 0.5f, 8f, 0.6f);
             HitAround(c, hopRadius, hopDamage, 3f);
@@ -714,7 +721,7 @@ public class SkillSystem : MonoBehaviour
         }
         float k = 1f - Mathf.Clamp01(dashT / Mathf.Max(0.05f, dashDur));
         float speed = dashSpeed * Mathf.Lerp(1.5f, 0.4f, k);   // 초반 빠르게 → 감속
-        var mount = move != null ? move.Mount : null;
+        var mount = MountedPet;
         var body = mount != null ? mount.transform : transform;
         // ★한 프레임에 크게 움직이면 벽 너머로 착지해 반대편으로 밀려난다(= 관통).
         //   0.5m 씩 쪼개서 매 단계마다 충돌을 풀어 벽을 뚫지 못하게 한다
