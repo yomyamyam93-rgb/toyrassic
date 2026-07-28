@@ -253,6 +253,22 @@ public class PlayerBow : MonoBehaviour
     }
     LineRenderer bowString, aimLine;
     Transform nockArrow;
+    /// 시위 끝점 셋 — 씬에 실존하고 애니메이션 클립이 잡는다. 코드는 잇기만 한다
+    Transform strTop, strNock, strBot;
+
+    /// 없으면 만들어 둔다 (그 뒤로는 사람이 씬에서 옮긴다)
+    static Transform FindOrMake(Transform parent, string name, Vector3 localPos)
+    {
+        var t = parent.Find(name);
+        if (t == null)
+        {
+            var go = new GameObject(name);
+            go.transform.SetParent(parent, false);
+            go.transform.localPosition = localPos;
+            t = go.transform;
+        }
+        return t;
+    }
     float cd, drawT, aimLen; bool drawing;
     /// 당기는 중인가 — PlayerMove 가 읽어서 통통 대신 뭉글뭉글 이동으로 전환
     public bool IsDrawing => drawing;
@@ -866,13 +882,27 @@ public class PlayerBow : MonoBehaviour
             AddOutline(limbGo, mesh);
         }
 
-        var strGo = new GameObject("String");
-        strGo.transform.SetParent(bowRoot, false);
-        bowString = strGo.AddComponent<LineRenderer>();
+        // ★시위 — 선(LineRenderer)은 애니메이션 창에서 점 좌표를 찍기가 아주 불편하다.
+        //   대신 **끝점 세 개를 실제 오브젝트로** 두고, 코드는 그 세 점을 선으로 이어만 준다.
+        //   그러면 시위도 손·활과 똑같이 끌어다 놓고 키를 찍을 수 있다 (2026-07-29 사용자).
+        var strT = bowRoot.Find("String");
+        if (strT == null)
+        {
+            var strGo = new GameObject("String");
+            strGo.transform.SetParent(bowRoot, false);
+            strT = strGo.transform;
+        }
+        bowString = strT.GetComponent<LineRenderer>();
+        if (bowString == null) bowString = strT.gameObject.AddComponent<LineRenderer>();
         bowString.useWorldSpace = false;
         bowString.material = Unlit(stringColor);
         bowString.positionCount = 3;
         bowString.widthMultiplier = 0.05f;
+
+        // 끝점 세 개 — 씬에 없으면 활 크기에 맞춰 만들어 둔다 (그 뒤로는 사람 몫)
+        strTop = FindOrMake(strT, "Top", new Vector3(0f, bowSize, 0f));
+        strNock = FindOrMake(strT, "Nock", Vector3.zero);
+        strBot = FindOrMake(strT, "Bottom", new Vector3(0f, -bowSize, 0f));
 
         // 에임 라인 — 누르는 동안 사거리가 쭈우욱 차오름
         var ag = new GameObject("AimLine");
@@ -887,14 +917,18 @@ public class PlayerBow : MonoBehaviour
         aimLine.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
         aimLine.enabled = false;
 
-        // 재놓인 화살 (당길 때만 보임)
-        var na = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
-        Destroy(na.GetComponent<Collider>());
-        na.name = "NockArrow";
-        na.transform.SetParent(bowRoot, false);
-        na.GetComponent<MeshRenderer>().material = Unlit(new Color(0.85f, 0.75f, 0.55f));
-        AddOutline(na, na.GetComponent<MeshFilter>().sharedMesh);
-        nockArrow = na.transform;
+        // 재놓인 화살 (당길 때만 보임) — 씬에 있으면 그걸 쓴다 (키를 찍을 수 있게)
+        nockArrow = bowRoot.Find("NockArrow");
+        if (nockArrow == null)
+        {
+            var na = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+            Destroy(na.GetComponent<Collider>());
+            na.name = "NockArrow";
+            na.transform.SetParent(bowRoot, false);
+            na.GetComponent<MeshRenderer>().material = Unlit(new Color(0.85f, 0.75f, 0.55f));
+            AddOutline(na, na.GetComponent<MeshFilter>().sharedMesh);
+            nockArrow = na.transform;
+        }
         nockArrow.gameObject.SetActive(false);
     }
 
@@ -1400,9 +1434,19 @@ public class PlayerBow : MonoBehaviour
         }
 
         float back = -0.85f * pull * bowSize;
-        bowString.SetPosition(0, new Vector3(0f, bowSize, 0f));
-        bowString.SetPosition(1, new Vector3(0f, 0f, back));
-        bowString.SetPosition(2, new Vector3(0f, -bowSize, 0f));
+        if (rangedClipOwns && strTop != null && strNock != null && strBot != null)
+        {   // ★시위 = 끝점 세 오브젝트를 잇는다. 그 세 점은 클립이 잡는다 (2026-07-29 사용자).
+            //   코드가 계산하지 않으므로 활을 어떻게 만들든 시위가 안 깨진다.
+            bowString.SetPosition(0, strTop.localPosition);
+            bowString.SetPosition(1, strNock.localPosition);
+            bowString.SetPosition(2, strBot.localPosition);
+        }
+        else
+        {
+            bowString.SetPosition(0, new Vector3(0f, bowSize, 0f));
+            bowString.SetPosition(1, new Vector3(0f, 0f, back));
+            bowString.SetPosition(2, new Vector3(0f, -bowSize, 0f));
+        }
 
         // 오른손 = 당기는 손. 활은 시위 지점에 정확히 붙고, 다른 무기는 정한 자리로
         // 절차 활대(모델 없는 활)일 때만 시위 지점에 정확히 붙인다
@@ -1415,8 +1459,9 @@ public class PlayerBow : MonoBehaviour
         if (!clipOwnsHandR && !rangedClipOwns)
             handR.localPosition = Vector3.Lerp(handR.localPosition, drawing ? aimR : idleR, drawing ? 22f * Time.deltaTime : k);
 
+        // 보이고 안 보이고는 코드가 (당길 때만). 자세는 클립 몫이다.
         nockArrow.gameObject.SetActive(drawing);
-        if (drawing)
+        if (drawing && !rangedClipOwns)
         {
             float len = bowSize * 1.05f;
             nockArrow.localScale = new Vector3(0.11f, len * 0.5f, 0.11f);
