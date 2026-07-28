@@ -32,7 +32,8 @@ Material:
     - _Bright: 1.29
     - _CenterDark: 0.575
     - _Contrast: 0.65
-    - _DepthFade: 2
+    - _DeepStr: 0.85
+    - _DepthFade: 8
     - _EdgeAlpha: 0.728
     - _Flow: 0.13
     - _FoamEdge: 1
@@ -55,6 +56,7 @@ Material:
     - _Sat: 1.42
     - _Scale: 22.2
     m_Colors:
+    - _DeepColor: {r: 0.035, g: 0.115, b: 0.155, a: 1}
     - _FoamColor: {r: 1, g: 1, b: 1, a: 1}
     - _Tint: {r: 0.8726415, g: 0.9658861, b: 1, a: 1}
   m_BuildTextureStacks: []

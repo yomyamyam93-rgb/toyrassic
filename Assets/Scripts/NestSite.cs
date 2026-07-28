@@ -140,13 +140,15 @@ public class NestSite : MonoBehaviour
             Destroy(e.GetComponent<Collider>());
             e.name = "알";
             e.SetParent(transform, false);
-            e.localPosition = new Vector3(0f, 1.6f, 0f);
-            e.localScale = new Vector3(1.6f, 2.1f, 1.6f);
             var mr = e.GetComponent<MeshRenderer>();
             mr.material = new Material(Shader.Find("Universal Render Pipeline/Lit"));
             mr.material.color = new Color(0.95f, 0.9f, 0.75f);
             egg = e;
         }
+        // ★알을 1.5배로 (2026-07-28 사용자) — "너무 작아서 안 보인다".
+        //   커진 만큼 위치도 올려야 둥지 모델에 반쯤 묻히지 않는다.
+        ApplyEggLook();
+        EnsureBeam();
         FX.Burst(transform.position + Vector3.up * 2f, new Color(1.7f, 1.5f, 0.6f, 0.95f), 24, 0.3f, 3f);
     }
 
@@ -222,8 +224,21 @@ public class NestSite : MonoBehaviour
     Transform player;
     float bobT;
 
+    /// 알 크기·높이를 한 값으로 통일한다.
+    /// ★씬에 미리 놓인 알과 Respawn 이 만드는 알이 따로 놀지 않게 한 곳에 모았다.
+    ///   (둥지 대부분은 씬 배치라, Respawn 만 고치면 실제로는 아무것도 안 커진다)
+    void ApplyEggLook()
+    {
+        if (egg == null) return;
+        egg.localPosition = new Vector3(0f, 2.2f, 0f);
+        egg.localScale = new Vector3(2.4f, 3.2f, 2.4f);
+    }
+
     void Start()
     {
+        ApplyEggLook();
+        EnsureBeam();
+
         // ★둥지 모델 — Resources/Build/둥지.glb 가 있으면 그걸 세운다 (없으면 기존 모습 그대로)
         var model = Resources.Load<GameObject>("Build/둥지");
         if (model == null) return;
@@ -238,8 +253,58 @@ public class NestSite : MonoBehaviour
 
     [Tooltip("둥지 모델 크기")] public float nestModelScale = 4f;
 
+    // ── 빛줄기 — 알이 있는 둥지를 멀리서도 찾게 (2026-07-28 사용자) ────────
+    //
+    // ★알 오브젝트의 자식으로 달면 안 된다. 알은 털렸을 때 SetParent(null) 로 떨어져 나가
+    //   ItemDrop 이 되어 **날아간다** — 빛줄기가 그걸 따라다니게 된다.
+    //   그래서 둥지에 달고, 알이 있는지로 켜고 끈다.
+    [Header("빛줄기")]
+    [Tooltip("빛줄기 높이 (m) — 지형이 430m 라 300이면 산 너머에서도 보인다")]
+    public float beamHeight = 300f;
+    [Tooltip("빛줄기 굵기 반경 (m)")] public float beamRadius = 0.6f;
+    [Tooltip("빛줄기 진하기")] [Range(0f, 1f)] public float beamAlpha = 0.35f;
+
+    Transform beam;
+    static Material beamMat;
+
+    void EnsureBeam()
+    {
+        if (beam != null) return;
+        if (beamMat == null)
+        {
+            beamMat = new Material(Shader.Find("Universal Render Pipeline/Unlit"));
+            beamMat.SetColor("_BaseColor", new Color(1f, 1f, 1f, beamAlpha));
+            // URP Unlit 을 코드로 반투명으로 돌리려면 값 여섯 개를 다 맞춰야 한다.
+            // 하나라도 빠지면 불투명한 흰 기둥이 되어 시야를 가린다.
+            beamMat.SetFloat("_Surface", 1f);                       // Transparent
+            beamMat.SetFloat("_Blend", 0f);                         // Alpha
+            beamMat.SetFloat("_SrcBlend", (float)UnityEngine.Rendering.BlendMode.SrcAlpha);
+            beamMat.SetFloat("_DstBlend", (float)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
+            beamMat.SetFloat("_ZWrite", 0f);
+            beamMat.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
+            beamMat.renderQueue = (int)UnityEngine.Rendering.RenderQueue.Transparent;
+        }
+        var b = GameObject.CreatePrimitive(PrimitiveType.Cylinder).transform;
+        Destroy(b.GetComponent<Collider>());
+        b.name = "알_빛줄기";
+        b.SetParent(transform, false);
+        // 유니티 기본 실린더는 높이 2·반지름 0.5 라 절반씩 환산한다
+        b.localPosition = new Vector3(0f, beamHeight * 0.5f, 0f);
+        b.localScale = new Vector3(beamRadius * 2f, beamHeight * 0.5f, beamRadius * 2f);
+        var mr = b.GetComponent<MeshRenderer>();
+        mr.sharedMaterial = beamMat;
+        mr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+        mr.receiveShadows = false;
+        beam = b;
+    }
+
     void Update()
     {
+        // ★알을 잃으면 빛줄기도 꺼진다. 알이 없어지는 자리가 여러 군데라
+        //   '지우는 코드'를 곳곳에 심는 대신 여기서 상태만 따라가게 했다 — 빠뜨릴 수가 없다.
+        if (beam != null && beam.gameObject.activeSelf != (egg != null))
+            beam.gameObject.SetActive(egg != null);
+
         if (player == null) { var p = GameObject.Find("Player"); if (p != null) player = p.transform; else return; }
         float d = Vector3.Distance(
             new Vector3(player.position.x, 0, player.position.z),

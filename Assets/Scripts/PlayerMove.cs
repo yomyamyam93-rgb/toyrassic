@@ -19,10 +19,29 @@ public class PlayerMove : MonoBehaviour
     [Tooltip("최대로 당겼을 때 이속 배율 (0.35 = 35%까지 느려짐, 멈추진 않음)")]
     public float fullDrawSpeed = 0.35f;
 
+    // ★물 높이 상수(waterY = 40)를 없앴다 (2026-07-28).
+    //   씬의 실제 바다는 y = 12 였다. 40 으로 재던 탓에 높이 12~40m 사이의 땅 —
+    //   해안 저지대 전부 — 이 "물속"으로 취급돼, 바다보다 28m 높은 마른 땅에서
+    //   이속이 느려졌다. 게다가 내륙 호수는 y = 72 / 82 / 91 로 제각각이라
+    //   상수 하나로는 애초에 맞출 수가 없다. 이제 WaterBody 가 실측한다.
     [Header("물")]
-    public float waterY = 40f;
-    [Tooltip("물에 잠기면 느려진다")]
+    [Tooltip("이 수심까지는 걸어서 첨벙거린다 (m). 넘으면 헤엄친다")]
+    public float wadeDepth = 1.2f;
+    [Tooltip("허리까지 잠겼을 때 이속 배율 — 수심에 비례해 여기까지 서서히 느려진다")]
     public float wetFactor = 0.55f;
+    [Tooltip("헤엄칠 때 이속 배율")]
+    public float swimFactor = 0.5f;
+    [Tooltip("헤엄칠 때 몸이 수면 아래로 잠기는 깊이 (m)")]
+    public float swimSink = 0.55f;
+
+    [Header("섬 밖으로 못 나가게 (수영 중에만)")]
+    [Tooltip("섬 중심에서 이 거리를 넘으면 물살이 안쪽으로 민다 (m)")]
+    public float swimLimit = 3200f;
+    [Tooltip("밀어내는 세기 (m/s) — 멀리 나갈수록 세진다")]
+    public float swimPushBack = 14f;
+
+    /// 지금 헤엄치는 중인가 (다른 스크립트가 물어볼 수 있게)
+    public bool Swimming { get; private set; }
 
     public Transform cam;
 
@@ -108,9 +127,21 @@ public class PlayerMove : MonoBehaviour
             top *= bow.ChargeMoveMul;
         else if (bow != null && bow.IsDrawing)
             top *= Mathf.Lerp(1f, fullDrawSpeed, bow.Draw01);
+        // ── 물 ──────────────────────────────────────────────
+        // 수심 = 수면 − 지면. 물 밖이면 0.
         float gy = GroundAt(transform.position);
-        bool wet = gy < waterY;
-        if (wet) top *= wetFactor;
+        float depth = WaterBody.DepthAt(transform.position, gy);
+        bool swimming = depth > wadeDepth;
+        Swimming = swimming;
+        bool wet = depth > 0.01f;
+
+        if (swimming) top *= swimFactor;
+        else if (wet)
+        {
+            // ★수심에 비례해 서서히 (2026-07-28). 예전엔 켜짐/꺼짐 두 값뿐이라
+            //   발목만 잠겨도 곧장 55% 가 됐고, 경계에서 속도가 툭 끊겼다.
+            top *= Mathf.Lerp(1f, wetFactor, Mathf.Clamp01(depth / Mathf.Max(0.01f, wadeDepth)));
+        }
 
         // ★방향은 즉시 전환, 속도 '크기'만 관성 — 꺾자마자 착착 도는 조작감
         bool hasInput = dir.sqrMagnitude > 1e-4f;
@@ -124,11 +155,23 @@ public class PlayerMove : MonoBehaviour
 
         var np = transform.position + vel * Time.deltaTime;
         np = TreeBlocker.Resolve(np, 1.5f);   // 나무·바위 못 뚫음
-        np.y = GroundAt(np);
+
+        float ngy = GroundAt(np);
+        float nsurf = WaterBody.SurfaceAt(np);
+        float ndepth = nsurf == float.MinValue ? 0f : Mathf.Max(0f, nsurf - ngy);
+        if (ndepth > wadeDepth)
+        {
+            // ★깊은 물에서는 지면을 안 밟는다 (2026-07-28) — 예전엔 여기서도 GroundAt 을
+            //   그대로 써서, 물속 바닥을 뚫고 걸어 다녔다. 이제 수면에 뜬다.
+            np.y = nsurf - swimSink;
+            np = PushBackToIsland(np);
+        }
+        else np.y = ngy;
         transform.position = np;
 
         var mo = BlobMotion.Mode.Idle;
-        if (sp > moveSpeed * 0.55f) mo = BlobMotion.Mode.Run;
+        if (ndepth > wadeDepth) mo = BlobMotion.Mode.Swim;
+        else if (sp > moveSpeed * 0.55f) mo = BlobMotion.Mode.Run;
         else if (sp > 0.35f) mo = BlobMotion.Mode.Walk;
         motion.GroundY = np.y;
         // 활 당기는 중엔 통통 대신 뭉글뭉글 — 붙어서 미끄러지듯 이동 (조준 안정)
@@ -137,4 +180,49 @@ public class PlayerMove : MonoBehaviour
         // 방향은 PlayerBow 가 마우스 위치로 정한다 (이동 방향과 분리 — 무빙샷)
     }
 
+    /// ★섬에서 너무 멀어지면 물살이 안쪽으로 민다 (2026-07-28 사용자).
+    ///   보이지 않는 벽을 세우면 "막혔다"가 되지만, 밀려나는 건 "물살이 세다"로 읽힌다.
+    ///   멀리 나갈수록 세져서, 계속 헤엄쳐도 결국 못 넘는다.
+    Vector3 PushBackToIsland(Vector3 p)
+    {
+        var c = IslandCenter();
+        var d = p - c; d.y = 0f;
+        float dist = d.magnitude;
+        if (dist <= swimLimit || dist < 0.01f) return p;
+        float over = dist - swimLimit;
+        float push = swimPushBack * (1f + Mathf.Clamp01(over / 100f) * 2f);
+        p -= d / dist * (push * Time.deltaTime);
+        return p;
+    }
+
+    Vector3 islandCenter; bool islandCenterKnown;
+
+    Vector3 IslandCenter()
+    {
+        if (islandCenterKnown) return islandCenter;
+        // 지형 전체의 한가운데. 지형이 없으면 원점.
+        var b = new Bounds();
+        bool has = false;
+        foreach (var t in terrains)
+        {
+            if (t == null) continue;
+            var o = t.transform.position; var s = t.terrainData.size;
+            var tb = new Bounds(o + s * 0.5f, s);
+            if (!has) { b = tb; has = true; } else b.Encapsulate(tb);
+        }
+        islandCenter = has ? new Vector3(b.center.x, 0f, b.center.z) : Vector3.zero;
+        islandCenterKnown = true;
+        return islandCenter;
+    }
+
+    /// 구르기·대시가 끝날 때 그 속도를 이어받는다.
+    /// ★없으면 vel 이 0 인 채로 조작이 돌아와 accel 34 로 최고속 25.5 까지
+    ///   **0.75초** 동안 다시 가속한다 — 그게 "구르기 후 살짝 딜레이" 의 정체였다.
+    ///   손을 떼고 있으면 기존 브레이크가 알아서 세우므로 여기서 따질 필요가 없다.
+    public void CarryMomentum(Vector3 dir)
+    {
+        dir.y = 0f;
+        if (dir.sqrMagnitude < 1e-6f) return;
+        vel = dir.normalized * (moveSpeed * PlayerLevel.MoveMul);
+    }
 }

@@ -78,23 +78,50 @@ public class SkillSystem : MonoBehaviour
     static bool IsMelee(GearKind g)
         => g == GearKind.Axe || g == GearKind.Pick || g == GearKind.Sword;
 
-    /// 화면 스킬칸 하나의 표시 — Q·E·R 은 각각 1·2·3번 무기칸의 펫 투척이다.
-    /// ★칸 번호와 펫 이름을 같이 띄운다. 세 개가 동시에 보이므로 어느 게 어느 칸인지가
-    ///   즉시 읽혀야 손이 안 꼬인다 (그게 이번 개편의 목적이다).
-    (string icon, string label, bool usable) SkillInfo(int hud)
+    /// 화면 스킬칸 하나의 상태 — Q·E·R 은 각각 1·2·3번 무기칸의 펫 투척, Space 는 구르기.
+    ///
+    /// ★칸에는 키 글자만 크게 쓴다 (2026-07-28 사용자). 예전엔 칸 안에
+    ///   "1번 트리케라 ×10 · 흩뿌리기" 같은 긴 글자를 우겨넣었는데, 54px 칸에 그게 들어가면
+    ///   아무것도 안 읽힌다. 자세한 건 전부 툴팁으로 내렸다.
+    (string icon, bool usable) SkillInfo(int hud)
     {
-        if (hud == 2) return ("스킬_구르기", "구르기", true);   // Space
+        if (hud == RollHud) return ("스킬_구르기", true);   // Space
 
         int slot = HudToSlot(hud);
         var p = slot >= 0 && slot < PetCommand.SlotPet.Length ? PetCommand.SlotPet[slot] : null;
-        if (p == null) return ("스킬_돌격", $"{slot + 1}번 · 펫 없음", false);
+        return ("스킬_돌격", p != null);
+    }
 
+    /// 마우스를 올렸을 때 뜨는 설명 — 이름 / 설명 / 던질 펫 / 남은 쿨 / 조작
+    string SkillTip(int hud)
+    {
+        if (hud == RollHud)
+        {
+            string cool = cd[hud] > 0f ? $"재사용까지 {cd[hud]:F1}초" : "사용 가능";
+            return "구르기\n무적은 아니지만 순식간에 빠져나간다\n\n"
+                 + cool + "\nSpace — 가려는 쪽으로 구른다";
+        }
+
+        int slot = HudToSlot(hud);
         var gear = SlotGear(slot);
-        string how = StyleOf(gear) == ThrowStyle.Scatter ? "흩뿌리기"
-                   : StyleOf(gear) == ThrowStyle.Rapid ? "연발" : "찍기";
-        return ("스킬_돌격",
-                $"{slot + 1}번 {p.name} {PetUnit.CountFor(throwBudget, p.supply)} · {how}",
-                true);
+        var style = StyleOf(gear);
+        string name = style == ThrowStyle.Scatter ? "흩뿌리기"
+                    : style == ThrowStyle.Rapid ? "연발" : "찍기";
+        string desc = style == ThrowStyle.Scatter ? "부채꼴로 넓게 흩뿌린다"
+                    : style == ThrowStyle.Rapid ? "에임 쪽으로 일직선으로 파고든다"
+                    : "한 점에 무리를 통째로 내리찍는다";
+
+        var p = slot >= 0 && slot < PetCommand.SlotPet.Length ? PetCommand.SlotPet[slot] : null;
+        string who = p != null
+            ? $"{p.name} × {PetUnit.CountFor(throwBudget, p.supply)}마리"
+            : $"{slot + 1}번 칸에 묶인 펫이 없다";
+
+        string cd2 = p == null ? "—"
+                   : cd[hud] > 0f ? $"재사용까지 {cd[hud]:F1}초" : "사용 가능";
+
+        string key = hud == 0 ? "Q" : hud == 1 ? "E" : "R";
+        return $"{name}  ({slot + 1}번 칸 무기)\n{desc}\n\n{who}\n{cd2}\n"
+             + $"{key} — 누른 채 조준, 떼면 발사";
     }
 
     void Start()
@@ -181,7 +208,9 @@ public class SkillSystem : MonoBehaviour
         var k = Keyboard.current;
         if (k == null) return;
         // 각 칸 펫의 쿨을 그 슬롯에 비춘다 (쿨은 펫마다 따로 돈다)
-        for (int s = 0; s < Hotbar.Slots; s++)
+        // ★Hotbar.Slots(10) 가 아니라 GearOnlySlots(3) 이다. 핫바를 10칸으로 되돌렸을 때
+        //   여기가 Slots 를 그대로 쓰면 cd[] 는 4칸뿐이라 s=4 에서 배열 밖으로 나간다.
+        for (int s = 0; s < Hotbar.GearOnlySlots; s++)
         {
             int hud = SlotToHud(s);
             cd[hud] = PetCommand.CoolOf(PetCommand.SlotPet[s]);
@@ -194,7 +223,7 @@ public class SkillSystem : MonoBehaviour
         //   바로 나간다 — 무기를 바꿀 필요가 없다.
         //   1·2·3 은 여전히 '들고 싸울 무기' 를 고르는 키다 (좌클릭 공격에 쓰인다).
         aiming = k.qKey.isPressed ? 0 : k.eKey.isPressed ? 1
-               : k.rKey.isPressed ? 3 : k.spaceKey.isPressed ? 2 : -1;
+               : k.rKey.isPressed ? 2 : k.spaceKey.isPressed ? RollHud : -1;
         UpdatePreview();
 
         // ★E 로 조준하는 동안엔 발이 묶인다 (2026-07-28 사용자).
@@ -213,9 +242,12 @@ public class SkillSystem : MonoBehaviour
     void Use(int i, float cool) { cd[i] = cool; cdMax[i] = cool; }
 
     // ── 슬롯(무기칸 0·1·2) ↔ 화면 스킬칸 대응 ──────────────────────────
-    //   화면 칸 순서는 Q · E · Space(구르기) · R 이라, 3번 칸만 자리가 떨어져 있다.
-    static int SlotToHud(int slot) => slot == 2 ? 3 : slot;
-    static int HudToSlot(int hud) => hud == 3 ? 2 : hud == 2 ? -1 : hud;
+    //   ★화면 칸 순서를 Q · E · R · Space 로 바꿨다 (2026-07-28 사용자).
+    //   예전엔 Q · E · Space · R 이라 3번 칸만 자리가 떨어져 있었고, 그것 때문에
+    //   슬롯↔화면칸 변환이 뒤엉켜 있었다. 이제 앞 셋이 곧 1·2·3번 칸이다.
+    const int RollHud = 3;   // Space
+    static int SlotToHud(int slot) => slot;
+    static int HudToSlot(int hud) => hud < RollHud ? hud : -1;
 
     /// 지금 조준 중인 무기칸 (-1 = 투척 조준이 아님)
     int AimSlot => HudToSlot(aiming);
@@ -940,7 +972,7 @@ public class SkillSystem : MonoBehaviour
     //   쿨타임 말고는 아무 조건도 걸지 않는다.
     void TryE()
     {
-        if (!Ready(2)) return;
+        if (!Ready(RollHud)) return;
 
         // 진행 중인 동작을 끊는다 — 스윙·조준을 붙잡고 있으면 회피가 늦는다
         if (bow != null) bow.CancelDraw();
@@ -951,7 +983,7 @@ public class SkillSystem : MonoBehaviour
         rollT = rollTime;                      // 구르는 모션 시작
         if (blob != null) blob.skillHoldFacing = true;   // 구르는 동안 마우스를 안 따라간다
         FX.Burst(transform.position, new Color(0.9f, 0.95f, 1.1f, 0.8f), 12, 0.25f * WorldScale.K, 4f * WorldScale.K);
-        Use(2, rollCooldown);
+        Use(RollHud, rollCooldown);
     }
 
     // ── 구르는 모션 — 리깅이 없는 블롭이라 몸을 앞으로 한 바퀴 굴린다 ──
@@ -1279,7 +1311,14 @@ public class SkillSystem : MonoBehaviour
     {
         if (dashT <= 0f) return;
         dashT -= Time.deltaTime;
-        if (dashT <= 0f && move != null) move.suppressMove = false;   // 대시 끝 — 조작 복귀
+        if (dashT <= 0f && move != null)
+        {
+            move.suppressMove = false;   // 대시 끝 — 조작 복귀
+            // ★구른 방향의 속도를 그대로 넘겨준다 (2026-07-28 사용자).
+            //   안 넘기면 vel 이 0 이라 0.75초 동안 다시 가속한다 — 그게 구르기 뒤 딜레이였다.
+            //   "구르기 이후에는 가속감속 없이 그대로 뛰어갈 수 있어야" 한다.
+            move.CarryMomentum(dashDir);
+        }
         float k = 1f - Mathf.Clamp01(dashT / Mathf.Max(0.05f, dashDur));
         float speed = dashSpeed * Mathf.Lerp(1.5f, 0.4f, k);   // 초반 빠르게 → 감속
         var body = transform;
@@ -1317,7 +1356,9 @@ public class SkillSystem : MonoBehaviour
     // ── HUD (핫바 위 QWER) ──
     void BuildHUD()
     {
-        var cgo = new GameObject("Skill_Canvas", typeof(Canvas), typeof(CanvasScaler));
+        // ★GraphicRaycaster 가 있어야 마우스 올림(툴팁)이 들어온다 — 없으면
+        //   포인터 이벤트 자체가 이 캔버스에 도달하지 않는다 (2026-07-28)
+        var cgo = new GameObject("Skill_Canvas", typeof(Canvas), typeof(CanvasScaler), typeof(GraphicRaycaster));
         canvasRoot = cgo;
         var canvas = cgo.GetComponent<Canvas>();
         canvas.renderMode = RenderMode.ScreenSpaceOverlay;
@@ -1337,10 +1378,13 @@ public class SkillSystem : MonoBehaviour
 
         BuildChargeGauge(cgo.transform, bottom + size + 16f);
 
-        string[] keys = { "Q", "E", "Space", "R" };   // 1번펫 / 2번펫 / 구르기 / 3번펫
+        // ★Q · E · R · Space (2026-07-28 사용자). 칸에는 이 글자만 크게 쓴다.
+        string[] keys = { "Q", "E", "R", "Space" };   // 1번펫 / 2번펫 / 3번펫 / 구르기
         icons = new Image[4]; fills = new Image[4]; labels = new Text[4];
         iconImgs = new Image[4]; lockTexts = new Text[4];
         var round = St != null ? St.Round() : null;
+        // 툴팁은 칸 하나마다 만들지 않고 하나를 돌려 쓴다 — 어차피 한 번에 하나만 뜬다
+        var tip = SkillTooltip.Create(cgo.transform, font, St);
         for (int i = 0; i < 4; i++)
         {
             var rt = new GameObject("sk" + keys[i], typeof(RectTransform)).GetComponent<RectTransform>();
@@ -1371,44 +1415,58 @@ public class SkillSystem : MonoBehaviour
             iconImgs[i].raycastTarget = false;
             iconImgs[i].enabled = false;
 
-            // 쿨다운 오버레이 (아래→위로 차오름)
+            // ★쿨다운 — 시계방향으로 차오른다 (2026-07-28 사용자).
+            //   아래→위로 차던 것을 방사형으로 바꿨다. 방사형이 "돌고 있다"로 읽혀
+            //   얼마나 남았는지가 곁눈질로도 들어온다.
             var f = new GameObject("cd", typeof(RectTransform)).GetComponent<RectTransform>();
             f.SetParent(inner, false);
             f.anchorMin = Vector2.zero; f.anchorMax = Vector2.one;
             f.offsetMin = f.offsetMax = Vector2.zero;
             fills[i] = f.gameObject.AddComponent<Image>();
             fills[i].sprite = round; fills[i].type = Image.Type.Filled;
-            fills[i].fillMethod = Image.FillMethod.Vertical;
-            fills[i].fillOrigin = 0;
+            fills[i].fillMethod = Image.FillMethod.Radial360;
+            fills[i].fillOrigin = (int)Image.Origin360.Top;
+            fills[i].fillClockwise = true;
             fills[i].color = new Color(0f, 0f, 0f, 0.55f);
             fills[i].raycastTarget = false;
 
+            // 남은 초 — 쿨이 돌 때만 뜬다
             var t = new GameObject("t", typeof(RectTransform)).AddComponent<Text>();
             t.transform.SetParent(inner, false);
             var trt = t.rectTransform;
             trt.anchorMin = Vector2.zero; trt.anchorMax = Vector2.one;
             trt.offsetMin = trt.offsetMax = Vector2.zero;
-            t.font = font; t.fontSize = 15; t.fontStyle = FontStyle.Bold;
-            t.alignment = TextAnchor.LowerCenter;
-            t.color = St != null ? St.textMain : Color.black;
+            t.font = font; t.fontSize = 17; t.fontStyle = FontStyle.Bold;
+            t.alignment = TextAnchor.MiddleCenter;
+            t.color = Color.white;
             t.supportRichText = true;
             t.raycastTarget = false;
             labels[i] = t;
 
-            // 키 라벨 (좌상단 고정)
+            // ★키 글자 — 칸 한가운데에 크게. 이게 이 칸의 전부다.
             var kt = new GameObject("key", typeof(RectTransform)).AddComponent<Text>();
             kt.transform.SetParent(inner, false);
             var krt = kt.rectTransform;
             krt.anchorMin = Vector2.zero; krt.anchorMax = Vector2.one;
-            krt.offsetMin = new Vector2(4, 0); krt.offsetMax = Vector2.zero;
-            kt.font = font; kt.fontSize = 13; kt.fontStyle = FontStyle.Bold;
-            kt.alignment = TextAnchor.UpperLeft;
+            krt.offsetMin = krt.offsetMax = Vector2.zero;
+            kt.font = font;
+            kt.fontSize = keys[i].Length > 1 ? 17 : 26;   // Space 는 글자가 길어 작게
+            kt.fontStyle = FontStyle.Bold;
+            kt.alignment = TextAnchor.MiddleCenter;
             kt.color = St != null ? St.textMain : Color.black;
             kt.text = keys[i];
             kt.raycastTarget = false;
             lockTexts[i] = kt;
+
+            // 마우스를 올리면 설명이 뜬다 — 칸에서 내린 긴 글자가 여기로 왔다
+            var hov = rt.gameObject.AddComponent<SkillHover>();
+            hov.tip = tip; hov.hud = i; hov.owner = this;
+            bg.raycastTarget = true;   // 안 켜면 마우스를 못 받는다
         }
     }
+
+    /// 툴팁이 물어본다 (SkillHover → 여기)
+    public string TipFor(int hud) => SkillTip(hud);
 
     // ── 차징 게이지 ────────────────────────────────────────────────────
     //
@@ -1512,16 +1570,17 @@ public class SkillSystem : MonoBehaviour
         for (int i = 0; i < 4; i++)
         {
             var info = SkillInfo(i);
-            float f = cdMax[i] > 0f ? cd[i] / cdMax[i] : 0f;
+            float f = cdMax[i] > 0f ? Mathf.Clamp01(cd[i] / cdMax[i]) : 0f;
             fills[i].fillAmount = info.usable ? f : 1f;                       // 못 쓰면 통째로 어둡게
             fills[i].color = info.usable ? new Color(0f, 0f, 0f, 0.55f) : new Color(0f, 0f, 0f, 0.62f);
             icons[i].color = (info.usable && cd[i] <= 0f) ? accent : border;   // 준비되면 금테
 
-            var sp = IconLib.Get(info.icon);
-            iconImgs[i].enabled = sp != null && info.usable;
-            if (sp != null) iconImgs[i].sprite = sp;
-            labels[i].text = sp != null && info.usable ? "" : $"<size=11>{info.label}</size>";
-            labels[i].color = info.usable ? txt : txtDim;
+            // 칸에는 아이콘을 안 띄운다 — 키 글자 하나만 보이는 게 이번 개편의 요점이다.
+            iconImgs[i].enabled = false;
+
+            // 남은 초 — 쿨이 돌 때만. 안 돌 때 0 을 띄우면 키 글자를 가린다.
+            string want = (info.usable && cd[i] > 0.05f) ? cd[i].ToString("F1") : "";
+            if (labels[i].text != want) labels[i].text = want;
             lockTexts[i].color = info.usable ? txt : txtDim;
         }
     }

@@ -82,6 +82,10 @@ public class FollowCam : MonoBehaviour
         // 입력 소유권: 건축 모드에선 휠=건축물 선택, 창이 열려 있으면 카메라 조작 정지
         if (BuildSystem.IsBuilding) sc = 0f;
         if (MenuUI.IsOpen || PetNameUI.IsOpen) { d = Vector2.zero; sc = 0f; }
+        // ★커서가 지도 위면 휠은 지도 확대축소가 가져간다 (2026-07-28).
+        //   안 막으면 미니맵을 확대할 때 카메라가 같이 밀려나 둘 다 못 쓴다.
+        if (MapUI.PointerOverMap) sc = 0f;
+        if (MapUI.IsFullOpen) { d = Vector2.zero; sc = 0f; }
 
         // 목표값 갱신 — 우클릭 드래그는 '좌우(yaw)만' (상하는 줌이 정함)
         yawT += d.x * rotSpeed;

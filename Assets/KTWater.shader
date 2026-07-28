@@ -32,6 +32,12 @@ Shader "Toyrassic/KTWater"
         _FoamWarp ("포말 구불거림", Range(0,1)) = 0.10
         _FoamStr ("포말 세기", Range(0,1)) = 0.80
         _Noise ("잔잔한 얼룩", Range(0,0.3)) = 0.085
+        // ★깊은 물 색 (2026-07-28 사용자) — "물 속 땅은 그림자를 쎄게 받아서 어두워야
+        //   하는데 되게 밝더라". 원인은 _CenterDark 가 **밝기를 곱해 내리기만** 하는 것.
+        //   그러면 탁한 회색이 될 뿐 뿌연 게 안 걷힌다. 수심에 따라 이 색으로 **섞어야**
+        //   깊은 물이 깊어 보인다.
+        _DeepColor ("깊은 물 색", Color) = (0.035, 0.115, 0.155, 1)
+        _DeepStr ("깊은 물 색 섞는 정도", Range(0,1)) = 0.85
     }
     SubShader
     {
@@ -53,7 +59,8 @@ Shader "Toyrassic/KTWater"
             float _FoamWidth,_FoamEdge,_FoamSoft,_FoamWobble,_FoamSpeed,_FoamLines;
             float _FoamNoise,_FoamWarp,_FoamStr,_Noise;
             float _GlintOn,_GlintShape,_GlintSpacing,_GlintAmount,_GlintSpeed,_GlintBright;
-            float4 _Tint,_FoamColor;
+            float4 _Tint,_FoamColor,_DeepColor;
+            float _DeepStr;
 
             struct A { float4 positionOS:POSITION; };
             struct V { float4 positionHCS:SV_POSITION; float3 wpos:TEXCOORD0; float4 spos:TEXCOORD1; };
@@ -94,6 +101,11 @@ Shader "Toyrassic/KTWater"
                 col *= _Bright;
                 col *= _Tint.rgb;                    // ★물색 강제 틴트(흰 텍스처에 파랑 입힘)
                 col *= 1.0 - _CenterDark*dfade;
+                // ★수심에 따라 깊은 물 색으로 섞는다. 밝기만 내리는 위 줄과 달리
+                //   '색 자체'가 바뀌므로 얕은 물(맑음)과 깊은 물(어둡고 짙음)이 갈린다.
+                //   제곱을 쓰는 이유: 얕은 물은 거의 안 건드리고 깊어질수록 급히 짙어져야
+                //   해변에서 심해로 가는 그라데이션이 자연스럽다.
+                col = lerp(col, _DeepColor.rgb, saturate(dfade*dfade) * _DeepStr);
                 col *= 1.0 + (vnoise(wp*0.30 + float2(_Time.y*0.018,0))-0.5)*_Noise*2.0
                            + (vnoise(wp*1.15 - float2(0,_Time.y*0.026))-0.5)*_Noise;
 
