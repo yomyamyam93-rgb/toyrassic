@@ -14,8 +14,48 @@ public class NestSite : MonoBehaviour
     [Tooltip("이 거리 안에 들어오면 웨이브 시작")] public float triggerRadius = 26f;
 
     [Header("물량 웨이브")]
-    [Tooltip("총 몇 마리 쏟아지나")] public int swarmSize = 12;
-    [Tooltip("몇 초 간격으로 나오나")] public float swarmInterval = 0.4f;
+    // ── 습격 규모 — 두 겹으로 온다 (2026-07-28 사용자) ──────────────────
+    //
+    // ★"알 둥지에서도 파파팍 나오고 주변에서도 사사삭 몰려오는 그림".
+    //   한 곳에서 한 마리씩 나오면 줄 서서 오는 것처럼 보이고 압박이 안 된다.
+    //   ①둥지에서 촘촘하게 터져 나오고 ②동시에 벌판 사방에서 달려 들어와야
+    //   "포위당했다" 는 느낌이 난다.
+    [Tooltip("둥지 한가운데서 튀어나오는 수 (중간 등급 기준)")] public int nestBurst = 14;
+    [Tooltip("튀어나오는 간격 (초) — 촘촘해야 파파팍 하고 들린다")] public float burstInterval = 0.07f;
+    [Tooltip("주변 벌판에서 달려오는 수 (중간 등급 기준)")] public int fieldRush = 20;
+    [Tooltip("주변에서 나타나는 반경 (m) — 넓을수록 사방에서 오는 그림")] public float fieldRadius = 16f;
+    [Tooltip("주변에서 나타나는 간격 (초)")] public float rushInterval = 0.16f;
+
+    // ★규모는 알의 등급이 정한다 (2026-07-28 사용자).
+    //   "나오는 펫의 양이 많아야 진짜 싸우는 느낌이 난다 — 알 등급에 따라 다르겠지만".
+    //   좋은 알일수록 지키는 무리가 두껍다 = 보상과 위험이 같이 오른다.
+    //   지도에 뜨는 예상 전투력도 이 값을 그대로 쓰므로 갈지 말지 판단할 수 있다.
+    [Header("알 등급별 규모 배수")]
+    [Tooltip("소형 알")] public float tierScaleS = 0.7f;
+    [Tooltip("중형 알 (기준)")] public float tierScaleM = 1f;
+    [Tooltip("대형 알")] public float tierScaleL = 1.45f;
+    [Tooltip("초대형 알")] public float tierScaleXL = 1.95f;
+
+    float TierScale
+    {
+        get
+        {
+            if (eggEntry == null) return 1f;
+            switch (eggEntry.tier)
+            {
+                case PetScale.Tier.S: return tierScaleS;
+                case PetScale.Tier.L: return tierScaleL;
+                case PetScale.Tier.XL: return tierScaleXL;
+                default: return tierScaleM;
+            }
+        }
+    }
+
+    int NestBurstNow => Mathf.Max(1, Mathf.RoundToInt(nestBurst * TierScale));
+    int FieldRushNow => Mathf.Max(1, Mathf.RoundToInt(fieldRush * TierScale));
+
+    /// 총 습격 규모 — 전멸 판정·전투력 예측이 이 값을 쓴다
+    public int swarmSize => NestBurstNow + FieldRushNow;
     [Tooltip("쫄병 크기 배율")] public float sizeMul = 0.55f;
     [Tooltip("쫄병 체력 배율 (화살 1~2방)")] public float hpMul = 0.3f;
     [Tooltip("쫄병 공격력 배율")] public float dmgMul = 0.5f;
@@ -83,7 +123,7 @@ public class NestSite : MonoBehaviour
     void Respawn()
     {
         triggered = false; cleared = false; bossSpawned = false; warned = false;
-        spawned = 0; spawnT = 0f;
+        spawned = 0; nestSpawned = 0; fieldSpawned = 0; spawnT = 0f; rushT = 0f;
         swarm.Clear();
         if (egg == null)
         {
@@ -135,8 +175,38 @@ public class NestSite : MonoBehaviour
     }
 
     bool triggered, cleared;
-    float spawnT;
-    int spawned;
+    float spawnT, rushT;
+    int spawned, nestSpawned, fieldSpawned;
+
+    /// 쫄병으로 쓸 종 — 작은 놈들 위주 (한 마리는 약하고 수가 압박이다)
+    PetSpawner.Entry PickMinion()
+    {
+        var small = new List<PetSpawner.Entry>();
+        foreach (var e in spawner.entries)
+            if (e.tier == PetScale.Tier.S || e.tier == PetScale.Tier.M) small.Add(e);
+        if (small.Count == 0) small.AddRange(spawner.entries);
+        return small[Random.Range(0, small.Count)];
+    }
+
+    Vector3 Ground(Vector3 p)
+    {
+        var t = Terrain.activeTerrain;
+        if (t != null) p.y = t.SampleHeight(p) + t.transform.position.y;
+        return p;
+    }
+
+    /// 쫄병 한 마리 — 습격조는 스스로 증식하지 않는다 (규모는 둥지가 정한다)
+    PetUnit MakeMinion(PetSpawner.Entry entry, Vector3 at, string suffix)
+    {
+        var g = spawner.Spawn(entry, at, sizeMul, hpMul, dmgMul);
+        if (g == null) return null;
+        var u = g.GetComponent<PetUnit>();
+        if (u == null) return null;
+        u.name = entry.koreanName + suffix;
+        u.packBudget = 0;   // ★여기서 또 불어나면 규모를 둥지가 통제할 수 없다
+        swarm.Add(u);
+        return u;
+    }
     readonly List<PetUnit> swarm = new List<PetUnit>();
     Transform player;
     float bobT;
@@ -180,37 +250,58 @@ public class NestSite : MonoBehaviour
         if (!triggered && d < triggerRadius)
         {
             triggered = true;
+            if (eggEntry == null) eggEntry = PickEggEntry();   // 규모가 알 등급에 달렸다
             spawnT = 0.1f;
-            SquadHUD.Toast("둥지의 야생들이 분노했다!");
-            FollowCam.Shake(0.25f);
+            rushT = 0.35f;   // 주변 조는 살짝 늦게 — 둥지가 먼저 터지고 그다음 포위된다
+            SquadHUD.Toast("둥지의 야생들이 분노했다! 사방에서 몰려온다");
+            FollowCam.Shake(0.35f);
         }
 
-        // 순차 유입 — 두두두두 쏟아짐
-        if (triggered && spawned < swarmSize && spawner != null)
+        // ── ① 둥지에서 파파팍 — 한가운데서 촘촘하게 터져 나온다 ──
+        if (triggered && nestSpawned < NestBurstNow && spawner != null)
         {
             spawnT -= Time.deltaTime;
             if (spawnT <= 0f)
             {
-                spawnT = swarmInterval;
-                var small = new List<PetSpawner.Entry>();
-                foreach (var e in spawner.entries)
-                    if (e.tier == PetScale.Tier.S || e.tier == PetScale.Tier.M) small.Add(e);
-                if (small.Count == 0) small.AddRange(spawner.entries);
-                var entry = small[Random.Range(0, small.Count)];
+                spawnT = burstInterval;
+                var entry = PickMinion();
                 float ang = Random.Range(0f, Mathf.PI * 2f);
-                var landPos = transform.position + new Vector3(Mathf.Cos(ang), 0, Mathf.Sin(ang)) * Random.Range(spawnRing * 0.6f, spawnRing);
-                var terr = Terrain.activeTerrain;
-                if (terr != null) landPos.y = terr.SampleHeight(landPos) + terr.transform.position.y;
-                // 둥지 한가운데서 생성 → 쫀득하게 포물선 점프로 파바박 튀어나옴
-                var g = spawner.Spawn(entry, transform.position, sizeMul, hpMul, dmgMul);
-                if (g != null)
+                var landPos = Ground(transform.position
+                    + new Vector3(Mathf.Cos(ang), 0, Mathf.Sin(ang)) * Random.Range(spawnRing * 0.5f, spawnRing));
+                // 둥지 한가운데서 생성 → 포물선으로 파바박 튀어나옴
+                var u = MakeMinion(entry, transform.position, "(분노)");
+                if (u != null)
                 {
-                    var u = g.GetComponent<PetUnit>();
-                    u.name = entry.koreanName + "(분노)";
                     u.Airborne(0.55f, 3.2f);                      // 체공 — 그동안 행동 불가
-                    g.AddComponent<LeapIn>().Init(transform.position, landPos, 0.55f);
-                    swarm.Add(u);
-                    spawned++;
+                    u.gameObject.AddComponent<LeapIn>().Init(transform.position, landPos, 0.55f);
+                    nestSpawned++; spawned++;
+                }
+            }
+        }
+
+        // ── ② 주변에서 사사삭 — 넓은 벌판 사방에서 달려 들어온다 ──
+        //
+        // ★튀어나오는 게 아니라 '이미 거기 있던 것들이 달려온다' 는 그림이라, 점프를
+        //   안 시킨다. 대신 시야를 넓혀 줘야 한다 — 기본 참전 거리(14m)보다 멀리서
+        //   나타나면 목표를 못 찾고 그 자리에 서 있는다.
+        if (triggered && fieldSpawned < FieldRushNow && spawner != null)
+        {
+            rushT -= Time.deltaTime;
+            if (rushT <= 0f)
+            {
+                rushT = rushInterval;
+                var entry = PickMinion();
+                float ang = Random.Range(0f, Mathf.PI * 2f);
+                float rr = Random.Range(fieldRadius * 0.55f, fieldRadius);
+                var at = Ground(transform.position + new Vector3(Mathf.Cos(ang), 0, Mathf.Sin(ang)) * rr);
+                var u = MakeMinion(entry, at, "(습격)");
+                if (u != null)
+                {
+                    u.joinRange = fieldRadius * 1.6f;      // 여기서 둥지까지 보인다
+                    u.leashRange = fieldRadius * 3f;       // 달려가다 리쉬에 걸려 돌아서지 않게
+                    FX.Burst(at + Vector3.up * 0.2f, new Color(1.4f, 1.2f, 0.7f, 0.8f),
+                             8, 0.04f, 0.5f, 0.35f);       // 사사삭 — 풀숲에서 튀어나온 흔적
+                    fieldSpawned++; spawned++;
                 }
             }
         }
