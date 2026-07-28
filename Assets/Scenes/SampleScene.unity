@@ -417,6 +417,9 @@ MonoBehaviour:
     range: 1
   warnRatio: 2.2
   nestModelScale: 0.4
+  beamHeight: 300
+  beamRadius: 0.6
+  beamAlpha: 0.35
 --- !u!1 &29189847
 GameObject:
   m_ObjectHideFlags: 0
@@ -2819,8 +2822,12 @@ MonoBehaviour:
   accel: 3.4
   brake: 11
   fullDrawSpeed: 0.35
-  waterY: 40
+  wadeDepth: 1.2
   wetFactor: 0.55
+  swimFactor: 0.5
+  swimSink: 0.55
+  swimLimit: 3200
+  swimPushBack: 14
   cam: {fileID: 330585546}
   suppressMove: 0
 --- !u!114 &107336110
@@ -2847,10 +2854,17 @@ MonoBehaviour:
   wetAmp: 0.55
   turnSpeed: 22
   leanMax: 8
+  swimRate: 1.6
+  swimStretch: 0.18
+  swimFlatten: 0.14
+  swimBob: 0.06
+  swimLean: 26
+  swimRoll: 13
   skillHop: 0
   skillYaw: 0
   skillPitch: 0
   skillHoldFacing: 0
+  skillStretch: 0
 --- !u!4 &107336113 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: -7254855884874844228, guid: a9f97bdace247ed49a6a0d1b04c63f3e, type: 3}
@@ -3183,7 +3197,7 @@ MonoBehaviour:
   isAvatar: 1
   isStructure: 0
   summoned: 0
-  sizeM: 0
+  sizeM: 1
   level: 1
   xp: 0
   points: 0
@@ -3216,6 +3230,10 @@ MonoBehaviour:
   sizeAngleStep: 0.5
   sizeReachStep: 0.35
   alerted: 0
+  magnetAfter: 2.2
+  magnetRamp: 0.55
+  magnetSpeed: 62
+  magnetSpin: 720
   owner: {fileID: 0}
   landTime: 0.22
   packBudget: 0
@@ -3501,6 +3519,10 @@ MonoBehaviour:
   throwTrailColor: {r: 2.2, g: 1.7, b: 0.9, a: 1}
   throwOutlineColor: {r: 3.2, g: 2.6, b: 1.2, a: 1}
   throwOutlineWidth: 2.2
+  ghostInterval: 0.028
+  ghostLife: 0.34
+  ghostColor: {r: 0.5, g: 0.85, b: 1.6, a: 1}
+  dashStretch: 0.22
   previewWallColor: {r: 0.5, g: 1.6, b: 2.6, a: 0.85}
   previewWallHeight: 0.5
 --- !u!114 &107336128
@@ -3518,11 +3540,18 @@ MonoBehaviour:
   miniSize: 230
   margin: 16
   viewRadius: 700
+  minRadius: 150
+  maxRadius: 2500
+  zoomStep: 1.18
   fullSize: 0.8
+  fullZoom: 1
+  fullZoomMax: 8
   mapRes: 256
   lowColor: {r: 0.72, g: 0.8, b: 0.45, a: 1}
   highColor: {r: 0.95, g: 0.93, b: 0.85, a: 1}
   cliffColor: {r: 0.55, g: 0.5, b: 0.44, a: 1}
+  waterY: 12
+  waterColor: {r: 0.24, g: 0.52, b: 0.62, a: 1}
   eggColor: {r: 1, g: 0.85, b: 0.25, a: 1}
   incColor: {r: 0.45, g: 0.85, b: 1, a: 1}
   meColor: {r: 1, g: 1, b: 1, a: 1}
@@ -6096,6 +6125,18 @@ PrefabInstance:
       value: tool_bow
       objectReference: {fileID: 0}
     - target: {fileID: 6108485557323672939, guid: 5c270e738435aee4b90db43a962c967c, type: 3}
+      propertyPath: m_LocalScale.x
+      value: 1.0248874
+      objectReference: {fileID: 0}
+    - target: {fileID: 6108485557323672939, guid: 5c270e738435aee4b90db43a962c967c, type: 3}
+      propertyPath: m_LocalScale.y
+      value: 1.0248876
+      objectReference: {fileID: 0}
+    - target: {fileID: 6108485557323672939, guid: 5c270e738435aee4b90db43a962c967c, type: 3}
+      propertyPath: m_LocalScale.z
+      value: 1.0248878
+      objectReference: {fileID: 0}
+    - target: {fileID: 6108485557323672939, guid: 5c270e738435aee4b90db43a962c967c, type: 3}
       propertyPath: m_LocalPosition.x
       value: 0
       objectReference: {fileID: 0}
@@ -6109,31 +6150,31 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 6108485557323672939, guid: 5c270e738435aee4b90db43a962c967c, type: 3}
       propertyPath: m_LocalRotation.w
-      value: 0.9180025
+      value: 0.6569369
       objectReference: {fileID: 0}
     - target: {fileID: 6108485557323672939, guid: 5c270e738435aee4b90db43a962c967c, type: 3}
       propertyPath: m_LocalRotation.x
-      value: 0.0007336533
+      value: 0.0015190501
       objectReference: {fileID: 0}
     - target: {fileID: 6108485557323672939, guid: 5c270e738435aee4b90db43a962c967c, type: 3}
       propertyPath: m_LocalRotation.y
-      value: 0.0019859178
+      value: 0.0014746931
       objectReference: {fileID: 0}
     - target: {fileID: 6108485557323672939, guid: 5c270e738435aee4b90db43a962c967c, type: 3}
       propertyPath: m_LocalRotation.z
-      value: 0.39656907
+      value: 0.7539426
       objectReference: {fileID: 0}
     - target: {fileID: 6108485557323672939, guid: 5c270e738435aee4b90db43a962c967c, type: 3}
       propertyPath: m_LocalEulerAnglesHint.x
-      value: 0
+      value: -0.013
       objectReference: {fileID: 0}
     - target: {fileID: 6108485557323672939, guid: 5c270e738435aee4b90db43a962c967c, type: 3}
       propertyPath: m_LocalEulerAnglesHint.y
-      value: 0
+      value: 0.242
       objectReference: {fileID: 0}
     - target: {fileID: 6108485557323672939, guid: 5c270e738435aee4b90db43a962c967c, type: 3}
       propertyPath: m_LocalEulerAnglesHint.z
-      value: 0
+      value: 97.866
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
@@ -6279,8 +6320,8 @@ Transform:
   m_GameObject: {fileID: 198143050}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 1524, y: 74.746, z: 4346.6}
-  m_LocalScale: {x: 0.22390738, y: 0.22390738, z: 0.22390738}
+  m_LocalPosition: {x: 695.3, y: 58.03406, z: 1510.7}
+  m_LocalScale: {x: 0.5425723, y: 0.5425723, z: 0.5425723}
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 1159468425}
@@ -7675,6 +7716,9 @@ MonoBehaviour:
     range: 1
   warnRatio: 2.2
   nestModelScale: 0.4
+  beamHeight: 300
+  beamRadius: 0.6
+  beamAlpha: 0.35
 --- !u!1 &247194586
 GameObject:
   m_ObjectHideFlags: 0
@@ -8302,6 +8346,9 @@ MonoBehaviour:
     range: 1
   warnRatio: 2.2
   nestModelScale: 0.4
+  beamHeight: 300
+  beamRadius: 0.6
+  beamAlpha: 0.35
 --- !u!1 &267370100
 GameObject:
   m_ObjectHideFlags: 0
@@ -8870,6 +8917,9 @@ MonoBehaviour:
     range: 1
   warnRatio: 2.2
   nestModelScale: 0.4
+  beamHeight: 300
+  beamRadius: 0.6
+  beamAlpha: 0.35
 --- !u!1 &283437114
 GameObject:
   m_ObjectHideFlags: 0
@@ -9809,6 +9859,9 @@ MonoBehaviour:
     range: 1
   warnRatio: 2.2
   nestModelScale: 0.4
+  beamHeight: 300
+  beamRadius: 0.6
+  beamAlpha: 0.35
 --- !u!1 &327370317
 GameObject:
   m_ObjectHideFlags: 0
@@ -9960,7 +10013,7 @@ Camera:
     width: 1
     height: 1
   near clip plane: 0.01
-  far clip plane: 200
+  far clip plane: 1500
   field of view: 80
   orthographic: 0
   orthographic size: 5
@@ -10053,15 +10106,17 @@ MonoBehaviour:
   target: {fileID: 107336113}
   distance: 12
   minDist: 0.22000001
-  maxDist: 12
+  maxDist: 45
   height: 0.4
   yaw: 260.54877
   pitch: 54.499996
-  nearPitch: -5.24
-  farPitch: 54.5
+  minPitch: 2
+  maxPitch: 87
   farLookUp: 0.71900004
   rotSpeed: 0.4
   zoomSpeed: 0.4
+  pitchSpeed: 0.12
+  invertPitch: 0
   rotSmoothTime: 0.03
   zoomSmoothTime: 0.1
   followXZ: 8
@@ -10081,7 +10136,8 @@ MonoBehaviour:
   pixelMode: 0
   targetHeight: 216
   integerScale: 1
-  colorSteps: 0
+  outlineBlack: 1
+  outlineWidthMul: 3
 --- !u!21 &347926330
 Material:
   serializedVersion: 8
@@ -10381,6 +10437,9 @@ MonoBehaviour:
     range: 1
   warnRatio: 2.2
   nestModelScale: 0.4
+  beamHeight: 300
+  beamRadius: 0.6
+  beamAlpha: 0.35
 --- !u!1 &357142637
 GameObject:
   m_ObjectHideFlags: 0
@@ -10735,7 +10794,7 @@ Transform:
   m_GameObject: {fileID: 374053267}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 3000, y: 12, z: 3000}
+  m_LocalPosition: {x: 3000, y: 24.2, z: 3000}
   m_LocalScale: {x: 720.00006, y: 1, z: 720.00006}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -11401,6 +11460,9 @@ MonoBehaviour:
     range: 1
   warnRatio: 2.2
   nestModelScale: 0.4
+  beamHeight: 300
+  beamRadius: 0.6
+  beamAlpha: 0.35
 --- !u!1 &410087039
 GameObject:
   m_ObjectHideFlags: 0
@@ -11705,6 +11767,9 @@ MonoBehaviour:
     range: 1
   warnRatio: 2.2
   nestModelScale: 0.4
+  beamHeight: 300
+  beamRadius: 0.6
+  beamAlpha: 0.35
 --- !u!21 &414173269
 Material:
   serializedVersion: 8
@@ -19671,6 +19736,9 @@ MonoBehaviour:
     range: 1
   warnRatio: 2.2
   nestModelScale: 0.4
+  beamHeight: 300
+  beamRadius: 0.6
+  beamAlpha: 0.35
 --- !u!1 &537795660
 GameObject:
   m_ObjectHideFlags: 0
@@ -20750,6 +20818,9 @@ MonoBehaviour:
     range: 1
   warnRatio: 2.2
   nestModelScale: 0.4
+  beamHeight: 300
+  beamRadius: 0.6
+  beamAlpha: 0.35
 --- !u!1 &570557816
 GameObject:
   m_ObjectHideFlags: 0
@@ -22068,6 +22139,9 @@ MonoBehaviour:
     range: 1
   warnRatio: 2.2
   nestModelScale: 0.4
+  beamHeight: 300
+  beamRadius: 0.6
+  beamAlpha: 0.35
 --- !u!1 &633296858
 GameObject:
   m_ObjectHideFlags: 0
@@ -24202,6 +24276,9 @@ MonoBehaviour:
     range: 1
   warnRatio: 2.2
   nestModelScale: 0.4
+  beamHeight: 300
+  beamRadius: 0.6
+  beamAlpha: 0.35
 --- !u!1 &703493727
 GameObject:
   m_ObjectHideFlags: 0
@@ -24289,6 +24366,9 @@ MonoBehaviour:
     range: 1
   warnRatio: 2.2
   nestModelScale: 0.4
+  beamHeight: 300
+  beamRadius: 0.6
+  beamAlpha: 0.35
 --- !u!1 &712506141
 GameObject:
   m_ObjectHideFlags: 0
@@ -24646,6 +24726,9 @@ MonoBehaviour:
     range: 1
   warnRatio: 2.2
   nestModelScale: 0.4
+  beamHeight: 300
+  beamRadius: 0.6
+  beamAlpha: 0.35
 --- !u!1 &733754384
 GameObject:
   m_ObjectHideFlags: 0
@@ -28490,6 +28573,9 @@ MonoBehaviour:
     range: 1
   warnRatio: 2.2
   nestModelScale: 0.4
+  beamHeight: 300
+  beamRadius: 0.6
+  beamAlpha: 0.35
 --- !u!1 &847094270
 GameObject:
   m_ObjectHideFlags: 0
@@ -30544,6 +30630,9 @@ MonoBehaviour:
     range: 1
   warnRatio: 2.2
   nestModelScale: 0.4
+  beamHeight: 300
+  beamRadius: 0.6
+  beamAlpha: 0.35
 --- !u!1 &912497716
 GameObject:
   m_ObjectHideFlags: 0
@@ -32893,6 +32982,9 @@ MonoBehaviour:
     range: 1
   warnRatio: 2.2
   nestModelScale: 0.4
+  beamHeight: 300
+  beamRadius: 0.6
+  beamAlpha: 0.35
 --- !u!1 &994067640
 GameObject:
   m_ObjectHideFlags: 0
@@ -34643,6 +34735,9 @@ MonoBehaviour:
     range: 1
   warnRatio: 2.2
   nestModelScale: 0.4
+  beamHeight: 300
+  beamRadius: 0.6
+  beamAlpha: 0.35
 --- !u!1 &1060076098
 GameObject:
   m_ObjectHideFlags: 0
@@ -39408,6 +39503,9 @@ MonoBehaviour:
     range: 1
   warnRatio: 2.2
   nestModelScale: 0.4
+  beamHeight: 300
+  beamRadius: 0.6
+  beamAlpha: 0.35
 --- !u!1 &1227570073
 GameObject:
   m_ObjectHideFlags: 0
@@ -40190,6 +40288,9 @@ MonoBehaviour:
     range: 1
   warnRatio: 2.2
   nestModelScale: 0.4
+  beamHeight: 300
+  beamRadius: 0.6
+  beamAlpha: 0.35
 --- !u!1 &1259111415
 GameObject:
   m_ObjectHideFlags: 0
@@ -41409,27 +41510,27 @@ PrefabInstance:
     m_Modifications:
     - target: {fileID: -7254855884874844228, guid: a9f97bdace247ed49a6a0d1b04c63f3e, type: 3}
       propertyPath: m_LocalScale.x
-      value: 0.22390738
+      value: 0.53197485
       objectReference: {fileID: 0}
     - target: {fileID: -7254855884874844228, guid: a9f97bdace247ed49a6a0d1b04c63f3e, type: 3}
       propertyPath: m_LocalScale.y
-      value: 0.22390738
+      value: 0.53197485
       objectReference: {fileID: 0}
     - target: {fileID: -7254855884874844228, guid: a9f97bdace247ed49a6a0d1b04c63f3e, type: 3}
       propertyPath: m_LocalScale.z
-      value: 0.22390738
+      value: 0.53197485
       objectReference: {fileID: 0}
     - target: {fileID: -7254855884874844228, guid: a9f97bdace247ed49a6a0d1b04c63f3e, type: 3}
       propertyPath: m_LocalPosition.x
-      value: 1524
+      value: 695.3
       objectReference: {fileID: 0}
     - target: {fileID: -7254855884874844228, guid: a9f97bdace247ed49a6a0d1b04c63f3e, type: 3}
       propertyPath: m_LocalPosition.y
-      value: 74.746
+      value: 58.03406
       objectReference: {fileID: 0}
     - target: {fileID: -7254855884874844228, guid: a9f97bdace247ed49a6a0d1b04c63f3e, type: 3}
       propertyPath: m_LocalPosition.z
-      value: 4346.6
+      value: 1510.7
       objectReference: {fileID: 0}
     - target: {fileID: -7254855884874844228, guid: a9f97bdace247ed49a6a0d1b04c63f3e, type: 3}
       propertyPath: m_LocalRotation.w
@@ -42196,6 +42297,9 @@ MonoBehaviour:
     range: 1
   warnRatio: 2.2
   nestModelScale: 0.4
+  beamHeight: 300
+  beamRadius: 0.6
+  beamAlpha: 0.35
 --- !u!1 &1358273100
 GameObject:
   m_ObjectHideFlags: 0
@@ -43835,6 +43939,9 @@ MonoBehaviour:
     range: 1
   warnRatio: 2.2
   nestModelScale: 0.4
+  beamHeight: 300
+  beamRadius: 0.6
+  beamAlpha: 0.35
 --- !u!1 &1411887275
 GameObject:
   m_ObjectHideFlags: 0
@@ -44043,6 +44150,9 @@ MonoBehaviour:
     range: 1
   warnRatio: 2.2
   nestModelScale: 0.4
+  beamHeight: 300
+  beamRadius: 0.6
+  beamAlpha: 0.35
 --- !u!1 &1426080286
 GameObject:
   m_ObjectHideFlags: 0
@@ -44431,6 +44541,9 @@ MonoBehaviour:
     range: 1
   warnRatio: 2.2
   nestModelScale: 0.4
+  beamHeight: 300
+  beamRadius: 0.6
+  beamAlpha: 0.35
 --- !u!1 &1445617858
 GameObject:
   m_ObjectHideFlags: 0
@@ -46115,6 +46228,9 @@ MonoBehaviour:
     range: 1
   warnRatio: 2.2
   nestModelScale: 0.4
+  beamHeight: 300
+  beamRadius: 0.6
+  beamAlpha: 0.35
 --- !u!1 &1499861499
 GameObject:
   m_ObjectHideFlags: 0
@@ -46614,7 +46730,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 0
+  m_IsActive: 1
 --- !u!4 &1509133910
 Transform:
   m_ObjectHideFlags: 0
@@ -47078,6 +47194,9 @@ MonoBehaviour:
     range: 1
   warnRatio: 2.2
   nestModelScale: 0.4
+  beamHeight: 300
+  beamRadius: 0.6
+  beamAlpha: 0.35
 --- !u!1 &1540250675
 GameObject:
   m_ObjectHideFlags: 0
@@ -47165,6 +47284,9 @@ MonoBehaviour:
     range: 1
   warnRatio: 2.2
   nestModelScale: 0.4
+  beamHeight: 300
+  beamRadius: 0.6
+  beamAlpha: 0.35
 --- !u!1 &1542384062
 GameObject:
   m_ObjectHideFlags: 0
@@ -50451,6 +50573,9 @@ MonoBehaviour:
     range: 1
   warnRatio: 2.2
   nestModelScale: 0.4
+  beamHeight: 300
+  beamRadius: 0.6
+  beamAlpha: 0.35
 --- !u!1 &1684043301
 GameObject:
   m_ObjectHideFlags: 0
@@ -50718,6 +50843,9 @@ MonoBehaviour:
     range: 1
   warnRatio: 2.2
   nestModelScale: 0.4
+  beamHeight: 300
+  beamRadius: 0.6
+  beamAlpha: 0.35
 --- !u!1 &1701273836
 GameObject:
   m_ObjectHideFlags: 0
@@ -53157,6 +53285,9 @@ MonoBehaviour:
     range: 1
   warnRatio: 2.2
   nestModelScale: 0.4
+  beamHeight: 300
+  beamRadius: 0.6
+  beamAlpha: 0.35
 --- !u!1 &1784858024
 GameObject:
   m_ObjectHideFlags: 0
@@ -53218,6 +53349,96 @@ Transform:
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 2135606205}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &1796591919
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1796591922}
+  - component: {fileID: 1796591921}
+  - component: {fileID: 1796591920}
+  m_Layer: 0
+  m_Name: Ocean (4)
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!23 &1796591920
+MeshRenderer:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1796591919}
+  m_Enabled: 1
+  m_CastShadows: 1
+  m_ReceiveShadows: 1
+  m_DynamicOccludee: 1
+  m_StaticShadowCaster: 0
+  m_MotionVectors: 1
+  m_LightProbeUsage: 1
+  m_ReflectionProbeUsage: 1
+  m_RayTracingMode: 2
+  m_RayTraceProcedural: 0
+  m_RayTracingAccelStructBuildFlagsOverride: 0
+  m_RayTracingAccelStructBuildFlags: 1
+  m_SmallMeshCulling: 1
+  m_ForceMeshLod: -1
+  m_MeshLodSelectionBias: 0
+  m_RenderingLayerMask: 1
+  m_RendererPriority: 0
+  m_Materials:
+  - {fileID: 2100000, guid: fd308ecf90d2a864f882ccb10924ac8e, type: 2}
+  m_StaticBatchInfo:
+    firstSubMesh: 0
+    subMeshCount: 0
+  m_StaticBatchRoot: {fileID: 0}
+  m_ProbeAnchor: {fileID: 0}
+  m_LightProbeVolumeOverride: {fileID: 0}
+  m_ScaleInLightmap: 1
+  m_ReceiveGI: 1
+  m_PreserveUVs: 1
+  m_IgnoreNormalsForChartDetection: 0
+  m_ImportantGI: 0
+  m_StitchLightmapSeams: 1
+  m_SelectedEditorRenderState: 3
+  m_MinimumChartSize: 4
+  m_AutoUVMaxDistance: 0.5
+  m_AutoUVMaxAngle: 89
+  m_LightmapParameters: {fileID: 0}
+  m_GlobalIlluminationMeshLod: 0
+  m_SortingLayerID: 0
+  m_SortingLayer: 0
+  m_SortingOrder: 0
+  m_MaskInteraction: 0
+  m_AdditionalVertexStreams: {fileID: 0}
+--- !u!33 &1796591921
+MeshFilter:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1796591919}
+  m_Mesh: {fileID: 10209, guid: 0000000000000000e000000000000000, type: 0}
+--- !u!4 &1796591922
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1796591919}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 1543, y: 88.8, z: 2122}
+  m_LocalScale: {x: 46.46503, y: 1, z: 42.19011}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &1798571714
 GameObject:
@@ -53517,6 +53738,9 @@ MonoBehaviour:
     range: 1
   warnRatio: 2.2
   nestModelScale: 0.4
+  beamHeight: 300
+  beamRadius: 0.6
+  beamAlpha: 0.35
 --- !u!1 &1814931582
 GameObject:
   m_ObjectHideFlags: 0
@@ -58424,6 +58648,9 @@ MonoBehaviour:
     range: 1
   warnRatio: 2.2
   nestModelScale: 0.4
+  beamHeight: 300
+  beamRadius: 0.6
+  beamAlpha: 0.35
 --- !u!1 &2024124548
 GameObject:
   m_ObjectHideFlags: 0
@@ -61227,6 +61454,7 @@ SceneRoots:
   - {fileID: 1669004923}
   - {fileID: 1223587667}
   - {fileID: 1837583056}
+  - {fileID: 1796591922}
   - {fileID: 653440020}
   - {fileID: 1772158852}
   - {fileID: 1834216758}
