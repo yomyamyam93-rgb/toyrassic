@@ -246,14 +246,17 @@ public class SkillSystem : MonoBehaviour
     ///   진짜 PetUnit 을 날리면 그 동안 목록에 잡혀 전투 판정에 끼어든다).
     System.Collections.IEnumerator ThrowFlight(PetUnit pet, Vector3 spot)
     {
-        // ★출발점은 '머리 위에 올려둔 펫' 자리다 (2026-07-28 사용자).
-        //   거기 있던 것이 그대로 피융 날아가야 눈이 따라간다.
         var head = PetHeadDisplay.I;
+
+        // ★순서가 중요하다 (2026-07-28 사용자) — "머리에서 집어들어 던진다".
+        //   ①젖히는 동안 펫은 아직 머리 위에 있고 → ②홱 채는 순간 사라지며 날아간다.
+        //   처음부터 감추면 '어디서 나온 건지' 가 안 읽힌다.
+        if (blob != null) StartCoroutine(ThrowMotion());
+        yield return new WaitForSeconds(Mathf.Max(0f, throwWindupTime));
+
         var from = head != null ? head.HeadPoint : transform.position + Vector3.up * 0.25f * WorldScale.K;
         if (head != null) head.Hide();
-
-        // 던지는 모션 — 살짝 젖혔다 앞으로 홱
-        if (blob != null) StartCoroutine(ThrowMotion());
+        FX.Burst(from, throwTrailColor, 10, 0.03f, 0.35f, 0.3f);   // 집어드는 순간 반짝
 
         var ghost = MakeFlyingCopy(pet);
         float t = 0f, dur = Mathf.Max(0.05f, throwFlyTime);
@@ -313,37 +316,55 @@ public class SkillSystem : MonoBehaviour
         blob.skillPitch = 0f;
     }
 
-    [Tooltip("날아가는 구체의 크기 (m)")] public float throwBallSize = 0.16f;
-    [Tooltip("구체 색 (밝게 = 블룸으로 빛남)")]
-    public Color throwBallColor = new Color(2.4f, 1.9f, 0.9f, 1f);
+    [Tooltip("날아가는 펫이 얼마나 밝아지나 (1 = 원래 색, 3 = 블룸으로 확 빛남)")]
+    public float throwGlow = 3f;
+    [Tooltip("꼬리 색")] public Color throwTrailColor = new Color(2.2f, 1.7f, 0.9f, 1f);
 
-    /// ★날아가는 동안은 펫 모양이 아니라 **빛나는 구체** 다 (2026-07-28 사용자).
-    ///   펫 메시가 빙글빙글 날아가면 뭐가 뭔지 안 읽힌다. 빛 덩어리로 날아가서
-    ///   착탄에 펑 터지며 펫이 되는 편이 훨씬 잘 읽히고 시원하다. 삐유우우웅 — 팡.
+    /// ★날아가는 것은 **머리 위에 있던 그 펫** 이다 (2026-07-28 사용자).
+    ///   구체로 바꿨더니 "내 펫을 던진다" 는 느낌이 사라졌다. 펫 모양 그대로 날아가되
+    ///   **반짝 빛나게** 한다 — 재질을 복제해 밝기를 올리고 발광을 켠다.
+    ///   컴포넌트는 안 붙인다 (진짜 PetUnit 을 날리면 비행 중에 전투 판정에 끼어든다).
     GameObject MakeFlyingCopy(PetUnit pet)
     {
-        var g = GameObject.CreatePrimitive(PrimitiveType.Sphere);
-        Destroy(g.GetComponent<Collider>());
-        g.name = "throw_" + (pet != null ? pet.name : "pet");
-        g.transform.SetParent(SceneBuckets.Fx);
-        g.transform.localScale = Vector3.one * throwBallSize;
+        if (pet == null) return null;
+        var srcMf = pet.GetComponent<MeshFilter>();
+        var srcMr = pet.GetComponent<MeshRenderer>();
+        if (srcMf == null || srcMr == null) return null;
 
-        var mr = g.GetComponent<MeshRenderer>();
-        mr.material = new Material(Shader.Find("Universal Render Pipeline/Unlit"));
-        mr.material.color = throwBallColor;                 // HDR — 블룸으로 번쩍인다
+        var g = new GameObject("throw_" + pet.name);
+        g.transform.SetParent(SceneBuckets.Fx);
+        g.transform.localScale = pet.transform.lossyScale;
+        g.AddComponent<MeshFilter>().sharedMesh = srcMf.sharedMesh;
+
+        var mr = g.AddComponent<MeshRenderer>();
+        mr.material = Glowing(srcMr.sharedMaterial);
         mr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
 
         // 빛 꼬리 — 어디서 어디로 날아가는지 한눈에 보이게
         var tr = g.AddComponent<TrailRenderer>();
-        tr.time = 0.22f;
-        tr.startWidth = throwBallSize * 0.9f;
-        tr.endWidth = 0f;
+        float w = Mathf.Max(0.02f, pet.body * 0.5f);
+        tr.time = 0.25f;
+        tr.startWidth = w; tr.endWidth = 0f;
         tr.material = new Material(Shader.Find("Universal Render Pipeline/Unlit"));
-        tr.material.color = throwBallColor;
-        tr.startColor = new Color(throwBallColor.r, throwBallColor.g, throwBallColor.b, 0.9f);
-        tr.endColor = new Color(throwBallColor.r, throwBallColor.g, throwBallColor.b, 0f);
+        tr.material.color = throwTrailColor;
+        tr.startColor = new Color(throwTrailColor.r, throwTrailColor.g, throwTrailColor.b, 0.85f);
+        tr.endColor = new Color(throwTrailColor.r, throwTrailColor.g, throwTrailColor.b, 0f);
         tr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
         return g;
+    }
+
+    /// 원래 재질을 복제해 밝기·발광을 올린다 (원본 재질은 안 건드린다)
+    Material Glowing(Material src)
+    {
+        var m = src != null ? new Material(src) : new Material(Shader.Find("Universal Render Pipeline/Lit"));
+        Color baseC = m.HasProperty("_BaseColor") ? m.GetColor("_BaseColor")
+                    : m.HasProperty("_Color") ? m.GetColor("_Color") : Color.white;
+        var lit = baseC * throwGlow; lit.a = baseC.a;
+        if (m.HasProperty("_BaseColor")) m.SetColor("_BaseColor", lit);
+        if (m.HasProperty("_Color")) m.SetColor("_Color", lit);
+        m.EnableKeyword("_EMISSION");
+        m.SetColor("_EmissionColor", baseC * throwGlow * 0.8f);
+        return m;
     }
 
     /// 고른 펫을 본으로 삼아 착탄 지점에 여러 마리를 세운다.

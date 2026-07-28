@@ -15,13 +15,18 @@ public class PetHeadDisplay : MonoBehaviour
 {
     public static PetHeadDisplay I;
 
-    [Tooltip("캐릭터 키 대비 미니 펫 크기 (0.35 = 키의 35%)")]
-    public float sizeRatio = 0.35f;
+    [Tooltip("캐릭터 키 대비 미니 펫 크기 (0.7 = 키의 70%)")]
+    public float sizeRatio = 0.7f;
     [Tooltip("머리 꼭대기에서 얼마나 더 띄우나 (캐릭터 키 대비)")]
     public float gapRatio = 0.12f;
     [Tooltip("둥실둥실 뜨는 높이 (캐릭터 키 대비, 0 = 고정)")]
     public float bobRatio = 0.04f;
     [Tooltip("둥실거리는 빠르기")] public float bobSpeed = 2.2f;
+    // ★펫이 뒤를 보고 있었다 (2026-07-28). 모델의 앞면이 캐릭터 정면과 반대였다.
+    //   빙글빙글 돌리던 것도 뺐다 — 방향이 계속 바뀌면 '어느 쪽을 보는지' 가 안 읽힌다.
+    //   장착물처럼 캐릭터와 같은 곳을 봐야 한 몸으로 보인다.
+    [Tooltip("바라보는 방향 보정 (°) — 뒤를 보고 있으면 180")]
+    public float yawOffset = 180f;
 
     PetUnit shown;          // 지금 올려둔 펫 (바뀌면 다시 만든다)
     Transform mini;
@@ -48,7 +53,8 @@ public class PetHeadDisplay : MonoBehaviour
         float bob = bobRatio > 0f ? Mathf.Sin(Time.time * bobSpeed) * bobRatio * PlayerHeight() : 0f;
         var lp = mini.localPosition;
         mini.localPosition = new Vector3(lp.x, baseLocalY + bob / Mathf.Max(1e-4f, transform.lossyScale.y), lp.z);
-        mini.Rotate(0f, 28f * Time.deltaTime, 0f);   // 아주 천천히 돈다
+        // 캐릭터와 같은 곳을 본다 (부모가 이미 돌아가므로 로컬 회전은 보정값만)
+        mini.localRotation = Quaternion.Euler(0f, yawOffset, 0f);
     }
 
     float PlayerHeight()
@@ -95,6 +101,7 @@ public class PetHeadDisplay : MonoBehaviour
         float topWorld = pr != null ? pr.bounds.max.y - transform.position.y : ph * 0.5f;
         baseLocalY = (topWorld + ph * gapRatio) / parentS;
         root.localPosition = new Vector3(0f, baseLocalY, 0f);
+        root.localRotation = Quaternion.Euler(0f, yawOffset, 0f);
 
         mini = root;
         if (hidden) root.gameObject.SetActive(false);

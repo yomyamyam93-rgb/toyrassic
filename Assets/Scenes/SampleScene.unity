@@ -3458,8 +3458,8 @@ MonoBehaviour:
   throwWindupDeg: 16
   throwWindupTime: 0.1
   throwSnapTime: 0.16
-  throwBallSize: 0.16
-  throwBallColor: {r: 2.4, g: 1.9, b: 0.9, a: 1}
+  throwGlow: 3
+  throwTrailColor: {r: 2.2, g: 1.7, b: 0.9, a: 1}
 --- !u!114 &107336128
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -3495,10 +3495,11 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 35ed4565a5cab4c45b550243f4d32408, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PetHeadDisplay
-  sizeRatio: 0.35
+  sizeRatio: 0.7
   gapRatio: 0.12
   bobRatio: 0.04
   bobSpeed: 2.2
+  yawOffset: 180
 --- !u!1 &110553655
 GameObject:
   m_ObjectHideFlags: 0
