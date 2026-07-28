@@ -415,7 +415,7 @@ public class SkillSystem : MonoBehaviour
             o.SetParent(visual, false);
             o.gameObject.AddComponent<MeshFilter>().sharedMesh = mesh;
             var omr = o.gameObject.AddComponent<MeshRenderer>();
-            omr.material = Glowing(omat.sharedMaterial);
+            omr.material = GlowOutline(omat.sharedMaterial);
             omr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
         }
 
@@ -429,6 +429,24 @@ public class SkillSystem : MonoBehaviour
         tr.endColor = new Color(throwTrailColor.r, throwTrailColor.g, throwTrailColor.b, 0f);
         tr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
         return g;
+    }
+
+    [Tooltip("날아갈 때 테두리 색 (밝게 = 블룸으로 빛남)")]
+    public Color throwOutlineColor = new Color(3.2f, 2.6f, 1.2f, 1f);
+    [Tooltip("날아갈 때 테두리 두께 배수")] public float throwOutlineWidth = 2.2f;
+
+    /// 아웃라인 재질을 복제해 **밝은 색을 직접 넣는다**.
+    /// ★곱하기로는 안 된다 (2026-07-28). 아웃라인 색은 거의 검정(0.16,0.11,0.08)이라
+    ///   몇 배를 곱해도 검정이다 — 그래서 "테두리가 안 빛난다" 였다.
+    ///   두께도 같이 키운다. 얇으면 아무리 밝아도 눈에 안 들어온다.
+    Material GlowOutline(Material src)
+    {
+        var m = src != null ? new Material(src) : new Material(Shader.Find("Universal Render Pipeline/Unlit"));
+        foreach (var n in new[] { "_OutlineColor", "_BaseColor", "_Color", "_EmissionColor" })
+            if (m.HasProperty(n)) m.SetColor(n, throwOutlineColor);
+        foreach (var n in new[] { "_OutlineWidth", "_Outline", "_Width" })
+            if (m.HasProperty(n)) m.SetFloat(n, m.GetFloat(n) * Mathf.Max(0.1f, throwOutlineWidth));
+        return m;
     }
 
     /// 재질을 복제해 밝기·발광을 올린다 (원본 재질은 안 건드린다)
@@ -777,14 +795,24 @@ public class SkillSystem : MonoBehaviour
         w.transform.SetParent(SceneBuckets.Fx);
         w.AddComponent<MeshFilter>().sharedMesh = FX.WallMesh();
         var wmr = w.AddComponent<MeshRenderer>();
+        // ★URP Unlit 은 텍스처 슬롯이 _BaseMap 이다 (2026-07-28).
+        //   mainTexture(=_MainTex) 로 넣었더니 그라데이션이 아예 안 들어가서
+        //   **위로 갈수록 사라지지 않고 통짜 원통으로 보였다.**
+        //   투명 설정도 _Surface 만으로는 런타임에 안 먹는다 — 블렌드를 직접 지정한다.
+        //   더하기 블렌딩(SrcAlpha, One)을 쓴다: 빛이 솟아오르는 표현이라 뒤가 비쳐야 한다.
         var wmat = new Material(Shader.Find("Universal Render Pipeline/Unlit"));
-        wmat.SetFloat("_Surface", 1f);                       // Transparent
-        wmat.SetFloat("_Blend", 0f);                         // Alpha
-        wmat.SetFloat("_ZWrite", 0f);
-        wmat.renderQueue = 3000;
+        wmat.SetOverrideTag("RenderType", "Transparent");
+        wmat.SetFloat("_Surface", 1f);
+        wmat.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.SrcAlpha);
+        wmat.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.One);
+        wmat.SetInt("_ZWrite", 0);
+        wmat.DisableKeyword("_ALPHATEST_ON");
         wmat.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
-        wmat.mainTexture = FX.WallFadeTex();
+        wmat.renderQueue = (int)UnityEngine.Rendering.RenderQueue.Transparent;
+        wmat.SetTexture("_BaseMap", FX.WallFadeTex());
+        wmat.mainTexture = FX.WallFadeTex();                 // 다른 셰이더로 바뀌어도 안전하게
         wmat.SetColor("_BaseColor", previewWallColor);
+        wmat.color = previewWallColor;
         wmr.sharedMaterial = wmat;
         wmr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
         previewWall = w.transform;

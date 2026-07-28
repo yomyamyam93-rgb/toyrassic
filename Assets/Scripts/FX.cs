@@ -98,8 +98,11 @@ public static class FX
         for (int y = 0; y < h; y++)
         {
             float v = y / (float)(h - 1);              // 0 = 바닥, 1 = 꼭대기
-            float a = Mathf.Pow(1f - v, 2.2f);         // 위로 갈수록 빠르게 사라짐
-            if (v < 0.05f) a = Mathf.Max(a, 1f);       // 바닥 접선 — 또렷하게
+            // ★위쪽은 확실히 사라져야 한다. 완만하면 그냥 통짜 원통으로 보인다.
+            //   지수를 4 로 세게 잡아 중간에서 이미 옅어지고 꼭대기는 완전히 투명.
+            float a = Mathf.Pow(1f - v, 4f);
+            if (v < 0.04f) a = 1f;                     // 바닥 접선 — 또렷하게
+            if (v > 0.92f) a = 0f;                     // 꼭대기는 확실히 0 (잘린 테가 안 보이게)
             wallFadeTex.SetPixel(0, y, new Color(1f, 1f, 1f, a));
         }
         wallFadeTex.Apply();
