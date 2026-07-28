@@ -414,6 +414,52 @@ public class PlayerBow : MonoBehaviour
     BlobMotion motion;
     Camera cam;
 
+    // ── 커서 광선을 지형에 맞히기 ─────────────────────────────────────
+    //
+    // ★콜라이더에 안 기댄다. 지형 콜라이더가 꺼져 있거나 레이어가 어긋나면 조용히
+    //   실패해서 "가끔 조준이 안 된다" 가 되기 때문이다. 하이트맵을 직접 훑는다.
+    //   성기게 전진해 지면 아래로 들어간 구간을 찾고, 그 구간만 이분 탐색으로 좁힌다.
+    static Terrain aimTerr;
+
+    static float TerrainYAt(Vector3 p)
+    {
+        if (aimTerr == null) aimTerr = Terrain.activeTerrain;
+        if (aimTerr == null) return float.MinValue;
+        var o = aimTerr.transform.position; var s = aimTerr.terrainData.size;
+        if (p.x < o.x || p.z < o.z || p.x > o.x + s.x || p.z > o.z + s.z) return float.MinValue;
+        return aimTerr.SampleHeight(p) + o.y;
+    }
+
+    static bool RayToGround(Ray ray, out Vector3 hit)
+    {
+        hit = default;
+        const float MaxDist = 600f, Step = 1.5f;
+        float prevT = 0f;
+        bool prevAbove = true;
+        for (float t = Step; t <= MaxDist; t += Step)
+        {
+            var p = ray.GetPoint(t);
+            float g = TerrainYAt(p);
+            if (g == float.MinValue) { prevT = t; continue; }   // 지형 밖 구간은 건너뛴다
+            bool above = p.y > g;
+            if (!above && prevAbove)
+            {   // 이 구간에서 지면을 뚫었다 — 이분 탐색으로 좁힌다
+                float lo = prevT, hi = t;
+                for (int i = 0; i < 14; i++)
+                {
+                    float mid = (lo + hi) * 0.5f;
+                    var m = ray.GetPoint(mid);
+                    float gm = TerrainYAt(m);
+                    if (gm != float.MinValue && m.y <= gm) hi = mid; else lo = mid;
+                }
+                hit = ray.GetPoint(hi);
+                return true;
+            }
+            prevAbove = above; prevT = t;
+        }
+        return false;
+    }
+
     void Start()
     {
         I = this;
@@ -953,11 +999,25 @@ public class PlayerBow : MonoBehaviour
         var shotDef = gearNow == GearKind.Sling ? weapons.Find(x => x.id == "새총") : null;
         float aimH = (stableY == 0f ? transform.position.y : stableY)
                    + (shotDef != null ? shotDef.shotOrigin.y : bowShotOrigin.y) * WorldScale.K;
-        var plane = new Plane(Vector3.up, new Vector3(0f, aimH, 0f));
-        if (plane.Raycast(ray, out float enter))
+        // ★커서를 '평평한 판' 이 아니라 **실제 지형** 에 쏜다 (2026-07-29 사용자).
+        //
+        //   판 방식은 모두가 같은 높이일 때만 맞는다. 지형에 높낮이가 생기자,
+        //   비탈 아래 펫에 커서를 얹으면 그 광선이 플레이어 높이의 판과는 **훨씬 먼 곳**
+        //   에서 만난다. 그래서 조준선이 펫보다 위/뒤를 가리켰고, 맞히려면 눈에 보이는
+        //   것보다 한참 올려 잡아야 했다.
+        //   지형에 직접 쏘면 커서가 얹힌 그 자리가 곧 조준점이다 — 높낮이가 있어도 맞는다.
+        Vector3 aimAt;
+        bool got = RayToGround(ray, out aimAt);
+        if (!got)
+        {   // 하늘을 가리켰을 때만 예전 방식 (지형과 안 만나는 각도)
+            var plane = new Plane(Vector3.up, new Vector3(0f, aimH, 0f));
+            got = plane.Raycast(ray, out float enter);
+            if (got) aimAt = ray.GetPoint(enter);
+            else aimAt = transform.position + transform.forward;
+        }
+        if (got)
         {
-            var hit = ray.GetPoint(enter);
-            var d = hit - transform.position; d.y = 0f;
+            var d = aimAt - transform.position; d.y = 0f;
             // 죽은 구역 = 몸 반경. 커서가 몸에 겹치면 방향이 홱홱 뒤집히므로 직전 값을 유지
             float dead = 1.5f * WorldScale.K;
             if (d.sqrMagnitude > dead * dead)
@@ -1297,8 +1357,20 @@ public class PlayerBow : MonoBehaviour
         if (drawing)
         {
             var from2 = StableFrom();
-            aimLine.SetPosition(0, from2);
-            aimLine.SetPosition(1, from2 + aimDir * aimLen);
+            // ★조준선도 지면을 따라간다 (2026-07-29 사용자).
+            //   판정은 이미 '지면 위 고도' 로 하는데 선만 수평이면, 비탈 아래 펫이
+            //   선 아래에 놓여 "에임은 위에 있는데 맞는다고 빨갛게 뜬다" 가 된다.
+            //   선이 땅을 따라 내려가면 눈에 보이는 그 자리가 곧 맞는 자리다.
+            float alt = from2.y - ArrowProj.GroundAtPublic(from2);
+            const int Seg = 20;
+            if (aimLine.positionCount != Seg + 1) aimLine.positionCount = Seg + 1;
+            for (int i = 0; i <= Seg; i++)
+            {
+                var p = from2 + aimDir * (aimLen * i / Seg);
+                float g = ArrowProj.GroundAtPublic(p);
+                p.y = (g == float.MinValue ? p.y : g + alt);
+                aimLine.SetPosition(i, p);
+            }
             // 조준선 위의 야생은 붉게 — 스킬 조준과 같은 표시
             foreach (var u in PetUnit.All)
             {
@@ -1624,6 +1696,17 @@ public class ArrowProj : MonoBehaviour
         var o = terrCache.transform.position;
         var s = terrCache.terrainData.size;
         if (p.x < o.x || p.z < o.z || p.x > o.x + s.x || p.z > o.z + s.z) return p.y;
+        return terrCache.SampleHeight(p) + o.y;
+    }
+
+    /// 조준선이 지면을 따라가려고 쓴다 (지형 밖이면 float.MinValue)
+    public static float GroundAtPublic(Vector3 p)
+    {
+        if (terrCache == null) terrCache = Terrain.activeTerrain;
+        if (terrCache == null) return float.MinValue;
+        var o = terrCache.transform.position;
+        var s = terrCache.terrainData.size;
+        if (p.x < o.x || p.z < o.z || p.x > o.x + s.x || p.z > o.z + s.z) return float.MinValue;
         return terrCache.SampleHeight(p) + o.y;
     }
 
