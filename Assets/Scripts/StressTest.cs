@@ -33,7 +33,8 @@ public class StressTest : MonoBehaviour
         [Tooltip("화면에 표시할 이름")] public string 이름 = "A";
         [Tooltip("몇 번째 종인가 — 0 늑대 · 1 호랑이 · 2 트리케라 · 3 티라노 · 4 브론토")]
         public int 종 = 0;
-        [Tooltip("몇 마리")] public int 마릿수 = 20;
+        [Tooltip("몇 마리 — ★예산이 0보다 크면 무시된다 (예산 ÷ 인구수로 자동 계산)")]
+        public int 마릿수 = 20;
         [Tooltip("크기를 이걸로 강제한다 (종의 원래 등급을 무시)")]
         public PetScale.Tier 크기 = PetScale.Tier.S;
     }
@@ -43,6 +44,8 @@ public class StressTest : MonoBehaviour
     public Transform player;
 
     [Header("★상성 실험 (F7) — 여기를 고치고 F7 을 다시 누르면 된다")]
+    [Tooltip("양쪽 인구수 예산 — 마릿수를 여기서 자동으로 뽑는다 (예산 ÷ 등급별 인구수).\n0 이면 아래 마릿수를 그대로 쓴다.\n★작은 표본은 판정이 안 된다: 티라노 2마리면 한 마리 죽는 순간 이미 체력 50% 밑이라 '30~50%' 같은 기준이 의미를 잃는다")]
+    public int 예산 = 140;
     public Side 왼쪽 = new Side { 이름 = "자글이", 종 = 0, 마릿수 = 20, 크기 = PetScale.Tier.S };
     public Side 오른쪽 = new Side { 이름 = "티라노", 종 = 3, 마릿수 = 2, 크기 = PetScale.Tier.XL };
 
@@ -121,6 +124,27 @@ public class StressTest : MonoBehaviour
         return n;
     }
 
+    /// ★남은 체력 비율 — **승패만으로는 밸런스를 못 본다** (2026-07-29).
+    ///   상성이 있는 게임의 기준은 "유리한 판에서 확실히 이기고 불리한 판에서 확실히 진다" 다.
+    ///   이기고 체력이 80% 남으면 압승(상대가 아무것도 못 함), 10% 남으면 사실상 무승부다.
+    ///   목표는 **유리한 쪽이 이기고 30~50% 남는 것.**
+    static float HpPctIn(List<PetUnit> list, float startHp)
+    {
+        if (startHp <= 0f) return 0f;
+        float now = 0f;
+        foreach (var u in list) if (u != null && u.hp > 0f) now += u.hp;
+        return now / startHp * 100f;
+    }
+
+    float startHpA, startHpB;
+
+    static float SumMaxHp(List<PetUnit> list)
+    {
+        float s = 0f;
+        foreach (var u in list) if (u != null) s += u.maxHp;
+        return s;
+    }
+
     /// 초시계 — "이 대결이 몇 초에 끝나고 누가 이기나".
     ///
     /// ★왜 시간으로 재나: 초당 피해를 계산으로 비교하면 광역·사거리·이동이 빠진다.
@@ -135,9 +159,15 @@ public class StressTest : MonoBehaviour
         if (a > 0 && b > 0) return;
 
         trialRunning = false;
+        float pa = HpPctIn(sideA, startHpA), pb = HpPctIn(sideB, startHpB);
+        // 판정 기준: 유리한 쪽이 이기고 30~50% 남으면 적당. 80%↑ 압승 · 10%↓ 사실상 무승부
+        string Grade(float p) => p >= 80f ? "압승 (너무 셈)"
+                               : p >= 30f ? "적당 ★"
+                               : p >= 10f ? "신승"
+                                          : "사실상 무승부 (상성이 없는 셈)";
         trialResult = a == 0 && b == 0 ? $"무승부 — {trialT:F1}초"
-                    : a > 0 ? $"★ {왼쪽.이름} 승 — {trialT:F1}초 (남은 {a}마리)"
-                            : $"★ {오른쪽.이름} 승 — {trialT:F1}초 (남은 {b}마리)";
+            : a > 0 ? $"★ {왼쪽.이름} 승 — {trialT:F1}초\n남은 {a}마리 · 체력 {pa:F0}%  → {Grade(pa)}"
+                    : $"★ {오른쪽.이름} 승 — {trialT:F1}초\n남은 {b}마리 · 체력 {pb:F0}%  → {Grade(pb)}";
     }
 
     // ── 입력 ────────────────────────────────────────────────
@@ -200,6 +230,7 @@ public class StressTest : MonoBehaviour
                   PetUnit.Team.Player, 왼쪽, 1f, sideA);
         SpawnSide(center + fwd * (armyGap * 0.5f), right, -fwd,
                   PetUnit.Team.Wild, 오른쪽, 1f, sideB);
+        startHpA = SumMaxHp(sideA); startHpB = SumMaxHp(sideB);
     }
 
     /// F8 — 오른쪽 편성만 야생으로 세운다. 플레이어 혼자 몇 초에 잡나.
@@ -213,6 +244,7 @@ public class StressTest : MonoBehaviour
         Axes(out var fwd, out var right, out _);
         SpawnSide(player.position + fwd * distFromPlayer, right, fwd,
                   PetUnit.Team.Wild, 오른쪽, 1f, sideB);
+        startHpA = 0f; startHpB = SumMaxHp(sideB);
         // 왼쪽(sideA)은 비어 있다 → 오른쪽이 전멸해야 끝난다
     }
 
@@ -228,6 +260,16 @@ public class StressTest : MonoBehaviour
     }
 
     bool Ready() => spawner != null && spawner.entries.Count > 0 && player != null;
+
+    /// 이 편이 몇 마리인가 — 예산이 있으면 **인구수로 나눠 자동으로** 정한다.
+    ///
+    /// ★왜 (2026-07-29 사용자: "마릿수가 2마리라 어떤 기준이라는 건지 모르겠네"):
+    ///   티라노 2마리로는 판정이 안 된다. 한 마리 죽는 순간 이미 체력 50% 밑이라
+    ///   "30~50%" 같은 기준이 반올림에 휘둘린다. 기준을 바꿀 게 아니라 **표본을 키워야** 한다.
+    ///   예산 140 이면 자글이 140 vs 티라노 10 — 한 마리 죽어도 10% 라 눈금이 촘촘하다.
+    ///   덤으로 "공평한 판" 을 손으로 계산할 필요가 없어진다.
+    int CountOf(Side s) =>
+        예산 > 0 ? Mathf.Max(1, 예산 / PetSpawner.SupplyOf(s.크기)) : s.마릿수;
 
     // ── 범인 찾기 스위치 (F1·F2) ─────────────────────────────
     //
@@ -292,7 +334,7 @@ public class StressTest : MonoBehaviour
     void SpawnSide(Vector3 origin, Vector3 right, Vector3 depth, PetUnit.Team team,
                    Side side, float hpMul, List<PetUnit> collect)
     {
-        int count = Mathf.Max(0, side.마릿수);
+        int count = Mathf.Max(0, CountOf(side));
         int cols = Mathf.Max(1, Mathf.CeilToInt(Mathf.Sqrt(count)));
         var terr = Terrain.activeTerrain;
 
@@ -366,7 +408,8 @@ public class StressTest : MonoBehaviour
         }
 
         string clock = trialRunning
-            ? $"\n\n[{왼쪽.이름} {AliveIn(sideA)} vs {오른쪽.이름} {AliveIn(sideB)}]  {trialT:F1}초 …"
+            ? $"\n\n[{왼쪽.이름} {AliveIn(sideA)}마리 {HpPctIn(sideA, startHpA):F0}%"
+              + $"  vs  {오른쪽.이름} {AliveIn(sideB)}마리 {HpPctIn(sideB, startHpB):F0}%]  {trialT:F1}초 …"
             : trialResult != "" ? $"\n\n{trialResult}" : "";
 
         var box = new GUIStyle(GUI.skin.box) { alignment = TextAnchor.UpperLeft, fontSize = 20, padding = new RectOffset(14, 14, 12, 12) };
@@ -376,8 +419,9 @@ public class StressTest : MonoBehaviour
                   $"펫   내편 {mine}  ·  야생 {wild}   합 {mine + wild}\n" +
                   $"이펙트 오브젝트  {fxCount}개" +
                   clock + "\n\n" +
-                  $"F7  {왼쪽.이름}{왼쪽.마릿수} vs {오른쪽.이름}{오른쪽.마릿수}\n" +
-                  $"F8  {오른쪽.이름}{오른쪽.마릿수}만 (나 혼자 잡기)\n" +
+                  $"F7  {왼쪽.이름}{CountOf(왼쪽)} vs {오른쪽.이름}{CountOf(오른쪽)}" +
+                  (예산 > 0 ? $"  (예산 {예산} 씩)\n" : "\n") +
+                  $"F8  {오른쪽.이름}{CountOf(오른쪽)}만 (나 혼자 잡기)\n" +
                   $"F9  {perSide}대{perSide} 무작위 (프레임용)\n" +
                   $"F10 전부 지우기 · F11 측정 초기화\n" +
                   $"F1 체력바 {(PetUnit.DebugNoBars ? "끔 ●" : "켬")}  ·  F2 테두리 {(outlineOff ? "끔 ●" : "켬")}\n" +

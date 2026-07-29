@@ -90,6 +90,66 @@ public class PetMotion : MonoBehaviour
     /// 공격 순간 호출
     public void Punch() { punch = 1f; }
 
+    // ── 공격 모션 — 3막 (2026-07-29 사용자 "싸우는 느낌이 하나도 안 나는데") ──────
+    //
+    // ★전엔 Punch() 하나였다. 예비동작 없이 곧바로 한 번 부풀었다 꺼지는 **한 덩어리**라,
+    //   뇌가 "몸이 잠깐 커졌다" 로만 읽는다. 힘이 실렸다고 느끼려면 세 막이 필요하다:
+    //     ① 예비 — **가려는 방향의 반대로** 먼저 움직인다 (물기 전에 목을 당긴다)
+    //     ② 본동작 — 가장 짧게. 목표를 **지나쳐서**(오버슈트) 간다
+    //     ③ 여운 — 지나친 만큼 되돌아오며 살짝 반대로 튀고 잦아든다
+    //   "빠르다" 는 절대 속도가 아니라 **예비와의 대비**에서 나온다.
+    //
+    // 방식마다 막의 길이와 쓰는 채널이 다르다 — 물기는 앞으로 뻗고, 내려찍기는 들었다 찍고,
+    // 휩쓸기는 몸을 틀었다 돌린다. 그래야 눈으로 "무슨 공격인지" 읽힌다.
+    float atkT, atkDur;
+    PetUnit.Pattern atkKind;
+    float lastAtkYaw;      // 지난 프레임에 더한 좌우 회전 — 빼 줘야 누적되지 않는다
+
+    /// dur 초에 걸쳐 한 번 휘두른다. PetUnit 이 공격을 시작할 때 부른다.
+    public void Attack(PetUnit.Pattern kind, float dur)
+    {
+        atkKind = kind;
+        atkDur = Mathf.Max(0.12f, dur);
+        atkT = atkDur;
+    }
+
+    /// 지금 휘두르는 중인가 (0=아님, 1=시작 직후)
+    public float AttackProgress => atkDur <= 0f ? 0f : 1f - Mathf.Clamp01(atkT / atkDur);
+
+    /// 3막 곡선 — 예비 -1 → 오버슈트 +1.25 → 0. 안 휘두르면 0.
+    float SwingValue()
+    {
+        if (atkT <= 0f) return 0f;
+        float k = AttackProgress;
+
+        // 막 경계 — 무거운 동작일수록 예비가 길고 본동작이 짧다
+        float a1, a2;
+        switch (atkKind)
+        {
+            case PetUnit.Pattern.Charge: a1 = 0.40f; a2 = 0.50f; break;   // 돌진 — 잔뜩 웅크렸다 튄다
+            case PetUnit.Pattern.Slam:   a1 = 0.45f; a2 = 0.55f; break;   // 내려찍기 — 제일 묵직
+            case PetUnit.Pattern.Sweep:  a1 = 0.35f; a2 = 0.48f; break;
+            default:                     a1 = 0.25f; a2 = 0.45f; break;   // 물기 — 잽싸다
+        }
+
+        if (k < a1)
+        {   // ① 예비 — 반대로. 빨리 갔다 정점에서 뜸 (Ease Out)
+            float u = k / a1;
+            return -(1f - (1f - u) * (1f - u));
+        }
+        if (k < a2)
+        {   // ② 본동작 — 정점에서 터져 나간다 (Ease In). 목표를 지나친다
+            float u = (k - a1) / (a2 - a1);
+            return Mathf.Lerp(-1f, 1.25f, u * u);
+        }
+        // ③ 여운 — 되돌아오며 살짝 반대로 튀고 잦아든다
+        {
+            float u = (k - a2) / (1f - a2);
+            float sm = u * u * (3f - 2f * u);
+            return 1.25f * (1f - sm) - 0.18f * Mathf.Sin(sm * Mathf.PI);
+        }
+    }
+
     /// 발광 즉시 끄기 — 죽을 때 붉은/흰 발광이 남지 않게 (모션 정지 전에 호출)
     public void ClearEmission()
     {
@@ -106,9 +166,35 @@ public class PetMotion : MonoBehaviour
         float dt = Time.deltaTime;
         t += dt * Mathf.Lerp(BreathRate, StepRate, speed01);
 
+        // ── 공격 3막 — 방식마다 쓰는 채널이 다르다 ──────────────────────
+        //   (BobY 보다 먼저 계산한다. 아래에서 높이에 더해야 하므로)
+        atkT = Mathf.MoveTowards(atkT, 0f, dt);
+        float sw = SwingValue();
+        float atkSy = 0f, atkLean = 0f, atkYaw = 0f, atkHopY = 0f;
+        if (atkT > 0f)
+        {
+            switch (atkKind)
+            {
+                case PetUnit.Pattern.Bite:      // 목을 당겼다 앞으로 콱 — 뻗으며 몸이 늘어난다
+                    atkLean = sw * 26f; atkSy = sw * 0.10f;
+                    break;
+                case PetUnit.Pattern.Charge:    // 웅크렸다 낮게 튀어나간다
+                    atkLean = sw * 34f; atkHopY = Mathf.Max(0f, -sw) * 0.10f * bodyH;
+                    break;
+                case PetUnit.Pattern.Slam:      // 들었다 찍는다 — 예비에 뜨고 타격에 눌린다
+                    atkHopY = Mathf.Max(0f, -sw) * 0.50f * bodyH;
+                    atkSy = -Mathf.Max(0f, sw) * 0.22f;
+                    atkLean = sw * 10f;
+                    break;
+                case PetUnit.Pattern.Sweep:     // 몸을 반대로 틀었다 확 돌린다
+                    atkYaw = sw * 55f; atkLean = sw * 8f;
+                    break;
+            }
+        }
+
         // ── 통통 홉: 공중에서 쭉 나아가고 착지 순간 멈칫 — 미끄럼이 아니라 '깡총' ──
         float step = Mathf.Abs(Mathf.Sin(t * Mathf.PI));                // 0(접지)→1(공중)→0
-        BobY = step * hopAmp * bodyH * speed01;
+        BobY = step * hopAmp * bodyH * speed01 + atkHopY;
         // ★평균이 정확히 1이 되게 정규화 (raw 평균 = 0.25+1.5×(2/π) = 1.2049)
         //   → 실효 속도 = MoveSpd 그대로 유지하면서 박자만 통통
         float raw = (0.12f + step * 1.75f) / 1.2341f;   // 착지 땐 거의 멈추고 공중에서 쭉 — 대비 강하게
@@ -124,7 +210,7 @@ public class PetMotion : MonoBehaviour
         float walkSquish = (step - 0.5f) * 0.16f * speed01;   // 공중=쭉 늘고 착지=콩 눌림 (홉 동기)
         float breathe = breathAmp * Mathf.Sin(t * Mathf.PI * 2f) * (1f - speed01);
         float sy = 1f + walkSquish + breathe + pk * punchScale - fl * 0.16f
-                 - Mathf.Clamp01(charge) * 0.22f;                                 // 장전: 쭈우욱 눌림
+                 - Mathf.Clamp01(charge) * 0.22f + atkSy;                         // 장전: 쭈우욱 눌림
         charge = Mathf.MoveTowards(charge, 0f, 3.5f * dt);                        // 안 넣으면 스르륵 풀림
         float sxz = 1f / Mathf.Sqrt(Mathf.Max(0.3f, sy));
         transform.localScale = new Vector3(baseScale.x * sxz, baseScale.y * sy, baseScale.z * sxz);
@@ -134,9 +220,13 @@ public class PetMotion : MonoBehaviour
         float nod = Mathf.Sin(t * Mathf.PI * 2f) * 2.5f * speed01;               // 걸음 박자 끄덕임
         // 장전: 뒷다리에 체중 싣듯 코가 들림 → 발사 때 pk 가 앞으로 콱 눌러줌
         float chg = Mathf.Clamp01(charge);
-        float lean = leanDeg * speed01 + nod + pk * 6f - fl * 4f - chg * 9f;
+        float lean = leanDeg * speed01 + nod + pk * 6f - fl * 4f - chg * 9f + atkLean;
         var e = transform.localEulerAngles;
-        transform.localRotation = Quaternion.Euler(lean, e.y, waddle);
+        // ★좌우 회전은 PetUnit(Face)이 정한다. 여기서 더한 값은 다음 프레임에 다시 읽히므로
+        //   **지난 프레임에 더한 만큼 빼고** 새로 더한다 — 안 그러면 계속 누적돼 빙글빙글 돈다.
+        float baseYaw = e.y - lastAtkYaw;
+        lastAtkYaw = atkYaw;
+        transform.localRotation = Quaternion.Euler(lean, baseYaw + atkYaw, waddle);
 
         // ── 버텍스 벤드: 장전 = 활처럼 몸 말기 / 발사 = 활짝 펴짐 / 걸음 = 살짝 비틀비틀 ──
         if (bendRends != null && bmpb != null)

@@ -495,7 +495,12 @@ public class PetUnit : MonoBehaviour
     ///   여기의 합(bodyR+bodyR)이 밀어내는 간격((bodyR+bodyR)×separateMul, 배수 1 미만)
     ///   보다 항상 크므로, 아래 「사거리가 간격보다 넉넉하다」 규칙은 그대로 지켜진다.
     float AtkRangeTo(PetUnit t) =>
-        reach * rangeMul * SizeReachMul + bodyR + (t != null ? t.bodyR : 0f);
+        reach * rangeMul * PatternReach + bodyR + (t != null ? t.bodyR : 0f);
+
+    /// 몸이 맞닿는 거리 — **이동은 이걸 목표로 한다** (근접은 붙어서 팬다).
+    /// 1.05 는 밀어내기가 시작되기 직전에 서라는 뜻 (딱 같은 값이면 떤다).
+    float ContactR(PetUnit t) =>
+        (bodyR + (t != null ? t.bodyR : 0f)) * separateMul * 1.05f;
 
     float AtkPeriodNow => atkPeriod / Mathf.Max(0.1f, atkSpeedMul);
 
@@ -509,15 +514,60 @@ public class PetUnit : MonoBehaviour
     //   S(1) 1마리 · M(2) 2 · L(3) 3 · XL(4) 4. 부채꼴 각도와 팔 길이도 같이 커진다.
     //   → 인구 효율은 같아지고 성격이 갈린다: 큰 놈은 **뭉친 적**에 강하고
     //     흩어진 적에겐 약하다. 작은 놈은 그 반대. (스웜 ↔ 타이탄 상호 천적)
-    [Tooltip("때리는 부채꼴 각도 (°) — 등급이 오를수록 넓어진다")] public float atkAngle = 60f;
-    [Tooltip("등급 한 칸당 각도 배수 증가")] public float sizeAngleStep = 0.5f;
-    [Tooltip("등급 한 칸당 팔 길이 배수 증가")] public float sizeReachStep = 0.35f;
+    // ── ★영역은 '공격 방식' 이 정한다 (2026-07-29 사용자) ────────────────
+    //
+    //   "범위는 등급에 따라 달라지는 게 아니라, 때리는 방식에 따라 달라야 한다.
+    //    내리찍기, 범위물기 등등 기본공격의 방식에 따라 달라야 하고,
+    //    데미지로 밸런스를 맞추는 게 맞아 보인다."
+    //
+    //   전엔 등급이 각도·팔길이를 키웠다. 그러면 **큰 놈은 무조건 광역**이 되어
+    //   크기가 곧 강함 순서가 된다(오늘 내내 문제였던 그것). 방식에서 나오면
+    //   작은 놈도 광역일 수 있고, 큰 놈도 단일 저격일 수 있다.
+    //
+    //   크기는 여전히 영향을 준다 — 다만 **몸 굵기(bodyR)로만**. 큰 놈은 몸이 커서
+    //   닿는 거리가 길다. 그건 물리지, 광역 보너스가 아니다.
+    //
+    //   밸런스는 **데미지**로 잡는다: 넓게 때리는 방식일수록 한 대가 약하다.
+    [Tooltip("때리는 부채꼴 각도 (°) — 물기 기준. 방식별 배수가 여기 곱해진다")]
+    public float atkAngle = 55f;
 
-    int SizeTier => Mathf.Clamp(supply, 1, 4);
-    float SizeReachMul => 1f + (SizeTier - 1) * sizeReachStep;
-    float AtkSpread => Mathf.Min(360f, atkAngle * (1f + (SizeTier - 1) * sizeAngleStep));
-    /// 한 번에 때릴 수 있는 최대 마릿수 = 등급. 인구를 먹는 만큼 값을 한다
-    int MaxHits => SizeTier;
+    /// 방식별 부채꼴 각도 (°)
+    float PatternAngle =>
+        pattern == Pattern.Slam ? 360f      // 내려찍기 — 사방. 둘러싸이면 전부 쓸린다
+      : pattern == Pattern.Sweep ? 200f     // 휩쓸기 — 앞을 넓게
+      : pattern == Pattern.Charge ? 40f     // 돌진 — 좁고 길게 파고든다
+      : atkAngle;                           // 물기 — 좁다
+
+    /// 방식별 팔 길이 배수
+    float PatternReach =>
+        pattern == Pattern.Slam ? 0.8f      // 내려찍기 — 사방이지만 짧다
+      : pattern == Pattern.Sweep ? 1.25f
+      : pattern == Pattern.Charge ? 1.8f    // 돌진 — 제일 길다
+      : 1f;
+
+    /// 방식별 한 대 피해 배수 — **넓게 때릴수록 한 대가 약하다.** 여기서 균형을 잡는다.
+    float PatternDmg =>
+        pattern == Pattern.Slam ? 0.55f
+      : pattern == Pattern.Sweep ? 0.5f
+      : pattern == Pattern.Charge ? 1.6f    // 좁고 길다 — 대신 한 방이 무겁다
+      : 1f;
+
+    // ★크기 등급과 인구수를 뗀다 (2026-07-29).
+    //
+    //   전엔 SizeTier 를 supply(인구수)에서 뽑았다. 그래서 "자글이를 28마리 나오게"
+    //   하려고 인구수만 만지면 **공격 범위·타격 수·팔 길이가 딸려서 바뀌었다.**
+    //   마릿수를 조절할 때마다 전투력이 같이 흔들려 밸런스를 맞출 수가 없다.
+    //
+    //   지금부터:
+    //     · tier(크기 등급) → 크기 · 부채꼴 · 팔 길이 · 한 번에 때리는 수
+    //     · supply(인구수)  → 몇 마리 나오나. **오직 그것만**
+    [Tooltip("크기 등급 — 크기·공격범위·타격수가 여기서 나온다 (인구수와 별개)")]
+    public PetScale.Tier tier = PetScale.Tier.M;
+
+    int SizeTier => (int)tier + 1;   // S=1 · M=2 · L=3 · XL=4
+    float AtkSpread => Mathf.Min(360f, PatternAngle);
+    // ★타격 수 상한은 없앴다 (2026-07-29). 부채꼴 안이면 전부 맞는다 — Strike 참고.
+    //   광역의 세기는 **면적**(AtkSpread × 팔 길이)으로만 조절한다.
 
     /// ★어그로 규칙 (2026-07-28 재설계)
     ///
@@ -742,35 +792,79 @@ public class PetUnit : MonoBehaviour
 
     /// 한 번 휘두른다 — 앞쪽 부채꼴 안의 적을 등급 수만큼 때린다.
     /// (목표는 무조건 포함된다 — 겨눈 놈을 놓치면 이상하다)
+    // ── 휘두르기 — 예비동작이 끝나는 순간에 맞는다 (2026-07-29) ──────────────
+    //
+    // ★전엔 공격 쿨이 돌면 그 프레임에 **즉시** 피가 닳았다. 모션은 그때부터 시작하니
+    //   "맞고 나서 무는" 순서가 되어 인과가 안 보였다 — 사용자: "싸우는 느낌이 하나도 안 난다".
+    //   이제 ①예비(목을 당김) → ②타격 판정 → ③여운 순서로 간다.
+    //   판정은 **본동작이 터지는 순간**(모션의 오버슈트 직전)에 넣는다.
+    float swingT;          // 타격까지 남은 시간
+    bool swingPending;
+
+    /// 예비동작 시간 — 공격이 빠른 놈은 짧게. 공격 주기의 35% 를 넘지 않는다.
+    float WindUp => Mathf.Clamp(AtkPeriodNow * 0.35f, 0.07f, 0.45f);
+
+    void BeginSwing()
+    {
+        atkCd = AtkPeriodNow;
+        swingT = WindUp;
+        swingPending = true;
+        // 모션은 예비까지 포함한 한 번의 휘두르기 — 판정 시점이 본동작과 맞는다
+        if (motion != null) motion.Attack(pattern, WindUp / 0.35f);
+    }
+
+    /// 예비가 끝났으면 실제로 때린다 — Update 에서 매 프레임 확인한다.
+    void SwingStep()
+    {
+        if (!swingPending) return;
+        swingT -= Time.deltaTime;
+        if (swingT > 0f) return;
+        swingPending = false;
+        Strike();
+    }
+
     void Strike()
     {
         if (target == null || !target.Alive) return;
-        if (motion != null) motion.Punch();
 
-        float dmg = str * dmgPerStr;
-        int left = MaxHits;
+        // ★밸런스는 데미지로 잡는다 (2026-07-29 사용자) — 넓게 때릴수록 한 대가 약하다
+        float dmg = str * dmgPerStr * PatternDmg;
+        Hit(target);
 
-        Hit(target); left--;
+        // ★부채꼴 안이면 **전부** 맞는다 — 마릿수 상한을 두지 않는다 (2026-07-29 사용자:
+        //   "광역은 말 그대로 영역에 있으면 맞아야 하는 거고, 면적을 활용해서 조절해야
+        //   하는 거 아닌가"). 상한은 땜질이었다. 큰 놈이 센 이유는 **부채꼴이 넓고
+        //   팔이 길어서**지, '몇 마리까지'라는 규칙 때문이 아니다.
+        //
+        // ★영역은 등급에서만 나온다 — 판마다 변하지 않는다.
+        //   각도·팔 길이는 **공격 방식**이 정한다 (PatternAngle · PatternReach).
+        //   밸런스는 방식별 피해 배수(PatternDmg)로 잡는다 — 넓을수록 한 대가 약하다.
+        var f = transform.forward; f.y = 0f;
+        float half = AtkSpread * 0.5f;
 
-        if (left > 0)
-        {
-            var f = transform.forward; f.y = 0f;
-            float half = AtkSpread * 0.5f;
-            foreach (var u in All)
+        // 주변 칸만 훑는다 (전 개체를 훑으면 떼싸움에서 이것만으로 무너진다)
+        BuildCells();
+        float scan = reach * rangeMul * PatternReach + bodyR + maxBodySeen;
+        int mx = CellOf(transform.position.x), mz = CellOf(transform.position.z);
+        int rad = Mathf.Clamp(Mathf.CeilToInt(scan / Mathf.Max(0.5f, cellSize)), 0, 8);
+        for (int dx = -rad; dx <= rad; dx++)
+            for (int dz = -rad; dz <= rad; dz++)
             {
-                if (left <= 0) break;
-                // ★곁다리 타격에 주인공은 안 넣는다 — 부대를 벽으로 세워도 뒤에서
-                //   광역에 쓸려 나가면 어그로 설계(펫이 앞을 막는다)가 무의미해진다.
-                //   겨눈 대상이 주인공일 때는 위에서 이미 맞는다.
-                if (u == null || u == target || !u.Alive || u.team == team || u.isAvatar) continue;
-                float d = Dist(u.transform.position);
-                if (d > AtkRangeTo(u)) continue;
-                var to = u.transform.position - transform.position; to.y = 0f;
-                if (to.sqrMagnitude > 1e-4f && f.sqrMagnitude > 1e-4f
-                    && Vector3.Angle(f, to) > half) continue;   // 부채꼴 밖
-                Hit(u); left--;
+                if (!cells.TryGetValue(CellKey(mx + dx, mz + dz), out var near)) continue;
+                foreach (var u in near)
+                {
+                    // ★곁다리 타격에 주인공은 안 넣는다 — 부대를 벽으로 세워도 뒤에서
+                    //   광역에 쓸려 나가면 어그로 설계(펫이 앞을 막는다)가 무의미해진다.
+                    //   겨눈 대상이 주인공일 때는 위에서 이미 맞는다.
+                    if (u == null || u == target || !u.Alive || u.team == team || u.isAvatar) continue;
+                    float d = Dist(u.transform.position);
+                    if (d > AtkRangeTo(u)) continue;
+                    var to = u.transform.position - transform.position; to.y = 0f;
+                    if (to.sqrMagnitude > 1e-4f && f.sqrMagnitude > 1e-4f
+                        && Vector3.Angle(f, to) > half) continue;   // 부채꼴 밖
+                    Hit(u);
+                }
             }
-        }
 
         void Hit(PetUnit v)
         {
@@ -876,36 +970,40 @@ public class PetUnit : MonoBehaviour
         }
 
         atkCd -= Time.deltaTime;
+        SwingStep();      // 예비가 끝났으면 여기서 맞는다
 
         if (target != null && target.Alive)
         {
             float d = Dist(target.transform.position);
             var toT = target.transform.position - transform.position;
-            float atkR = AtkRangeTo(target);
+            // ★'가는 거리' 와 '때리는 영역' 을 나눈다.
+            //   · 근접은 **몸이 닿을 때까지** 간다 (저글링처럼 붙어서 팬다)
+            //   · 때리는 건 방식이 정한 영역 — 내려찍기는 사방, 돌진은 좁고 길게
+            //   멈춘 뒤에 때리는 순서는 스타2와 같다. 그건 안 바꾼다.
+            float areaR = AtkRangeTo(target);
+            float ring = closeToContact ? ContactR(target) : areaR;
 
-            // ★근접의 사거리는 '몸이 닿는 거리' 다 (2026-07-29 사용자 —
-            //   "저글링은 딱 붙어서 패거든" / "스타크래프트는 멈춘 뒤에 때리는데말이야").
-            //
-            //   멈추고 나서 때리는 순서는 스타2와 같다 — 그건 안 바꾼다.
-            //   문제는 **근접인데도 사거리가 팔 길이만큼 부풀어 있던 것**이었다.
-            //   그래서 허공에 서서 때렸다. 저글링이 붙어서 무는 건 저글링의 사거리가
-            //   사실상 0이기 때문이고, 우리도 그렇게 만들면 같은 그림이 나온다.
-            //
-            //   (1.05 는 밀어내기가 시작되기 직전 — 딱 같은 값이면 파고들었다 밀려나기를
-            //    반복해 몸이 떨고, 상대를 밀며 끌고 다닌다. 실제로 있었던 버그다)
-            if (closeToContact)
-                atkR = Mathf.Min(atkR, (bodyR + target.bodyR) * separateMul * 1.05f);
+            // 붙을 자리 — 같은 놈을 노리는 아군끼리 번호로 나눠 갖는다 (사방 포위)
+            var spot = SurroundSpot(target, ring);
+            var toSpot = spot - transform.position; toSpot.y = 0f;
+            float dSpot = toSpot.magnitude;
 
-            if (d > atkR)
-            {   // ② 멀다 — 다가간다 (★멈출 자리를 지나치지 않는다)
-                Step(toT, MoveSpd, d - atkR);
+            // ★자리에 섰나 — **각도까지** 본다. 거리만 보면 앞줄에 닿은 놈이
+            //   자기 번호가 반대편이어도 거기 서 버려서 반쪽만 둘러싼다.
+            bool arrived = (d <= ring * 1.15f && AtMySlot(target)) || dSpot <= bodyR * 0.6f;
+
+            if (!arrived)
+            {   // ② 아직 자리 아님 — 돌아서라도 간다
+                stuckT += Time.deltaTime;      // 너무 오래 헤매면 그 자리에서 싸운다
+                Step(toSpot, MoveSpd, dSpot);
                 if (motion != null) motion.speed01 = 1f;
             }
             else
-            {   // ③ 닿는다 — 멈추고 때린다
+            {   // ③ 자리에 섰다 — 멈추고, 영역 안이면 때린다
+                stuckT = 0f;
                 Face(toT);
                 if (motion != null) motion.speed01 = 0f;
-                if (atkCd <= 0f) { atkCd = AtkPeriodNow; Strike(); }
+                if (d <= areaR && atkCd <= 0f) BeginSwing();
             }
         }
         else
@@ -1168,6 +1266,121 @@ public class PetUnit : MonoBehaviour
     }
 
     // ── 이동 ──
+    /// 목표를 빙 둘러 붙을 자리 — **사방으로 갈라진다.**
+    ///
+    /// ★왜 (2026-07-29 사용자): "전투를 할 때 알아서 퍼져서 사방에 붙도록 하는 게
+    ///   맞지 않나? 스타크래프트도 싸우면 다른 경로로 돌아가 때리곤 하잖아."
+    ///   전엔 전원이 목표를 향해 최단거리로 달려들어 **한 면에 뭉쳤다.** 그래서
+    ///   ①뒷줄은 영영 못 때리고 ②뭉친 채로 광역에 통째로 쓸렸다.
+    ///   (광역 타격 수에 상한이 필요해 보였던 것도 사실 이 뭉침 때문이었다)
+    ///
+    /// ★첫 시도는 실패했다 (2026-07-29): "내가 있는 쪽에서 가장 가까운 자리" 로 했더니
+    ///   **다들 같은 쪽에서 오니 전원이 같은 자리를 골랐다.** 갈라질 이유가 없었다.
+    ///   → 같은 놈을 노리는 아군끼리 **자리를 번호로 나눠 갖는다.** 내 번호가 정해지면
+    ///     반대편이 걸릴 수도 있고, 그럼 돌아서 간다. 그게 포위다.
+    ///
+    /// 번호는 인스턴스 ID 순서로 매긴다 — 무작위가 아니라서 **매 프레임 흔들리지 않고,
+    /// 판마다 달라지지도 않는다.** (자리가 흔들리면 제자리에서 왔다갔다 하게 된다)
+    ///
+    /// 0.35초마다 다시 매긴다 — 죽어서 빈 자리가 생기면 다시 갈라 서야 하니까.
+    static readonly List<PetUnit> mates = new List<PetUnit>();
+    float slotT; float slotAng; PetUnit slotFor;
+    bool surroundOn;        // 지금 포위 대형을 쓰나 (혼자거나 내가 더 크면 안 쓴다)
+    float stuckT;           // 자리에 못 서고 헤맨 시간 — 오래되면 그 자리에서 싸운다
+
+    /// t 에서 봤을 때 u 가 어느 방향에 있나 (0~360°)
+    static float Bearing(PetUnit t, PetUnit u)
+    {
+        var v = u.transform.position - t.transform.position; v.y = 0f;
+        if (v.sqrMagnitude < 1e-6f) return 0f;
+        float a = Mathf.Atan2(v.x, v.z) * Mathf.Rad2Deg;
+        return a < 0f ? a + 360f : a;
+    }
+
+    void RefreshSlot(PetUnit t, float ring)
+    {
+        slotT -= Time.deltaTime;
+        if (slotT > 0f && slotFor == t) return;
+        slotT = 0.35f; slotFor = t;
+
+        // 이 목표를 노리는 같은 편을 모은다 (목표 주변 칸만 훑는다)
+        mates.Clear();
+        BuildCells();
+        var c = t.transform.position;
+        int cx = CellOf(c.x), cz = CellOf(c.z);
+        int rad = Mathf.Clamp(Mathf.CeilToInt((ring * 3f + maxBodySeen) / Mathf.Max(0.5f, cellSize)), 1, 6);
+        for (int dx = -rad; dx <= rad; dx++)
+            for (int dz = -rad; dz <= rad; dz++)
+            {
+                if (!cells.TryGetValue(CellKey(cx + dx, cz + dz), out var near)) continue;
+                foreach (var u in near)
+                    if (u != null && u.Alive && u.team == team && !u.isAvatar && u.target == t)
+                        mates.Add(u);
+            }
+        // ★포위는 '여럿이 하나를 둘러쌀 때' 만 한다 (2026-07-29 사용자 —
+        //   "둘러싸인 티라노가 이상하게 밀면서 이동하는 구간이 있었다").
+        //
+        //   전엔 누구나 포위를 했다. 그래서 티라노가 자글이 하나를 노릴 때도
+        //   **그 자글이 주위의 자기 자리**로 가려 했고, 사방이 막혀 자리에 못 서니
+        //   계속 걸으며 떼를 밀고 전진했다.
+        //   거대한 놈이 손톱만한 놈을 빙 둘러쌀 이유가 없다 — 혼자거나 내가 더 크면 직진이다.
+        surroundOn = mates.Count > 1 && bodyR <= t.bodyR * 1.2f;
+        if (!surroundOn || mates.Count == 0) { slotAng = Bearing(t, this); return; }
+
+        // ★자리는 **각자가 온 방향 순서**로 나눈다 (2026-07-29 두 번째 수정).
+        //
+        //   처음엔 인스턴스 ID 순서로 `번호 × (360 ÷ 인원)` 을 줬는데, 그건
+        //   **월드 기준 절대 방향**이라 두 가지가 망가졌다:
+        //     ① 혼자 노릴 때(인원 1) 각도 0° = 정북 — 목표의 북쪽으로 가야만 서게 되어
+        //        **영원히 자리에 못 서고 한 대도 못 때렸다** (티라노가 그랬다)
+        //     ② 온 방향과 무관한 자리를 받아 서로 엇갈려 건너갔다 — "억지로 이동"
+        //
+        //   방향 순서로 매기면 남쪽에서 온 놈은 남쪽 자리를 받는다. 혼자면 제자리다.
+        //   서로 엇갈리지 않고 부채처럼 펼쳐진다.
+        mates.Sort((a, b) =>
+        {
+            float ba = Bearing(t, a), bb = Bearing(t, b);
+            int c2 = ba.CompareTo(bb);
+            return c2 != 0 ? c2 : a.GetInstanceID().CompareTo(b.GetInstanceID());
+        });
+
+        int idx = mates.IndexOf(this);
+        if (idx < 0) idx = 0;
+        slotAng = Bearing(t, mates[0]) + idx * (360f / mates.Count);
+    }
+
+    /// 내 자리까지 **목표 둘레를 따라 돌아간다.**
+    ///
+    /// ★곧장 자리로 걸으면 목표 몸을 뚫고 지나가려다 밀려나 어정쩡해진다.
+    ///   그래서 한 번에 최대 70°씩만 돌아가는 '중간 지점' 을 준다 — 호를 그리며 돈다.
+    ///   (스타2에서 유닛이 다른 경로로 돌아가 때리는 그림이 이거다)
+    Vector3 SurroundSpot(PetUnit t, float ring)
+    {
+        RefreshSlot(t, ring);
+        var c = t.transform.position;
+        var away = transform.position - c; away.y = 0f;
+        float myAng = away.sqrMagnitude < 1e-4f
+            ? slotAng : Mathf.Atan2(away.x, away.z) * Mathf.Rad2Deg;
+        // 포위를 안 쓰면 곧장 간다 (내가 선 방향에서 그대로 접근)
+        float goAng = surroundOn ? Mathf.MoveTowardsAngle(myAng, slotAng, 70f) : myAng;
+        return c + Quaternion.Euler(0f, goAng, 0f) * Vector3.forward * ring;
+    }
+
+    /// 내 자리에 제대로 섰나 — 각도까지 봐야 한다.
+    /// ★거리만 보면 **앞줄에 닿은 놈이 자기 번호가 반대편이어도 거기 서 버린다.**
+    ///   실제로 그래서 180° 만 둘러쌌다 (2026-07-29 실측).
+    bool AtMySlot(PetUnit t)
+    {
+        if (!surroundOn) return true;          // 포위를 안 쓰면 각도를 따질 게 없다
+        // ★오래 헤맸으면 그냥 그 자리에서 싸운다. 자리가 꽉 차 영영 못 서는 경우가 있는데,
+        //   그때 계속 걸으면 떼를 밀며 돌아다니게 된다 (실제로 그 버그가 났다).
+        if (stuckT > 2.5f) return true;
+        var away = transform.position - t.transform.position; away.y = 0f;
+        if (away.sqrMagnitude < 1e-4f) return false;
+        float myAng = Mathf.Atan2(away.x, away.z) * Mathf.Rad2Deg;
+        return Mathf.Abs(Mathf.DeltaAngle(myAng, slotAng)) < 22f;
+    }
+
     /// maxDist — 이번에 갈 수 있는 최대 거리. **멈춰야 할 자리를 지나치지 않게** 한다.
     ///
     /// ★왜 (2026-07-29 사용자 "밀어내는거같아"): 한 프레임 이동거리를 그대로 더하면
@@ -1203,6 +1416,7 @@ public class PetUnit : MonoBehaviour
     {
         BuildCells();
         int mx = CellOf(transform.position.x), mz = CellOf(transform.position.z);
+        var push = Vector3.zero;   // 한 프레임에 받은 밀림을 모았다가 한 번에 적용한다
 
         for (int dx = -1; dx <= 1; dx++)
         for (int dz = -1; dz <= 1; dz++)
@@ -1232,9 +1446,19 @@ public class PetUnit : MonoBehaviour
             //   지금까지의 감각이 그대로 유지되고, 크기가 벌어질수록 한쪽으로 쏠린다.
             float mine = bodyR * bodyR, yours = u.bodyR * u.bodyR;
             float w = Mathf.Min(2f, 2f * yours / Mathf.Max(1e-4f, mine + yours));
-            transform.position += d / dist * (need - dist) * 2.2f * w * Time.deltaTime;
+            push += d / dist * (need - dist) * 2.2f * w;
         }
         }
+
+        // ★밀림에 상한 (2026-07-29 사용자 "자글이가 티라노를 쭉쭉 밀고 가").
+        //   밀림은 미는 놈 수만큼 더해진다. 28마리가 조금씩 밀면 합쳐서 거인이 날아간다 —
+        //   무게로 나눠도 28배가 곱해지면 소용없다.
+        //   **아무리 여럿이 밀어도 자기가 걷는 속도보다 빨리 밀리지는 않는다.**
+        //   그래야 떼가 큰 놈을 '옮기는' 게 아니라 '둘러싸는' 그림이 된다.
+        float cap = MoveSpd * 0.8f;
+        if (push.sqrMagnitude > cap * cap) push = push.normalized * cap;
+        transform.position += push * Time.deltaTime;
+
         movedThisFrame = false;
     }
 

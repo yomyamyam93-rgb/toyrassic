@@ -291,7 +291,7 @@ public class SkillSystem : MonoBehaviour
     //   20 이면 S 20마리 / M 10 / L 7 / XL 5 — '중간 등급이 10마리' 가 기준이다.
     //   12 로 뒀더니 중간 등급이 6마리라 "마릿수 제한이 걸린 것 같다" 는 인상을 줬다.
     [Tooltip("★인구수 예산 — 실제 마릿수 = 이 값 ÷ 등급. 작은 펫은 떼로, 큰 펫은 몇 마리만")]
-    public int throwBudget = 20;
+    public int throwBudget = 28;   // ★인구수 1/3/7/14 와 짝 — S 28 · M 9 · L 4 · XL 2
     [Tooltip("착탄 순간 주변에 주는 피해 (팡!)")] public float throwImpactDamage = 45f;
     [Tooltip("착탄 피해가 닿는 반경 (m)")] public float throwImpactRadius = 1.6f;
 

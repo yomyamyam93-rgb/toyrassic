@@ -3223,6 +3223,9 @@ MonoBehaviour:
   hp: 0
   maxHp: 0
   body: 3
+  bodyR: 1
+  separateMul: 0.9
+  closeToContact: 1
   slowT: 0
   atkSpeedMul: 1
   moveSpeedMul: 1
@@ -3243,8 +3246,7 @@ MonoBehaviour:
   leashRange: 12
   returning: 0
   atkAngle: 60
-  sizeAngleStep: 0.5
-  sizeReachStep: 0.35
+  tier: 1
   alerted: 0
   magnetAfter: 2.2
   magnetRamp: 0.55
@@ -3264,6 +3266,8 @@ MonoBehaviour:
   avatarBarLift: 0.45
   barGap: 5
   barLevelSize: 11
+  barMaxDist: 38
+  outlineMaxDist: 30
 --- !u!114 &107336121
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -3509,7 +3513,7 @@ MonoBehaviour:
   rollTime: 0.3
   throwCooldown: 12
   throwRange: 8
-  throwBudget: 12
+  throwBudget: 28
   throwImpactDamage: 45
   throwImpactRadius: 1.6
   axeScatterAngle: 90
@@ -54868,7 +54872,7 @@ MonoBehaviour:
   maxDist: 45
   despawnDist: 80
   cap: 14
-  wildPackBudget: 12
+  wildPackBudget: 28
   respawnDelay: 6
   minHeight: 42
   maxHeight: 130
@@ -54914,10 +54918,11 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::StressTest
   spawner: {fileID: 1834216757}
   player: {fileID: 107336113}
+  "\uC608\uC0B0": 140
   "\uC67C\uCABD":
     "\uC774\uB984": "\uC790\uAE00\uC774"
     "\uC885": 0
-    "\uB9C8\uB9BF\uC218": 20
+    "\uB9C8\uB9BF\uC218": 28
     "\uD06C\uAE30": 0
   "\uC624\uB978\uCABD":
     "\uC774\uB984": "\uD2F0\uB77C\uB178"

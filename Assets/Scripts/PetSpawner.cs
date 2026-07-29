@@ -39,7 +39,7 @@ public class PetSpawner : MonoBehaviour
     [Header("유지 수·주기")]
     [Tooltip("주변에 항상 유지할 야생 수 (어슬렁거리는 '무리 대표' 수)")] public int cap = 6;
     [Tooltip("★야생 무리 인구수 예산 — 실제 마릿수 = 예산 ÷ 등급. 작은 놈은 떼로, 큰 놈은 몇 마리만")]
-    public int wildPackBudget = 12;
+    public int wildPackBudget = 28;   // ★인구수 1/3/7/14 와 짝 — S 28 · M 9 · L 4 · XL 2
     [Tooltip("빈자리 보충 간격 (초)")] public float respawnDelay = 25f;
 
     [Header("지형 조건")]
@@ -129,6 +129,11 @@ public class PetSpawner : MonoBehaviour
     }
 
     /// 종 이름 → 공격 패턴 (물기 / 돌진 / 내려찍기 / 꼬리 휩쓸기)
+    /// 크기 등급별 인구수 비용 — **"몇 마리 나오나" 만 정한다** (크기·전투력과 별개).
+    /// 예산 ÷ 이 값 = 마릿수. 예산 28 이면 S 28 · M 9 · L 4 · XL 2.
+    public static int SupplyOf(PetScale.Tier t) =>
+        t == PetScale.Tier.S ? 1 : t == PetScale.Tier.M ? 3 : t == PetScale.Tier.L ? 7 : 14;
+
     public static PetUnit.Pattern PatternOf(string species, PetScale.Tier tier)
     {
         string s = (species ?? "").ToLower();
@@ -136,8 +141,11 @@ public class PetSpawner : MonoBehaviour
             return PetUnit.Pattern.Bite;
         if (s.Contains("trike") || s.Contains("deer") || s.Contains("flyer"))
             return PetUnit.Pattern.Charge;
-        if (s.Contains("tyranno") || s.Contains("stego"))
-            return PetUnit.Pattern.Slam;
+        // ★티라노는 '무는' 게 맞다 (2026-07-29 사용자) — 넓은 건 방식이 아니라 **몸**이다.
+        //   같은 55° 부채꼴이어도 티라노는 반지름이 3배라 면적이 10배 넓다.
+        //   방식이 모양을, 몸이 크기를 정한다.
+        if (s.Contains("tyranno")) return PetUnit.Pattern.Bite;
+        if (s.Contains("stego")) return PetUnit.Pattern.Slam;
         if (s.Contains("bronto"))
             return PetUnit.Pattern.Sweep;
         // 이름을 모르면 크기로 — 작으면 물기, 크면 내려찍기
@@ -178,40 +186,48 @@ public class PetSpawner : MonoBehaviour
         거인,     // 휩쓸기형 — 맷집과 한 방 둘 다. 대신 아주 느리다
     }
 
+    /// ★역할은 공격 방식에서 떼어냈다 (2026-07-29).
+    ///
+    ///   전엔 `RoleOf → PatternOf` 였다. 그래서 티라노를 '물기' 로 바꾸자 **늑대의 역할
+    ///   (암살자: 공속 1.9배·이속 1.5배)까지 물려받아** 3.4m 짜리가 늑대 속도로 물어대며
+    ///   압승했다. 방식(공격 모양)과 역할(속도 성격)은 다른 축이다.
+    ///
+    ///   역할은 **몸집과 종의 성격**에서 나온다 — 작으면 잽싸고, 크면 굼뜨다.
     public static Role RoleOf(string species, PetScale.Tier tier)
     {
-        switch (PatternOf(species, tier))
-        {
-            case PetUnit.Pattern.Bite: return Role.암살자;
-            case PetUnit.Pattern.Charge: return Role.돌격병;
-            case PetUnit.Pattern.Sweep: return Role.거인;
-            default: return Role.방패;
-        }
+        string s = (species ?? "").ToLower();
+        if (s.Contains("wolf") || s.Contains("tiger") || s.Contains("raptor")
+            || s.Contains("squirrel") || s.Contains("bird")) return Role.암살자;
+        if (s.Contains("trike") || s.Contains("deer") || s.Contains("flyer")) return Role.돌격병;
+        if (s.Contains("tyranno")) return Role.거인;          // 크고 무겁다 — 느리게 한 방씩
+        if (s.Contains("bronto") || s.Contains("stego")) return Role.방패;
+        // 이름을 모르면 크기로 — 작으면 잽싸고 크면 굼뜨다
+        return tier == PetScale.Tier.S ? Role.암살자
+             : tier == PetScale.Tier.M ? Role.돌격병
+             : tier == PetScale.Tier.L ? Role.방패 : Role.거인;
     }
 
     /// 역할별 스탯 배수 — 한쪽을 크게 올리고 한쪽은 확실히 깎는다.
     /// (곱해서 1 근처가 되게 해 총합 전력은 비슷하게 유지)
     public static void ApplyRole(PetUnit u, Role role, Entry e)
     {
+        // ★역할은 이제 **속도만** 정한다 (2026-07-29).
+        //
+        //   역할은 공격 방식에서 파생된다(RoleOf → PatternOf). 그런데 방식도 피해를
+        //   깎고 있어서 **같은 축을 두 번 적용**하고 있었다. 티라노(내려찍기·방패)는
+        //   0.7 × 0.55 = 0.385배로 두 번 깎여 자글이 떼에 압살당했다.
+        //
+        //   지금부터 한 곳에 하나씩만 둔다:
+        //     · 크기 등급 → 힘·체력 (인구수에 비례, 성격만큼 기울임)
+        //     · 공격 방식 → 영역 + 한 대 피해 (PatternDmg)
+        //     · 역할     → 공속·이속·사거리
         float atkSpd = 1f, move = 1f, range = 1f;
         switch (role)
         {
-            case Role.암살자:                       // 빠르게 파고들어 연타
-                u.str *= 0.65f; u.vit *= 0.55f;
-                atkSpd = 1.9f; move = 1.5f; range = 0.9f;
-                break;
-            case Role.돌격병:                       // 한 방이 무겁다
-                u.str *= 1.75f; u.vit *= 0.95f;
-                atkSpd = 0.6f; move = 1.15f; range = 1.25f;
-                break;
-            case Role.방패:                         // 안 죽는다
-                u.str *= 0.7f; u.vit *= 2.1f;
-                atkSpd = 0.75f; move = 0.7f; range = 1f;
-                break;
-            case Role.거인:                         // 크고 무겁다
-                u.str *= 1.35f; u.vit *= 1.6f;
-                atkSpd = 0.5f; move = 0.55f; range = 1.15f;
-                break;
+            case Role.암살자: atkSpd = 1.9f; move = 1.5f; range = 0.9f; break;   // 빠르게 연타
+            case Role.돌격병: atkSpd = 0.6f; move = 1.15f; range = 1.25f; break;  // 뜸하고 무겁다
+            case Role.방패:   atkSpd = 0.75f; move = 0.7f; range = 1f; break;     // 느리고 튼튼
+            case Role.거인:   atkSpd = 0.5f; move = 0.55f; range = 1.15f; break;  // 아주 느리다
         }
         // 종 자체에 적어둔 값이 있으면 그걸 우선 (인스펙터에서 손으로 조절한 경우)
         u.atkSpeedMul = Mathf.Approximately(e.atkSpeed, 1f) ? atkSpd : e.atkSpeed;
@@ -368,19 +384,43 @@ public class PetSpawner : MonoBehaviour
         var pu = unit.AddComponent<PetUnit>();
         pu.team = PetUnit.Team.Wild; pu.mat = PetUnit.Mat.Basic;
         pu.collectible = true; pu.species = e.species;
-        // ★야생은 평타만 — 스킬(돌진·내려찍기·꼬리)을 안 쓴다.
-        //   떼로 몰려올 때 하나하나가 큰 기술을 쓰면 읽을 수가 없어서 잡는 맛이 죽는다.
-        //   대신 종마다 공속·이속·사거리가 달라 성격이 갈린다.
-        pu.pattern = PetUnit.Pattern.Bite;
-        pu.basicOnly = true;
+        // ★종마다 기본 공격의 '모양' 이 다르다 (2026-07-29).
+        //
+        //   여긴 원래 `pattern = Bite` 로 전부 덮어쓰고 있었다. 그때는 pattern 이
+        //   **스킬**을 뜻했고, "야생이 큰 기술을 쓰면 떼로 몰려올 때 읽을 수가 없다" 는
+        //   이유였다. 그런데 오늘 pattern 을 **기본 공격의 영역 모양**으로 바꿨으므로,
+        //   이 줄은 이제 "모든 야생의 공격 모양을 좁은 물기로 통일" 이 되어 버린다 —
+        //   실제로 티라노가 내려찍기(360°)인데 한 마리씩만 때리고 있었다.
+        //
+        //   물기 55° · 돌진 40°(길게) · 내려찍기 360°(짧게) · 휩쓸기 200°.
+        //   큰 기술을 쓰는 게 아니라 **평타의 생김새**가 다른 것이라 읽기 어렵지 않다.
+        pu.pattern = PatternOf(e.species, e.tier);
+        pu.basicOnly = true;      // 스킬은 여전히 안 쓴다
         pu.atkSpeedMul = e.atkSpeed;
         pu.moveSpeedMul = e.moveSpeed;
         pu.rangeMul = e.range;
-        pu.supply = e.tier == PetScale.Tier.S ? 1 : e.tier == PetScale.Tier.M ? 2 : e.tier == PetScale.Tier.L ? 3 : 4;
-        if (e.tier == PetScale.Tier.S) { pu.str = 6; pu.agi = 16; pu.vit = 10; }      // 체력 하향 —
-        else if (e.tier == PetScale.Tier.M) { pu.str = 9; pu.agi = 12; pu.vit = 15; } // 잡는 데 안 질리게
-        else if (e.tier == PetScale.Tier.L) { pu.str = 11; pu.agi = 8; pu.vit = 22; }
-        else { pu.str = 15; pu.agi = 5; pu.vit = 32; }
+        pu.tier = e.tier;        // ★크기 등급 — 크기·부채꼴·타격수가 여기서 나온다
+        // ★인구수 격차를 벌린다 (2026-07-29). 1/2/3/4 → 1/3/7/14.
+        //   전엔 예산 12 ÷ 등급이라 M 6마리 · L 4 · XL 3 — **거의 같은 마릿수**였다.
+        //   스타2는 저글링 24 대 울트라 2 로 12배 차이다. 정체성은 크기가 아니라
+        //   "크기 × 마릿수" 가 만든다. 예산 28 과 짝이다 → S 28 · M 9 · L 4 · XL 2.
+        pu.supply = SupplyOf(e.tier);
+        // ★인구수 1/3/7/14 에 맞춰 다시 잡았다 (2026-07-29). 옛 값은 1/2/3/4 기준이라,
+        //   티라노는 인구를 3.5배 더 먹으면서 능력치는 그대로였다 — 압살당한 이유다.
+        //
+        //   규칙: 인구 1당 힘 3 · 체력 5 를 기준으로 하고, **성격만큼 기울인다.**
+        //     작을수록 딜이 세고 잘 죽는다 · 클수록 안 죽고 딜이 약하다
+        //   → 총량은 얼추 같고 분포가 갈린다. "어느 쪽이 세냐" 가 아니라 "상황이 정한다".
+        //
+        // ★기울기를 더 키웠다 (2026-07-29 실측). 자글이 28 vs 티라노 2 에서 티라노가
+        //   **한 마리 죽고 한 마리 25% 남기고** 겨우 이겼다 — 유리해야 할 판에서 신승이다.
+        //   원인: 티라노 한 대가 101.5 인데 자글이 체력이 35 이라 **2.9배가 낭비**된다.
+        //   힘을 더 올려도 낭비만 커진다. → **힘을 낮추고 체력을 올린다.**
+        //   19 로 낮춰도 한 방에 죽는 건 그대로(66.5 > 35)라 죽이는 속도는 안 변한다.
+        if (e.tier == PetScale.Tier.S) { pu.str = 4.5f; pu.agi = 16; pu.vit = 3f; }
+        else if (e.tier == PetScale.Tier.M) { pu.str = 9f; pu.agi = 12; pu.vit = 15f; }
+        else if (e.tier == PetScale.Tier.L) { pu.str = 14f; pu.agi = 8; pu.vit = 54f; }
+        else { pu.str = 19f; pu.agi = 5; pu.vit = 150f; }
         pu.str *= dmgMul;
         pu.vit *= hpMul;
         pu.intel = 8;
