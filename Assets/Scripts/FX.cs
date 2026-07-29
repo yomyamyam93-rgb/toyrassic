@@ -378,12 +378,58 @@ public static class FX
     public static void PopText(Vector3 pos, string text, Color c, float scale = 1f)
         => Pop(pos, text, PopStyle.Item);
 
+    /// ★측정용 스위치 (StressTest 가 F3 로 켠다). 켜면 뜨는 글자를 아예 안 만든다 —
+    ///   "느린 게 피해 숫자 때문인가" 를 껐다 켜서 확인하는 용도다. 게임 중엔 늘 false.
+    public static bool DebugNoPops;
+
+    // ── 뜨는 글자 풀 (2026-07-29 실측 후) ────────────────────────────
+    //
+    // ★왜: 600마리 난전에서 F3 로 피해 숫자를 끄자 프레임이 확연히 올랐다.
+    //   한 대 맞을 때마다 GameObject + TextMeshPro 를 새로 만들고 0.85초 뒤 파괴했다.
+    //   TMP 생성은 유니티에서 가장 비싼 축이고, 초당 수백 번이면 그것만으로 무너진다.
+    //   **버스트(FX.Burst)가 이미 같은 이유로 풀을 쓰고 있었다 — 숫자만 빠져 있었다.**
+    //
+    // 셋을 같이 건다:
+    //   ① 풀 — 만들지 않고 돌려 쓴다
+    //   ② 상한 — 동시에 popCap 개까지. 넘치면 **제일 오래된 것을 뺏어 쓴다** (새 것이 더 중요하다).
+    //      수백 개가 겹쳐 뜨면 읽을 수도 없다 — 줄이는 것이 성능이자 가독성이다.
+    //   ③ 거리 — 카메라에서 멀면 아예 안 만든다. 못 읽는 글자다 (딴 데서 벌어지는 야생끼리의 싸움)
+    static readonly Stack<GameObject> popPool = new Stack<GameObject>();
+    static readonly List<FxDmgNum> popLive = new List<FxDmgNum>();
+    /// 동시에 떠 있을 수 있는 글자 수
+    public static int popCap = 48;
+    /// 이보다 멀리서 생긴 글자는 만들지 않는다 (m)
+    public static float popMaxDist = 60f;
+
+    /// 수명이 끝났거나 자리를 내줘야 할 때 — 파괴하지 않고 풀로 돌려보낸다.
+    public static void ReturnPop(FxDmgNum n)
+    {
+        if (n == null) return;
+        popLive.Remove(n);
+        n.gameObject.SetActive(false);
+        popPool.Push(n.gameObject);
+    }
+
     static void Pop(Vector3 pos, string text, PopStyle style)
     {
-        var go = new GameObject("fx_pop");
-        go.transform.SetParent(SceneBuckets.Fx);
+        if (DebugNoPops) return;
+
+        var cam = Camera.main;
+        if (cam != null && (cam.transform.position - pos).sqrMagnitude > popMaxDist * popMaxDist) return;
+
+        while (popLive.Count >= Mathf.Max(1, popCap)) ReturnPop(popLive[0]);
+
+        GameObject go;
+        if (popPool.Count > 0) { go = popPool.Pop(); go.SetActive(true); }
+        else
+        {
+            go = new GameObject("fx_pop");
+            go.transform.SetParent(SceneBuckets.Fx);
+            go.AddComponent<TMPro.TextMeshPro>();
+            go.AddComponent<FxDmgNum>();
+        }
         go.transform.position = pos + new Vector3(Random.Range(-0.4f, 0.4f), 0f, Random.Range(-0.2f, 0.2f));
-        var t = go.AddComponent<TMPro.TextMeshPro>();
+        var t = go.GetComponent<TMPro.TextMeshPro>();
         var fnt = PopFont();
         if (fnt != null) t.font = fnt;
         t.text = text;
@@ -417,7 +463,9 @@ public static class FX
             mr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
             mr.sortingOrder = 32000;   // 같은 큐 안에서도 제일 마지막 = 제일 앞
         }
-        go.AddComponent<FxDmgNum>();
+        var num = go.GetComponent<FxDmgNum>();
+        num.Begin();
+        popLive.Add(num);
     }
 
     /// 뽁 터지는 버스트 — 타격·착지 먼지·격파
@@ -789,11 +837,18 @@ public class FxDmgNum : MonoBehaviour
     float t;
     TMPro.TextMeshPro tm;
 
-    void Start() { tm = GetComponent<TMPro.TextMeshPro>(); Destroy(gameObject, 0.85f); }
+    /// 풀에서 꺼내 쓸 때마다 처음부터 다시 시작한다 (Start 는 재사용 때 안 불린다).
+    public void Begin()
+    {
+        if (tm == null) tm = GetComponent<TMPro.TextMeshPro>();
+        t = 0f;
+        if (tm != null) tm.alpha = 1f;
+    }
 
     void Update()
     {
         t += Time.deltaTime / 0.85f;
+        if (t >= 1f) { FX.ReturnPop(this); return; }   // 파괴하지 않고 풀로 돌아간다
         transform.position += Vector3.up * 1.6f * Time.deltaTime;
         float distK = 1f;
         if (Camera.main != null)

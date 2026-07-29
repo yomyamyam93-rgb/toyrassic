@@ -231,6 +231,13 @@ public class PetUnit : MonoBehaviour
     public float hp;
     public float maxHp;
     [HideInInspector] public float body = 3f;
+    /// 바닥에 깔린 굵기의 반지름 — **서로 닿는 거리와 사거리는 이걸로 잰다** (body 아님).
+    /// 왜 따로 두는지는 Start 의 주석 참고. body 는 이펙트 크기·바 높이 등에 계속 쓴다.
+    [HideInInspector] public float bodyR = 1f;
+    [Tooltip("서로 얼마나 붙어 서나 — 1 이면 딱 맞닿고, 낮을수록 파고든다")]
+    [Range(0.5f, 1.2f)] public float separateMul = 0.9f;
+    [Tooltip("근접이라 몸이 닿을 때까지 파고든다 (저글링처럼). 끄면 사거리 끝에서 멈춘다 — 원거리용")]
+    public bool closeToContact = true;
 
     // ── 내부 ──
     //
@@ -246,6 +253,52 @@ public class PetUnit : MonoBehaviour
     //     · 죽음(Die·DeathAnim·SpawnDrop) · 피격(OnHit·HitFlash) · 체력바
     //     · 밖에서 거는 효과(Airborne·Knock) — 플레이어 스킬과 둥지가 쓴다
     public static readonly List<PetUnit> All = new List<PetUnit>();
+
+    // ── 이웃 격자 — 밀어내기를 "전수 검사" 에서 "주변만" 으로 ──────────────
+    //
+    // ★왜 (2026-07-29 실측): Separate() 가 매 프레임 All 을 통째로 훑었다.
+    //   마릿수가 2배면 계산은 4배다 — 100마리 1만 회 / 300마리 9만 / 400마리 16만.
+    //   실제로 300부터 렉이 오고 400에서 심해졌고, 증상 곡선이 이 제곱과 정확히 맞았다.
+    //   자글이를 28마리씩 던지는 설계라 몸뚱이 수백 개가 예사가 되므로 여기서 끊는다.
+    //
+    // 방식: 땅을 정사각 칸으로 나눠 펫을 담아 두고 **자기 주변 3×3 칸만** 본다.
+    //   ★칸 크기는 '가장 큰 몸이 요구하는 간격' 보다 커야 3×3 으로 충분하다.
+    //     작으면 밀어내야 할 이웃을 놓쳐 서로 파고든다 — 그래서 실측 최대 몸에서 뽑는다.
+    //   (목표 탐색 FindTarget 은 그대로 뒀다. 개체마다 0.5초 주기로 흩어져 있어
+    //    부하가 이것의 30분의 1 이다 — 먼저 이걸 끊는 게 맞다)
+    static readonly Dictionary<long, List<PetUnit>> cells = new Dictionary<long, List<PetUnit>>();
+    static int cellsFrame = -1;
+    static float cellSize = 4f;
+    static float maxBodySeen;
+
+    static long CellKey(int cx, int cz) => ((long)cx << 32) ^ (uint)cz;
+    static int CellOf(float v) => Mathf.FloorToInt(v / cellSize);
+
+    /// 프레임당 한 번만 다시 담는다 (여러 마리가 불러도 첫 호출만 일한다).
+    static void BuildCells()
+    {
+        if (cellsFrame == Time.frameCount) return;
+        cellsFrame = Time.frameCount;
+
+        // 밀어내는 거리는 (내 반지름 + 상대 반지름) × separateMul — 최대치보다 칸이 커야 한다
+        // (separateMul 은 1.2 를 넘지 않으므로 반지름 최대치 × 2.4 면 항상 넉넉하다)
+        cellSize = Mathf.Max(2f, maxBodySeen * 2.4f + 0.5f);
+
+        // 지나온 칸이 계속 쌓이면(6km 를 돌아다니므로) 비우는 것만으로도 일이 된다.
+        // 너무 불어나면 통째로 버린다 — 어차피 매 프레임 다시 담는다.
+        if (cells.Count > 4096) cells.Clear();
+        else foreach (var kv in cells) kv.Value.Clear();
+
+        foreach (var u in All)
+        {
+            if (u == null || !u.Alive) continue;
+            var p = u.transform.position;
+            long k = CellKey(CellOf(p.x), CellOf(p.z));
+            if (!cells.TryGetValue(k, out var list)) { list = new List<PetUnit>(); cells[k] = list; }
+            list.Add(u);
+        }
+    }
+
     Terrain terrain;
     float footOff;
     Transform barRoot, barFill;
@@ -300,6 +353,31 @@ public class PetUnit : MonoBehaviour
         //     · 덩치가 다른 펫들의 피격 크기·이펙트 크기가 전부 똑같아졌다
         //   실측 크기를 그대로 쓴다. 하한은 0 나눗셈만 막는 수준으로.
         if (r != null) body = Mathf.Max(0.05f, Mathf.Max(r.bounds.size.x, Mathf.Max(r.bounds.size.y, r.bounds.size.z)));
+
+        // ★서로 닿는 거리는 '가장 긴 변' 이 아니라 **바닥에 깔린 굵기** 로 잰다 (2026-07-29).
+        //
+        //   body 는 max(가로,세로,높이) 라 길쭉하거나 키 큰 놈일수록 실제보다 훨씬 뚱뚱한
+        //   공으로 취급된다. 티라노(가장 긴 변 3.4m, 옆구리 폭은 1m 남짓)에게 자글이가
+        //   다가가면 **몸에서 1m 넘게 떨어진 허공에서 막혔다** — 사용자 표현으로
+        //   "보이지 않는 벽". 사거리도 같은 값을 써서 거기서 때리고 있었다.
+        //
+        //   바닥 지름의 평균을 반지름으로 쓴다. 원으로 근사하는 이상 길쭉한 몸을 완벽히
+        //   맞출 수는 없지만, **가장 긴 변을 반지름으로 쓰는 것보다는 언제나 낫다.**
+        //   (겹치는 쪽이 뜨는 쪽보다 낫다 — 장난감 몸이라 살짝 파고들어도 자연스럽다)
+        if (r != null) bodyR = Mathf.Max(0.03f, (r.bounds.size.x + r.bounds.size.z) * 0.25f);
+
+        // 이웃 격자의 칸 크기를 정하는 값 — 가장 큰 몸을 기억해 둔다 (위 「이웃 격자」 참고)
+        if (bodyR > maxBodySeen) maxBodySeen = bodyR;
+
+        // 테두리 렌더러는 여기서 한 번만 찾아 둔다 (거리 LOD 가 매번 찾으면 그게 부하다)
+        var tmp = new List<Renderer>();
+        foreach (Transform c in transform)
+            if (c.name == "Outline" || c.name == "OutlineMask")
+            {
+                var rr = c.GetComponent<Renderer>();
+                if (rr != null) tmp.Add(rr);
+            }
+        outlineRends = tmp.ToArray();
         if (isAvatar) { Avatar = this; MakeBar(r); return; }   // 캐릭터: 모션·AI 없음
         if (isStructure)
         {   // 건물: 모션 없음, 맞기만. 체력바는 평소 숨김
@@ -412,8 +490,12 @@ public class PetUnit : MonoBehaviour
     ///   사거리 0.25m 인데 밀어내는 간격도 0.25m 라, 때리려고 파고들면 밀려나고
     ///   다시 파고드는 일이 반복돼 **상대를 계속 떠밀며 끌고 다녔다.**
     ///   두 몸 반지름을 더해 두면 사거리가 간격보다 항상 넉넉하다.
+    /// ★두 몸 반지름은 **바닥 굵기(bodyR)** 로 더한다 (2026-07-29). 전엔 body(가장 긴 변)
+    ///   를 썼는데, 길쭉한 티라노 옆에서 자글이가 몸에 닿지도 못하고 허공에서 때렸다.
+    ///   여기의 합(bodyR+bodyR)이 밀어내는 간격((bodyR+bodyR)×separateMul, 배수 1 미만)
+    ///   보다 항상 크므로, 아래 「사거리가 간격보다 넉넉하다」 규칙은 그대로 지켜진다.
     float AtkRangeTo(PetUnit t) =>
-        reach * rangeMul * SizeReachMul + (body + (t != null ? t.body : 0f)) * 0.5f;
+        reach * rangeMul * SizeReachMul + bodyR + (t != null ? t.bodyR : 0f);
 
     float AtkPeriodNow => atkPeriod / Mathf.Max(0.1f, atkSpeedMul);
 
@@ -471,12 +553,32 @@ public class PetUnit : MonoBehaviour
             && Dist(lastAttacker.transform.position) <= range * 1.6f)
             return lastAttacker;
 
+        // ★가까운 칸부터 바깥으로 넓혀 가며 찾는다 (2026-07-29).
+        //   전엔 여기서도 전 개체를 훑었다 — 600마리면 36만 번, 밀어내기와 같은 제곱이다.
+        //   떼싸움에선 적이 코앞에 있으므로 대개 첫 칸에서 끝난다.
+        //   ★멈춰도 되는 조건: 지금 찾은 놈이 '다음 링까지의 최소 거리' 보다 가까우면,
+        //     더 뒤져도 이보다 가까운 놈은 없다. 그래서 가장 가까운 적을 고르는
+        //     결과는 전과 똑같다 (빨라지기만 한다).
         PetUnit best = null; float bd = range;
-        foreach (var u in All)
+        BuildCells();
+        var mp = transform.position;
+        int mx = CellOf(mp.x), mz = CellOf(mp.z);
+        int maxR = Mathf.Max(1, Mathf.CeilToInt(range / Mathf.Max(0.5f, cellSize)));
+        for (int r = 0; r <= maxR; r++)
         {
-            if (u == null || !u.Alive || u.team == team || u.isAvatar) continue;
-            float d = Dist(u.transform.position);
-            if (d < bd) { bd = d; best = u; }
+            for (int dx = -r; dx <= r; dx++)
+                for (int dz = -r; dz <= r; dz++)
+                {
+                    if (Mathf.Max(Mathf.Abs(dx), Mathf.Abs(dz)) != r) continue;   // 링 테두리만
+                    if (!cells.TryGetValue(CellKey(mx + dx, mz + dz), out var near)) continue;
+                    foreach (var u in near)
+                    {
+                        if (u == null || !u.Alive || u.team == team || u.isAvatar) continue;
+                        float d = Dist(u.transform.position);
+                        if (d < bd) { bd = d; best = u; }
+                    }
+                }
+            if (best != null && bd <= r * cellSize) break;
         }
         if (best != null) return best;
 
@@ -730,6 +832,7 @@ public class PetUnit : MonoBehaviour
 
     void Update()
     {
+        Lod();                                                   // 멀면 테두리를 끈다
         if (dead) { DeathAnim(); return; }
         if (isAvatar) { HitFlash(); Bar(); return; }             // 캐릭터: 피격·바만
         if (isStructure) { HitFlash(); Bar(); return; }          // 건물
@@ -778,13 +881,28 @@ public class PetUnit : MonoBehaviour
         {
             float d = Dist(target.transform.position);
             var toT = target.transform.position - transform.position;
-            if (d > AtkRangeTo(target))
-            {   // ② 멀다 — 다가간다
-                Step(toT, MoveSpd);
+            float atkR = AtkRangeTo(target);
+
+            // ★근접의 사거리는 '몸이 닿는 거리' 다 (2026-07-29 사용자 —
+            //   "저글링은 딱 붙어서 패거든" / "스타크래프트는 멈춘 뒤에 때리는데말이야").
+            //
+            //   멈추고 나서 때리는 순서는 스타2와 같다 — 그건 안 바꾼다.
+            //   문제는 **근접인데도 사거리가 팔 길이만큼 부풀어 있던 것**이었다.
+            //   그래서 허공에 서서 때렸다. 저글링이 붙어서 무는 건 저글링의 사거리가
+            //   사실상 0이기 때문이고, 우리도 그렇게 만들면 같은 그림이 나온다.
+            //
+            //   (1.05 는 밀어내기가 시작되기 직전 — 딱 같은 값이면 파고들었다 밀려나기를
+            //    반복해 몸이 떨고, 상대를 밀며 끌고 다닌다. 실제로 있었던 버그다)
+            if (closeToContact)
+                atkR = Mathf.Min(atkR, (bodyR + target.bodyR) * separateMul * 1.05f);
+
+            if (d > atkR)
+            {   // ② 멀다 — 다가간다 (★멈출 자리를 지나치지 않는다)
+                Step(toT, MoveSpd, d - atkR);
                 if (motion != null) motion.speed01 = 1f;
             }
             else
-            {   // ③ 닿는다 — 때린다
+            {   // ③ 닿는다 — 멈추고 때린다
                 Face(toT);
                 if (motion != null) motion.speed01 = 0f;
                 if (atkCd <= 0f) { atkCd = AtkPeriodNow; Strike(); }
@@ -1050,13 +1168,21 @@ public class PetUnit : MonoBehaviour
     }
 
     // ── 이동 ──
-    void Step(Vector3 dir, float spd)
+    /// maxDist — 이번에 갈 수 있는 최대 거리. **멈춰야 할 자리를 지나치지 않게** 한다.
+    ///
+    /// ★왜 (2026-07-29 사용자 "밀어내는거같아"): 한 프레임 이동거리를 그대로 더하면
+    ///   멈출 자리까지 0.02m 남았는데 0.05m 를 가서 **밀어내기 구역 안으로 들어간다.**
+    ///   그러면 밀려나고 → 다시 들어가고를 반복해 서로 밀치는 것처럼 보인다.
+    ///   남은 거리만큼만 가면 정확히 그 자리에 서고 떨지 않는다.
+    void Step(Vector3 dir, float spd, float maxDist = float.MaxValue)
     {
         dir.y = 0;
         if (dir.sqrMagnitude < 1e-4f) return;
         dir.Normalize();
         float pulse = motion != null ? motion.MovePulse : 1f;
-        transform.position += dir * spd * pulse * Time.deltaTime;
+        float step = Mathf.Min(spd * pulse * Time.deltaTime, Mathf.Max(0f, maxDist));
+        if (step <= 1e-4f) return;               // 이미 제자리 — 밀림 판정도 안 켠다
+        transform.position += dir * step;
         curSpeed = spd;
         movedThisFrame = true;   // 이동 중에는 자리를 잡느라 밀린다 (서 있으면 안 밀린다)
         Face(dir);
@@ -1075,10 +1201,17 @@ public class PetUnit : MonoBehaviour
 
     void Separate()
     {
-        foreach (var u in All)
+        BuildCells();
+        int mx = CellOf(transform.position.x), mz = CellOf(transform.position.z);
+
+        for (int dx = -1; dx <= 1; dx++)
+        for (int dz = -1; dz <= 1; dz++)
+        {
+            if (!cells.TryGetValue(CellKey(mx + dx, mz + dz), out var near)) continue;
+        foreach (var u in near)
         {
             if (u == this || !u.Alive) continue;
-            float need = (body + u.body) * 0.42f;
+            float need = (bodyR + u.bodyR) * separateMul;
             var d = transform.position - u.transform.position; d.y = 0;
             float dist = d.magnitude;
             if (dist >= need || dist <= 0.01f) continue;
@@ -1091,7 +1224,16 @@ public class PetUnit : MonoBehaviour
             bool deep = dist < need * 0.45f;
             if (!movedThisFrame && !deep) continue;
 
-            transform.position += d / dist * (need - dist) * 2.2f * Time.deltaTime;
+            // ★무게 — 큰 놈은 작은 놈에게 잘 안 밀린다 (2026-07-29 사용자 "미세하게 밀리는게 있네").
+            //   저글링이 울트라를 못 미는 것과 같다. 설계에도 필요한 규칙이다 —
+            //   "타이탄은 스웜에 안 밀린다" 가 성립해야 큰 놈이 벽 노릇을 한다.
+            //
+            //   바닥 면적 비로 나눈다 (반지름 2배면 4배 무겁다). 같은 크기면 1 이라
+            //   지금까지의 감각이 그대로 유지되고, 크기가 벌어질수록 한쪽으로 쏠린다.
+            float mine = bodyR * bodyR, yours = u.bodyR * u.bodyR;
+            float w = Mathf.Min(2f, 2f * yours / Mathf.Max(1e-4f, mine + yours));
+            transform.position += d / dist * (need - dist) * 2.2f * w * Time.deltaTime;
+        }
         }
         movedThisFrame = false;
     }
@@ -1253,9 +1395,49 @@ public class PetUnit : MonoBehaviour
     TMPro.TextMeshPro barLevel; int barLevelShown = -1;
 
     float barShowT;
+    /// ★측정용 스위치 (StressTest 가 F1 로 켠다). 켜면 체력바를 통째로 쉰다 —
+    ///   "느린 게 바 때문인가" 를 껐다 켜서 확인하는 용도다. 게임 중엔 늘 false.
+    public static bool DebugNoBars;
+    /// ★측정용 스위치 (StressTest 가 F2 로 켠다). 켜면 테두리를 전부 끈다.
+    public static bool DebugNoOutline;
+
+    // ── 멀면 대충 한다 (2026-07-29 실측 후) ──────────────────────────
+    //
+    // ★600마리 난전에서 체력바·테두리를 끄면 프레임이 눈에 띄게 올랐다. 그런데 둘 다
+    //   **멀리 있으면 애초에 안 보이거나 못 읽는다.** 끄는 게 아니라 *먼 놈만* 쉬게 한다 —
+    //   플레이어 눈에는 달라지는 게 없고 부하만 빠진다.
+    [Tooltip("체력바를 그리는 최대 거리 (m) — 이보다 멀면 숨긴다")]
+    public float barMaxDist = 38f;
+    [Tooltip("테두리를 그리는 최대 거리 (m) — 이보다 멀면 끈다")]
+    public float outlineMaxDist = 30f;
+
+    Renderer[] outlineRends;      // Outline · OutlineMask (Start 에서 한 번만 찾는다)
+    bool outlineOn = true;
+    float lodT;
+
+    /// 거리에 따라 테두리를 켜고 끈다. 매 프레임 할 일이 아니라 흩어진 주기로 돈다.
+    void Lod()
+    {
+        lodT -= Time.deltaTime;
+        if (lodT > 0f) return;
+        lodT = 0.3f + Random.value * 0.2f;     // 개체마다 어긋나게 — 한 프레임에 몰리지 않게
+
+        if (outlineRends == null || Camera.main == null) return;
+        float d = Vector3.Distance(Camera.main.transform.position, transform.position);
+        bool want = !DebugNoOutline && d <= outlineMaxDist;
+        if (want == outlineOn) return;
+        outlineOn = want;
+        foreach (var r in outlineRends) if (r != null) r.enabled = want;
+    }
+
     void Bar()
     {
         if (barRoot == null || Camera.main == null) return;
+        if (DebugNoBars && !isAvatar)
+        {
+            if (barRoot.gameObject.activeSelf) barRoot.gameObject.SetActive(false);
+            return;
+        }
         if (isAvatar && !barRoot.gameObject.activeSelf) barRoot.gameObject.SetActive(true);
         if (isStructure)
         {   // 구조물은 평소 숨김 — 피격·변화 때만 잠깐
@@ -1276,6 +1458,11 @@ public class PetUnit : MonoBehaviour
             //   돌아와 흡수될 때까지 유지된다. 야생과 달리 몇 마리뿐이라 부담도 없다.
             barShowT -= Time.deltaTime;
             bool show = summoned || InCombat || barShowT > 0f;
+            // ★멀면 안 그린다 (2026-07-29). 바 하나하나가 매 프레임 위치·카메라 정렬·
+            //   거리 보정을 하는데, 저 멀리 벌어지는 싸움의 바는 화면에서 점만 하다.
+            if (show && Camera.main != null
+                && (Camera.main.transform.position - transform.position).sqrMagnitude
+                   > barMaxDist * barMaxDist) show = false;
             if (barRoot.gameObject.activeSelf != show) barRoot.gameObject.SetActive(show);
             if (!show) return;
         }
