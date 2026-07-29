@@ -137,7 +137,11 @@ public class PetSpawner : MonoBehaviour
     public static PetUnit.Pattern PatternOf(string species, PetScale.Tier tier)
     {
         string s = (species ?? "").ToLower();
-        if (s.Contains("wolf") || s.Contains("tiger") || s.Contains("squirrel") || s.Contains("bird") || s.Contains("raptor"))
+        // ★호랑이 = 원거리 (2026-07-29 사용자 — 임시). 불대포를 쏜다.
+        //   늑대와 등급·방식·역할이 전부 같아 뽑을 이유가 없던 것도 같이 해소된다.
+        //   제대로 된 자리는 '재질(유리)' 이지만 그 층은 아직 없다.
+        if (s.Contains("tiger")) return PetUnit.Pattern.Shoot;
+        if (s.Contains("wolf") || s.Contains("squirrel") || s.Contains("bird") || s.Contains("raptor"))
             return PetUnit.Pattern.Bite;
         if (s.Contains("trike") || s.Contains("deer") || s.Contains("flyer"))
             return PetUnit.Pattern.Charge;
@@ -180,10 +184,11 @@ public class PetSpawner : MonoBehaviour
     /// ★종별 역할 — 뭐가 뾰족한지. 평범한 놈 없이 확실히 갈리게 한다.
     public enum Role
     {
-        암살자,   // 물기형 — 빠르고 자주 때린다. 대신 물몸
-        돌격병,   // 돌진형 — 한 방이 세다. 대신 느리고 뜸하다
-        방패,     // 내려찍기형 — 아주 튼튼하다. 대신 느리고 약하다
-        거인,     // 휩쓸기형 — 맷집과 한 방 둘 다. 대신 아주 느리다
+        암살자,   // 빠르고 자주 때린다. 대신 물몸
+        돌격병,   // 한 방이 세다. 대신 느리고 뜸하다
+        방패,     // 아주 튼튼하다. 대신 느리고 약하다
+        거인,     // 맷집과 한 방 둘 다. 대신 아주 느리다
+        포수,     // 원거리 — 뜸하게 쏘고 발이 느리다. 붙으면 끝난다
     }
 
     /// ★역할은 공격 방식에서 떼어냈다 (2026-07-29).
@@ -196,7 +201,8 @@ public class PetSpawner : MonoBehaviour
     public static Role RoleOf(string species, PetScale.Tier tier)
     {
         string s = (species ?? "").ToLower();
-        if (s.Contains("wolf") || s.Contains("tiger") || s.Contains("raptor")
+        if (s.Contains("tiger")) return Role.포수;      // 원거리 — 발이 느려야 떼에 잡힌다
+        if (s.Contains("wolf") || s.Contains("raptor")
             || s.Contains("squirrel") || s.Contains("bird")) return Role.암살자;
         if (s.Contains("trike") || s.Contains("deer") || s.Contains("flyer")) return Role.돌격병;
         if (s.Contains("tyranno")) return Role.거인;          // 크고 무겁다 — 느리게 한 방씩
@@ -228,6 +234,9 @@ public class PetSpawner : MonoBehaviour
             case Role.돌격병: atkSpd = 0.6f; move = 1.15f; range = 1.25f; break;  // 뜸하고 무겁다
             case Role.방패:   atkSpd = 0.75f; move = 0.7f; range = 1f; break;     // 느리고 튼튼
             case Role.거인:   atkSpd = 0.5f; move = 0.55f; range = 1.15f; break;  // 아주 느리다
+            // ★포수 — 뜸하게 쏘고 발이 느리다. 빠른 떼가 붙으면 끝나야 삼각형이 닫힌다
+            //   (법칙 ③: 자글이 떼가 원거리를 덮친다). 도망칠 수 있으면 아무도 못 잡는다.
+            case Role.포수:   atkSpd = 0.85f; move = 0.75f; range = 1f; break;
         }
         // 종 자체에 적어둔 값이 있으면 그걸 우선 (인스펙터에서 손으로 조절한 경우)
         u.atkSpeedMul = Mathf.Approximately(e.atkSpeed, 1f) ? atkSpd : e.atkSpeed;
@@ -396,6 +405,8 @@ public class PetSpawner : MonoBehaviour
         //   큰 기술을 쓰는 게 아니라 **평타의 생김새**가 다른 것이라 읽기 어렵지 않다.
         pu.pattern = PatternOf(e.species, e.tier);
         pu.basicOnly = true;      // 스킬은 여전히 안 쓴다
+        // ★원거리만 사거리 끝을 지킨다. 나머지는 몸이 닿을 때까지 파고든다
+        pu.closeToContact = pu.pattern != PetUnit.Pattern.Shoot;
         pu.atkSpeedMul = e.atkSpeed;
         pu.moveSpeedMul = e.moveSpeed;
         pu.rangeMul = e.range;

@@ -129,6 +129,7 @@ public class PetMotion : MonoBehaviour
             case PetUnit.Pattern.Charge: a1 = 0.40f; a2 = 0.50f; break;   // 돌진 — 잔뜩 웅크렸다 튄다
             case PetUnit.Pattern.Slam:   a1 = 0.45f; a2 = 0.55f; break;   // 내려찍기 — 제일 묵직
             case PetUnit.Pattern.Sweep:  a1 = 0.35f; a2 = 0.48f; break;
+            case PetUnit.Pattern.Shoot:  a1 = 0.42f; a2 = 0.52f; break;   // 대포 — 오래 겨눴다 뱉는다
             default:                     a1 = 0.25f; a2 = 0.45f; break;   // 물기 — 잽싸다
         }
 
@@ -188,6 +189,11 @@ public class PetMotion : MonoBehaviour
                     break;
                 case PetUnit.Pattern.Sweep:     // 몸을 반대로 틀었다 확 돌린다
                     atkYaw = sw * 55f; atkLean = sw * 8f;
+                    break;
+                case PetUnit.Pattern.Shoot:     // 대포 — 뒤로 젖혔다 앞으로 뱉고, 반동으로 밀린다
+                    atkLean = sw * 20f;
+                    atkSy = Mathf.Max(0f, -sw) * 0.12f      // 예비: 숨을 들이켜듯 부푼다
+                         - Mathf.Max(0f, sw) * 0.14f;       // 발사: 홀쭉해진다
                     break;
             }
         }

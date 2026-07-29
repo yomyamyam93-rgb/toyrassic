@@ -37,6 +37,9 @@ public class StressTest : MonoBehaviour
         public int 마릿수 = 20;
         [Tooltip("크기를 이걸로 강제한다 (종의 원래 등급을 무시)")]
         public PetScale.Tier 크기 = PetScale.Tier.S;
+        [Tooltip("공격 방식을 강제한다 — ★Shoot 이 원거리다. 체크를 끄면 종의 원래 방식")]
+        public bool 방식강제 = false;
+        public PetUnit.Pattern 방식 = PetUnit.Pattern.Bite;
     }
 
     [Header("연결 (비우면 자동으로 찾는다)")]
@@ -46,8 +49,17 @@ public class StressTest : MonoBehaviour
     [Header("★상성 실험 (F7) — 여기를 고치고 F7 을 다시 누르면 된다")]
     [Tooltip("양쪽 인구수 예산 — 마릿수를 여기서 자동으로 뽑는다 (예산 ÷ 등급별 인구수).\n0 이면 아래 마릿수를 그대로 쓴다.\n★작은 표본은 판정이 안 된다: 티라노 2마리면 한 마리 죽는 순간 이미 체력 50% 밑이라 '30~50%' 같은 기준이 의미를 잃는다")]
     public int 예산 = 140;
+    [Tooltip("F7 로 붙이는 판")]
     public Side 왼쪽 = new Side { 이름 = "자글이", 종 = 0, 마릿수 = 20, 크기 = PetScale.Tier.S };
     public Side 오른쪽 = new Side { 이름 = "티라노", 종 = 3, 마릿수 = 2, 크기 = PetScale.Tier.XL };
+
+    [Header("두 번째 판 (F6) — 상성은 한 판으로 못 본다")]
+    [Tooltip("가위바위보는 세 변이 다 돌아야 성립한다. 한 판만 보면 '누가 세냐' 밖에 안 나온다")]
+    public Side 왼쪽B = new Side { 이름 = "자글이", 종 = 0, 마릿수 = 20, 크기 = PetScale.Tier.S };
+    public Side 오른쪽B = new Side { 이름 = "불호랑이", 종 = 1, 마릿수 = 7, 크기 = PetScale.Tier.M };
+
+    // 지금 돌고 있는 판이 무엇인가 (화면 표시·판정에 쓴다)
+    Side runL, runR;
 
     [Header("프레임 실험 (F9)")]
     [Tooltip("한 편당 마릿수 — 50 이면 50대50 (총 100마리). 무작위 종")]
@@ -166,8 +178,8 @@ public class StressTest : MonoBehaviour
                                : p >= 10f ? "신승"
                                           : "사실상 무승부 (상성이 없는 셈)";
         trialResult = a == 0 && b == 0 ? $"무승부 — {trialT:F1}초"
-            : a > 0 ? $"★ {왼쪽.이름} 승 — {trialT:F1}초\n남은 {a}마리 · 체력 {pa:F0}%  → {Grade(pa)}"
-                    : $"★ {오른쪽.이름} 승 — {trialT:F1}초\n남은 {b}마리 · 체력 {pb:F0}%  → {Grade(pb)}";
+            : a > 0 ? $"★ {runL.이름} 승 — {trialT:F1}초\n남은 {a}마리 · 체력 {pa:F0}%  → {Grade(pa)}"
+                    : $"★ {runR.이름} 승 — {trialT:F1}초\n남은 {b}마리 · 체력 {pb:F0}%  → {Grade(pb)}";
     }
 
     // ── 입력 ────────────────────────────────────────────────
@@ -180,7 +192,8 @@ public class StressTest : MonoBehaviour
         if (k.f2Key.wasPressedThisFrame) ToggleOutline();
         if (k.f3Key.wasPressedThisFrame) FX.DebugNoPops = !FX.DebugNoPops;
         if (k.f4Key.wasPressedThisFrame) ClearPops();
-        if (k.f7Key.wasPressedThisFrame) Versus();
+        if (k.f6Key.wasPressedThisFrame) Versus(왼쪽B, 오른쪽B);
+        if (k.f7Key.wasPressedThisFrame) Versus(왼쪽, 오른쪽);
         if (k.f8Key.wasPressedThisFrame) WildOnly();
         if (k.f9Key.wasPressedThisFrame) SpawnBattle();
         if (k.f10Key.wasPressedThisFrame) ClearAll();
@@ -190,7 +203,8 @@ public class StressTest : MonoBehaviour
         if (Input.GetKeyDown(KeyCode.F2)) ToggleOutline();
         if (Input.GetKeyDown(KeyCode.F3)) FX.DebugNoPops = !FX.DebugNoPops;
         if (Input.GetKeyDown(KeyCode.F4)) ClearPops();
-        if (Input.GetKeyDown(KeyCode.F7)) Versus();
+        if (Input.GetKeyDown(KeyCode.F6)) Versus(왼쪽B, 오른쪽B);
+        if (Input.GetKeyDown(KeyCode.F7)) Versus(왼쪽, 오른쪽);
         if (Input.GetKeyDown(KeyCode.F8)) WildOnly();
         if (Input.GetKeyDown(KeyCode.F9)) SpawnBattle();
         if (Input.GetKeyDown(KeyCode.F10)) ClearAll();
@@ -218,18 +232,22 @@ public class StressTest : MonoBehaviour
     }
 
     /// 왼쪽(내 편) vs 오른쪽(야생) 을 마주 세우고 초시계를 켠다.
-    void Versus()
+    void Versus(Side l, Side r)
     {
         if (!Ready()) return;
         ClearAll();
         ClearField();
+        runL = l; runR = r;
         trialT = 0f; trialResult = ""; trialRunning = true;
 
+        // ★줄은 **적의 반대쪽으로** 늘어나야 한다 (2026-07-29 사용자 "겹쳐서 시작한다").
+        //   전엔 양쪽 다 적 쪽으로 자랐다. 자글이 140마리는 12줄 = 깊이 9.2m 인데
+        //   진영 간격이 9m 라, 서로의 진영 안에 파고들어 생성됐다.
         Axes(out var fwd, out var right, out var center);
-        SpawnSide(center - fwd * (armyGap * 0.5f), right, fwd,
-                  PetUnit.Team.Player, 왼쪽, 1f, sideA);
-        SpawnSide(center + fwd * (armyGap * 0.5f), right, -fwd,
-                  PetUnit.Team.Wild, 오른쪽, 1f, sideB);
+        SpawnSide(center - fwd * (armyGap * 0.5f), right, -fwd,
+                  PetUnit.Team.Player, l, 1f, sideA);
+        SpawnSide(center + fwd * (armyGap * 0.5f), right, fwd,
+                  PetUnit.Team.Wild, r, 1f, sideB);
         startHpA = SumMaxHp(sideA); startHpB = SumMaxHp(sideB);
     }
 
@@ -255,8 +273,8 @@ public class StressTest : MonoBehaviour
         if (spawner != null) spawner.enabled = false;   // 마릿수를 내가 정한다 (야생이 끼면 못 잰다)
         Axes(out var fwd, out var right, out var center);
         var mix = new Side { 이름 = "무작위", 종 = -1, 마릿수 = perSide, 크기 = PetScale.Tier.M };
-        SpawnSide(center - fwd * (armyGap * 0.5f), right, fwd, PetUnit.Team.Player, mix, 100f, null);
-        SpawnSide(center + fwd * (armyGap * 0.5f), right, -fwd, PetUnit.Team.Wild, mix, 100f, null);
+        SpawnSide(center - fwd * (armyGap * 0.5f), right, -fwd, PetUnit.Team.Player, mix, 100f, null);
+        SpawnSide(center + fwd * (armyGap * 0.5f), right, fwd, PetUnit.Team.Wild, mix, 100f, null);
     }
 
     bool Ready() => spawner != null && spawner.entries.Count > 0 && player != null;
@@ -375,6 +393,12 @@ public class StressTest : MonoBehaviour
                 pu.collectible = false;
                 pu.packBudget = 0;     // 증식 금지 — 마릿수가 변하면 측정이 안 된다
                 pu.SetWildLevel(1);    // 거리 레벨 보정 취소 (양쪽을 같은 조건으로)
+                // ★공격 방식 강제 — 새 모델 없이 "늑대를 원거리로" 같은 실험을 오늘 한다
+                if (side.방식강제)
+                {
+                    pu.pattern = side.방식;
+                    pu.closeToContact = side.방식 != PetUnit.Pattern.Shoot;
+                }
                 // ★처음부터 전투 상태로 켠다. 야생의 평소 시야는 3m 뿐이라, 켜지 않으면
                 //   마주 세워도 서로를 못 보고 가만히 서 있는다 (실제로 그 버그가 났다).
                 //   실험은 "붙었을 때 누가 이기나" 를 재는 것이지 "서로 발견하나" 가 아니다.
@@ -407,9 +431,9 @@ public class StressTest : MonoBehaviour
             if (u.team == PetUnit.Team.Player) mine++; else wild++;
         }
 
-        string clock = trialRunning
-            ? $"\n\n[{왼쪽.이름} {AliveIn(sideA)}마리 {HpPctIn(sideA, startHpA):F0}%"
-              + $"  vs  {오른쪽.이름} {AliveIn(sideB)}마리 {HpPctIn(sideB, startHpB):F0}%]  {trialT:F1}초 …"
+        string clock = trialRunning && runL != null && runR != null
+            ? $"\n\n[{runL.이름} {AliveIn(sideA)}마리 {HpPctIn(sideA, startHpA):F0}%"
+              + $"  vs  {runR.이름} {AliveIn(sideB)}마리 {HpPctIn(sideB, startHpB):F0}%]  {trialT:F1}초 …"
             : trialResult != "" ? $"\n\n{trialResult}" : "";
 
         var box = new GUIStyle(GUI.skin.box) { alignment = TextAnchor.UpperLeft, fontSize = 20, padding = new RectOffset(14, 14, 12, 12) };
@@ -419,7 +443,8 @@ public class StressTest : MonoBehaviour
                   $"펫   내편 {mine}  ·  야생 {wild}   합 {mine + wild}\n" +
                   $"이펙트 오브젝트  {fxCount}개" +
                   clock + "\n\n" +
-                  $"F7  {왼쪽.이름}{CountOf(왼쪽)} vs {오른쪽.이름}{CountOf(오른쪽)}" +
+                  $"F7  {왼쪽.이름}{CountOf(왼쪽)} vs {오른쪽.이름}{CountOf(오른쪽)}\n" +
+                  $"F6  {왼쪽B.이름}{CountOf(왼쪽B)} vs {오른쪽B.이름}{CountOf(오른쪽B)}" +
                   (예산 > 0 ? $"  (예산 {예산} 씩)\n" : "\n") +
                   $"F8  {오른쪽.이름}{CountOf(오른쪽)}만 (나 혼자 잡기)\n" +
                   $"F9  {perSide}대{perSide} 무작위 (프레임용)\n" +
@@ -432,7 +457,7 @@ public class StressTest : MonoBehaviour
         GUI.color = avg >= 55f ? new Color(0.6f, 1f, 0.6f)
                   : avg >= 30f ? new Color(1f, 0.95f, 0.5f)
                                : new Color(1f, 0.5f, 0.5f);
-        GUI.Box(new Rect(14, 14, 470, (clock == "" ? 300 : 355) + (testMode ? 28 : 0)), txt, box);
+        GUI.Box(new Rect(14, 14, 500, (clock == "" ? 328 : 383) + (testMode ? 28 : 0)), txt, box);
         GUI.color = old;
     }
 }

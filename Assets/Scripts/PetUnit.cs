@@ -11,7 +11,8 @@ public class PetUnit : MonoBehaviour
     public enum Mat { Metal, Wood, Stone, Fire, Water, Lightning, Basic }   // Basic = 원소 없는 기본 평타 (수집 프로토)
 
     /// 종별 공격 패턴 (Mat.Basic 일 때 적용) — 물기·돌진·내려찍기·꼬리 휩쓸기
-    public enum Pattern { Bite, Charge, Slam, Sweep }
+    /// 기본 공격의 '모양'. ★Shoot 만 원거리다 — 나머지는 몸이 닿아야 때린다.
+    public enum Pattern { Bite, Charge, Slam, Sweep, Shoot }
 
     [Header("소속·원소")]
     public Team team = Team.Wild;
@@ -536,6 +537,7 @@ public class PetUnit : MonoBehaviour
         pattern == Pattern.Slam ? 360f      // 내려찍기 — 사방. 둘러싸이면 전부 쓸린다
       : pattern == Pattern.Sweep ? 200f     // 휩쓸기 — 앞을 넓게
       : pattern == Pattern.Charge ? 40f     // 돌진 — 좁고 길게 파고든다
+      : pattern == Pattern.Shoot ? 12f      // 쏘기 — 한 놈만 겨눈다
       : atkAngle;                           // 물기 — 좁다
 
     /// 방식별 팔 길이 배수
@@ -543,6 +545,7 @@ public class PetUnit : MonoBehaviour
         pattern == Pattern.Slam ? 0.8f      // 내려찍기 — 사방이지만 짧다
       : pattern == Pattern.Sweep ? 1.25f
       : pattern == Pattern.Charge ? 1.8f    // 돌진 — 제일 길다
+      : pattern == Pattern.Shoot ? shootReach   // 쏘기 — 압도적으로 길다
       : 1f;
 
     /// 방식별 한 대 피해 배수 — **넓게 때릴수록 한 대가 약하다.** 여기서 균형을 잡는다.
@@ -550,7 +553,20 @@ public class PetUnit : MonoBehaviour
         pattern == Pattern.Slam ? 0.55f
       : pattern == Pattern.Sweep ? 0.5f
       : pattern == Pattern.Charge ? 1.6f    // 좁고 길다 — 대신 한 방이 무겁다
+      : pattern == Pattern.Shoot ? 0.85f    // 한 놈만 맞히지만 **안 맞는다** — 그 값을 뺀다
       : 1f;
+
+    // ── 원거리 (2026-07-29) — 가위바위보의 세 번째 변 ──────────────────
+    //
+    // ★법칙 ②: 멀리 때리는 놈은 **느린 놈**에 강하다. 티라노는 이속 0.55배라
+    //   닿기 전에 녹아야 한다. 그래야 티라노도 지는 판이 생기고 최강이 아니게 된다.
+    // ★법칙 ③: 대신 **빠른 떼**(자글이 이속 1.5배)에는 덮쳐져 죽는다. 삼각형이 닫힌다.
+    //
+    //   원거리는 사거리 끝을 지킨다 (closeToContact = false) — 파고들지 않는다.
+    [Tooltip("쏘기 사거리 배수 — 근접의 몇 배까지 닿나")]
+    public float shootReach = 7f;
+    [Tooltip("투사체가 날아가는 시간 (초) — 길수록 피할 틈이 생긴다")]
+    public float shootFlight = 0.32f;
 
     // ★크기 등급과 인구수를 뗀다 (2026-07-29).
     //
@@ -609,6 +625,43 @@ public class PetUnit : MonoBehaviour
         //   ★멈춰도 되는 조건: 지금 찾은 놈이 '다음 링까지의 최소 거리' 보다 가까우면,
         //     더 뒤져도 이보다 가까운 놈은 없다. 그래서 가장 가까운 적을 고르는
         //     결과는 전과 똑같다 (빨라지기만 한다).
+        var best = NearestEnemy(range);
+        if (best != null) return best;
+
+        // ② 앞을 막아선 펫이 없다 — 그제야 주인공을 본다.
+        //
+        // ★거리 기준이 상태에 따라 다르다 (2026-07-28).
+        //   · 평소: aggroRange ÷ avatarBias (아주 가까울 때만) — 조용히 지나갈 수 있어야 한다
+        //   · 전투 중: 참전 거리 전체 — **내 펫이 다 죽으면 나를 잡으러 와야 한다.**
+        //     후순위 배수는 '펫이냐 주인이냐' 를 고를 때 쓰는 것이지, 고를 게 없는데도
+        //     주인을 못 보게 만드는 값이 아니다. 그것 때문에 야생이 10m 밖에서
+        //     볼 대상이 없어 멀뚱히 서 있었다.
+        var me = Avatar;
+        float avatarReach = Engaged ? range : aggroRange / Mathf.Max(1f, avatarBias);
+        if (me != null && me.Alive && me.team != team
+            && Dist(me.transform.position) <= avatarReach)
+            return me;
+
+        // ③ ★근처에 아무도 없으면 **전장으로 걸어간다** (2026-07-29 사용자 —
+        //    "자글이 3분의 1 정도가 어그로가 안 먹어서 안 뛰어갔다").
+        //
+        //    참전 시야가 14m 인데 140마리를 세우면 진영 깊이만 9m 라 뒷줄은 시야 밖이다.
+        //    그런데 지금까지 "적이 없으면 선다" 였다 — **전장으로 갈 줄을 몰랐다.**
+        //    50대50 이나 웨이브 디펜스에서 뒷줄이 통째로 노는 버그다. 시험용이 아니라
+        //    실제 게임의 버그다.
+        //
+        //    ★멀어도 목표로 삼는다. 걸어가는 동안 가까운 적이 생기면 다음 탐색에서 바뀐다.
+        if (Engaged) return NearestEnemy(advanceRange);
+
+        return null;
+    }
+
+    [Tooltip("근처에 적이 없을 때 전장을 찾아 걸어가는 최대 거리 (m)")]
+    public float advanceRange = 80f;
+
+    /// 반경 안에서 가장 가까운 적. 가까운 칸부터 넓혀 가며 찾고, 더 볼 필요가 없으면 멈춘다.
+    PetUnit NearestEnemy(float range)
+    {
         PetUnit best = null; float bd = range;
         BuildCells();
         var mp = transform.position;
@@ -630,23 +683,7 @@ public class PetUnit : MonoBehaviour
                 }
             if (best != null && bd <= r * cellSize) break;
         }
-        if (best != null) return best;
-
-        // ② 앞을 막아선 펫이 없다 — 그제야 주인공을 본다.
-        //
-        // ★거리 기준이 상태에 따라 다르다 (2026-07-28).
-        //   · 평소: aggroRange ÷ avatarBias (아주 가까울 때만) — 조용히 지나갈 수 있어야 한다
-        //   · 전투 중: 참전 거리 전체 — **내 펫이 다 죽으면 나를 잡으러 와야 한다.**
-        //     후순위 배수는 '펫이냐 주인이냐' 를 고를 때 쓰는 것이지, 고를 게 없는데도
-        //     주인을 못 보게 만드는 값이 아니다. 그것 때문에 야생이 10m 밖에서
-        //     볼 대상이 없어 멀뚱히 서 있었다.
-        var me = Avatar;
-        float avatarReach = Engaged ? range : aggroRange / Mathf.Max(1f, avatarBias);
-        if (me != null && me.Alive && me.team != team
-            && Dist(me.transform.position) <= avatarReach)
-            return me;
-
-        return null;
+        return best;
     }
 
     // ── 자석 복귀 (2026-07-28 사용자) ────────────────────────────────
@@ -829,6 +866,19 @@ public class PetUnit : MonoBehaviour
 
         // ★밸런스는 데미지로 잡는다 (2026-07-29 사용자) — 넓게 때릴수록 한 대가 약하다
         float dmg = str * dmgPerStr * PatternDmg;
+
+        // ★원거리는 투사체를 날린다 — 곁다리 타격 없이 겨눈 놈만.
+        //   날아가는 동안 표적이 죽으면 그냥 사라진다(빗나감). 그게 원거리의 약점이다.
+        if (pattern == Pattern.Shoot)
+        {
+            // 불대포 — 내 편은 푸른 불, 야생은 주황 불 (편을 색으로 가른다)
+            var fire = team == Team.Player ? new Color(0.45f, 0.8f, 1f)
+                                           : new Color(1f, 0.55f, 0.15f);
+            PetProjectile.Throw(this, target, dmg, false, fire,
+                                bodyR * 0.55f, shootFlight, bodyR * 0.5f);
+            return;
+        }
+
         Hit(target);
 
         // ★부채꼴 안이면 **전부** 맞는다 — 마릿수 상한을 두지 않는다 (2026-07-29 사용자:
@@ -1324,7 +1374,10 @@ public class PetUnit : MonoBehaviour
         //   **그 자글이 주위의 자기 자리**로 가려 했고, 사방이 막혀 자리에 못 서니
         //   계속 걸으며 떼를 밀고 전진했다.
         //   거대한 놈이 손톱만한 놈을 빙 둘러쌀 이유가 없다 — 혼자거나 내가 더 크면 직진이다.
-        surroundOn = mates.Count > 1 && bodyR <= t.bodyR * 1.2f;
+        //   ★원거리는 절대 포위하지 않는다 (2026-07-29 사용자 — "원거리 애들도 자꾸
+        //     원형으로 포위하면서 때리려고 이동해서 티라노가 접근을 못 한다").
+        //     쏘는 놈은 **선 자리에서 쏘는 게 전부**다. 자리를 옮기면 쏘지를 못한다.
+        surroundOn = closeToContact && mates.Count > 1 && bodyR <= t.bodyR * 1.2f;
         if (!surroundOn || mates.Count == 0) { slotAng = Bearing(t, this); return; }
 
         // ★자리는 **각자가 온 방향 순서**로 나눈다 (2026-07-29 두 번째 수정).
@@ -1744,25 +1797,83 @@ public class PetProjectile : MonoBehaviour
 {
     PetUnit target; float amt, dur, arc, t, push; Vector3 from; bool heal;
     PetUnit owner;
+    Color col;
+
+    // ── 투사체 풀 (2026-07-29) ─────────────────────────────────────────
+    //
+    // ★쏠 때마다 구체 + **재질을 새로** 만들고 있었다. 재질을 새로 만들면 배칭이 깨지고
+    //   쓰레기가 쌓인다. 피해 숫자에서 겪은 것과 같은 문제라 같은 처방을 쓴다 —
+    //   원거리 종이 떼로 쏘면(예산 140이면 수십 마리) 그것만으로 프레임이 무너진다.
+    //   재질은 **하나를 공유**하고 색만 프로퍼티 블록으로 바꾼다.
+    static readonly Stack<GameObject> pool = new Stack<GameObject>();
+    static Material shared;
+    static MaterialPropertyBlock mpb;
+    MeshRenderer mr;
+    TrailRenderer trail;
 
     public static void Throw(PetUnit owner, PetUnit target, float amt, bool heal, Color c, float size, float dur, float arc, float push = 0f)
     {
-        var g = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+        GameObject g;
+        if (pool.Count > 0) { g = pool.Pop(); g.SetActive(true); }
+        else
+        {
+            g = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+            Object.Destroy(g.GetComponent<Collider>());
+            if (shared == null)
+            {
+                shared = new Material(Shader.Find("Universal Render Pipeline/Lit"));
+                shared.EnableKeyword("_EMISSION");   // 불덩이는 스스로 빛난다
+                shared.globalIlluminationFlags = MaterialGlobalIlluminationFlags.RealtimeEmissive;
+            }
+            var rend = g.GetComponent<MeshRenderer>();
+            rend.sharedMaterial = shared;
+            rend.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+
+            // ★꼬리 — 날아간 자리를 따라간다. 어디서 어디로 갔는지가 눈에 남는다
+            //   (이펙트 규칙: 실제 움직임을 따라가는 것만 넣는다)
+            var tr = g.AddComponent<TrailRenderer>();
+            tr.material = shared;
+            tr.numCapVertices = 4;
+            tr.alignment = LineAlignment.View;
+            g.AddComponent<PetProjectile>();
+        }
         g.name = heal ? "proj_heal" : "proj";
-        Object.Destroy(g.GetComponent<Collider>());
         g.transform.position = owner.transform.position + Vector3.up * owner.body * 0.35f;
-        g.transform.localScale = Vector3.one * Mathf.Max(0.3f, size);
-        var mr = g.GetComponent<MeshRenderer>();
-        mr.material = new Material(Shader.Find("Universal Render Pipeline/Lit"));
-        mr.material.color = c;
-        var p = g.AddComponent<PetProjectile>();
-        p.owner = owner; p.target = target; p.amt = amt; p.dur = dur; p.arc = arc; p.heal = heal; p.push = push;
+        g.transform.localScale = Vector3.one * Mathf.Max(0.02f, size);
+
+        var p = g.GetComponent<PetProjectile>();
+        p.mr = g.GetComponent<MeshRenderer>();
+        if (mpb == null) mpb = new MaterialPropertyBlock();
+        mpb.SetColor("_BaseColor", c);
+        mpb.SetColor("_EmissionColor", c * 3.2f);      // 불덩이 — 확 밝게
+        p.mr.SetPropertyBlock(mpb);
+        p.col = c;
+
+        // 꼬리를 크기에 맞춰 다시 잡는다 (풀에서 꺼내 쓰므로 매번 설정)
+        p.trail = g.GetComponent<TrailRenderer>();
+        if (p.trail != null)
+        {
+            float w = Mathf.Max(0.02f, size) * 1.6f;
+            p.trail.time = Mathf.Clamp(dur * 0.5f, 0.06f, 0.25f);
+            p.trail.startWidth = w; p.trail.endWidth = 0f;
+            p.trail.startColor = c; p.trail.endColor = new Color(c.r, c.g, c.b, 0f);
+            p.trail.Clear();                            // ★안 지우면 이전 궤적이 순간이동한 선으로 남는다
+        }
+        p.owner = owner; p.target = target; p.amt = amt; p.dur = dur; p.arc = arc;
+        p.heal = heal; p.push = push; p.t = 0f;
         p.from = g.transform.position;
+    }
+
+    void Recycle()
+    {
+        if (trail != null) trail.Clear();
+        gameObject.SetActive(false);
+        pool.Push(gameObject);
     }
 
     void Update()
     {
-        if (target == null || !target.Alive) { Destroy(gameObject); return; }
+        if (target == null || !target.Alive) { Recycle(); return; }   // 날아가는 중에 표적이 죽으면 빗나감
         t += Time.deltaTime / dur;
         var to = target.transform.position + Vector3.up * target.body * 0.3f;
         var p = Vector3.Lerp(from, to, Mathf.Clamp01(t));
@@ -1776,10 +1887,10 @@ public class PetProjectile : MonoBehaviour
                 target.TakeDamage(amt, owner); target.OnHit();
                 // 💧물살 밀치기 — 날아온 방향으로
                 if (push > 0f) target.Knock(target.transform.position - from, push);
-                FX.Burst(transform.position, GetComponent<MeshRenderer>().material.color,
-                         8, target.body * 0.06f, target.body * 0.4f);
+                // 착탄 — 불덩이가 터진 자리에서 같은 색으로. 날아온 것과 터진 것이 이어져 보인다
+                FX.Burst(transform.position, col, 14, target.body * 0.07f, target.body * 0.55f);
             }
-            Destroy(gameObject);
+            Recycle();
         }
     }
 }

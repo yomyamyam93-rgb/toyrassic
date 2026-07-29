@@ -3246,6 +3246,8 @@ MonoBehaviour:
   leashRange: 12
   returning: 0
   atkAngle: 60
+  shootReach: 7
+  shootFlight: 0.32
   tier: 1
   alerted: 0
   magnetAfter: 2.2
@@ -54920,15 +54922,33 @@ MonoBehaviour:
   player: {fileID: 107336113}
   "\uC608\uC0B0": 140
   "\uC67C\uCABD":
-    "\uC774\uB984": "\uC790\uAE00\uC774"
-    "\uC885": 0
+    "\uC774\uB984": "\uBD88\uD638\uB791\uC774"
+    "\uC885": 1
     "\uB9C8\uB9BF\uC218": 28
-    "\uD06C\uAE30": 0
+    "\uD06C\uAE30": 1
+    "\uBC29\uC2DD\uAC15\uC81C": 0
+    "\uBC29\uC2DD": 0
   "\uC624\uB978\uCABD":
     "\uC774\uB984": "\uD2F0\uB77C\uB178"
     "\uC885": 3
     "\uB9C8\uB9BF\uC218": 2
     "\uD06C\uAE30": 3
+    "\uBC29\uC2DD\uAC15\uC81C": 0
+    "\uBC29\uC2DD": 0
+  "\uC67C\uCABDB":
+    "\uC774\uB984": "\uC790\uAE00\uC774"
+    "\uC885": 0
+    "\uB9C8\uB9BF\uC218": 20
+    "\uD06C\uAE30": 0
+    "\uBC29\uC2DD\uAC15\uC81C": 0
+    "\uBC29\uC2DD": 0
+  "\uC624\uB978\uCABDB":
+    "\uC774\uB984": "\uBD88\uD638\uB791\uC774"
+    "\uC885": 1
+    "\uB9C8\uB9BF\uC218": 7
+    "\uD06C\uAE30": 1
+    "\uBC29\uC2DD\uAC15\uC81C": 0
+    "\uBC29\uC2DD": 0
   perSide: 50
   spacingMul: 1.4
   armyGap: 9
