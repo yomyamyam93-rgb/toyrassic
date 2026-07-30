@@ -29,18 +29,26 @@ Shader "Toyrassic/OutlineHull"
             float _Width;
 
             struct A { float4 positionOS:POSITION; float3 normalOS:NORMAL; };
+            struct V { float4 pos:SV_POSITION; float3 opos:TEXCOORD0; };
 
-            float4 vert(A i) : SV_POSITION
+            V vert(A i)
             {
+                V o;
                 float3 p = i.positionOS.xyz; float3 nn = i.normalOS;
+                o.opos = p;                                     // 디졸브 판정용 (변형 전 좌표)
                 ApplyPetWobble(p, i.normalOS, i.positionOS.xyz); // 물 출렁임도 같이 (선이 형태에 붙게)
                 ApplyPetBend(p, nn);                            // 몸이 굽으면 외곽선도 같이
                 float3 w = TransformObjectToWorld(p);
                 float3 n = normalize(TransformObjectToWorldNormal(nn));
-                return TransformWorldToHClip(w + n * _Width);   // 월드 단위로 부풀림
+                o.pos = TransformWorldToHClip(w + n * _Width);  // 월드 단위로 부풀림
+                return o;
             }
 
-            half4 frag() : SV_Target { return _OutlineColor; }
+            // ★외곽선도 몸과 **같이** 지워진다 (2026-07-30 사용자 — "아웃라인은 같이 안
+            //   사라져서 남아있다 뚝 하고 사라지는데"). 몸은 디졸브로 녹는데 선만 온전히
+            //   남아 있다가 오브젝트가 파괴될 때 통째로 사라져서 뚝 끊겨 보였다.
+            //   같은 `_Dissolve` 문턱을 쓰므로 선이 면을 정확히 따라 사라진다.
+            half4 frag(V i) : SV_Target { PetDissolveClip(i.opos); return _OutlineColor; }
             ENDHLSL
         }
     }

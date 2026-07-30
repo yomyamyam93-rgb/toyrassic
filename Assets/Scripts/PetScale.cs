@@ -7,6 +7,10 @@ public static class PetScale
 {
     public enum Tier { S, M, L, XL }   // 인구수 1 / 2 / 3 / 4 (3-3)
 
+    /// 크기를 잴 때 **부피를 얼마나 볼까** (0 = 키만 · 1 = 부피만).
+    /// 손잡이 하나로 두 극단 사이를 오간다 — 아래 Normalize 의 실측표 참고.
+    public static float VolumeWeight = 0.5f;
+
     public static float Target(Tier t)
     {
         // ★격차를 한 번 더 벌렸다 (2026-07-29 사용자 — "아직도 사이즈 차이가 그닥 안 크다,
@@ -28,16 +32,42 @@ public static class PetScale
         //   참고: 스타2 저글링↔울트라가 눈으로 3배쯤이다. 6.2배는 그보다 과감한 쪽이다.
         //
         //   ★이속은 이 값과 무관하다 (PetUnit 이 등급으로 정한다) — 크기를 더 만져도 안 흔들린다.
+        // ★이제 이 값은 **키(높이)** 다 (2026-07-30 — Normalize 가 y 를 맞춘다).
+        //   전까지는 '가장 긴 변' 이었고, 그래서 네발 짐승의 키가 이 값의 절반 이하로
+        //   나왔다. 기준이 바뀌었으니 숫자도 다시 잡는다.
+        //
+        //   6.3 / 12.6 / 24 / 39   ← 캐릭터 키를 0.42m 로 **잘못 알고** 맞춘 값
+        //   15  / 30   / 57 / 93   ← 실측(1.0m) 기준. 눈으로 보니 컸다
+        //   10  / 20   / 38 / 62   배율 1 : 2 : 3.8 : 6.2   ← 지금 (위의 2/3)
+        //
+        //   ★★기준 숫자가 틀렸었다 (2026-07-30 실측). 문서에 "캐릭터 키 0.42m" 라고
+        //   적혀 있어 그걸 믿고 맞췄는데, **재보니 1.000m 였다.** 2.4배 차이라
+        //   S 가 0.63m — 캐릭터의 63% 밖에 안 됐다. "왜 이렇게 작지" 의 정체다.
+        //   → 크기를 만질 때는 **캐릭터를 먼저 재라.** 문서의 숫자를 믿지 말 것.
+        //
+        //   화면에서의 실제 키 (×WorldScale.K, **실측 캐릭터 1.0m** 기준):
+        //     S 1.0m (캐릭터와 같은 눈높이) · M 2.0m (2배)
+        //     L 3.8m (3.8배) · XL 6.2m (6.2배 — 올려다본다)
+        //
+        //   ★같은 등급은 **같은 눈높이**다. 길쭉한 종과 뭉툭한 종이 섞여도 크기가
+        //   안 흔들린다 — 가장 긴 변으로 맞추던 때의 고질적인 문제였다.
         switch (t)
         {
-            case Tier.S: return 5.5f;
-            case Tier.M: return 11f;
-            case Tier.L: return 21f;
-            default: return 34f;
+            case Tier.S: return 10f;
+            case Tier.M: return 20f;
+            case Tier.L: return 38f;
+            default: return 62f;
         }
     }
 
-    /// 바운딩박스 실측 → 티어 목표 크기로 스케일 조정
+    /// ★크기는 **키(높이)로 맞춘다** (2026-07-30 사용자 — "S 사이즈가 내 캐릭터 사이즈만큼").
+    ///
+    ///   전엔 `max(x,y,z)` 즉 **가장 긴 변**을 목표에 맞췄다. 그런데 펫은 대부분 네발
+    ///   짐승이라 길이가 키의 2~3배다 — 그래서 "S = 5.5" 로 맞춰도 실제 **키는 0.25m** 라
+    ///   캐릭터(0.42m)보다 작아 보였다. 눈으로 크기를 비교하는 기준은 **키**이지 길이가 아니다.
+    ///
+    ///   ★부작용도 사라진다: 전엔 길쭉한 종(브론토)과 뭉툭한 종(트리케라)을 같은 등급에
+    ///   놔도 **키가 크게 달라 보였다.** 키로 맞추면 같은 등급은 같은 눈높이가 된다.
     public static float Normalize(GameObject go, Tier tier, float fine = 1f)
     {
         // 파티클·라인(이펙트) 렌더러는 바운즈가 엉뚱해 측정에서 제외 (0.1m 붕괴 사고 방지)
@@ -45,9 +75,29 @@ public static class PetScale
         if (rs.Length == 0) return 1f;
         var b = rs[0].bounds;
         foreach (var r in rs) b.Encapsulate(r.bounds);
-        float max = Mathf.Max(b.size.x, Mathf.Max(b.size.y, b.size.z));
-        if (max < 1e-3f) return 1f;
-        float k = Target(tier) / max * Mathf.Clamp(fine, 0.5f, 1.5f);
+        // ★키로 잰다. 다만 납작한 모델에서 0 으로 무너지지 않게 하한을 둔다
+        //   (가장 긴 변의 1/4 보다는 크다고 본다 — 아무리 길쭉해도 그 정도는 된다).
+        float longest = Mathf.Max(b.size.x, Mathf.Max(b.size.y, b.size.z));
+        float h = Mathf.Max(b.size.y, longest * 0.25f);
+        if (h < 1e-3f) return 1f;
+
+        // ★키만 보면 **납작한 놈이 거대해진다** (2026-07-30 실측).
+        //   돌북은 원본 키가 0.86 으로 제일 낮아서, 키를 등급 목표에 맞추려면 4.4배를
+        //   곱해야 한다 — 부피는 세제곱이라 **86배**가 되고, 같은 L 등급인 케몽의
+        //   **10.3배 덩치**로 나왔다. 반대로 '가장 긴 변' 으로 맞추던 예전 방식은
+        //   길쭉한 놈이 쪼그라들었다. 어느 한 변만 보면 반드시 한쪽이 터진다.
+        //
+        //   → **부피와 키를 섞는다.** 둘 다 길이 단위라 섞어도 단위가 안 깨진다
+        //     (정육면체면 w 와 무관하게 한 변 그대로 나온다 — 기준이 안 흔들린다).
+        //
+        //   실측 편차 (L 등급 기준):
+        //     w=0.0 키 1.0배 / 부피 10.3배   ← 납작한 놈이 터진다
+        //     w=0.5 키 1.5배 / 부피  3.2배   ← 지금
+        //     w=1.0 키 2.2배 / 부피  1.0배   ← 홀쭉한 놈(케몽)이 5.9m 로 솟는다
+        float boxVol = Mathf.Max(1e-6f, b.size.x * b.size.y * b.size.z);
+        float w = Mathf.Clamp01(VolumeWeight);
+        float s = Mathf.Pow(h, 1f - w) * Mathf.Pow(boxVol, w / 3f);
+        float k = Target(tier) / Mathf.Max(1e-4f, s) * Mathf.Clamp(fine, 0.5f, 1.5f);
         go.transform.localScale *= k;
         return k;
     }

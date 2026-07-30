@@ -34,6 +34,7 @@ public static class PetBox
     //   돌아와 흡수되며 사라지므로 **먹은 경험치가 통째로 증발했다.**
     public static void GainXP(string species, float amt)
     {
+        if (PetUnit.DebugNoXP) return;      // ★측정 중 — 아래 SyncFromSpecies 가 풀피로 되돌린다
         var d = Of(species);
         if (d == null || amt <= 0f) return;
 

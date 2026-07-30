@@ -10,9 +10,48 @@ public class PetUnit : MonoBehaviour
     public enum Team { Player, Wild }
     public enum Mat { Metal, Wood, Stone, Fire, Water, Lightning, Basic }   // Basic = 원소 없는 기본 평타 (수집 프로토)
 
-    /// 종별 공격 패턴 (Mat.Basic 일 때 적용) — 물기·돌진·내려찍기·꼬리 휩쓸기
-    /// 기본 공격의 '모양'. ★Shoot 만 원거리다 — 나머지는 몸이 닿아야 때린다.
-    public enum Pattern { Bite, Charge, Slam, Sweep, Shoot }
+    /// 공격 방식 — **이제 이 하나가 "어떻게 싸우나" 를 전부 정한다** (2026-07-29 사용자
+    /// "역할과 방식을 합치자"). 각도 · 팔 길이 · 한 대 피해 · 공속 · 이속.
+    ///
+    /// ★역할(암살자·돌격병·방패·거인·포수)은 없앴다. 역할이 정하던 공속·이속이
+    ///   여기로 들어왔다. 역할과 방식이 **둘 다 종 이름에서 파생**돼서 늘 같이 움직였고,
+    ///   사거리는 아예 양쪽에 곱해지고 있었다 (트리케라 = 돌격병1.25 × 돌진1.8 = 2.25배).
+    ///   축이 하나로 합쳐지면 그런 이중 적용이 구조적으로 불가능해진다.
+    ///
+    /// ★"굼뜬 거인" 은 이제 **크기**가 만든다 — 크기가 기본 공속·이속을 정하고
+    ///   방식이 배수로 기울인다. 그래서 같은 '물기' 라도 늑구(S)는 촐싹대고 티라(XL)는
+    ///   묵직하다. 네가 확정한 **"넓은 건 방식이 아니라 몸이다"** 와 같은 원리다.
+    ///
+    /// ★값 순서를 바꾸지 말 것 — 씬에 **정수로** 저장돼 있어서 순서를 바꾸면
+    ///   기존 펫의 방식이 통째로 뒤바뀐다. 새 방식은 반드시 **뒤에** 붙인다.
+    public enum Pattern
+    {
+        // ── 근접 (몸이 닿아야 때린다) ──
+        Bite,       // 물기     — 기준점
+        Charge,     // 들이받기 — 좁고 길게, 한 방 무겁게
+        Slam,       // 내려찍기 — 사방, 짧게
+        Sweep,      // 휩쓸기   — 앞을 넓게, 약하게
+        // ── 원거리 ──
+        Shoot,      // 쏘기     — 기준점
+        // ── 2026-07-29 추가 (뒤에만 붙인다) ──
+        Claw,       // 할퀴기   — 제일 빠른 연타
+        Swipe,      // 후려치기 — 물기와 휩쓸기 사이
+        Stomp,      // 짓밟기   — 발밑만, 극단적 한 방
+        Rapid,      // 연사     — 짧은 사거리로 다다다
+        Snipe,      // 저격     — 아주 멀리 한 방
+        Scatter,    // 흩뿌리기 — 산탄. ★가까울수록 강한 원거리 (카이팅을 안 한다)
+    }
+
+    /// 원거리인가 — 투사체를 날리고, 사거리 끝을 지킨다
+    public static bool RangedPattern(Pattern p) =>
+        p == Pattern.Shoot || p == Pattern.Rapid || p == Pattern.Snipe || p == Pattern.Scatter;
+
+    /// 물러나며 쏘나 — ★흩뿌리기는 **일부러 안 한다.** 사거리가 짧고 가까울수록 강한
+    /// 산탄이라, 도망가면 자기 정체성을 잃는다. 원거리끼리도 상성이 생기는 지점이다.
+    public static bool KitingPattern(Pattern p) =>
+        RangedPattern(p) && p != Pattern.Scatter;
+
+    bool IsRanged => RangedPattern(pattern);
 
     [Header("소속·원소")]
     public Team team = Team.Wild;
@@ -403,6 +442,11 @@ public class PetUnit : MonoBehaviour
     [HideInInspector] public float atkSpeedMul = 1f;   // 공격 속도
     [HideInInspector] public float moveSpeedMul = 1f;  // 이동 속도
     [HideInInspector] public float rangeMul = 1f;      // 사거리
+    // ★종마다 공격을 다르게 (2026-07-29 사용자 — "모든 팻들은 공격하는 방식이나 범위나
+    //   이런걸 좀 다르게 넣어볼까"). 방식(Pattern)이 원형을 주고 **종이 배수로 기울인다.**
+    //   방식을 통째로 종마다 만들면 축이 무너져 밸런스를 못 잡는다 — 원형은 남기고 기울인다.
+    [HideInInspector] public float angleMul = 1f;      // 부채꼴 각도
+    [HideInInspector] public float hitDmgMul = 1f;     // 한 대 피해
     /// ★야생 습격병 — 스킬(원소기·패턴기)을 안 쓰고 평타만. 떼로 몰려와도 읽히게
     [HideInInspector] public bool basicOnly;
 
@@ -420,24 +464,40 @@ public class PetUnit : MonoBehaviour
     // ★속도를 '재어 본 몸 크기(body)' 가 아니라 **등급(supply)** 으로 정한다.
     //   body 는 모델 바운딩박스 실측값이라, 크기 격차를 조절하는 순간 이속이 같이 틀어진다.
     //   등급은 S1 / M2 / L3 / XL4 로 명시된 값이라 모델을 어떻게 바꾸든 안 흔들린다.
+    // ★크기별 이속 폭을 크게 벌렸다 (2026-07-30, 45판 실측 후).
+    //
+    //   4.4 / 3.9 / 3.3 / 2.5  (1.8배 폭)  ← 전
+    //   4.6 / 3.6 / 2.6 / 1.3  (3.5배 폭)  ← 지금
+    //
+    // ★왜: 역할을 걷어내면서 티라(XL)가 거인 이속(×0.55)을 잃고 물기(×1.3)를 받아
+    //   1.375 → 3.25 로 **2.4배 빨라졌다.** 그 결과 티라가 **원거리 전부보다 빨라져서**
+    //   (딜롭 2.93 · 케몽 1.98) 아무도 도망칠 수 없게 됐고, 법칙②(멀리 때리는 놈은
+    //   느린 놈에 강하다)가 **구조적으로 불가능**해졌다. 45판에서 티라 9-0-0 이 그 결과다.
+    //
+    // ★고친 것은 **이속뿐이다. 화력은 안 건드렸다** — 티라노가 크고 센 건 맞다
+    //   (2026-07-29 사용자). 문제는 센 게 아니라 *빨랐던* 것이다.
+    //
+    // ★크기 폭이 방식 폭보다 넓어야 한다. 방식 이속 배수가 0.6~1.3(2.2배)이므로
+    //   크기가 3.5배 폭을 가져야 "큰 놈은 굼뜨다" 가 방식에 안 묻힌다.
     [Header("이동 속도 (m/s) — 플레이어는 3.83")]
     [Tooltip("S 소형 — ★플레이어보다 빨라야 한다. 뒤로 걸으며 때리는 걸로 못 벗어나게")]
-    public float speedS = 4.4f;
+    public float speedS = 4.6f;
     [Tooltip("M 중형 — 플레이어와 비슷하게")]
-    public float speedM = 3.9f;
-    [Tooltip("L 대형 — 조금 느리게")]
-    public float speedL = 3.3f;
-    [Tooltip("XL 초대형 — 확실히 느리게. 달아나면 벗어나진다. 대신 붙으면 아프다")]
-    public float speedXL = 2.5f;
+    public float speedM = 3.6f;
+    [Tooltip("L 대형 — 확실히 느리게")]
+    public float speedL = 2.6f;
+    [Tooltip("XL 초대형 — ★아주 느려야 한다. 원거리가 도망칠 수 있어야 법칙②가 산다")]
+    public float speedXL = 1.3f;
     [Tooltip("민첩 1당 더해지는 속도")]
     public float agiSpeedPer = 0.01f;
 
     float TierSpeed => supply <= 1 ? speedS : supply == 2 ? speedM : supply == 3 ? speedL : speedXL;
 
     /// 걷는 속도 — 이미 최종 m/s 다 (WorldScale 을 다시 곱하지 않는다)
+    // ★이속 = 크기가 준 기본 속도 × 방식 배수 × 종별 기울임
     float MoveSpd => (TierSpeed + agi * agiSpeedPer)
                      * (slowT > 0f ? 0.55f : 1f)
-                     * moveSpeedMul;
+                     * PatternMoveSpeed * moveSpeedMul;
 
     // ── 전투 행동 (2026-07-28 재작성) ──────────────────────────────────────
     //
@@ -495,15 +555,36 @@ public class PetUnit : MonoBehaviour
     ///   를 썼는데, 길쭉한 티라노 옆에서 자글이가 몸에 닿지도 못하고 허공에서 때렸다.
     ///   여기의 합(bodyR+bodyR)이 밀어내는 간격((bodyR+bodyR)×separateMul, 배수 1 미만)
     ///   보다 항상 크므로, 아래 「사거리가 간격보다 넉넉하다」 규칙은 그대로 지켜진다.
-    float AtkRangeTo(PetUnit t) =>
-        reach * rangeMul * PatternReach + bodyR + (t != null ? t.bodyR : 0f);
+    /// ★근접의 팔 길이는 **제 몸에 비례**한다 (2026-07-30 사용자 — "서로의 몸에 닿을
+    ///   거리도 아닌데 공격 모션 취하는 애들이 많고").
+    ///
+    ///   전엔 `reach` 가 **고정 0.5m** 라 몸 크기와 무관했다. 늑구(S, 몸반지름 0.2)는
+    ///   몸이 닿는 거리(0.4)의 **두 배가 넘는 0.9m 밖**에서 때렸고, 커질수록 그 비율이
+    ///   줄어 크기마다 '닿는 느낌' 이 제각각이었다. 팔은 몸에 붙어 있으니 몸을 따라가야 한다.
+    ///
+    /// ★원거리는 그대로 고정 거리다. 쏘는 거리는 몸이 아니라 **무기가 정하는 것**이고,
+    ///   여기까지 몸에 비례시키면 큰 놈만 압도적으로 멀리 쏘게 된다.
+    float AtkRangeTo(PetUnit t)
+    {
+        float arm = IsRanged ? reach * PatternReach            // 원거리 — 고정 사거리
+                             : bodyR * meleeArm * PatternReach; // 근접 — 제 몸에 비례
+        return arm * rangeMul + bodyR + (t != null ? t.bodyR : 0f);
+    }
+
+    [Tooltip("근접 팔 길이 = 몸 반지름 × 이 값 × 방식 배수. 크면 멀리서 때린다")]
+    public float meleeArm = 0.85f;
+
+    /// 이 상대를 때릴 수 있는 거리 — 쇼케이스가 허수아비 세울 자리를 잡는 데 쓴다.
+    /// ★몸 크기(`bodyR`)가 들어가므로 **`Start` 가 돈 뒤에** 불러야 값이 맞는다.
+    public float AttackReachTo(PetUnit t) => AtkRangeTo(t);
 
     /// 몸이 맞닿는 거리 — **이동은 이걸 목표로 한다** (근접은 붙어서 팬다).
     /// 1.05 는 밀어내기가 시작되기 직전에 서라는 뜻 (딱 같은 값이면 떤다).
     float ContactR(PetUnit t) =>
         (bodyR + (t != null ? t.bodyR : 0f)) * separateMul * 1.05f;
 
-    float AtkPeriodNow => atkPeriod / Mathf.Max(0.1f, atkSpeedMul);
+    // ★공속 = 크기가 준 기본 간격 ÷ (방식 배수 × 종별 기울임)
+    float AtkPeriodNow => atkPeriod / Mathf.Max(0.1f, PatternAtkSpeed * atkSpeedMul);
 
     // ── 덩치 = 공격 범위 ──────────────────────────────────────────────
     //
@@ -536,16 +617,28 @@ public class PetUnit : MonoBehaviour
     float PatternAngle =>
         pattern == Pattern.Slam ? 360f      // 내려찍기 — 사방. 둘러싸이면 전부 쓸린다
       : pattern == Pattern.Sweep ? 200f     // 휩쓸기 — 앞을 넓게
-      : pattern == Pattern.Charge ? 40f     // 돌진 — 좁고 길게 파고든다
+      : pattern == Pattern.Swipe ? 120f     // 후려치기 — 물기와 휩쓸기 사이
+      : pattern == Pattern.Stomp ? 90f      // 짓밟기 — 발밑
+      : pattern == Pattern.Claw ? 70f       // 할퀴기 — 물기보다 살짝 넓다
+      : pattern == Pattern.Charge ? 40f     // 들이받기 — 좁고 길게 파고든다
+      : pattern == Pattern.Scatter ? 60f    // 흩뿌리기 — 산탄. 원거리인데 넓다
       : pattern == Pattern.Shoot ? 12f      // 쏘기 — 한 놈만 겨눈다
+      : pattern == Pattern.Rapid ? 12f      // 연사 — 한 놈만
+      : pattern == Pattern.Snipe ? 8f       // 저격 — 정확히 한 놈만
       : atkAngle;                           // 물기 — 좁다
 
     /// 방식별 팔 길이 배수
     float PatternReach =>
         pattern == Pattern.Slam ? 0.8f      // 내려찍기 — 사방이지만 짧다
       : pattern == Pattern.Sweep ? 1.25f
-      : pattern == Pattern.Charge ? 1.8f    // 돌진 — 제일 길다
-      : pattern == Pattern.Shoot ? shootReach   // 쏘기 — 압도적으로 길다
+      : pattern == Pattern.Swipe ? 1.1f
+      : pattern == Pattern.Stomp ? 0.6f     // 짓밟기 — 제일 짧다. 발밑만
+      : pattern == Pattern.Claw ? 0.9f
+      : pattern == Pattern.Charge ? 1.8f    // 들이받기 — 근접 중 제일 길다
+      : pattern == Pattern.Shoot ? shootReach          // 쏘기 — 기준점
+      : pattern == Pattern.Rapid ? shootReach * 0.64f  // 연사 — 짧다 (14→9)
+      : pattern == Pattern.Snipe ? shootReach * 1.29f  // 저격 — 제일 멀다 (14→18)
+      : pattern == Pattern.Scatter ? shootReach * 0.57f// 흩뿌리기 — 아주 짧다 (14→8)
       : 1f;
 
     /// 방식별 한 대 피해 배수 — **넓게 때릴수록 한 대가 약하다.** 여기서 균형을 잡는다.
@@ -553,7 +646,137 @@ public class PetUnit : MonoBehaviour
         pattern == Pattern.Slam ? 0.55f
       : pattern == Pattern.Sweep ? 0.5f
       : pattern == Pattern.Charge ? 1.6f    // 좁고 길다 — 대신 한 방이 무겁다
-      : pattern == Pattern.Shoot ? 0.85f    // 한 놈만 맞히지만 **안 맞는다** — 그 값을 뺀다
+      // ★0.85 → 1.25 (2026-07-29 실측). "안 맞으니까 깎는다" 는 **전제가 틀렸다.**
+      //   원거리는 제자리에서 쏘기만 하므로 느림보 거인이 걸어와서 다 잡아먹는다.
+      //   사거리를 2배(7→14)로 늘려도 티라노 29%→19% 로 거의 안 변한 것이 그 증거다 —
+      //   안 맞게 만들려는 시도가 실패했으니, 안 맞는 대가로 깎아둔 할인도 근거가 없다.
+      //   게다가 포수 역할은 공속까지 0.85배라 **화력이 두 번 할인**되고 있었다(≈0.72).
+      //   실측: 같은 예산 140 에서 인구당 화력이 자글이의 2.4분의 1이었다.
+      : pattern == Pattern.Shoot ? 1.25f    // 한 놈만 맞히는 대신 한 대가 무겁다
+      : pattern == Pattern.Claw ? 0.6f      // 할퀴기 — 제일 가볍다. 대신 제일 빠르다
+      : pattern == Pattern.Swipe ? 0.9f
+      : pattern == Pattern.Stomp ? 2.4f     // 짓밟기 — 제일 무겁다
+      : pattern == Pattern.Rapid ? 0.5f     // 연사 — 가볍게 많이
+      : pattern == Pattern.Snipe ? 2.0f     // 저격 — 멀리서 한 방
+      // ★0.4 → 0.8 (2026-07-30 실측). 켄트(흩뿌리기)가 **9판 전부 전멸**했다.
+      //   흩뿌리기는 카이팅을 안 하므로 결국 붙어서 싸운다 — 사거리만 조금 길 뿐
+      //   근접이나 마찬가지인데 피해가 최저(0.4)라 그냥 약한 놈이었다.
+      //   **도망 안 가는 대가를 화력으로 돌려받아야** 정체성이 선다.
+      : pattern == Pattern.Scatter ? 0.8f   // 흩뿌리기 — 넓지만 붙어서 싸우니 세야 한다
+      : 1f;
+
+    // ── 방식이 템포도 정한다 (2026-07-29 — 역할을 흡수했다) ──────────────
+    //
+    // ★기본 공속·이속은 **크기**가 정하고(작을수록 빠르다), 방식이 여기에 곱한다.
+    //   그래서 같은 물기라도 늑구(S)는 촐싹대고 티라(XL)는 묵직하다.
+    //   **넓을수록 약하고, 무거울수록 느리다** — 이 반비례가 밸런스의 뼈대다.
+
+    /// 방식별 공격 속도 배수 (클수록 자주 때린다)
+    float PatternAtkSpeed =>
+        pattern == Pattern.Claw ? 2.4f      // 제일 빠르다
+      : pattern == Pattern.Bite ? 1.5f
+      : pattern == Pattern.Swipe ? 0.8f
+      : pattern == Pattern.Sweep ? 0.9f
+      : pattern == Pattern.Slam ? 0.7f
+      : pattern == Pattern.Charge ? 0.6f
+      : pattern == Pattern.Stomp ? 0.4f     // 제일 느리다
+      : pattern == Pattern.Rapid ? 2.2f     // 다다다
+      : pattern == Pattern.Shoot ? 0.85f
+      : pattern == Pattern.Snipe ? 0.5f     // 오래 겨눈다
+      : pattern == Pattern.Scatter ? 1.0f
+      : 1f;
+
+    /// ★방식별 **착탄 광역 반경** (0 이면 겨눈 한 놈만) — 2026-07-30.
+    ///
+    /// ★왜 필요했나: `Strike()` 가 원거리면 투사체를 날리고 **겨눈 한 놈만** 때렸다.
+    ///   그래서 **원거리의 `PatternAngle` 이 전부 무의미**했다 — 흩뿌리기(60° 산탄)가
+    ///   넓게 뿌리는 대가로 피해를 깎아뒀는데 정작 한 놈만 맞혀서 9판 전멸했다.
+    ///   피해를 2배로 올려도 그대로였던 게 그 증거다. 숫자가 아니라 구조가 문제였다.
+    ///
+    /// ★각도가 아니라 반경으로 낸다. 투사체는 '어디에 떨어졌나' 만 알지 '어느 쪽을
+    ///   보고 쐈나' 는 모르기 때문이다. 부채꼴은 근접(몸이 도는 것)의 개념이다.
+    float PatternSplash => 0f;               // 지금은 아무도 안 쓴다 — 터뜨리기가 생기면 여기에
+
+    /// ★산탄 알 수 — 1이면 평범한 단발. 흩뿌리기만 여러 알을 촥 뿌린다.
+    ///   알은 **적마다 하나씩** 배정되므로, 뭉쳐 있으면 다 박히고 하나뿐이면 한 알만
+    ///   맞는다. 「가까이 뭉친 떼에 강하다」가 규칙이 아니라 **결과로** 나온다.
+    int PatternPellets => pattern == Pattern.Scatter ? 6 : 1;
+
+    /// 앞 부채꼴 안의 적을 가까운 순서로 최대 max 마리 — 산탄이 알을 나눠 줄 대상이다.
+    /// ★주변 칸만 훑는다. 전 개체를 훑으면 46마리가 1초마다 쏘는 것만으로 무너진다.
+    List<PetUnit> ConeTargets(float range, float spread, int max)
+    {
+        coneBuf.Clear();
+        BuildCells();
+        var f = transform.forward; f.y = 0f;
+        float half = spread * 0.5f;
+        int mx = CellOf(transform.position.x), mz = CellOf(transform.position.z);
+        int rad = Mathf.Clamp(Mathf.CeilToInt(range / Mathf.Max(0.5f, cellSize)), 0, 8);
+        for (int dx = -rad; dx <= rad; dx++)
+            for (int dz = -rad; dz <= rad; dz++)
+            {
+                if (!cells.TryGetValue(CellKey(mx + dx, mz + dz), out var near)) continue;
+                foreach (var u in near)
+                {
+                    if (u == null || !u.Alive || u.team == team || u == this) continue;
+                    var d = u.transform.position - transform.position; d.y = 0f;
+                    if (d.magnitude > range + u.bodyR) continue;
+                    if (Vector3.Angle(f, d) > half) continue;
+                    coneBuf.Add(u);
+                }
+            }
+        coneBuf.Sort((a, b) => Dist(a.transform.position).CompareTo(Dist(b.transform.position)));
+        if (coneBuf.Count > max) coneBuf.RemoveRange(max, coneBuf.Count - max);
+        return coneBuf;
+    }
+    static readonly List<PetUnit> coneBuf = new List<PetUnit>();
+
+    /// 착탄 반경 안의 적을 전부 때린다. 겨눈 놈은 이미 맞았으므로 뺀다.
+    ///
+    /// ★전체를 훑지 않고 **주변 칸만** 본다 — 흩뿌리기 46마리가 1초마다 쏘는데
+    ///   전 개체를 훑으면 그것만으로 프레임이 무너진다 (`Separate` 와 같은 이유).
+    public static void Splash(Vector3 at, float radius, float amt, PetUnit owner, PetUnit already)
+    {
+        if (radius <= 0f || owner == null) return;
+        BuildCells();
+        int mx = CellOf(at.x), mz = CellOf(at.z);
+        int rad = Mathf.Clamp(Mathf.CeilToInt(radius / Mathf.Max(0.5f, cellSize)), 0, 6);
+        float r2 = radius * radius;
+        for (int dx = -rad; dx <= rad; dx++)
+            for (int dz = -rad; dz <= rad; dz++)
+            {
+                if (!cells.TryGetValue(CellKey(mx + dx, mz + dz), out var near)) continue;
+                foreach (var u in near)
+                {
+                    if (u == null || !u.Alive || u == already || u == owner) continue;
+                    // ★구조물도 맞는다 — 터진 자리에 있으면 건물이라고 안 맞을 이유가 없다
+                    //   (전엔 뺐는데, 그러면 쇼케이스 허수아비처럼 구조물만 있는 자리에서
+                    //    산탄이 아무 데도 안 퍼져 "적용이 안 된 것처럼" 보인다)
+                    if (u.team == owner.team) continue;
+                    var d = u.transform.position - at; d.y = 0f;
+                    if (d.sqrMagnitude > r2) continue;
+                    u.TakeDamage(amt, owner); u.OnHit();
+                }
+            }
+    }
+
+    /// 방식별 이동 속도 배수 — ★원거리가 느린 것이 법칙③(빠른 떼가 원거리를 덮친다)의
+    /// 근거다. 여기를 1 로 올리면 아무도 원거리를 못 잡는다.
+    float PatternMoveSpeed =>
+        pattern == Pattern.Claw ? 1.5f
+      : pattern == Pattern.Bite ? 1.3f
+      : pattern == Pattern.Swipe ? 1.1f
+      : pattern == Pattern.Sweep ? 0.9f
+      : pattern == Pattern.Slam ? 0.8f
+      : pattern == Pattern.Charge ? 1.2f
+      : pattern == Pattern.Stomp ? 0.7f
+      : pattern == Pattern.Rapid ? 0.8f
+      : pattern == Pattern.Shoot ? 0.75f
+      // ★0.6 → 0.78 (2026-07-30 실측). 케몽(L 저격) 이속이 1.98 로 티라(3.25)보다 느려
+      //   **저격이 거인한테서 못 도망쳤다.** 원거리는 느리되 *자기가 노리는 대형보다는*
+      //   빨라야 한다 — 그게 법칙②의 최소 조건이다.
+      : pattern == Pattern.Snipe ? 0.78f
+      : pattern == Pattern.Scatter ? 0.85f
       : 1f;
 
     // ── 원거리 (2026-07-29) — 가위바위보의 세 번째 변 ──────────────────
@@ -563,10 +786,78 @@ public class PetUnit : MonoBehaviour
     // ★법칙 ③: 대신 **빠른 떼**(자글이 이속 1.5배)에는 덮쳐져 죽는다. 삼각형이 닫힌다.
     //
     //   원거리는 사거리 끝을 지킨다 (closeToContact = false) — 파고들지 않는다.
+    // ★7 → 14 (2026-07-29 실측 후). 7 일 때 ②변이 거꾸로 나왔다 —
+    //   티라노 승 59.3초 · 29% 신승. 원거리가 아무한테도 못 이기는 상태였다.
+    //
+    //   왜 7 로는 모자랐나: 티라노 이속 2.5 로 사거리 끝(약 5.5)에서 접촉(약 1.9)까지
+    //   **1.4초**다. 공격 간격 1.1초니 자유 사격이 한두 발뿐 — 59초짜리 싸움에서 2%다.
+    //
+    //   ★사거리가 버는 건 '접근하는 동안' 만이 아니다. 더 큰 몫은 **서 있는 거리**다.
+    //     원거리가 멀찍이 서면 티라노의 부채꼴 안에 들어오는 마릿수가 줄어, 한 번
+    //     휘두를 때 죽는 수가 준다. 접근 창은 한 번뿐이지만 이건 싸우는 내내 작동한다.
+    //
+    //   ★단, 이 값은 자글이 상대(③변)에도 똑같이 세진다. 올린 뒤 ②와 ③을 **둘 다** 재라.
     [Tooltip("쏘기 사거리 배수 — 근접의 몇 배까지 닿나")]
-    public float shootReach = 7f;
+    public float shootReach = 14f;
     [Tooltip("투사체가 날아가는 시간 (초) — 길수록 피할 틈이 생긴다")]
     public float shootFlight = 0.32f;
+
+    // ── 카이팅 = **쿨타임 있는 백스텝** (2026-07-29 사용자 기획) ──────────
+    //
+    // ★왜 필요한가: 속도표가 이미 삼각형을 담고 있는데 쓰는 행동이 없었다.
+    //     자글이 4.4×1.5 = 6.6  ·  불호랑이 3.9×0.75 = 2.93  ·  티라노 2.5×0.55 = 1.375
+    //   불호랑이는 티라노보다 2.1배 빠르고, 자글이보다 2.25배 느리다.
+    //   → 물러날 줄만 알면 **②변(티라노에 강함)은 뒤집히고 ③변(자글이에 약함)은 그대로**다.
+    //
+    // ★왜 한계를 두는가 (이게 설계의 핵심): 티라노는 영영 못 따라잡으므로, 무제한이면
+    //   ②변이 뒤집히는 게 아니라 **반대로 깨진다** — 티라노가 이길 방법이 아예 없어진다.
+    //   `RoleOf` 에 적어둔 "도망칠 수 있으면 아무도 못 잡는다" 가 정확히 이 이야기다.
+    //   → 한 번 물러날 거리를 예산으로 묶고, 다 쓰면 **쿨이 돌 때까지 제자리에서 버틴다.**
+    //     쏘며 버팀 → 붙기 직전 백스텝 → 다시 붙음 → 두들겨 맞음 → 다시 백스텝.
+    //     티라노에게 확실히 때릴 시간을 주면서 불호랑이가 일방적으로 녹지도 않는다.
+    //
+    // ★물러나는 동안은 **못 쏜다.** 「쏘는 놈은 선 자리에서 쏘는 게 전부다」(사용자 확정)를
+    //   지키는 자리다. 카이팅에 화력이라는 대가가 붙어야 "뒤로 걸으며 때리는 게 언제나
+    //   정답" 이 되지 않는다 — 예전에 실제로 그 문제가 있었다.
+    //
+    // ★조절 손잡이는 **쿨타임 하나**다. 길면 티라노가 이기고 짧으면 불호랑이가 이긴다.
+    [Tooltip("적이 사거리의 이 비율 안에 들어오면 물러난다")]
+    public float kiteTrigger = 0.6f;
+    [Tooltip("이 비율까지 벌어지면 그만 물러난다 — 발동값과 벌려놔야 경계에서 안 떤다")]
+    public float kiteRelease = 0.9f;
+    // ★4 → 1 (2026-07-29) — **가르는 실험용 값이다. 결과 보고 되돌리거나 확정한다.**
+    //   쿨타임 5→8 이 ②변을 76%→75% 로 1%p 밖에 못 움직였다. 거리를 벌어서 이기는
+    //   거라면 쿨타임에 반응했어야 한다. 안 했다는 건 **교란이 원인**일 수 있다는 뜻 —
+    //   물러나는 순간 '가장 가까운 적' 이 바뀌어 티라노가 목표를 갈아타고 경로를 다시
+    //   잡느라 아무한테도 못 닿는 것이다. 교란은 조금만 움직여도 똑같이 일어난다.
+    //   → 거리를 1m 로 줄이면 갈린다: 여전히 불호랑이 압승이면 교란, 티라노가 이기면 거리.
+    [Tooltip("한 번에 물러나는 거리 (m)")]
+    public float kiteDist = 1f;
+    // ★5 → 8 (2026-07-29 실측). 5초일 때 ②변이 불호랑이 76% 로 압승 문턱(80%) 코앞이었다.
+    //   쿨이 길수록 티라노가 붙어서 때리는 시간이 늘어난다.
+    //   ★이 손잡이를 쓰는 이유: 카이팅은 자글이 상대로는 어차피 안 통하므로(자글이가
+    //     2.25배 빠르다) **②만 움직이고 ③은 거의 안 건드린다.** 쏘기 피해를 만지면
+    //     ②③이 같이 흔들려 두 변을 동시에 쫓게 된다.
+    [Tooltip("★밸런스 손잡이 — 다 쓰고 다시 물러날 수 있기까지 (초). 길수록 원거리가 약해진다")]
+    public float kiteCooldown = 8f;
+
+    float kiteLeft;   // 이번 백스텝에 남은 거리
+    float kiteCdT;    // 쿨 남은 시간
+
+    /// 지금 물러나는 중인가 — 상태를 갱신하고 답한다. **원거리에서만 부른다.**
+    bool KiteUpdate(float d, float areaR)
+    {
+        kiteCdT = Mathf.Max(0f, kiteCdT - Time.deltaTime);
+
+        if (kiteLeft > 0f)
+        {   // 물러나는 중 — 충분히 벌어졌으면 예산이 남아도 그만둔다 (쿨은 그때부터)
+            if (d >= areaR * kiteRelease) { kiteLeft = 0f; kiteCdT = kiteCooldown; }
+            return kiteLeft > 0f;
+        }
+        // 서 있는 중 — 너무 가까워졌고 쿨이 돌아 있으면 발동
+        if (kiteCdT <= 0f && d < areaR * kiteTrigger) { kiteLeft = kiteDist; return true; }
+        return false;
+    }
 
     // ★크기 등급과 인구수를 뗀다 (2026-07-29).
     //
@@ -581,7 +872,7 @@ public class PetUnit : MonoBehaviour
     public PetScale.Tier tier = PetScale.Tier.M;
 
     int SizeTier => (int)tier + 1;   // S=1 · M=2 · L=3 · XL=4
-    float AtkSpread => Mathf.Min(360f, PatternAngle);
+    float AtkSpread => Mathf.Min(360f, PatternAngle * angleMul);
     // ★타격 수 상한은 없앴다 (2026-07-29). 부채꼴 안이면 전부 맞는다 — Strike 참고.
     //   광역의 세기는 **면적**(AtkSpread × 팔 길이)으로만 조절한다.
 
@@ -846,8 +1137,12 @@ public class PetUnit : MonoBehaviour
         atkCd = AtkPeriodNow;
         swingT = WindUp;
         swingPending = true;
-        // 모션은 예비까지 포함한 한 번의 휘두르기 — 판정 시점이 본동작과 맞는다
-        if (motion != null) motion.Attack(pattern, WindUp / 0.35f);
+        // ★모션 길이를 **그 방식의 예비 비율**로 나눈다 — 그래야 예비가 끝나는 순간이
+        //   정확히 `WindUp`(판정 시점)과 겹친다.
+        //   전엔 0.35 로 고정해 놓고 불렀는데 실제 비율은 방식마다 0.22~0.50 이라,
+        //   저격·짓밟기처럼 예비가 긴 방식은 **휘두르기 전에 피가 먼저 깎였다.**
+        if (motion != null)
+            motion.Attack(pattern, WindUp / Mathf.Max(0.05f, PetMotion.PrepFrac(pattern)));
     }
 
     /// 예비가 끝났으면 실제로 때린다 — Update 에서 매 프레임 확인한다.
@@ -865,17 +1160,48 @@ public class PetUnit : MonoBehaviour
         if (target == null || !target.Alive) return;
 
         // ★밸런스는 데미지로 잡는다 (2026-07-29 사용자) — 넓게 때릴수록 한 대가 약하다
-        float dmg = str * dmgPerStr * PatternDmg;
+        float dmg = str * dmgPerStr * PatternDmg * hitDmgMul;
 
         // ★원거리는 투사체를 날린다 — 곁다리 타격 없이 겨눈 놈만.
         //   날아가는 동안 표적이 죽으면 그냥 사라진다(빗나감). 그게 원거리의 약점이다.
-        if (pattern == Pattern.Shoot)
+        if (IsRanged)
         {
             // 불대포 — 내 편은 푸른 불, 야생은 주황 불 (편을 색으로 가른다)
             var fire = team == Team.Player ? new Color(0.45f, 0.8f, 1f)
                                            : new Color(1f, 0.55f, 0.15f);
+            // ★산탄 — **한 발이 날아가 터지는 게 아니라 여러 알이 촥 퍼진다**
+            //   (2026-07-30 사용자 — "토리는 투사체보다 샷건처럼 팡 쏴지는 느낌이었으면").
+            //
+            //   알을 **적마다 하나씩** 배정한다. 뭉쳐 있으면 여러 알이 다 박히고,
+            //   하나뿐이면 한 알만 맞는다 — **가까이 뭉친 떼에 강한 산탄**이 그대로 나온다.
+            //   (착탄 광역으로 하면 "한 발이 터진다" 라 산탄의 그림이 안 나왔다)
+            int pellets = PatternPellets;
+            if (pellets > 1)
+            {
+                // 총구 섬광 — '팡' 은 여기서 난다. 부채꼴 방향으로 확 퍼진다
+                var muzzle = transform.position + Vector3.up * body * 0.35f + transform.forward * bodyR * 0.6f;
+                FX.Burst(muzzle, fire, 18, bodyR * 0.05f, bodyR * 1.5f, 0.28f);
+
+                int fired = 0;
+                foreach (var u in ConeTargets(AtkRangeTo(target), AtkSpread, pellets))
+                {
+                    // 알은 **작고 빠르다** — 크고 느리면 대포알로 보인다
+                    PetProjectile.Throw(this, u, dmg, false, fire,
+                                        bodyR * 0.26f, shootFlight * 0.45f, bodyR * 0.18f);
+                    fired++;
+                }
+                // 아무도 못 찾았으면(겨눈 놈만 있는 경우) 겨눈 놈에게 한 알
+                if (fired == 0)
+                    PetProjectile.Throw(this, target, dmg, false, fire,
+                                        bodyR * 0.26f, shootFlight * 0.45f, bodyR * 0.18f);
+                return;
+            }
+
+            // ★착탄 광역은 **몸 크기에 비례**시킨다 — 큰 놈이 뿌리면 더 넓게 퍼져야
+            //   "몸이 하는 일" 로 읽힌다 (부채꼴이 몸 크기를 타는 것과 같은 원리).
             PetProjectile.Throw(this, target, dmg, false, fire,
-                                bodyR * 0.55f, shootFlight, bodyR * 0.5f);
+                                bodyR * 0.55f, shootFlight, bodyR * 0.5f,
+                                0f, PatternSplash * (bodyR + 0.35f));
             return;
         }
 
@@ -1033,6 +1359,23 @@ public class PetUnit : MonoBehaviour
             float areaR = AtkRangeTo(target);
             float ring = closeToContact ? ContactR(target) : areaR;
 
+            // ★① 물러나는 중인가 — 원거리만 (위 「카이팅」 참고).
+            //   물러나는 동안은 자리 계산도 사격도 하지 않는다. 오직 거리를 벌린다.
+            if (KitingPattern(pattern) && KiteUpdate(d, areaR))
+            {
+                float moved = Mathf.Min(MoveSpd * Time.deltaTime, kiteLeft);
+                var away = transform.position - target.transform.position;
+                Step(away, MoveSpd, kiteLeft);
+                kiteLeft -= moved;
+                if (kiteLeft <= 0f) { kiteLeft = 0f; kiteCdT = kiteCooldown; }
+                // ★Step 이 끝에서 진행 방향을 보게 하므로, 그 뒤에 다시 적을 본다.
+                //   등 돌리고 달아나면 '도망' 으로 읽히고, 보면서 물러나면 '거리를 잰다' 로 읽힌다.
+                Face(target.transform.position - transform.position);
+                if (motion != null) motion.speed01 = 1f;
+                Separate(); Ground(false); HitFlash(); Bar();
+                return;
+            }
+
             // 붙을 자리 — 같은 놈을 노리는 아군끼리 번호로 나눠 갖는다 (사방 포위)
             var spot = SurroundSpot(target, ring);
             var toSpot = spot - transform.position; toSpot.y = 0f;
@@ -1040,7 +1383,21 @@ public class PetUnit : MonoBehaviour
 
             // ★자리에 섰나 — **각도까지** 본다. 거리만 보면 앞줄에 닿은 놈이
             //   자기 번호가 반대편이어도 거기 서 버려서 반쪽만 둘러싼다.
-            bool arrived = (d <= ring * 1.15f && AtMySlot(target)) || dSpot <= bodyR * 0.6f;
+            //
+            // ★★멈추는 조건은 반드시 **때릴 수 있는 거리(areaR) 안**이어야 한다
+            //   (2026-07-29 사용자 — "원거리랑 티라노가 싸울때는 그냥 구경하는 티라노가 많은데").
+            //
+            //   아래 두 여유값(ring×1.15 · bodyR×0.6)은 areaR 과 아무 관계 없는 식이다.
+            //   특히 `bodyR × 0.6` 은 **내 몸 크기에 비례**하므로, 덩치가 클수록
+            //   제 사거리보다 한참 밖에서 "다 왔다" 고 판정한다. 그러면 아래 ③ 가지로
+            //   빠지는데 거기서 `d ≤ areaR` 이 거짓이라 때리지도 못한다.
+            //   → **걷지도 때리지도 않고 영영 선다.** 티라노(XL)가 제일 심하다.
+            //
+            //   자글이전(F5)에서 안 보였던 이유가 이 진단의 증거다: 근접인 자글이는
+            //   *제가 뛰어들어* 거리를 좁혀주므로 죽은 구간이 가려진다. 원거리(불호랑이)는
+            //   `closeToContact = false` 라 제자리에서 쏘기만 하니 아무도 틈을 메워주지 않는다.
+            bool arrived = d <= areaR
+                        && ((d <= ring * 1.15f && AtMySlot(target)) || dSpot <= bodyR * 0.6f);
 
             if (!arrived)
             {   // ② 아직 자리 아님 — 돌아서라도 간다
@@ -1182,8 +1539,10 @@ public class PetUnit : MonoBehaviour
     public Color deadTint = new Color(0.86f, 0.86f, 0.88f);
     [Tooltip("쓰러진 뒤 그대로 머무는 시간 (초)")] public float deathLinger = 1.1f;
     [Tooltip("부스러져 사라지는 시간 (초)")] public float dissolveTime = 0.9f;
-    [Tooltip("사라질 때 흩어지는 입자 색 (밝게 = 빛남)")]
+    [Tooltip("지워지는 경계가 내는 빛 색 (HDR — 밝게 잡아야 발광한다). 입자도 같은 색이다")]
     public Color dissolveColor = new Color(2.2f, 1.7f, 0.9f, 1f);
+    [Tooltip("빛나는 경계 띠의 두께 — 두꺼우면 뭉근하게 타들어가고 얇으면 날카롭게 갈린다")]
+    [Range(0.02f, 0.4f)] public float dissolveEdge = 0.12f;
 
     float dissolveT, emitT;
     Renderer[] bodyRends;
@@ -1207,37 +1566,85 @@ public class PetUnit : MonoBehaviour
     {
         if (deadMpb == null) deadMpb = new MaterialPropertyBlock();
         deadMpb.Clear();
-        // URP Lit 은 _BaseColor, 구식/커스텀은 _Color — 둘 다 넣어 둔다 (없는 건 무시된다)
+        // ★진짜 무채색으로 (2026-07-30 사용자 — "죽으면 색상도 아예 무채색으로").
+        //   전엔 옅은 회색을 **곱하기만** 해서 원래 색이 그대로 비쳤다 — 붉은 놈은
+        //   옅은 붉은색이 됐다. 이제 셰이더가 휘도로 눌러 실제로 색을 뺀다.
+        deadMpb.SetFloat("_Desat", 1f);
         deadMpb.SetColor("_BaseColor", deadTint);
         deadMpb.SetColor("_Color", deadTint);
         deadMpb.SetColor("_EmissionColor", Color.black);
+        deadMpb.SetFloat("_Dissolve", 0f);      // 아직 안 지워진 상태로 시작
         foreach (var r in BodyRends()) if (r != null) r.SetPropertyBlock(deadMpb);
     }
 
-    /// 부스러져 사라진다 — 몸이 줄어드는 만큼 빛나는 입자가 흩어져 올라간다
+    /// ★메시 면이 실제로 지워진다 — 지워지는 **경계**가 빛나고 거기서 입자가 난다
+    /// (2026-07-30 사용자 — "모델링의 메시 면이 지워지면서 지워지는 면의 경계를
+    ///  빛나는 파티클로 넣어달라는 거였어").
+    ///
+    /// ★전에는 이게 아니었다: 몸을 `localScale` 로 줄이면서 **몸 주변 아무 데나**
+    ///   입자를 뿌렸다. 그래서 "파티클이 얹혀 있고 작아지면서 사라진다" 로 보였다.
+    ///   지금은 셰이더가 `_Dissolve` 문턱으로 면을 잘라내고(`clip`), 그 문턱 근처
+    ///   띠가 발광한다. 몸 크기는 **끝까지 안 변한다.**
     void Dissolve()
     {
         dissolveT += Time.deltaTime;
         float k = Mathf.Clamp01(dissolveT / Mathf.Max(0.05f, dissolveTime));
 
-        // 몸은 오그라들고
-        transform.localScale = baseScale * (1f - k * 0.92f);
+        // 셰이더에 진행도를 넘긴다 (몸 크기는 그대로 둔다 — 줄이면 '오그라든다' 가 된다)
+        PushDead(k, deathBendF, 0f);
 
-        // 그만큼 입자가 된다 — 몸 여기저기서 조금씩, 끝으로 갈수록 잦게
+        // ★입자는 **지금 지워지고 있는 높이**에서 난다. 디졸브가 아래에서 위로
+        //   올라가므로, 그 경계 높이 주변에서만 튀어야 '면이 부서지며 빛이 샌다' 로 읽힌다.
         emitT -= Time.deltaTime;
         if (emitT <= 0f)
         {
-            emitT = Mathf.Lerp(0.07f, 0.03f, k);
-            var at = transform.position
-                   + Random.insideUnitSphere * body * 0.35f * (1f - k * 0.6f)
-                   + Vector3.up * body * 0.15f;
-            FX.Burst(at, dissolveColor, 4, body * 0.045f, body * 0.55f, 0.55f);
+            emitT = Mathf.Lerp(0.05f, 0.025f, k);
+            float edgeY = Mathf.Lerp(-0.45f, 0.55f, k) * body;      // 경계가 훑고 지나가는 높이
+            var at = transform.position + Vector3.up * (body * 0.5f + edgeY)
+                   + new Vector3(Random.Range(-1f, 1f), 0f, Random.Range(-1f, 1f)) * body * 0.3f;
+            FX.Burst(at, dissolveColor, 3, body * 0.04f, body * 0.35f, 0.5f);
         }
 
         if (k >= 1f) Destroy(gameObject);
     }
 
-    // 사망 연출: ①고통 — 몸을 비틀며 파르르 + 헐떡 스쿼시 → ②스르륵 힘 빠지며 쓰러짐
+    /// 죽는 동안의 몸 구부림 — Dissolve 단계까지 이어진다 (여기서 만들어 두고 계속 쓴다)
+    float deathBendF;
+
+    /// 죽은 몸에 셰이더 값을 넘긴다.
+    ///
+    /// ★`PetMotion` 은 죽는 순간 꺼지므로(Die 참고) **벤드를 여기서 직접 써야 한다.**
+    ///   그리고 `SetPropertyBlock` 은 블록을 통째로 갈아끼우므로, 축 정보(`_RefLen`·`_AxisX`)를
+    ///   같이 안 넘기면 머티리얼 기본값(1 / 0)이 쓰여 **몸이 엉뚱한 데서 꺾인다.**
+    void PushDead(float dissolve, float bendF, float bendS)
+    {
+        if (deadMpb == null) deadMpb = new MaterialPropertyBlock();
+        deadMpb.SetFloat("_Dissolve", dissolve);
+        deadMpb.SetFloat("_DissolveEdge", dissolveEdge);
+        deadMpb.SetColor("_DissolveColor", dissolveColor);
+        deadMpb.SetFloat("_BendF", bendF);
+        deadMpb.SetFloat("_BendS", bendS);
+        deadMpb.SetFloat("_BendSPivot", 0f);
+        deadMpb.SetFloat("_Twist", 0f);
+        if (motion != null)
+        {
+            deadMpb.SetFloat("_RefLen", motion.RefLen);
+            deadMpb.SetFloat("_AxisX", motion.AxisX);
+        }
+        foreach (var r in BodyRends()) if (r != null) r.SetPropertyBlock(deadMpb);
+    }
+
+    // 사망 연출: ①고통 — 몸을 말며 파르르 → ②쓰러지며 절정 → 힘이 빠져 펴진다 → ③디졸브
+    //
+    // ★몸을 **구부린다** (2026-07-30 사용자 — "쓰러질 때도 구부리는 것 좀 써줄 수 있어?
+    //   자연스럽게 구부러지면서 쓰러지면서 펴지는"). 전엔 z축으로 82° 돌리는 **강체 회전**
+    //   뿐이라 나무토막이 넘어가는 것처럼 보였다.
+    //
+    //   근육이 하는 일을 그대로 따라간다:
+    //     ① 고통 — 힘이 들어가 **말린다**(+). 좌우로 파르르 몸부림
+    //     ② 넘어가는 순간 말림이 **절정**에 달했다가
+    //     ③ 힘이 빠지며 **펴지고**, 살짝 지나쳐 축 늘어진다(−)
+    //   말림이 최대인 지점과 넘어지는 지점을 겹쳐야 "힘이 빠져서 쓰러진다" 로 읽힌다.
     void DeathAnim()
     {
         if (isStructure) return;
@@ -1246,11 +1653,14 @@ public class PetUnit : MonoBehaviour
         if (deathT < 0.85f)
         {
             float k = deathT / 0.85f;
-            float writhe = Mathf.Sin(deathT * 24f) * 15f * (1f - k);          // 비틀림 (점점 잦아듦)
             float gasp = 1f - 0.13f * Mathf.Abs(Mathf.Sin(deathT * 14f)) * (1f - k * 0.5f);   // 헐떡임
-            transform.rotation = Quaternion.Euler(-10f * (1f - k), yaw, writhe);   // 고개 젖히며 고통
+            // ★비틀림을 강체 회전에서 **좌우 휨**으로 옮겼다 — 몸이 실제로 휘어야 몸부림이다
+            float writheB = Mathf.Sin(deathT * 22f) * 0.34f * (1f - k);
+            deathBendF = (1f - (1f - k) * (1f - k)) * 0.52f;                  // 점점 말린다 (Ease Out)
+            transform.rotation = Quaternion.Euler(-10f * (1f - k), yaw, 0f);  // 고개만 젖힌다
             transform.localScale = new Vector3(
                 baseScale.x / Mathf.Sqrt(gasp), baseScale.y * gasp, baseScale.z / Mathf.Sqrt(gasp));
+            PushDead(0f, deathBendF, writheB);
         }
         else if (deathT < 1.85f + deathLinger)
         {   // ②스르륵 쓰러짐 → 잠깐 그대로 (k 가 1에서 멈추므로 자세가 유지된다)
@@ -1258,6 +1668,11 @@ public class PetUnit : MonoBehaviour
             float e = k * k * (3f - 2f * k);                                   // 스르륵 (S곡선)
             transform.rotation = Quaternion.Euler(0f, yaw, 82f * e);
             transform.localScale = baseScale;
+            // ★말림이 넘어가는 순간 절정(0.72) → 힘이 빠지며 펴지고 살짝 지나쳐 늘어진다(-0.16)
+            deathBendF = k < 0.32f
+                ? Mathf.Lerp(0.52f, 0.72f, k / 0.32f)
+                : Mathf.Lerp(0.72f, -0.16f, (k - 0.32f) / 0.68f);
+            PushDead(0f, deathBendF, 0f);
             var p = transform.position;
             p.y = deathStartY - footOff * 0.35f * e;                           // 접지하며 가라앉음
             transform.position = p;
@@ -1515,6 +1930,11 @@ public class PetUnit : MonoBehaviour
         movedThisFrame = false;
     }
 
+    /// 발을 땅에 맞춘다 — ★구조물은 이동 단계를 통째로 건너뛰어서 접지가 안 돈다.
+    ///   쇼케이스 허수아비처럼 **밖에서 위치를 정해 놓는 경우**에 한 번 불러 준다
+    ///   (안 부르면 피벗이 땅에 붙어 몸이 반쯤 묻힌다 — 원거리 공격이 안 보였던 이유).
+    public void SnapGround() => Ground(true);
+
     void Ground(bool force)
     {
         if (terrain == null) return;
@@ -1677,6 +2097,15 @@ public class PetUnit : MonoBehaviour
     public static bool DebugNoBars;
     /// ★측정용 스위치 (StressTest 가 F2 로 켠다). 켜면 테두리를 전부 끈다.
     public static bool DebugNoOutline;
+    /// ★측정용 스위치 — 켜면 격파 경험치를 아무도 안 받는다 (StressTest 가 판을 열 때 켠다).
+    ///
+    /// ★왜 (2026-07-29 사용자 "레벨업하면서 다 풀피가 되버리니까 측정이 안돼네"):
+    ///   야생 하나가 죽을 때마다 종이 경험치를 받고, 레벨이 오르면 `ApplyLevels` 가
+    ///   **살아 있는 같은 종 전부를 풀피로 되돌린다.** maxHp 도 같이 커져 체력%가
+    ///   100을 넘기까지 한다. 140마리 죽는 판에서 이게 수십 번 터지므로
+    ///   "이긴 쪽 체력 30~50%" 라는 기준 자체가 성립하지 않는다.
+    ///   실험은 **처음 스탯 그대로** 끝까지 가야 한다.
+    public static bool DebugNoXP;
 
     // ── 멀면 대충 한다 (2026-07-29 실측 후) ──────────────────────────
     //
@@ -1685,6 +2114,8 @@ public class PetUnit : MonoBehaviour
     //   플레이어 눈에는 달라지는 게 없고 부하만 빠진다.
     [Tooltip("체력바를 그리는 최대 거리 (m) — 이보다 멀면 숨긴다")]
     public float barMaxDist = 38f;
+    [Tooltip("싸움이 끝난 뒤 체력바가 남아 있는 시간 (초) — 표적이 바뀌는 틈에 깜빡이지 않게")]
+    public float barLinger = 2.5f;
     [Tooltip("테두리를 그리는 최대 거리 (m) — 이보다 멀면 끈다")]
     public float outlineMaxDist = 30f;
 
@@ -1734,7 +2165,18 @@ public class PetUnit : MonoBehaviour
             //   내 부대가 얼마나 버티는지는 다시 던질지 말지를 정하는 정보라 계속 보여야 한다.
             //   돌아와 흡수될 때까지 유지된다. 야생과 달리 몇 마리뿐이라 부담도 없다.
             barShowT -= Time.deltaTime;
-            bool show = summoned || InCombat || barShowT > 0f;
+            // ★싸우는 동안 바가 깜빡이지 않게 (2026-07-29 사용자 — "체력바는 사라지지
+            //   않게해줄래? 껌벅거리니까 어지러워").
+            //
+            //   `InCombat` 은 `target != null && target.Alive` 라서 **표적이 죽는 순간
+            //   거짓이 된다.** 다음 표적은 최대 0.5초 뒤(retarget 주기)에나 정해지므로
+            //   그 틈에 바가 사라졌다 다시 나타난다. 떼싸움에선 표적이 쉴 새 없이 죽으니
+            //   바가 계속 껌벅인다.
+            //   → 전투 중이면 시계를 계속 채워, 표적이 갈리는 틈에도 안 꺼지게 한다.
+            //     진짜로 싸움이 끝나면 시계가 다 흘러 저절로 사라지므로
+            //     「평소엔 바를 숨긴다」(평화로운 장면)와 50대50 성능 규칙은 그대로다.
+            if (InCombat) barShowT = barLinger;
+            bool show = summoned || barShowT > 0f;
             // ★멀면 안 그린다 (2026-07-29). 바 하나하나가 매 프레임 위치·카메라 정렬·
             //   거리 보정을 하는데, 저 멀리 벌어지는 싸움의 바는 화면에서 점만 하다.
             if (show && Camera.main != null
@@ -1795,7 +2237,7 @@ public class PetUnit : MonoBehaviour
 /// 투사체 — 잎/불덩이/힐 물방울 공용. heal=true 면 아군 회복
 public class PetProjectile : MonoBehaviour
 {
-    PetUnit target; float amt, dur, arc, t, push; Vector3 from; bool heal;
+    PetUnit target; float amt, dur, arc, t, push, splash; Vector3 from; bool heal;
     PetUnit owner;
     Color col;
 
@@ -1811,7 +2253,7 @@ public class PetProjectile : MonoBehaviour
     MeshRenderer mr;
     TrailRenderer trail;
 
-    public static void Throw(PetUnit owner, PetUnit target, float amt, bool heal, Color c, float size, float dur, float arc, float push = 0f)
+    public static void Throw(PetUnit owner, PetUnit target, float amt, bool heal, Color c, float size, float dur, float arc, float push = 0f, float splash = 0f)
     {
         GameObject g;
         if (pool.Count > 0) { g = pool.Pop(); g.SetActive(true); }
@@ -1860,7 +2302,7 @@ public class PetProjectile : MonoBehaviour
             p.trail.Clear();                            // ★안 지우면 이전 궤적이 순간이동한 선으로 남는다
         }
         p.owner = owner; p.target = target; p.amt = amt; p.dur = dur; p.arc = arc;
-        p.heal = heal; p.push = push; p.t = 0f;
+        p.heal = heal; p.push = push; p.splash = splash; p.t = 0f;
         p.from = g.transform.position;
     }
 
@@ -1887,8 +2329,13 @@ public class PetProjectile : MonoBehaviour
                 target.TakeDamage(amt, owner); target.OnHit();
                 // 💧물살 밀치기 — 날아온 방향으로
                 if (push > 0f) target.Knock(target.transform.position - from, push);
+                // ★착탄 광역 — 산탄이 퍼진다 (흩뿌리기). 0 이면 아무 일도 안 일어난다
+                PetUnit.Splash(transform.position, splash, amt, owner, target);
                 // 착탄 — 불덩이가 터진 자리에서 같은 색으로. 날아온 것과 터진 것이 이어져 보인다
-                FX.Burst(transform.position, col, 14, target.body * 0.07f, target.body * 0.55f);
+                //   ★퍼지는 반경만큼 크게 터진다 — 이펙트 규칙: 실제 타격 범위와 맞아야 한다
+                FX.Burst(transform.position, col, splash > 0f ? 22 : 14,
+                         target.body * 0.07f,
+                         splash > 0f ? splash * 0.9f : target.body * 0.55f);
             }
             Recycle();
         }

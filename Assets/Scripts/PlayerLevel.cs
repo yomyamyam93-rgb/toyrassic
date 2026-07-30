@@ -50,6 +50,7 @@ public static class PlayerLevel
     /// 경험치 획득 — 야생을 잡으면 들어온다
     public static void Gain(float amt)
     {
+        if (PetUnit.DebugNoXP) return;      // ★측정 중 — 판 도중에 플레이어가 세지면 못 잰다
         if (amt <= 0f) return;
         Xp += amt;
         int gained = 0;

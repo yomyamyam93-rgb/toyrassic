@@ -58,6 +58,11 @@ public class StressTest : MonoBehaviour
     public Side 왼쪽B = new Side { 이름 = "자글이", 종 = 0, 마릿수 = 20, 크기 = PetScale.Tier.S };
     public Side 오른쪽B = new Side { 이름 = "불호랑이", 종 = 1, 마릿수 = 7, 크기 = PetScale.Tier.M };
 
+    [Header("세 번째 판 (F5) — 법칙① 넓게 때리는 놈 > 뭉친 떼")]
+    [Tooltip("삼각형의 첫 변. 전엔 어느 키에도 안 걸려 있어서 잴 때마다 인스펙터를 고쳐야 했다.\n세 변이 상설로 걸려 있어야 F5→F7→F6 을 연달아 눌러 삼각형을 한 바퀴 볼 수 있다")]
+    public Side 왼쪽C = new Side { 이름 = "티라노", 종 = 3, 마릿수 = 2, 크기 = PetScale.Tier.XL };
+    public Side 오른쪽C = new Side { 이름 = "자글이", 종 = 0, 마릿수 = 20, 크기 = PetScale.Tier.S };
+
     // 지금 돌고 있는 판이 무엇인가 (화면 표시·판정에 쓴다)
     Side runL, runR;
 
@@ -68,10 +73,13 @@ public class StressTest : MonoBehaviour
     [Header("대형")]
     [Tooltip("펫 사이 간격 — 몸 크기의 몇 배로 벌릴까. ★고정 미터가 아니다: S 를 1.2m 로 벌리면 자글자글해 보이지 않는다")]
     public float spacingMul = 1.4f;
+    // ★몸이 1.67배 커졌으니(2026-07-30 PetScale) 실험장도 같이 키운다.
+    //   안 키우면 교전 거리 대비 몸이 커져서 원거리의 접근 창이 줄어든다 — 즉
+    //   **크기만 바꿨는데 원거리가 약해진다.** 비율을 유지해야 앞 판과 비교가 된다.
     [Tooltip("두 진영이 떨어져 서는 거리 (m) — ★야생의 평소 시야는 3m, 참전 시야는 14m 다. 이보다 멀면 서로 못 보고 가만히 서 있는다")]
-    public float armyGap = 9f;
+    public float armyGap = 15f;
     [Tooltip("플레이어에게서 얼마나 앞에 판을 벌일까 (m)")]
-    public float distFromPlayer = 12f;
+    public float distFromPlayer = 20f;
 
     [Header("측정")]
     [Tooltip("평균·최저를 몇 초 구간으로 볼까")]
@@ -97,6 +105,7 @@ public class StressTest : MonoBehaviour
         Measure();
         CountFx();
         Trial();
+        LeagueStep();   // ★Trial 다음이어야 한다 — 방금 끝난 판을 이 프레임에 적는다
         ReadKeys();
     }
 
@@ -192,23 +201,27 @@ public class StressTest : MonoBehaviour
         if (k.f2Key.wasPressedThisFrame) ToggleOutline();
         if (k.f3Key.wasPressedThisFrame) FX.DebugNoPops = !FX.DebugNoPops;
         if (k.f4Key.wasPressedThisFrame) ClearPops();
+        if (k.f5Key.wasPressedThisFrame) Versus(왼쪽C, 오른쪽C);
         if (k.f6Key.wasPressedThisFrame) Versus(왼쪽B, 오른쪽B);
         if (k.f7Key.wasPressedThisFrame) Versus(왼쪽, 오른쪽);
         if (k.f8Key.wasPressedThisFrame) WildOnly();
         if (k.f9Key.wasPressedThisFrame) SpawnBattle();
-        if (k.f10Key.wasPressedThisFrame) ClearAll();
+        if (k.f10Key.wasPressedThisFrame) { StopLeague(); ClearAll(); }
         if (k.f11Key.wasPressedThisFrame) { frames.Clear(); smoothFps = 60f; }
+        if (k.f12Key.wasPressedThisFrame) { if (LeagueRunning) { StopLeague(); ClearAll(); } else StartLeague(); }
 #else
         if (Input.GetKeyDown(KeyCode.F1)) { PetUnit.DebugNoBars = !PetUnit.DebugNoBars; }
         if (Input.GetKeyDown(KeyCode.F2)) ToggleOutline();
         if (Input.GetKeyDown(KeyCode.F3)) FX.DebugNoPops = !FX.DebugNoPops;
         if (Input.GetKeyDown(KeyCode.F4)) ClearPops();
+        if (Input.GetKeyDown(KeyCode.F5)) Versus(왼쪽C, 오른쪽C);
         if (Input.GetKeyDown(KeyCode.F6)) Versus(왼쪽B, 오른쪽B);
         if (Input.GetKeyDown(KeyCode.F7)) Versus(왼쪽, 오른쪽);
         if (Input.GetKeyDown(KeyCode.F8)) WildOnly();
         if (Input.GetKeyDown(KeyCode.F9)) SpawnBattle();
-        if (Input.GetKeyDown(KeyCode.F10)) ClearAll();
+        if (Input.GetKeyDown(KeyCode.F10)) { StopLeague(); ClearAll(); }
         if (Input.GetKeyDown(KeyCode.F11)) { frames.Clear(); smoothFps = 60f; }
+        if (Input.GetKeyDown(KeyCode.F12)) { if (LeagueRunning) { StopLeague(); ClearAll(); } else StartLeague(); }
 #endif
     }
 
@@ -220,8 +233,22 @@ public class StressTest : MonoBehaviour
     ///   그래서 싸우는 도중 새로 생긴 야생 늑대가 티라노 편으로 참전했고,
     ///   "내 자글이가 편을 바꿨다" 처럼 보였다.
     ///   실험 결과 자체도 오염된다(한쪽에만 지원군이 계속 붙는다) — 그래서 멈춘다.
+    /// ★판이 도는 동안 경험치를 통째로 잠근다 (2026-07-29 사용자
+    ///   "레벨업하면서 다 풀피가 되버리니까 측정이 안돼네").
+    ///
+    ///   야생 하나가 죽을 때마다 종이 경험치를 받고, 레벨이 오르면 살아 있는 같은 종이
+    ///   **전부 풀피로 되돌아간다** (`PetUnit.ApplyLevels` 의 `hp = maxHp`). maxHp 도 같이
+    ///   커져서 체력%가 100을 넘기까지 한다. 140마리 죽는 판이면 수십 번 터지므로
+    ///   "이긴 쪽 체력 30~50%" 라는 판정 기준 자체가 무의미해진다.
+    ///
+    ///   플레이어 레벨도 같이 막는다 — F8(나 혼자 잡기) 도중에 내가 세지면
+    ///   "몇 초에 잡나" 가 판마다 달라진다.
+    ///
+    ///   ★막는 자리는 `PetBox.GainXP` 와 `PlayerLevel.Gain` 두 깔때기다. 부르는 쪽
+    ///   (격파·채집·부화…)을 하나씩 쫓지 않아도 모든 경로가 한 번에 닫힌다.
     void ClearField()
     {
+        PetUnit.DebugNoXP = true;
         if (spawner != null) spawner.enabled = false;      // 새 야생 그만
         for (int i = PetUnit.All.Count - 1; i >= 0; i--)   // 이미 있던 야생도 치운다
         {
@@ -397,7 +424,7 @@ public class StressTest : MonoBehaviour
                 if (side.방식강제)
                 {
                     pu.pattern = side.방식;
-                    pu.closeToContact = side.방식 != PetUnit.Pattern.Shoot;
+                    pu.closeToContact = !PetUnit.RangedPattern(side.방식);
                 }
                 // ★처음부터 전투 상태로 켠다. 야생의 평소 시야는 3m 뿐이라, 켜지 않으면
                 //   마주 세워도 서로를 못 보고 가만히 서 있는다 (실제로 그 버그가 났다).
@@ -416,7 +443,179 @@ public class StressTest : MonoBehaviour
         spawned.Clear();
         sideA.Clear(); sideB.Clear();
         trialRunning = false; trialResult = "";
+        PetUnit.DebugNoXP = false;                  // 평소 게임으로 — 다시 레벨이 오른다
         if (spawner != null) spawner.enabled = true;
+    }
+
+    // ── 리그전 (F12) ─────────────────────────────────────────
+    //
+    // ★왜 (2026-07-29): 종이 9개면 짝이 36개다. 한 판씩 인스펙터를 고쳐 재는 건
+    //   불가능하고, 무엇보다 **판마다 값을 고치면 뭐가 뭘 흔들었는지 놓친다.**
+    //   한 번 눌러 전부 돌리고, 끝나면 표 하나로 "누가 아무한테도 못 이기나" 를 본다.
+    //
+    // ★결과는 **파일로 남긴다.** 화면으로 보면 36줄을 눈으로 옮겨 적어야 하고
+    //   스크린샷은 토큰을 많이 먹는다. 파일이면 그대로 읽어서 분석할 수 있다.
+    [Header("★리그전 (F12) — 등록된 종 전부를 서로 맞붙인다")]
+    [Tooltip("한 판 제한 시간 (초). 넘으면 무승부로 적고 다음 판.\n★반드시 필요하다 — 원거리가 카이팅으로 도망만 다니면 판이 영영 안 끝난다")]
+    // ★90 → 120 (2026-07-30). 45판 중 딱 한 판(트리통 vs 븐토)이 걸렸는데 3% 대 2% 라
+    //   **멈춘 게 아니라 막 끝나려던 참**이었다. 스탯을 건드릴 근거가 아니라 시간 문제였다.
+    public float leagueTimeout = 120f;
+    [Tooltip("판 사이 텀 (초) — 시체·이펙트가 걷히는 시간")]
+    public float leagueGap = 1.5f;
+    [Tooltip("결과를 적을 파일 (프로젝트 폴더 기준)")]
+    public string leagueFile = "league_result.txt";
+
+    // ★모델이 없어도 조합을 시험한다 (2026-07-29 사용자 — "모델링 나오기 전에
+    //   원거리 있는 것만 먼저 다 넣어서 테스트해보자").
+    //
+    //   방식이 이제 데이터라, **같은 프리팹을 크기·방식만 바꿔** 여러 줄로 등록하면
+    //   새 모델 없이 9종 리그를 돌릴 수 있다. 씬의 스포너 엔트리는 안 건드린다
+    //   (평소 게임의 야생 분포가 실험 때문에 바뀌면 안 된다).
+    //
+    //   ★비워두면 예전처럼 씬에 등록된 종 전부로 돈다.
+    [Tooltip("리그에 세울 조합 — 비우면 씬에 등록된 종 전부.\n★같은 프리팹을 크기·방식만 바꿔 여러 줄로 넣을 수 있다 (모델 없이 조합 시험)")]
+    public List<Side> 리그로스터 = new List<Side>
+    {
+        // 근접 — 지금 씬에 있는 5종의 자리
+        new Side { 이름 = "늑구",   종 = 0, 크기 = PetScale.Tier.S,  방식강제 = true, 방식 = PetUnit.Pattern.Bite },
+        new Side { 이름 = "호동",   종 = 1, 크기 = PetScale.Tier.M,  방식강제 = true, 방식 = PetUnit.Pattern.Swipe },
+        new Side { 이름 = "랍또",   종 = 1, 크기 = PetScale.Tier.M,  방식강제 = true, 방식 = PetUnit.Pattern.Charge },
+        new Side { 이름 = "트리통", 종 = 2, 크기 = PetScale.Tier.L,  방식강제 = true, 방식 = PetUnit.Pattern.Charge },
+        new Side { 이름 = "티라",   종 = 3, 크기 = PetScale.Tier.XL, 방식강제 = true, 방식 = PetUnit.Pattern.Bite },
+        new Side { 이름 = "븐토",   종 = 4, 크기 = PetScale.Tier.XL, 방식강제 = true, 방식 = PetUnit.Pattern.Sweep },
+        // ★원거리 — 아직 모델이 없어서 남의 몸을 빌려 쓴다. 숫자만 보는 판이라 상관없다
+        new Side { 이름 = "꼭꼬",   종 = 0, 크기 = PetScale.Tier.S,  방식강제 = true, 방식 = PetUnit.Pattern.Rapid },
+        new Side { 이름 = "딜롭",   종 = 1, 크기 = PetScale.Tier.M,  방식강제 = true, 방식 = PetUnit.Pattern.Shoot },
+        new Side { 이름 = "케몽",   종 = 2, 크기 = PetScale.Tier.L,  방식강제 = true, 방식 = PetUnit.Pattern.Snipe },
+        new Side { 이름 = "켄트",   종 = 1, 크기 = PetScale.Tier.M,  방식강제 = true, 방식 = PetUnit.Pattern.Scatter },
+    };
+
+    bool UseRoster => 리그로스터 != null && 리그로스터.Count >= 2;
+    int LeagueCount => UseRoster ? 리그로스터.Count : spawner.entries.Count;
+
+    class Bout
+    {
+        public int a, b;            // entries 인덱스
+        public string win;          // 이긴 쪽 이름 ("" 이면 무승부)
+        public float sec, hpA, hpB;
+        public bool timeout, done;
+    }
+    readonly List<Bout> bouts = new List<Bout>();
+    int leagueIdx = -1;             // -1 이면 안 돌고 있다
+    float leagueWait;
+
+    bool LeagueRunning => leagueIdx >= 0;
+
+    string NameOf(int i)
+    {
+        if (UseRoster) return 리그로스터[i].이름;
+        var e = spawner.entries[i];
+        return string.IsNullOrEmpty(e.koreanName) ? e.species : e.koreanName;
+    }
+
+    /// 리그에 세울 한 편 — 로스터가 있으면 그걸, 없으면 종 본래의 크기 그대로
+    Side SideOf(int i) => UseRoster ? 리그로스터[i] : new Side
+    {
+        이름 = NameOf(i), 종 = i, 크기 = spawner.entries[i].tier, 방식강제 = false
+    };
+
+    void StartLeague()
+    {
+        if (!Ready()) return;
+        bouts.Clear();
+        int n = LeagueCount;
+        for (int i = 0; i < n; i++)
+            for (int j = i + 1; j < n; j++)
+                bouts.Add(new Bout { a = i, b = j });
+        if (bouts.Count == 0) return;
+        leagueIdx = 0; leagueWait = 0f;
+        Versus(SideOf(bouts[0].a), SideOf(bouts[0].b));
+    }
+
+    void StopLeague() { leagueIdx = -1; leagueWait = 0f; }
+
+    /// 지금 판의 결과를 적는다 — ★ClearAll 보다 **먼저** 불러야 한다 (거기서 sideA/B 가 비워진다)
+    void RecordBout(bool timeout)
+    {
+        var b = bouts[leagueIdx];
+        int alive = AliveIn(sideA), aliveB = AliveIn(sideB);
+        b.hpA = HpPctIn(sideA, startHpA);
+        b.hpB = HpPctIn(sideB, startHpB);
+        b.sec = trialT;
+        b.timeout = timeout;
+        b.win = (timeout || (alive > 0 && aliveB > 0) || (alive == 0 && aliveB == 0)) ? ""
+              : alive > 0 ? NameOf(b.a) : NameOf(b.b);
+        b.done = true;
+    }
+
+    void LeagueStep()
+    {
+        if (!LeagueRunning) return;
+
+        // ① 도는 중 — 제한 시간만 본다
+        if (trialRunning)
+        {
+            if (trialT < leagueTimeout) return;
+            trialRunning = false;                 // 교착이다. 끊고 무승부로 적는다
+            RecordBout(true); ClearAll();
+            leagueWait = leagueGap;
+            return;
+        }
+
+        // ② 방금 끝났다 — 적고 판을 치운다
+        if (!bouts[leagueIdx].done)
+        {
+            RecordBout(false); ClearAll();
+            leagueWait = leagueGap;
+            return;
+        }
+
+        // ③ 텀 — 시체가 걷히길 기다린다
+        leagueWait -= Time.deltaTime;
+        if (leagueWait > 0f) return;
+
+        // ④ 다음 판 (없으면 끝)
+        leagueIdx++;
+        if (leagueIdx >= bouts.Count) { WriteLeague(); StopLeague(); return; }
+        Versus(SideOf(bouts[leagueIdx].a), SideOf(bouts[leagueIdx].b));
+    }
+
+    void WriteLeague()
+    {
+        int n = LeagueCount;
+        var win = new int[n]; var draw = new int[n]; var lose = new int[n];
+        var hpSum = new float[n]; var hpCnt = new int[n];
+
+        var sb = new System.Text.StringBuilder();
+        sb.AppendLine($"# 리그전 — 예산 {예산} · 제한 {leagueTimeout:F0}초 · {bouts.Count}판");
+        sb.AppendLine("# A | B | 승자 | 초 | A잔여% | B잔여%");
+        foreach (var b in bouts)
+        {
+            string na = NameOf(b.a), nb = NameOf(b.b);
+            string res = b.timeout ? "제한초과" : b.win == "" ? "무승부" : b.win;
+            sb.AppendLine($"{na} | {nb} | {res} | {b.sec:F1} | {b.hpA:F0} | {b.hpB:F0}");
+
+            hpSum[b.a] += b.hpA; hpCnt[b.a]++;
+            hpSum[b.b] += b.hpB; hpCnt[b.b]++;
+            if (b.win == "") { draw[b.a]++; draw[b.b]++; }
+            else if (b.win == na) { win[b.a]++; lose[b.b]++; }
+            else { win[b.b]++; lose[b.a]++; }
+        }
+
+        // ★종합이 진짜로 보고 싶은 것 — **아무한테도 못 이기는 종**과 **다 이기는 종**
+        sb.AppendLine();
+        sb.AppendLine("## 종합 (승-무-패 · 평균 잔여체력)");
+        for (int i = 0; i < n; i++)
+            sb.AppendLine($"{NameOf(i)} | {win[i]}-{draw[i]}-{lose[i]} | "
+                        + $"{(hpCnt[i] > 0 ? hpSum[i] / hpCnt[i] : 0f):F0}%");
+
+        try
+        {
+            string path = System.IO.Path.Combine(Application.dataPath, "..", leagueFile);
+            System.IO.File.WriteAllText(path, sb.ToString(), System.Text.Encoding.UTF8);
+            Debug.Log($"[리그전] 끝 — {bouts.Count}판. 결과: {System.IO.Path.GetFullPath(path)}");
+        }
+        catch (System.Exception ex) { Debug.LogError($"[리그전] 파일 저장 실패: {ex.Message}"); }
     }
 
     // ── 화면 표시 ────────────────────────────────────────────
@@ -438,16 +637,20 @@ public class StressTest : MonoBehaviour
 
         var box = new GUIStyle(GUI.skin.box) { alignment = TextAnchor.UpperLeft, fontSize = 20, padding = new RectOffset(14, 14, 12, 12) };
         bool testMode = spawner != null && !spawner.enabled;
-        var txt = (testMode ? "● 실험 모드 — 야생 스포너 정지 (F10 이면 평소로)\n" : "") +
+        var txt = (testMode ? "● 실험 모드 — 야생 스포너 정지 · 경험치 잠금 (F10 이면 평소로)\n" : "") +
                   $"FPS  {avg:F0}   (최저 {worst:F0})\n" +
                   $"펫   내편 {mine}  ·  야생 {wild}   합 {mine + wild}\n" +
                   $"이펙트 오브젝트  {fxCount}개" +
                   clock + "\n\n" +
-                  $"F7  {왼쪽.이름}{CountOf(왼쪽)} vs {오른쪽.이름}{CountOf(오른쪽)}\n" +
-                  $"F6  {왼쪽B.이름}{CountOf(왼쪽B)} vs {오른쪽B.이름}{CountOf(오른쪽B)}" +
+                  $"F5 ① {왼쪽C.이름}{CountOf(왼쪽C)} vs {오른쪽C.이름}{CountOf(오른쪽C)}\n" +
+                  $"F7 ② {왼쪽.이름}{CountOf(왼쪽)} vs {오른쪽.이름}{CountOf(오른쪽)}\n" +
+                  $"F6 ③ {왼쪽B.이름}{CountOf(왼쪽B)} vs {오른쪽B.이름}{CountOf(오른쪽B)}" +
                   (예산 > 0 ? $"  (예산 {예산} 씩)\n" : "\n") +
                   $"F8  {오른쪽.이름}{CountOf(오른쪽)}만 (나 혼자 잡기)\n" +
                   $"F9  {perSide}대{perSide} 무작위 (프레임용)\n" +
+                  (LeagueRunning
+                     ? $"■ 리그전 {leagueIdx + 1}/{bouts.Count}  —  {NameOf(bouts[leagueIdx].a)} vs {NameOf(bouts[leagueIdx].b)}  (F12 중단)\n"
+                     : $"F12 리그전 — 등록된 종 전부 맞붙이고 {leagueFile} 로 저장\n") +
                   $"F10 전부 지우기 · F11 측정 초기화\n" +
                   $"F1 체력바 {(PetUnit.DebugNoBars ? "끔 ●" : "켬")}  ·  F2 테두리 {(outlineOff ? "끔 ●" : "켬")}\n" +
                   $"F3 피해숫자 {(FX.DebugNoPops ? "끔 ●" : "켬")}  ·  F4 뜬 글자 즉시 지우기";
@@ -457,7 +660,7 @@ public class StressTest : MonoBehaviour
         GUI.color = avg >= 55f ? new Color(0.6f, 1f, 0.6f)
                   : avg >= 30f ? new Color(1f, 0.95f, 0.5f)
                                : new Color(1f, 0.5f, 0.5f);
-        GUI.Box(new Rect(14, 14, 500, (clock == "" ? 328 : 383) + (testMode ? 28 : 0)), txt, box);
+        GUI.Box(new Rect(14, 14, 560, (clock == "" ? 380 : 435) + (testMode ? 28 : 0)), txt, box);
         GUI.color = old;
     }
 }

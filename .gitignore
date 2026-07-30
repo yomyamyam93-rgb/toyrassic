@@ -59,3 +59,6 @@ Assets/World/Tiles/
 
 # 지형 복구 백업 (87MB짜리 TerrainData 사본)
 /TerrainBackup/
+
+# 리그전 측정 산출물 (매 실행마다 덮어써진다)
+league_result.txt

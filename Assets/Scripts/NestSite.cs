@@ -176,7 +176,7 @@ public class NestSite : MonoBehaviour
         else if (t == PetScale.Tier.L) { u.str = 11; u.agi = 8; u.vit = 22; }
         else { u.str = 15; u.agi = 5; u.vit = 32; }
         u.str *= dmgMul * bossDmgMul; u.vit *= hpMul * bossHpMul;
-        PetSpawner.ApplyRole(u, PetSpawner.RoleOf(eggEntry.species, t), eggEntry);
+        PetSpawner.ApplyEntry(u, eggEntry);
         u.SetWildLevel(spawner.WildLevelAt(transform.position, t));
         int boss = Power.Of(u);
         DestroyImmediate(go);

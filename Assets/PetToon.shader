@@ -14,9 +14,17 @@ Shader "Toyrassic/PetToon"
         _OcclusionMap ("AO", 2D) = "white" {}
         _OcclusionStrength ("AO 강도", Range(0,1)) = 1
         _EmissionColor ("에미시브", Color) = (0,0,0,1)
+        // ★죽음 — 메시 면이 실제로 지워지고, 지워지는 경계가 빛난다 (2026-07-30 사용자).
+        //   전엔 몸을 localScale 로 줄이면서 옆에 파티클을 뿌렸다 — "얹혀 있다" 던 그것.
+        _Dissolve ("디졸브 (0=멀쩡 1=사라짐)", Range(0,1)) = 0
+        _DissolveEdge ("디졸브 경계 두께", Range(0.01,0.4)) = 0.12
+        _DissolveColor ("디졸브 경계 색 (HDR)", Color) = (2.2,1.7,0.9,1)
+        _DissolveNoise ("디졸브 얼룩 크기", Float) = 6
+        _Desat ("무채색 (0=원색 1=완전 흑백)", Range(0,1)) = 0
         // 벤드 (PetMotion 이 MPB 로 구동)
         _BendF ("앞뒤 굽힘", Range(-1.5,1.5)) = 0
         _BendS ("좌우 휨", Range(-1.5,1.5)) = 0
+        _BendSPivot ("좌우 휨 축 (0=중심 1=머리 -1=꼬리)", Range(-1,1)) = 0
         _Twist ("비틀림", Range(-2,2)) = 0
         _RefLen ("긴축 반길이", Float) = 1
         _AxisX ("긴축=X면 1", Float) = 0
@@ -86,6 +94,8 @@ Shader "Toyrassic/PetToon"
             TEXTURE2D(_GlowTex); SAMPLER(sampler_GlowTex);
             float4 _BaseMap_ST;
             half4 _BaseColor, _EmissionColor, _GlowColorA, _GlowColorB;
+            half4 _DissolveColor;
+            float _Desat;   // _Dissolve 계열은 PetBend.hlsl 에 있다 (그림자 패스도 써야 해서)
             half _BumpScale, _Metallic, _Smoothness, _OcclusionStrength;
             half _EnvIntensity, _Triplanar; float _TriScale;
             half _GlowMode, _GlowIntensity, _GlowCut; float _GlowScale, _GlowSpeed;
@@ -158,6 +168,14 @@ Shader "Toyrassic/PetToon"
 
             half4 frag(V i) : SV_Target
             {
+                // ── 디졸브: 면을 실제로 지운다 (경계는 아래에서 발광) ──
+                float dv = 0, dEdge = 0;
+                if (_Dissolve > 0.0001)
+                {
+                    dv = PetDissolveVal(i.opos);
+                    clip(dv - _Dissolve);                    // ★여기서 면이 사라진다
+                    dEdge = 1.0 - saturate((dv - _Dissolve) / max(_DissolveEdge, 0.001));
+                }
                 half3 nWS = normalize(i.nrm);
                 half3 albedo; half alpha; half metallic = _Metallic, smooth = _Smoothness; half occ = 1;
                 half3 normalWS;
@@ -216,11 +234,23 @@ Shader "Toyrassic/PetToon"
                     normalWS = normalize(mul(nTS, tbn));
                 }
 
+                // ★무채색 — 죽으면 색이 아예 빠진다 (2026-07-30 사용자).
+                //   전엔 옅은 회색을 *곱하기만* 해서 원래 색이 그대로 비쳤다.
+                //   여기서는 휘도로 눌러 **진짜 흑백**으로 만든다.
+                if (_Desat > 0.0001)
+                {
+                    half lum = dot(albedo, half3(0.299, 0.587, 0.114));
+                    albedo = lerp(albedo, half3(lum, lum, lum), _Desat);
+                    metallic = lerp(metallic, 0, _Desat);      // 금속 반사도 죽는다
+                    smooth = lerp(smooth, 0.1, _Desat);
+                }
+
                 SurfaceData sd = (SurfaceData)0;
                 sd.albedo = albedo; sd.alpha = alpha;
                 sd.metallic = metallic; sd.smoothness = smooth;
                 sd.normalTS = half3(0, 0, 1); sd.occlusion = occ;   // 노멀은 InputData.normalWS 로 전달됨
-                sd.emission = _EmissionColor.rgb;
+                // 지워지는 경계가 빛난다 — 면이 사라지는 그 테두리다
+                sd.emission = _EmissionColor.rgb + _DissolveColor.rgb * dEdge;
                 sd.specular = half3(0,0,0);
 
                 InputData id = (InputData)0;
@@ -321,9 +351,12 @@ Shader "Toyrassic/PetToon"
             #include "PetBend.hlsl"
             float3 _LightDirection;
             struct A { float4 positionOS:POSITION; float3 normalOS:NORMAL; };
-            float4 vert(A i):SV_POSITION
+            struct V { float4 pos:SV_POSITION; float3 opos:TEXCOORD0; };
+            V vert(A i)
             {
+                V o;
                 float3 p = i.positionOS.xyz; float3 n = i.normalOS;
+                o.opos = p;                                          // 디졸브 판정용 (굽히기 전 좌표)
                 ApplyPetBend(p, n);                                  // 그림자도 같이 굽는다
                 float3 w = TransformObjectToWorld(p);
                 float3 nw = TransformObjectToWorldNormal(n);
@@ -333,9 +366,11 @@ Shader "Toyrassic/PetToon"
             #else
                 pos.z = max(pos.z, UNITY_NEAR_CLIP_VALUE);
             #endif
-                return pos;
+                o.pos = pos;
+                return o;
             }
-            half4 frag():SV_Target { return 0; }
+            // ★그림자도 같이 지운다 — 안 그러면 사라진 몸의 그림자만 바닥에 남는다
+            half4 frag(V i):SV_Target { PetDissolveClip(i.opos); return 0; }
             ENDHLSL
         }
 
@@ -350,13 +385,17 @@ Shader "Toyrassic/PetToon"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
             #include "PetBend.hlsl"
             struct A { float4 positionOS:POSITION; float3 normalOS:NORMAL; };
-            float4 vert(A i):SV_POSITION
+            struct V { float4 pos:SV_POSITION; float3 opos:TEXCOORD0; };
+            V vert(A i)
             {
+                V o;
                 float3 p = i.positionOS.xyz; float3 n = i.normalOS;
+                o.opos = p;
                 ApplyPetBend(p, n);
-                return TransformObjectToHClip(p);
+                o.pos = TransformObjectToHClip(p);
+                return o;
             }
-            half frag():SV_Target { return 0; }
+            half frag(V i):SV_Target { PetDissolveClip(i.opos); return 0; }
             ENDHLSL
         }
     }

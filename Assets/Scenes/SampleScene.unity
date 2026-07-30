@@ -412,9 +412,12 @@ MonoBehaviour:
     material: {fileID: 0}
     tier: 1
     weight: 10
+    "\uBC29\uC2DD": 0
     atkSpeed: 1
     moveSpeed: 1
     range: 1
+    angle: 1
+    damage: 1
   warnRatio: 2.2
   nestModelScale: 2
   beamHeight: 300
@@ -3230,6 +3233,8 @@ MonoBehaviour:
   atkSpeedMul: 1
   moveSpeedMul: 1
   rangeMul: 1
+  angleMul: 1
+  hitDmgMul: 1
   basicOnly: 0
   speedS: 4.4
   speedM: 3.9
@@ -3245,11 +3250,17 @@ MonoBehaviour:
   grudgeTime: 4
   leashRange: 12
   returning: 0
+  meleeArm: 0.85
   atkAngle: 60
   shootReach: 7
   shootFlight: 0.32
+  kiteTrigger: 0.6
+  kiteRelease: 0.9
+  kiteDist: 4
+  kiteCooldown: 5
   tier: 1
   alerted: 0
+  advanceRange: 80
   magnetAfter: 2.2
   magnetRamp: 0.55
   magnetSpeed: 62
@@ -3265,10 +3276,12 @@ MonoBehaviour:
   deathLinger: 1.1
   dissolveTime: 0.9
   dissolveColor: {r: 2.2, g: 1.7, b: 0.9, a: 1}
+  dissolveEdge: 0.12
   avatarBarLift: 0.45
   barGap: 5
   barLevelSize: 11
   barMaxDist: 38
+  barLinger: 2.5
   outlineMaxDist: 30
 --- !u!114 &107336121
 MonoBehaviour:
@@ -7741,9 +7754,12 @@ MonoBehaviour:
     material: {fileID: 0}
     tier: 1
     weight: 10
+    "\uBC29\uC2DD": 0
     atkSpeed: 1
     moveSpeed: 1
     range: 1
+    angle: 1
+    damage: 1
   warnRatio: 2.2
   nestModelScale: 2
   beamHeight: 300
@@ -8371,9 +8387,12 @@ MonoBehaviour:
     material: {fileID: 0}
     tier: 1
     weight: 10
+    "\uBC29\uC2DD": 0
     atkSpeed: 1
     moveSpeed: 1
     range: 1
+    angle: 1
+    damage: 1
   warnRatio: 2.2
   nestModelScale: 2
   beamHeight: 300
@@ -8942,9 +8961,12 @@ MonoBehaviour:
     material: {fileID: 0}
     tier: 1
     weight: 10
+    "\uBC29\uC2DD": 0
     atkSpeed: 1
     moveSpeed: 1
     range: 1
+    angle: 1
+    damage: 1
   warnRatio: 2.2
   nestModelScale: 2
   beamHeight: 300
@@ -9884,9 +9906,12 @@ MonoBehaviour:
     material: {fileID: 0}
     tier: 1
     weight: 10
+    "\uBC29\uC2DD": 0
     atkSpeed: 1
     moveSpeed: 1
     range: 1
+    angle: 1
+    damage: 1
   warnRatio: 2.2
   nestModelScale: 2
   beamHeight: 300
@@ -10462,9 +10487,12 @@ MonoBehaviour:
     material: {fileID: 0}
     tier: 1
     weight: 10
+    "\uBC29\uC2DD": 0
     atkSpeed: 1
     moveSpeed: 1
     range: 1
+    angle: 1
+    damage: 1
   warnRatio: 2.2
   nestModelScale: 2
   beamHeight: 300
@@ -11485,9 +11513,12 @@ MonoBehaviour:
     material: {fileID: 0}
     tier: 1
     weight: 10
+    "\uBC29\uC2DD": 0
     atkSpeed: 1
     moveSpeed: 1
     range: 1
+    angle: 1
+    damage: 1
   warnRatio: 2.2
   nestModelScale: 2
   beamHeight: 300
@@ -11792,9 +11823,12 @@ MonoBehaviour:
     material: {fileID: 0}
     tier: 1
     weight: 10
+    "\uBC29\uC2DD": 0
     atkSpeed: 1
     moveSpeed: 1
     range: 1
+    angle: 1
+    damage: 1
   warnRatio: 2.2
   nestModelScale: 2
   beamHeight: 300
@@ -19761,9 +19795,12 @@ MonoBehaviour:
     material: {fileID: 0}
     tier: 1
     weight: 10
+    "\uBC29\uC2DD": 0
     atkSpeed: 1
     moveSpeed: 1
     range: 1
+    angle: 1
+    damage: 1
   warnRatio: 2.2
   nestModelScale: 2
   beamHeight: 300
@@ -20843,9 +20880,12 @@ MonoBehaviour:
     material: {fileID: 0}
     tier: 1
     weight: 10
+    "\uBC29\uC2DD": 0
     atkSpeed: 1
     moveSpeed: 1
     range: 1
+    angle: 1
+    damage: 1
   warnRatio: 2.2
   nestModelScale: 2
   beamHeight: 300
@@ -22195,9 +22235,12 @@ MonoBehaviour:
     material: {fileID: 0}
     tier: 1
     weight: 10
+    "\uBC29\uC2DD": 0
     atkSpeed: 1
     moveSpeed: 1
     range: 1
+    angle: 1
+    damage: 1
   warnRatio: 2.2
   nestModelScale: 2
   beamHeight: 300
@@ -24332,9 +24375,12 @@ MonoBehaviour:
     material: {fileID: 0}
     tier: 1
     weight: 10
+    "\uBC29\uC2DD": 0
     atkSpeed: 1
     moveSpeed: 1
     range: 1
+    angle: 1
+    damage: 1
   warnRatio: 2.2
   nestModelScale: 2
   beamHeight: 300
@@ -24422,9 +24468,12 @@ MonoBehaviour:
     material: {fileID: 0}
     tier: 1
     weight: 10
+    "\uBC29\uC2DD": 0
     atkSpeed: 1
     moveSpeed: 1
     range: 1
+    angle: 1
+    damage: 1
   warnRatio: 2.2
   nestModelScale: 2
   beamHeight: 300
@@ -24782,9 +24831,12 @@ MonoBehaviour:
     material: {fileID: 0}
     tier: 1
     weight: 10
+    "\uBC29\uC2DD": 0
     atkSpeed: 1
     moveSpeed: 1
     range: 1
+    angle: 1
+    damage: 1
   warnRatio: 2.2
   nestModelScale: 2
   beamHeight: 300
@@ -28629,9 +28681,12 @@ MonoBehaviour:
     material: {fileID: 0}
     tier: 1
     weight: 10
+    "\uBC29\uC2DD": 0
     atkSpeed: 1
     moveSpeed: 1
     range: 1
+    angle: 1
+    damage: 1
   warnRatio: 2.2
   nestModelScale: 2
   beamHeight: 300
@@ -30686,9 +30741,12 @@ MonoBehaviour:
     material: {fileID: 0}
     tier: 1
     weight: 10
+    "\uBC29\uC2DD": 0
     atkSpeed: 1
     moveSpeed: 1
     range: 1
+    angle: 1
+    damage: 1
   warnRatio: 2.2
   nestModelScale: 2
   beamHeight: 300
@@ -33038,9 +33096,12 @@ MonoBehaviour:
     material: {fileID: 0}
     tier: 1
     weight: 10
+    "\uBC29\uC2DD": 0
     atkSpeed: 1
     moveSpeed: 1
     range: 1
+    angle: 1
+    damage: 1
   warnRatio: 2.2
   nestModelScale: 2
   beamHeight: 300
@@ -34791,9 +34852,12 @@ MonoBehaviour:
     material: {fileID: 0}
     tier: 1
     weight: 10
+    "\uBC29\uC2DD": 0
     atkSpeed: 1
     moveSpeed: 1
     range: 1
+    angle: 1
+    damage: 1
   warnRatio: 2.2
   nestModelScale: 2
   beamHeight: 300
@@ -39560,9 +39624,12 @@ MonoBehaviour:
     material: {fileID: 0}
     tier: 1
     weight: 10
+    "\uBC29\uC2DD": 0
     atkSpeed: 1
     moveSpeed: 1
     range: 1
+    angle: 1
+    damage: 1
   warnRatio: 2.2
   nestModelScale: 2
   beamHeight: 300
@@ -40345,9 +40412,12 @@ MonoBehaviour:
     material: {fileID: 0}
     tier: 1
     weight: 10
+    "\uBC29\uC2DD": 0
     atkSpeed: 1
     moveSpeed: 1
     range: 1
+    angle: 1
+    damage: 1
   warnRatio: 2.2
   nestModelScale: 2
   beamHeight: 300
@@ -42354,9 +42424,12 @@ MonoBehaviour:
     material: {fileID: 0}
     tier: 1
     weight: 10
+    "\uBC29\uC2DD": 0
     atkSpeed: 1
     moveSpeed: 1
     range: 1
+    angle: 1
+    damage: 1
   warnRatio: 2.2
   nestModelScale: 2
   beamHeight: 300
@@ -44027,9 +44100,12 @@ MonoBehaviour:
     material: {fileID: 0}
     tier: 1
     weight: 10
+    "\uBC29\uC2DD": 0
     atkSpeed: 1
     moveSpeed: 1
     range: 1
+    angle: 1
+    damage: 1
   warnRatio: 2.2
   nestModelScale: 2
   beamHeight: 300
@@ -44238,9 +44314,12 @@ MonoBehaviour:
     material: {fileID: 0}
     tier: 1
     weight: 10
+    "\uBC29\uC2DD": 0
     atkSpeed: 1
     moveSpeed: 1
     range: 1
+    angle: 1
+    damage: 1
   warnRatio: 2.2
   nestModelScale: 2
   beamHeight: 300
@@ -44629,9 +44708,12 @@ MonoBehaviour:
     material: {fileID: 0}
     tier: 1
     weight: 10
+    "\uBC29\uC2DD": 0
     atkSpeed: 1
     moveSpeed: 1
     range: 1
+    angle: 1
+    damage: 1
   warnRatio: 2.2
   nestModelScale: 2
   beamHeight: 300
@@ -46316,9 +46398,12 @@ MonoBehaviour:
     material: {fileID: 0}
     tier: 1
     weight: 10
+    "\uBC29\uC2DD": 0
     atkSpeed: 1
     moveSpeed: 1
     range: 1
+    angle: 1
+    damage: 1
   warnRatio: 2.2
   nestModelScale: 2
   beamHeight: 300
@@ -47374,9 +47459,12 @@ MonoBehaviour:
     material: {fileID: 0}
     tier: 1
     weight: 10
+    "\uBC29\uC2DD": 0
     atkSpeed: 1
     moveSpeed: 1
     range: 1
+    angle: 1
+    damage: 1
   warnRatio: 2.2
   nestModelScale: 2
   beamHeight: 300
@@ -47464,9 +47552,12 @@ MonoBehaviour:
     material: {fileID: 0}
     tier: 1
     weight: 10
+    "\uBC29\uC2DD": 0
     atkSpeed: 1
     moveSpeed: 1
     range: 1
+    angle: 1
+    damage: 1
   warnRatio: 2.2
   nestModelScale: 2
   beamHeight: 300
@@ -50753,9 +50844,12 @@ MonoBehaviour:
     material: {fileID: 0}
     tier: 1
     weight: 10
+    "\uBC29\uC2DD": 0
     atkSpeed: 1
     moveSpeed: 1
     range: 1
+    angle: 1
+    damage: 1
   warnRatio: 2.2
   nestModelScale: 2
   beamHeight: 300
@@ -51023,9 +51117,12 @@ MonoBehaviour:
     material: {fileID: 0}
     tier: 1
     weight: 10
+    "\uBC29\uC2DD": 0
     atkSpeed: 1
     moveSpeed: 1
     range: 1
+    angle: 1
+    damage: 1
   warnRatio: 2.2
   nestModelScale: 2
   beamHeight: 300
@@ -53465,9 +53562,12 @@ MonoBehaviour:
     material: {fileID: 0}
     tier: 1
     weight: 10
+    "\uBC29\uC2DD": 0
     atkSpeed: 1
     moveSpeed: 1
     range: 1
+    angle: 1
+    damage: 1
   warnRatio: 2.2
   nestModelScale: 2
   beamHeight: 300
@@ -53918,9 +54018,12 @@ MonoBehaviour:
     material: {fileID: 0}
     tier: 1
     weight: 10
+    "\uBC29\uC2DD": 0
     atkSpeed: 1
     moveSpeed: 1
     range: 1
+    angle: 1
+    damage: 1
   warnRatio: 2.2
   nestModelScale: 2
   beamHeight: 300
@@ -54804,6 +54907,7 @@ GameObject:
   - component: {fileID: 1834216758}
   - component: {fileID: 1834216757}
   - component: {fileID: 1834216759}
+  - component: {fileID: 1834216760}
   m_Layer: 0
   m_Name: PetSpawner
   m_TagString: Untagged
@@ -54824,51 +54928,162 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PetSpawner
   entries:
-  - koreanName: "\uCE58\uBE44\uB291\uB300"
+  - koreanName: "\uB291\uAD6C"
     species: chibi_wolf
     prefab: {fileID: 7477283798205093626, guid: 3c2a979c4f872564bbd5f586d202a3f0, type: 3}
     material: {fileID: 2100000, guid: d1f44dac1e1dc4840900f253d19b4d5e, type: 2}
-    tier: 1
+    tier: 0
     weight: 30
+    "\uBC29\uC2DD": 2
     atkSpeed: 1
     moveSpeed: 1
     range: 1
-  - koreanName: "\uCE58\uBE44\uD638\uB791\uC774"
+    angle: 1
+    damage: 1
+  - koreanName: "\uD638\uB3D9"
     species: chibi_tiger
     prefab: {fileID: 7477283798205093626, guid: be95f9003cf463143bf009d8f0dde4ef, type: 3}
     material: {fileID: 2100000, guid: 2d2ead255d4dd2a4f92570b7c3a50076, type: 2}
     tier: 1
     weight: 30
+    "\uBC29\uC2DD": 3
     atkSpeed: 1
     moveSpeed: 1
     range: 1
-  - koreanName: "\uCE58\uBE44\uD2B8\uB9AC\uCF00\uB77C"
+    angle: 1
+    damage: 1
+  - koreanName: "\uD2B8\uB9AC\uD1B5"
     species: chibi_trike
     prefab: {fileID: 7477283798205093626, guid: 33524b9f937954345b7a73bb8589546a, type: 3}
     material: {fileID: 2100000, guid: 2a062885edcc53240939fdf0cc756686, type: 2}
     tier: 2
     weight: 20
+    "\uBC29\uC2DD": 6
     atkSpeed: 1
     moveSpeed: 1
     range: 1
-  - koreanName: "\uCE58\uBE44\uD2F0\uB77C\uB178"
+    angle: 1
+    damage: 1
+  - koreanName: "\uD2F0\uB77C"
     species: chibi_tyranno
     prefab: {fileID: 7477283798205093626, guid: c2f514207eaf7d04ebae9cb00c11ad82, type: 3}
     material: {fileID: 2100000, guid: 20c810604faf45748bda78e13b0e540c, type: 2}
     tier: 3
     weight: 10
+    "\uBC29\uC2DD": 2
     atkSpeed: 1
     moveSpeed: 1
     range: 1
-  - koreanName: "\uCE58\uBE44\uBE0C\uB860\uD1A0"
+    angle: 1
+    damage: 1
+  - koreanName: "\uBE10\uD1A0"
     species: chibi_bronto
     prefab: {fileID: 7477283798205093626, guid: 3bfe57dc8e0aa6246aae59e81cb33834, type: 3}
     material: {fileID: 2100000, guid: c6086a1d741fbb644937f3b874773059, type: 2}
     tier: 3
     weight: 10
+    "\uBC29\uC2DD": 4
     atkSpeed: 1
     moveSpeed: 1
     range: 1
+    angle: 1
+    damage: 1
+  - koreanName: "\uC0AC\uB3C4\uC0AC"
+    species: "\uC0AC\uB3C4\uC0AC"
+    prefab: {fileID: 7477283798205093626, guid: 8d0d700379f36714f94fbe129e33f182, type: 3}
+    material: {fileID: 2100000, guid: 8b755641208025442aad0c8ca6a30189, type: 2}
+    tier: 0
+    weight: 10
+    "\uBC29\uC2DD": 1
+    atkSpeed: 1
+    moveSpeed: 1
+    range: 1
+    angle: 1
+    damage: 1
+  - koreanName: "\uAF2D\uAF2C"
+    species: "\uAF2D\uAF2C"
+    prefab: {fileID: 7477283798205093626, guid: b1cdbcaa4311a0c4091480efd8a6db9a, type: 3}
+    material: {fileID: 2100000, guid: 890346823a69e4840ae8adb17af8e606, type: 2}
+    tier: 0
+    weight: 10
+    "\uBC29\uC2DD": 8
+    atkSpeed: 1
+    moveSpeed: 1
+    range: 1
+    angle: 1
+    damage: 1
+  - koreanName: "\uB78D\uB610"
+    species: "\uB78D\uB610"
+    prefab: {fileID: 3120901869392202509, guid: b1398dcadfe3c23499523a4aee15d758, type: 3}
+    material: {fileID: 2100000, guid: 150f4c05315d6ac4fb3b082145e97955, type: 2}
+    tier: 1
+    weight: 10
+    "\uBC29\uC2DD": 6
+    atkSpeed: 1
+    moveSpeed: 1
+    range: 1
+    angle: 1
+    damage: 1
+  - koreanName: "\uB51C\uB86D"
+    species: "\uB51C\uB86D"
+    prefab: {fileID: 7477283798205093626, guid: 9ee14edeb379a5745b8753c38d0234b3, type: 3}
+    material: {fileID: 2100000, guid: 4e1154758351d0c4091816069f2b4fc7, type: 2}
+    tier: 1
+    weight: 10
+    "\uBC29\uC2DD": 9
+    atkSpeed: 1
+    moveSpeed: 1
+    range: 1
+    angle: 1
+    damage: 1
+  - koreanName: "\uD1A0\uB9AC"
+    species: "\uD1A0\uB9AC"
+    prefab: {fileID: 3120901869392202509, guid: b11cf04317041e645b0f39b8a86b71f1, type: 3}
+    material: {fileID: 2100000, guid: 0e2f6e76b34521d44bb23072e0ef17bd, type: 2}
+    tier: 1
+    weight: 10
+    "\uBC29\uC2DD": 11
+    atkSpeed: 1
+    moveSpeed: 1
+    range: 1
+    angle: 1
+    damage: 1
+  - koreanName: "\uB3CC\uBD81"
+    species: "\uB3CC\uBD81"
+    prefab: {fileID: 3120901869392202509, guid: 00438945d214b654da11dada0b467616, type: 3}
+    material: {fileID: 2100000, guid: d003f29a58d3ef34d80597ee7fbd260b, type: 2}
+    tier: 2
+    weight: 10
+    "\uBC29\uC2DD": 5
+    atkSpeed: 1
+    moveSpeed: 1
+    range: 1
+    angle: 1
+    damage: 1
+  - koreanName: "\uCF00\uBABD"
+    species: "\uCF00\uBABD"
+    prefab: {fileID: 7477283798205093626, guid: 107aa9f62ae88b64995eeb858fd89e4e, type: 3}
+    material: {fileID: 2100000, guid: 9db1f95b101f1f04a8efa1451edbfc94, type: 2}
+    tier: 2
+    weight: 10
+    "\uBC29\uC2DD": 10
+    atkSpeed: 1
+    moveSpeed: 1
+    range: 1
+    angle: 1
+    damage: 1
+  - koreanName: "\uBAB8\uBAA8\uD0B9"
+    species: "\uBAB8\uBAA8\uD0B9"
+    prefab: {fileID: 7477283798205093626, guid: 20156b78cd6bf464aad07be5b771c06b, type: 3}
+    material: {fileID: 2100000, guid: 11dec06c9f0e52d4380dcfdcc46e2347, type: 2}
+    tier: 3
+    weight: 10
+    "\uBC29\uC2DD": 7
+    atkSpeed: 1
+    moveSpeed: 1
+    range: 1
+    angle: 1
+    damage: 1
   player: {fileID: 107336113}
   minDist: 14
   maxDist: 45
@@ -54949,11 +55164,48 @@ MonoBehaviour:
     "\uD06C\uAE30": 1
     "\uBC29\uC2DD\uAC15\uC81C": 0
     "\uBC29\uC2DD": 0
+  "\uC67C\uCABDC":
+    "\uC774\uB984": "\uD2F0\uB77C\uB178"
+    "\uC885": 3
+    "\uB9C8\uB9BF\uC218": 2
+    "\uD06C\uAE30": 3
+    "\uBC29\uC2DD\uAC15\uC81C": 0
+    "\uBC29\uC2DD": 0
+  "\uC624\uB978\uCABDC":
+    "\uC774\uB984": "\uC790\uAE00\uC774"
+    "\uC885": 0
+    "\uB9C8\uB9BF\uC218": 20
+    "\uD06C\uAE30": 0
+    "\uBC29\uC2DD\uAC15\uC81C": 0
+    "\uBC29\uC2DD": 0
   perSide: 50
   spacingMul: 1.4
   armyGap: 9
   distFromPlayer: 12
   window: 3
+  leagueTimeout: 90
+  leagueGap: 1.5
+  leagueFile: league_result.txt
+  "\uB9AC\uADF8\uB85C\uC2A4\uD130": []
+--- !u!114 &1834216760
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1834216756}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 7d1515bd86ed08c4d8e95330cfa3ef60, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::MotionShowcase
+  spawner: {fileID: 0}
+  player: {fileID: 0}
+  distFromPlayer: 6
+  dummyReachMul: 1.12
+  dummyCount: 5
+  slowScale: 0.25
+  "\uB85C\uC2A4\uD130": []
 --- !u!1 &1837252251
 GameObject:
   m_ObjectHideFlags: 0
@@ -59053,9 +59305,12 @@ MonoBehaviour:
     material: {fileID: 0}
     tier: 1
     weight: 10
+    "\uBC29\uC2DD": 0
     atkSpeed: 1
     moveSpeed: 1
     range: 1
+    angle: 1
+    damage: 1
   warnRatio: 2.2
   nestModelScale: 2
   beamHeight: 300

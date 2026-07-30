@@ -41,6 +41,11 @@ public class PetMotion : MonoBehaviour
     [HideInInspector] public float dangerGlow;     // 스킬 조준 대상 — 붉은 발광
     Renderer[] bendRends; MaterialPropertyBlock bmpb;
     float refLen = 1f, axisX, wobble, wobbleFreq = 2.5f;
+    /// ★죽으면 이 컴포넌트가 꺼지므로, 사망 연출은 `PetUnit` 이 직접 벤드를 쓴다.
+    ///   그때 이 두 값을 같이 넘겨야 축이 맞는다 (안 넘기면 머티리얼 기본값 1/0 이 쓰여
+    ///   몸이 엉뚱한 데서 꺾인다).
+    public float RefLen => refLen;
+    public float AxisX => axisX;
 
     void Start()
     {
@@ -103,7 +108,6 @@ public class PetMotion : MonoBehaviour
     // 휩쓸기는 몸을 틀었다 돌린다. 그래야 눈으로 "무슨 공격인지" 읽힌다.
     float atkT, atkDur;
     PetUnit.Pattern atkKind;
-    float lastAtkYaw;      // 지난 프레임에 더한 좌우 회전 — 빼 줘야 누적되지 않는다
 
     /// dur 초에 걸쳐 한 번 휘두른다. PetUnit 이 공격을 시작할 때 부른다.
     public void Attack(PetUnit.Pattern kind, float dur)
@@ -116,22 +120,41 @@ public class PetMotion : MonoBehaviour
     /// 지금 휘두르는 중인가 (0=아님, 1=시작 직후)
     public float AttackProgress => atkDur <= 0f ? 0f : 1f - Mathf.Clamp01(atkT / atkDur);
 
+    /// ★예비가 끝나는 지점(전체의 몇 %) — **타격 판정이 여기 맞아야 한다.**
+    ///   `PetUnit.BeginSwing` 이 모션 길이를 정할 때 쓴다. 전엔 0.35 로 고정해 놓고
+    ///   불렀는데, 실제 a1 은 방식마다 0.22~0.50 이라 **저격·짓밟기는 판정이 본동작보다
+    ///   한참 먼저** 떨어졌다 (2026-07-30 사용자 — "휘두르기가 나오기도 전에 데미지가").
+    public static float PrepFrac(PetUnit.Pattern p)
+    {
+        Bounds(p, out float a1, out _);
+        return a1;
+    }
+
+    /// 막 경계 — 무거운 동작일수록 예비가 길고 본동작이 짧다
+    static void Bounds(PetUnit.Pattern k, out float a1, out float a2)
+    {
+        switch (k)
+        {
+            case PetUnit.Pattern.Charge: a1 = 0.40f; a2 = 0.50f; break;   // 들이받기 — 잔뜩 웅크렸다 튄다
+            case PetUnit.Pattern.Slam:   a1 = 0.45f; a2 = 0.55f; break;   // 내려찍기 — 묵직
+            case PetUnit.Pattern.Sweep:  a1 = 0.35f; a2 = 0.48f; break;
+            case PetUnit.Pattern.Shoot:  a1 = 0.42f; a2 = 0.52f; break;   // 대포 — 오래 겨눴다 뱉는다
+            case PetUnit.Pattern.Claw:   a1 = 0.22f; a2 = 0.40f; break;   // 할퀴기 — 제일 잽싸다
+            case PetUnit.Pattern.Swipe:  a1 = 0.32f; a2 = 0.46f; break;
+            case PetUnit.Pattern.Stomp:  a1 = 0.48f; a2 = 0.57f; break;   // 짓밟기 — 제일 묵직
+            case PetUnit.Pattern.Rapid:  a1 = 0.25f; a2 = 0.42f; break;   // 연사 — 잘게 빠르게
+            case PetUnit.Pattern.Snipe:  a1 = 0.50f; a2 = 0.58f; break;   // 저격 — 제일 오래 겨눈다
+            case PetUnit.Pattern.Scatter:a1 = 0.38f; a2 = 0.50f; break;
+            default:                     a1 = 0.25f; a2 = 0.45f; break;   // 물기 — 잽싸다
+        }
+    }
+
     /// 3막 곡선 — 예비 -1 → 오버슈트 +1.25 → 0. 안 휘두르면 0.
     float SwingValue()
     {
         if (atkT <= 0f) return 0f;
         float k = AttackProgress;
-
-        // 막 경계 — 무거운 동작일수록 예비가 길고 본동작이 짧다
-        float a1, a2;
-        switch (atkKind)
-        {
-            case PetUnit.Pattern.Charge: a1 = 0.40f; a2 = 0.50f; break;   // 돌진 — 잔뜩 웅크렸다 튄다
-            case PetUnit.Pattern.Slam:   a1 = 0.45f; a2 = 0.55f; break;   // 내려찍기 — 제일 묵직
-            case PetUnit.Pattern.Sweep:  a1 = 0.35f; a2 = 0.48f; break;
-            case PetUnit.Pattern.Shoot:  a1 = 0.42f; a2 = 0.52f; break;   // 대포 — 오래 겨눴다 뱉는다
-            default:                     a1 = 0.25f; a2 = 0.45f; break;   // 물기 — 잽싸다
-        }
+        Bounds(atkKind, out float a1, out float a2);
 
         if (k < a1)
         {   // ① 예비 — 반대로. 빨리 갔다 정점에서 뜸 (Ease Out)
@@ -171,29 +194,123 @@ public class PetMotion : MonoBehaviour
         //   (BobY 보다 먼저 계산한다. 아래에서 높이에 더해야 하므로)
         atkT = Mathf.MoveTowards(atkT, 0f, dt);
         float sw = SwingValue();
-        float atkSy = 0f, atkLean = 0f, atkYaw = 0f, atkHopY = 0f;
+        // ★공격 모션을 **몸 구부리기(벤드)** 중심으로 다시 짰다 (2026-07-30 사용자 —
+        //   "공격 모션이 딱딱한 느낌이라 구부리는 걸 좀 많이 사용했으면").
+        //
+        //   원인이 명확했다: 벤드 셰이더(`_BendF`·`_BendS`)가 이미 있는데 **공격 3막
+        //   곡선(sw)이 거기 전혀 안 들어가고 있었다.** 장전(charge)과 펀치(pk)만 쓰고
+        //   있어서, 공격은 크기·기울기·높이 같은 **강체 변형**으로만 표현됐다.
+        //   강체는 아무리 잘 흔들어도 나무토막처럼 보인다 — 살아있는 것은 **휜다.**
+        //
+        // ★몸 전체 회전(atkYaw)은 **없앴다** (사용자 "몸 전체를 회전시키는 모션은 지양").
+        //   회전은 실루엣을 거의 안 바꿔서 옆에서 보면 아무 일도 안 난 것처럼 보였고,
+        //   무엇보다 좌우 회전은 `PetUnit.Face` 의 소유라 매 프레임 빼고 더하는
+        //   너저분한 보정이 필요했다. 좌우 동작은 이제 **`_BendS`(좌우 휨)** 이 낸다 —
+        //   몸통은 적을 향한 채 **머리통만 호를 그리며** 지나간다.
+        //
+        //   부호 규칙 (sw: 예비 -1 → 본동작 +1.25 → 여운 0)
+        //     _BendF = -sw * k  →  예비에 활처럼 말리고, 본동작에 활짝 펴진다
+        //     _BendS =  sw * k  →  예비에 한쪽으로 휘었다가, 반대쪽으로 후려친다
+        float atkSy = 0f, atkLean = 0f, atkHopY = 0f, atkBendF = 0f, atkBendS = 0f;
+        float atkBendSPivot = 0f;   // 좌우 휨의 축: 0=몸 중심 · 1=머리 고정 · -1=꼬리 고정
         if (atkT > 0f)
         {
             switch (atkKind)
             {
                 case PetUnit.Pattern.Bite:      // 목을 당겼다 앞으로 콱 — 뻗으며 몸이 늘어난다
-                    atkLean = sw * 26f; atkSy = sw * 0.10f;
+                    atkLean = sw * 22f; atkSy = sw * 0.10f;
+                    atkBendF = -sw * 0.34f;                 // 말았다 → 목을 뻗으며 활짝
                     break;
-                case PetUnit.Pattern.Charge:    // 웅크렸다 낮게 튀어나간다
-                    atkLean = sw * 34f; atkHopY = Mathf.Max(0f, -sw) * 0.10f * bodyH;
+
+                case PetUnit.Pattern.Charge:    // 들이받기 — 활처럼 말았다 낮게 튀어나간다
+                    atkLean = sw * 30f;
+                    atkHopY = Mathf.Max(0f, -sw) * 0.10f * bodyH;
+                    atkBendF = -sw * 0.46f;                 // 제일 크게 말았다 편다 = 튀어나가는 느낌
                     break;
-                case PetUnit.Pattern.Slam:      // 들었다 찍는다 — 예비에 뜨고 타격에 눌린다
+
+                case PetUnit.Pattern.Slam:      // 내려찍기 — 들었다 찍는다. 예비에 뜨고 타격에 눌린다
                     atkHopY = Mathf.Max(0f, -sw) * 0.50f * bodyH;
                     atkSy = -Mathf.Max(0f, sw) * 0.22f;
-                    atkLean = sw * 10f;
+                    atkLean = sw * 8f;
+                    atkBendF = -sw * 0.40f;                 // 등을 말았다 내리꽂으며 편다
                     break;
-                case PetUnit.Pattern.Sweep:     // 몸을 반대로 틀었다 확 돌린다
-                    atkYaw = sw * 55f; atkLean = sw * 8f;
+
+                // 휩쓸기 — **머리통으로 앞을 가로질러 후린다** (2026-07-30 사용자 —
+                //   "회전해서 때리는 거 말고 그냥 앞쪽으로 머리통으로 후리는 걸로").
+                //
+                //   전엔 몸 전체를 78° 돌렸는데, 그러면 ①실루엣이 안 변하고 ②몸통이
+                //   적에게서 돌아가 버려 '후린다' 가 아니라 '돈다' 로 읽혔다.
+                //
+                // ★축을 **머리**에 둔다 (`_BendSPivot = 1`, 2026-07-30 사용자 —
+                //   "머리 위치는 그대로 두고 몸을 구부려서 꼬리가 앞쪽까지 올 정도로").
+                //   기본 축은 몸 중심이라 머리와 꼬리가 서로 반대로 휘는데, 그러면
+                //   머리도 같이 돌아가 회전처럼 보인다. 축을 머리로 옮기면 **머리는
+                //   제자리에 박히고 꼬리만 크게 호를 그리며 앞까지 넘어온다.**
+                //   축이 끝으로 가면 반대쪽 진폭이 2배가 되므로 세기는 절반으로 잡는다.
+                case PetUnit.Pattern.Sweep:
+                    atkBendS = sw * 0.52f;                  // ★주역 — 꼬리가 앞까지 넘어온다
+                    atkBendSPivot = 1f;                     // 축 = 머리 (머리는 안 움직인다)
+                    atkBendF = -sw * 0.18f;                 // 후리며 앞으로 살짝 펴진다
+                    atkLean = sw * 8f;
+                    atkSy = -Mathf.Max(0f, sw) * 0.14f;     // 후리는 순간 낮게 눌리며 퍼진다
+                    atkHopY = Mathf.Max(0f, -sw) * 0.12f * bodyH;   // 예비에 살짝 떴다 내려앉는다
                     break;
+
                 case PetUnit.Pattern.Shoot:     // 대포 — 뒤로 젖혔다 앞으로 뱉고, 반동으로 밀린다
-                    atkLean = sw * 20f;
+                    atkLean = sw * 18f;
                     atkSy = Mathf.Max(0f, -sw) * 0.12f      // 예비: 숨을 들이켜듯 부푼다
                          - Mathf.Max(0f, sw) * 0.14f;       // 발사: 홀쭉해진다
+                    atkBendF = -sw * 0.30f;                 // 움츠렸다 뱉으며 펴진다
+                    break;
+
+                // 할퀴기 — 몸을 **위로 잔뜩 젖혔다가 아래로 긁어내린다.**
+                //
+                // ★위아래 굽힘을 크게 쓴다 (2026-07-30 사용자 — "사마귀 할퀴기는 좀 더
+                //   위아래로 많이 구부려서 할퀴는 것처럼"). 전엔 앞뒤 0.24 · 좌우 0.26 으로
+                //   둘이 비슷해서 **긁는 게 아니라 그냥 흔드는 것처럼** 보였다.
+                //   할퀴기는 세로로 내리긋는 동작이라 위아래가 주역이어야 한다.
+                //   좌우는 살짝만 남겨 비스듬히 긋는 느낌만 준다.
+                case PetUnit.Pattern.Claw:
+                    atkBendF = -sw * 0.66f;                 // ★주역 — 젖혔다 확 긁어내린다
+                    atkBendS = sw * 0.14f;                  // 살짝 비스듬히
+                    atkLean = sw * 20f;
+                    atkHopY = Mathf.Max(0f, -sw) * 0.20f * bodyH;   // 예비에 상체가 들린다
+                    atkSy = Mathf.Max(0f, -sw) * 0.08f      // 예비: 세로로 늘며 곧추선다
+                          - Mathf.Max(0f, sw) * 0.10f;      // 긁는 순간: 눌리며 내리꽂는다
+                    break;
+
+                case PetUnit.Pattern.Swipe:     // 후려치기 — 휩쓸기의 작은 판. 옆에서 앞으로
+                    atkBendS = sw * 0.52f;                  // 휩쓸기보다 작게 후린다
+                    atkBendF = -sw * 0.20f;
+                    atkLean = sw * 10f;
+                    atkSy = -Mathf.Max(0f, sw) * 0.10f;
+                    break;
+
+                case PetUnit.Pattern.Stomp:     // 짓밟기 — 높이 들었다 발밑으로 쿵. 제일 무겁다
+                    atkHopY = Mathf.Max(0f, -sw) * 0.62f * bodyH;   // 예비에 크게 뜬다
+                    atkSy = -Mathf.Max(0f, sw) * 0.30f;             // 착지에 콱 눌린다
+                    atkLean = sw * 6f;
+                    atkBendF = -sw * 0.50f;                 // 제일 크게 말았다 내리꽂는다
+                    break;
+
+                case PetUnit.Pattern.Rapid:     // 연사 — 짧게 여러 번. 반동으로 잘게 떤다
+                    atkLean = sw * 10f;
+                    atkSy = -Mathf.Max(0f, sw) * 0.07f;
+                    atkBendF = -sw * 0.20f;
+                    break;
+
+                case PetUnit.Pattern.Snipe:     // 저격 — 오래 겨눴다가 한 방. 반동이 크다
+                    atkLean = sw * 24f;
+                    atkSy = Mathf.Max(0f, -sw) * 0.16f      // 예비: 잔뜩 부푼다
+                         - Mathf.Max(0f, sw) * 0.20f;       // 발사: 확 홀쭉
+                    atkBendF = -sw * 0.38f;
+                    break;
+
+                case PetUnit.Pattern.Scatter:   // 흩뿌리기 — 몸을 부풀렸다 사방으로 터뜨린다
+                    atkSy = Mathf.Max(0f, -sw) * 0.22f      // 예비: 크게 부푼다
+                         - Mathf.Max(0f, sw) * 0.16f;       // 발사: 납작해지며 퍼진다
+                    atkLean = sw * 8f;
+                    atkBendF = -sw * 0.34f;
                     break;
             }
         }
@@ -227,20 +344,23 @@ public class PetMotion : MonoBehaviour
         // 장전: 뒷다리에 체중 싣듯 코가 들림 → 발사 때 pk 가 앞으로 콱 눌러줌
         float chg = Mathf.Clamp01(charge);
         float lean = leanDeg * speed01 + nod + pk * 6f - fl * 4f - chg * 9f + atkLean;
-        var e = transform.localEulerAngles;
-        // ★좌우 회전은 PetUnit(Face)이 정한다. 여기서 더한 값은 다음 프레임에 다시 읽히므로
-        //   **지난 프레임에 더한 만큼 빼고** 새로 더한다 — 안 그러면 계속 누적돼 빙글빙글 돈다.
-        float baseYaw = e.y - lastAtkYaw;
-        lastAtkYaw = atkYaw;
-        transform.localRotation = Quaternion.Euler(lean, baseYaw + atkYaw, waddle);
+        // ★좌우 회전(yaw)은 **전적으로 PetUnit(Face)의 것**이다 — 모션은 손대지 않는다
+        //   (2026-07-30 사용자 "몸 전체를 회전시키는 모션은 지양"). 좌우 동작은 아래
+        //   `_BendS`(좌우 휨)가 낸다. 전엔 여기서 yaw 를 더했다가 다음 프레임에 도로 빼는
+        //   보정이 필요했는데, 그 보정 자체가 사라졌다.
+        transform.localRotation = Quaternion.Euler(lean, transform.localEulerAngles.y, waddle);
 
         // ── 버텍스 벤드: 장전 = 활처럼 몸 말기 / 발사 = 활짝 펴짐 / 걸음 = 살짝 비틀비틀 ──
         if (bendRends != null && bmpb != null)
         {
-            float bendF = chg * 0.42f - pk * 0.28f;                              // 말았다 폈다
+            // ★공격 벤드를 여기에 더한다 — 이게 빠져 있어서 공격이 딱딱했다.
+            //   셰이더 범위가 ±1.5 이므로 넘지 않게 자른다 (넘으면 몸이 뒤집힌다).
+            float bendF = Mathf.Clamp(chg * 0.42f - pk * 0.28f + atkBendF, -1.4f, 1.4f);
+            float bendS = Mathf.Clamp(atkBendS, -1.4f, 1.4f);
             float twist = Mathf.Sin(t * Mathf.PI) * 0.07f * speed01;             // 걸음 비틀림
             bmpb.SetFloat("_BendF", bendF);
-            bmpb.SetFloat("_BendS", 0f);
+            bmpb.SetFloat("_BendS", bendS);
+            bmpb.SetFloat("_BendSPivot", atkBendSPivot);
             bmpb.SetFloat("_Twist", twist);
             bmpb.SetFloat("_RefLen", refLen);
             bmpb.SetFloat("_AxisX", axisX);
