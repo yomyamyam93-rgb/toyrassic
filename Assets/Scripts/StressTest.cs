@@ -98,6 +98,9 @@ public class StressTest : MonoBehaviour
     {
         if (spawner == null) spawner = FindFirstObjectByType<PetSpawner>();
         if (player == null && spawner != null) player = spawner.player;
+        // ★다른 창으로 가도 게임이 계속 돈다 (2026-07-30 사용자 — 리그전을 돌려놓고
+        //   다른 일을 볼 수 있게). 기본값은 "초점을 잃으면 멈춤"이라 F12 가 서 버렸다.
+        Application.runInBackground = true;
     }
 
     void Update()
@@ -691,6 +694,9 @@ public class StressTest : MonoBehaviour
     }
 
     // ── 화면 표시 ────────────────────────────────────────────
+    // ★안내창 접기 (2026-07-30 사용자 — "다 가려서 하나도 안 보이네")
+    bool guiFold;
+
     void OnGUI()
     {
         Stats(out float avg, out float worst);
@@ -700,6 +706,26 @@ public class StressTest : MonoBehaviour
         {
             if (u == null) continue;
             if (u.team == PetUnit.Team.Player) mine++; else wild++;
+        }
+
+        // 접기/펴기 버튼 — 접으면 한 줄 요약(FPS·마릿수·진행)만 남는다.
+        // 리그를 돌려놓고 구경할 때는 접어 두고, 키가 궁금할 때만 편다.
+        var btn = new GUIStyle(GUI.skin.button) { fontSize = 17 };
+        if (GUI.Button(new Rect(14, 14, 128, 34), guiFold ? "▸ 안내 펴기" : "▾ 안내 접기", btn))
+            guiFold = !guiFold;
+        if (guiFold)
+        {
+            var mini = new GUIStyle(GUI.skin.box)
+            { alignment = TextAnchor.MiddleLeft, fontSize = 18, padding = new RectOffset(10, 10, 6, 6) };
+            string prog = LeagueRunning ? $" · 리그 {leagueIdx + 1}/{bouts.Count}"
+                        : trialRunning ? $" · {trialT:F1}초" : "";
+            var o = GUI.color;
+            GUI.color = avg >= 55f ? new Color(0.6f, 1f, 0.6f)
+                      : avg >= 30f ? new Color(1f, 0.95f, 0.5f)
+                                   : new Color(1f, 0.5f, 0.5f);
+            GUI.Box(new Rect(150, 14, 400, 34), $"FPS {avg:F0} · 내편 {mine} 야생 {wild}{prog}", mini);
+            GUI.color = o;
+            return;
         }
 
         string clock = trialRunning && runL != null && runR != null
@@ -734,7 +760,7 @@ public class StressTest : MonoBehaviour
         GUI.color = avg >= 55f ? new Color(0.6f, 1f, 0.6f)
                   : avg >= 30f ? new Color(1f, 0.95f, 0.5f)
                                : new Color(1f, 0.5f, 0.5f);
-        GUI.Box(new Rect(14, 14, 560, (clock == "" ? 380 : 435) + (testMode ? 28 : 0)), txt, box);
+        GUI.Box(new Rect(14, 54, 560, (clock == "" ? 380 : 435) + (testMode ? 28 : 0)), txt, box);
         GUI.color = old;
     }
 }

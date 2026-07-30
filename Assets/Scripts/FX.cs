@@ -500,7 +500,9 @@ public static class FX
     {
         if (ps == null) return;
         ps.gameObject.SetActive(false);
-        if (burstPool.Count < 64) burstPool.Push(ps);   // 무한정 쌓지는 않는다
+        if (burstPool.Count < 128) burstPool.Push(ps);   // 무한정 쌓지는 않는다
+        // ★64 → 128 (2026-07-30). 원거리 이펙트를 방식별로 갈랐더니 총구·착탄에서
+        //   버스트를 더 쓴다 — 풀이 마르면 생성/파괴가 다시 시작돼 본래 문제로 돌아간다.
         else Object.Destroy(ps.gameObject);
     }
 
@@ -986,6 +988,125 @@ public class FXRing : MonoBehaviour
         c.a = 1f - k;
         mpb.SetColor("_BaseColor", c);
         mr.SetPropertyBlock(mpb);
+    }
+
+    void Update()
+    {
+        t += Time.deltaTime;
+        float k = Mathf.Clamp01(t / life);
+        if (k >= 1f)
+        {
+            enabled = false;
+            gameObject.SetActive(false);
+            if (pool.Count < 32) pool.Push(this); else Destroy(gameObject);
+            return;
+        }
+        Apply(k);
+    }
+}
+
+/// ★레이저 빔 — 두꺼운 빛이 쫙 나타났다가 얇아지며 사라진다 (저격용).
+///
+/// ★왜 트레일이 아니라 별도 부품인가 (2026-07-30 사용자 — "약간 두꺼운 빛이 쫙 하고
+///   얇아지면서 사라지는 그 느낌"): 트레일은 굵기가 고정이라 '얇아지며 사라짐'이 안 된다.
+///   총구~표적을 잇는 원기둥 하나를 놓고 **굵기만 시간에 따라 0 으로** 줄인다.
+///
+/// ★비용: FXRing 과 같은 처방 — 재질 하나 공유 · 오브젝트 풀 · 그림자 없음.
+public class FXBeam : MonoBehaviour
+{
+    static readonly System.Collections.Generic.Stack<FXBeam> pool
+        = new System.Collections.Generic.Stack<FXBeam>();
+    static Material mat;
+    static Mesh cyl;
+
+    MeshRenderer mr, coreMr; MaterialPropertyBlock mpb;
+    float t, life, width, len; Color tint;
+
+    /// a(총구)에서 b(표적)까지 빔을 긋는다. width = 제일 두꺼울 때의 굵기(m).
+    public static void Spawn(Vector3 a, Vector3 b, Color color, float width, float life = 0.28f)
+    {
+        var d = b - a;
+        if (d.sqrMagnitude < 1e-6f) return;
+        FXBeam r = null;
+        while (pool.Count > 0) { var g = pool.Pop(); if (g != null) { r = g; break; } }
+        if (r == null)
+        {
+            var go = new GameObject("fx_beam");
+            if (SceneBuckets.Fx != null) go.transform.SetParent(SceneBuckets.Fx);
+            r = go.AddComponent<FXBeam>();
+            go.AddComponent<MeshFilter>().sharedMesh = Cyl();
+            r.mr = go.AddComponent<MeshRenderer>();
+            r.mr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            r.mr.receiveShadows = false;
+            r.mpb = new MaterialPropertyBlock();
+            // ★흰 심지 — 레이저는 '색 빛' 만으로는 장난감이다. 속이 백열로 타야
+            //   에너지로 읽힌다 (겉빛 안에 절반 굵기의 흰 원기둥)
+            var core = new GameObject("core");
+            core.transform.SetParent(go.transform, false);
+            core.transform.localScale = new Vector3(0.5f, 1f, 0.5f);
+            core.AddComponent<MeshFilter>().sharedMesh = Cyl();
+            r.coreMr = core.AddComponent<MeshRenderer>();
+            r.coreMr.sharedMaterial = BeamMat();
+            r.coreMr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            r.coreMr.receiveShadows = false;
+        }
+        r.gameObject.SetActive(true);
+        r.transform.position = (a + b) * 0.5f;
+        // 유니티 원기둥의 긴 축은 Y — 진행 방향으로 눕힌다
+        r.transform.rotation = Quaternion.LookRotation(d) * Quaternion.Euler(90f, 0f, 0f);
+        r.mr.sharedMaterial = BeamMat();
+        r.tint = color; r.life = Mathf.Max(0.05f, life);
+        r.width = width; r.len = d.magnitude; r.t = 0f;
+        r.Apply(0f);
+        r.enabled = true;
+        // ★빔 줄기 중간의 불티는 걷어냈다 (2026-07-30 사용자 — "피격 이펙트가 엄한 데,
+        //   저 멀리 이상한 데서 떠"). 빔은 가는데 불티만 도드라져서 **허공에서 피격이
+        //   터지는 것처럼** 보였다. 이펙트 규칙 위반이기도 하다 — 총구도 타격 지점도
+        //   아닌 허공 장식. 시작(총구 섬광)과 끝(착탄 스파크)이 이미 다 말해 준다.
+    }
+
+    static Mesh Cyl()
+    {
+        if (cyl != null) return cyl;
+        var tmp = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+        cyl = tmp.GetComponent<MeshFilter>().sharedMesh;
+        Object.Destroy(tmp);
+        return cyl;
+    }
+
+    static Material BeamMat()
+    {
+        if (mat != null) return mat;
+        mat = new Material(Shader.Find("Universal Render Pipeline/Unlit"));
+        mat.SetFloat("_Surface", 1f);
+        mat.SetFloat("_Blend", 0f);
+        mat.SetFloat("_SrcBlend", (float)UnityEngine.Rendering.BlendMode.SrcAlpha);
+        mat.SetFloat("_DstBlend", (float)UnityEngine.Rendering.BlendMode.One);   // 더하기 = 빛
+        mat.SetFloat("_ZWrite", 0f);
+        mat.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
+        mat.renderQueue = (int)UnityEngine.Rendering.RenderQueue.Transparent;
+        return mat;
+    }
+
+    void Apply(float k)
+    {
+        // 쫙(첫 12% 동안 확 굵어짐) → 나머지 동안 얇아지며 사라짐.
+        // 미세한 맥동이 '에너지' 를 만든다 — 가만히 있는 빛기둥은 형광등이다.
+        float pulse = 1f + 0.07f * Mathf.Sin(t * 58f);
+        float w = (k < 0.12f ? Mathf.Lerp(width * 0.6f, width, k / 0.12f)
+                             : width * (1f - (k - 0.12f) / 0.88f)) * pulse;
+        transform.localScale = new Vector3(w, len * 0.5f, w);   // 원기둥 높이는 2 — 절반로 맞춘다
+        var c = tint * (1f - k * k);   // 더하기 재질 — 어두워지는 게 곧 사라지는 것
+        c.a = 1f - k;
+        mpb.SetColor("_BaseColor", c);
+        mr.SetPropertyBlock(mpb);
+        if (coreMr != null)
+        {   // 흰 심지는 겉빛보다 오래 버티다 마지막에 훅 꺼진다 — 럭스궁의 그 잔심
+            var cw = Color.Lerp(tint, Color.white, 0.85f) * (1f - k * k * k);
+            cw.a = 1f - k * k;
+            mpb.SetColor("_BaseColor", cw);
+            coreMr.SetPropertyBlock(mpb);
+        }
     }
 
     void Update()

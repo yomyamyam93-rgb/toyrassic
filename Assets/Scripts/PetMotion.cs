@@ -293,24 +293,35 @@ public class PetMotion : MonoBehaviour
                     atkBendF = -sw * 0.50f;                 // 제일 크게 말았다 내리꽂는다
                     break;
 
-                case PetUnit.Pattern.Rapid:     // 연사 — 짧게 여러 번. 반동으로 잘게 떤다
-                    atkLean = sw * 10f;
-                    atkSy = -Mathf.Max(0f, sw) * 0.07f;
-                    atkBendF = -sw * 0.20f;
+                // ★원거리 셋을 다시 짰다 (2026-07-30 사용자 — "공격 모션이 왜 둥둥
+                //   두 번 뛰는 걸로 다 되어 있어"). 넷이 전부 '부풀었다 홀쭉' 뼈대라
+                //   멀리서 같은 들썩임으로 읽혔다. 성격은 **반동의 방향과 질감**으로 가른다:
+                //   대포=앞으로 뱉기(그대로) · 연사=잘게 떨기 · 저격=뒤로 밀리는 한 방 ·
+                //   샷건=펌프 팡. 쏘기(Shoot)만 원래 대포 모션을 지킨다.
+
+                case PetUnit.Pattern.Rapid:     // 연사 = 기관총 — 튀지 않는다. 낮게 깔려 **잘게 떤다**
+                    atkLean = sw * 5f;
+                    atkSy = -Mathf.Max(0f, sw) * 0.05f;
+                    atkBendF = -sw * 0.10f
+                             + Mathf.Max(0f, sw) * Mathf.Sin(t * 46f) * 0.07f;   // ★발사 중 반동 진동
                     break;
 
-                case PetUnit.Pattern.Snipe:     // 저격 — 오래 겨눴다가 한 방. 반동이 크다
-                    atkLean = sw * 24f;
-                    atkSy = Mathf.Max(0f, -sw) * 0.16f      // 예비: 잔뜩 부푼다
-                         - Mathf.Max(0f, sw) * 0.20f;       // 발사: 확 홀쭉
-                    atkBendF = -sw * 0.38f;
+                case PetUnit.Pattern.Snipe:     // 저격 — **조준은 정적이다.** 낮게 조여 멈췄다가,
+                                                //   쏘는 순간 **뒤로 확 밀리는** 반동만 크게.
+                                                //   대포(앞으로 뱉기)와 방향이 반대라 멀리서도 갈린다
+                    atkLean = -Mathf.Max(0f, sw) * 22f + Mathf.Max(0f, -sw) * 4f;
+                    atkSy = -Mathf.Max(0f, -sw) * 0.10f     // 조준: 낮게 조인다
+                          + Mathf.Max(0f, sw) * 0.08f;      // 발사: 반동에 살짝 들린다
+                    atkBendF = Mathf.Max(0f, -sw) * 0.10f   // 조준: 살짝 만 채로 고정
+                             - Mathf.Max(0f, sw) * 0.24f;   // 발사: 뒤로 젖혀지며 펴진다
                     break;
 
-                case PetUnit.Pattern.Scatter:   // 흩뿌리기 — 몸을 부풀렸다 사방으로 터뜨린다
-                    atkSy = Mathf.Max(0f, -sw) * 0.22f      // 예비: 크게 부푼다
-                         - Mathf.Max(0f, sw) * 0.16f;       // 발사: 납작해지며 퍼진다
-                    atkLean = sw * 8f;
-                    atkBendF = -sw * 0.34f;
+                case PetUnit.Pattern.Scatter:   // 흩뿌리기 = 펌프 샷건 — 크게 부풀었다 '팡'
+                                                //   납작 터지며 **뒤로 밀린다**
+                    atkSy = Mathf.Max(0f, -sw) * 0.26f      // 예비: 크게 부푼다
+                         - Mathf.Max(0f, sw) * 0.18f;       // 발사: 납작하게 터진다
+                    atkLean = -Mathf.Max(0f, sw) * 9f + Mathf.Max(0f, -sw) * 3f;
+                    atkBendF = -sw * 0.30f;
                     break;
             }
         }

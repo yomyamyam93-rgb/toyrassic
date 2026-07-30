@@ -147,12 +147,29 @@ public class MotionShowcase : MonoBehaviour
         shownH = shownV = 0f;
     }
 
+    /// ★판을 비운다 (2026-07-30 사용자 — "테스트 중일 때 다른 몹 좀 없애줘, 와서 자꾸
+    ///   치네"). 떠돌던 야생·던져 둔 내 분신이 끼어들어 쇼케이스 펫·허수아비를 때린다.
+    ///   캐릭터·건물(구조물)은 남기고 전투 유닛만 걷는다. 내 분신은 복제라 지워도
+    ///   본체(핫바의 펫)는 그대로다.
+    void ClearField()
+    {
+        var kill = new List<PetUnit>();
+        foreach (var u in PetUnit.All)
+        {
+            if (u == null || u.isAvatar || u.isStructure) continue;
+            if (u.gameObject != null && shown.Contains(u.gameObject)) continue;
+            kill.Add(u);
+        }
+        foreach (var u in kill) if (u != null) Destroy(u.gameObject);
+    }
+
     void Rebuild()
     {
         if (spawner == null || player == null || spawner.entries.Count == 0) return;
         Clear();
         // 야생이 끼어들면 쇼케이스 펫이 그쪽으로 싸우러 가 버린다
         spawner.enabled = false;
+        ClearField();   // 이미 나와 있던 몹도 걷는다 — 스포너만 꺼서는 못 막는다
 
         var e = Cur;
         var tier = CurTier;
@@ -232,6 +249,12 @@ public class MotionShowcase : MonoBehaviour
     ///   그래서 한 프레임 뒤인 여기서 옮긴다 — 근접은 코앞, 원거리는 딱 사거리 끝.
     void LateUpdate()
     {
+        // ★표적 고정 — 매 프레임 허수아비를 '나를 때린 놈' 으로 심는다 (2026-07-30
+        //   사용자 "공격을 안 해"). 평시 탐색이 어떤 이유로든 허수아비를 안 잡아도,
+        //   앙심 경로는 반드시 문다 — 맞으면 때리던 그 길을 그대로 쓴다.
+        if (on && unit != null && dummies.Count > 0 && dummies[0] != null)
+            unit.Provoke(dummies[0]);
+
         if (!on || placed || unit == null || dummies.Count == 0) return;
         if (unit.bodyR <= 0.001f || dummies[0] == null || dummies[0].bodyR <= 0.001f) return;
 
@@ -301,10 +324,18 @@ public class MotionShowcase : MonoBehaviour
         }
         if (spawner == null || spawner.entries.Count == 0) return;
 
+        // ★오른쪽 위 + 접기 (2026-07-30 사용자 — "다 가려서 하나도 안 보이네").
+        //   실험대(StressTest) 안내창과 같은 왼쪽 위에 겹쳐 그려지고 있었다.
+        float px = Screen.width - 484f;
+        var btn = new GUIStyle(GUI.skin.button) { fontSize = 17 };
+        if (GUI.Button(new Rect(px, 14, 150, 34), fold ? "▸ 쇼케이스 안내" : "▾ 접기", btn))
+            fold = !fold;
+        if (fold) return;
+
         var box = new GUIStyle(GUI.skin.box)
         { alignment = TextAnchor.UpperLeft, fontSize = 19, padding = new RectOffset(12, 12, 10, 10) };
 
-        GUI.Box(new Rect(14, 14, 470, 176),
+        GUI.Box(new Rect(px, 54, 470, 176),
             $"● 쇼케이스   {Idx + 1} / {Count}\n\n" +
             $"{CurName}   ·   {CurTier}{(tierOv.HasValue ? " (바꿔봄)" : "")}   ·   {KoreanOf(CurPattern)}\n" +
             // ★숫자가 있어야 "얘가 몇 미터짜리구나" 가 잡힌다. 눈금자는 1m 간격이고
@@ -313,6 +344,9 @@ public class MotionShowcase : MonoBehaviour
             $"← → 펫 바꾸기 · ↑ ↓ 크기\n" +
             $"Enter 죽음 연출 · Backspace 느리게 {(slow ? "●" : "")} · ` 끄기", box);
     }
+
+    // ★안내창 접기 상태
+    bool fold;
 
     static string KoreanOf(PetUnit.Pattern p) =>
         p == PetUnit.Pattern.Bite ? "물기"

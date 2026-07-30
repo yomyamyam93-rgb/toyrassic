@@ -549,6 +549,17 @@ public class PetUnit : MonoBehaviour
     PetUnit target;
     float atkCd, retargetT;
     PetUnit lastAttacker; float grudgeT;
+
+    /// ★표적 강제 (쇼케이스용) — 이놈을 '나를 때린 놈' 으로 심는다 (2026-07-30 사용자
+    ///   "공격을 안 해, 한 대 때리니까 하던데"). 맞았을 때 반드시 무는 앙심 경로가
+    ///   실전에서 검증된 길이라, 쇼케이스가 매 프레임 이걸 불러 표적을 고정한다.
+    public void Provoke(PetUnit t)
+    {
+        if (t == null || dead) return;
+        alerted = true;
+        lastAttacker = t; grudgeT = grudgeTime;
+        if (target == null || !target.Alive) { target = t; retargetT = 0.1f; }
+    }
     Vector3 homePos;
 
     /// 복귀 중 — ★한 번 돌아가기로 하면 끝까지 간다 (2026-07-28 사용자).
@@ -599,7 +610,27 @@ public class PetUnit : MonoBehaviour
     /// ★비율이 아무 데도 안 쓰이는 게 아니다 — `bodyR` 은 **밀어내는 간격**과
     ///   위 식의 `+ bodyR + t.bodyR`(표면에서 표면까지)에 그대로 남는다.
     ///   즉 **비율은 "몸이 어디까지 차지하나", 등급은 "팔이 얼마나 뻗나"** 를 정한다.
-    float TierArm => PetScale.Target(tier) * WorldScale.K;
+    /// ★★팔을 등급키에 그대로 비례시키지 않는다 — 0.72제곱으로 누른다 (2026-07-30 실측).
+    ///
+    ///   78판 리그전에서 같은 예산인데 XL 평균 8.3승 · S 4.3승이었다. 원인은 체력도
+    ///   화력도 아니고 **면적**이다: 팔이 등급키(1:2:3.8:6.2)에 그대로 비례하면 휘두르는
+    ///   면적은 그 **제곱**(1:4:14:38)으로 벌어지는데, 마릿수 보상은 14배(140:46:20:10)
+    ///   뿐이다. 38 대 14 — 큰 놈이 구조적으로 남는 장사였다.
+    ///
+    ///   지수 0.72 는 그 둘을 맞추는 값이다: 6.2^(2×0.72) ≈ 14 = 마릿수 격차.
+    ///   S 를 기준(1)으로 잡아 S 팔은 안 변하고, 위로 갈수록 덜 뻗는다
+    ///   (M ×2→×1.65 · L ×3.8→×2.6 · XL ×6.2→×3.7).
+    ///
+    ///   ★대가: 거인의 리치가 몸집만큼 안 뻗는다 — 눈으로 보고 어색하면 지수를 올린다.
+    ///   몸 크기(PetScale.Target)는 안 건드린다. 팔만 누른다.
+    float TierArm
+    {
+        get
+        {
+            float s = PetScale.Target(PetScale.Tier.S);
+            return s * Mathf.Pow(PetScale.Target(tier) / s, 0.72f) * WorldScale.K;
+        }
+    }
 
     [Tooltip("근접 팔 길이 = 등급 목표 크기 × 이 값 × 방식 배수. 크면 멀리서 때린다")]
     public float meleeArm = 0.54f;
@@ -892,8 +923,13 @@ public class PetUnit : MonoBehaviour
     //   ★이 손잡이를 쓰는 이유: 카이팅은 자글이 상대로는 어차피 안 통하므로(자글이가
     //     2.25배 빠르다) **②만 움직이고 ③은 거의 안 건드린다.** 쏘기 피해를 만지면
     //     ②③이 같이 흔들려 두 변을 동시에 쫓게 된다.
+    // ★8 → 12 (2026-07-30 실측). 근접 팔을 0.72제곱으로 누른 판에서 원거리 4종이
+    //   전부 상위권(평균 8승 vs 근접 5승)이 됐다. 사용자 방향: **사거리는 건드리지
+    //   않는다(오히려 올리고 싶은 축)** — 대가는 도망 능력에서 받는다.
+    //   "멀리서 쏘는 건 잘하고, 붙으면 못 뺀다" 가 원거리의 정체성이다.
+    //   ★토리(흩뿌리기)는 카이팅을 안 하므로 이 손잡이가 안 닿는다 — 따로 본다.
     [Tooltip("★밸런스 손잡이 — 다 쓰고 다시 물러날 수 있기까지 (초). 길수록 원거리가 약해진다")]
-    public float kiteCooldown = 8f;
+    public float kiteCooldown = 12f;
 
     float kiteLeft;   // 이번 백스텝에 남은 거리
     float kiteCdT;    // 쿨 남은 시간
@@ -1257,28 +1293,105 @@ public class PetUnit : MonoBehaviour
                 // 총구 섬광 — '팡' 은 여기서 난다. 부채꼴 방향으로 확 퍼진다
                 var muzzle = transform.position + Vector3.up * hitOff + transform.forward * bodyR * 0.6f;
                 FX.Burst(muzzle, fire, 18, bodyR * 0.05f, bodyR * 1.5f, 0.28f);
+                // ★샷건의 총구 충격 고리 — 쏘는 방향으로 먼지 고리가 퍼진다 (2026-07-30
+                //   사용자 "발사했을 때의 부가 이펙트 모두 달라야"). 활이 쓰는 그 부품이다.
+                FXRing.Spawn(muzzle, target.transform.position + Vector3.up * target.hitOff - muzzle,
+                             fire, bodyR * 0.15f, bodyR * 1.0f, 0.2f);
+                // ★샷건의 '팡' 은 총구에서 다 일어난다 (2026-07-30 사용자) — 연기 한 뭉치
+                //   + 부챗살로 퍼지는 짧은 빛가닥들. 탄 자체는 거의 안 보인다.
+                FX.Burst(muzzle + Vector3.up * (bodyR * 0.1f), new Color(0.6f, 0.56f, 0.53f, 0.5f),
+                         5, bodyR * 0.12f, bodyR * 0.35f, 0.55f);
+                var fwd = transform.forward;
+                for (int i = 0; i < 5; i++)
+                {
+                    var ray = Quaternion.AngleAxis(Random.Range(-0.5f, 0.5f) * AtkSpread, Vector3.up) * fwd;
+                    FXBeam.Spawn(muzzle, muzzle + ray * (bodyR * Random.Range(1.6f, 2.8f)),
+                                 fire, bodyR * 0.07f, 0.13f);
+                }
 
+                // ★산탄 = 빛줄기 여러 개가 팡 (2026-07-30 사용자 — "구슬이 아니라
+                //   빛줄기가 여러 개 팡 퍼져나가는 느낌"). 알은 몸체 없이 불티 줄기만
+                //   남기고 거의 즉시 박힌다 — 팡(총구)과 파바박(착탄)이 한 호흡이 된다.
+                //   비행이 0.45→0.14 로 빨라진 만큼은 다음 F12 에서 같이 잰다.
+                void Pellet(PetUnit u2) => PetProjectile.Throw(this, u2, dmg, false, fire,
+                    bodyR * Random.Range(0.12f, 0.2f),
+                    shootFlight * Random.Range(0.1f, 0.18f),
+                    bodyR * Random.Range(0.02f, 0.1f),
+                    0f, 0f, PetProjectile.StylePellet);
                 int fired = 0;
                 foreach (var u in ConeTargets(AtkRangeTo(target), AtkSpread, pellets))
                 {
-                    // 알은 **작고 빠르다** — 크고 느리면 대포알로 보인다
-                    PetProjectile.Throw(this, u, dmg, false, fire,
-                                        bodyR * 0.26f, shootFlight * 0.45f, bodyR * 0.18f);
+                    Pellet(u);   // 알은 작고 빠르다 — 크고 느리면 대포알로 보인다
                     fired++;
                 }
                 // 아무도 못 찾았으면(겨눈 놈만 있는 경우) 겨눈 놈에게 한 알
-                if (fired == 0)
-                    PetProjectile.Throw(this, target, dmg, false, fire,
-                                        bodyR * 0.26f, shootFlight * 0.45f, bodyR * 0.18f);
+                if (fired == 0) Pellet(target);
                 return;
             }
 
             // ★착탄 광역은 **몸 크기에 비례**시킨다 — 큰 놈이 뿌리면 더 넓게 퍼져야
             //   "몸이 하는 일" 로 읽힌다 (부채꼴이 몸 크기를 타는 것과 같은 원리).
+            //
+            // ★방식마다 투사체가 다르다 (2026-07-30 사용자 — "이펙트가 완전 똑같거든").
+            //   모양·포물선·꼬리는 순수 연출이라 안전하고, **비행 시간만 실제 영향**이
+            //   있다 (도착해야 피해가 들어가고, 나는 중에 표적이 죽으면 헛방).
+            //   저격·연사가 빨라진 만큼은 다음 F12 리그에서 같이 재는 값이다.
+            float pSize = bodyR * 0.55f, pDur = shootFlight, pArc = bodyR * 0.5f;
+            int pStyle = PetProjectile.StyleShot;
+            // ★발사 이펙트도 방식마다 다르다 — 총구에서, 실제 쏘는 방향으로만
+            //   (이펙트 규칙: 몸이 하는 일을 따라간다). 비용 원칙: **자주 쏘는 방식일수록
+            //   싸게** — 연사(공속 2.2배)는 알갱이 5개뿐, 저격(0.5배)은 반동 고리까지.
+            var mzl = transform.position + Vector3.up * hitOff + transform.forward * (bodyR * 0.6f);
+            var aim = target.transform.position + Vector3.up * target.hitOff - mzl;
+            if (pattern == Pattern.Snipe)
+            {   // ★저격 = 레이저 (2026-07-30 사용자 "에너지포처럼 팡"). 탄이 거의 즉시
+                //   꽂히고, 꼬리가 총구~표적 전체를 한 줄의 빛으로 남긴다.
+                //   비행 0.35→0.12 — 그만큼 빨라진 것은 다음 F12 에서 같이 잰다.
+                pSize = bodyR * 0.3f; pDur = shootFlight * 0.12f; pArc = 0f;
+                pStyle = PetProjectile.StyleSnipe;
+                FX.Burst(mzl, fire, 14, bodyR * 0.07f, bodyR * 1.3f, 0.18f);       // 팡 — 강한 섬광
+                FXRing.Spawn(mzl, aim, fire, bodyR * 0.12f, bodyR * 1.2f, 0.22f);  // 반동 충격 고리
+                // ★럭스궁 — 흰 심 + 겉빛 두 겹의 빔이 쫙 그어지고, 맥동하다가
+                //   얇아지며 꺼진다. 빔 줄기에서 불티가 튄다 (FXBeam 안에서)
+                FXBeam.Spawn(mzl, target.transform.position + Vector3.up * target.hitOff,
+                             fire, bodyR * 0.3f, 0.35f);
+            }
+            else if (pattern == Pattern.Rapid)
+            {   // ★연사 = 3점사 예광탄 (2026-07-30 사용자 "꼭꼬는 3발쏘기로 했는데
+                //   아직도 1발로 나가네"). 타·타·탕 — 시차가 있어야 '연사' 로 읽힌다.
+                //   한 발 피해를 1/3 로 나눠 **한 번 공격의 총량은 그대로다** (밸런스 중립).
+                pSize = bodyR * 0.22f; pDur = shootFlight * 0.45f; pArc = bodyR * 0.08f;
+                StartCoroutine(RapidBurst(target, dmg / 3f, fire, pSize, pDur, pArc));
+                return;
+            }
+            else
+            {   // 쏘기 — 불 뿜기 + 연기 한 모금 (연기는 회색으로 천천히, 잠깐 머문다)
+                FX.Burst(mzl, fire, 9, bodyR * 0.07f, bodyR * 0.9f, 0.2f);
+                FX.Burst(mzl + Vector3.up * (bodyR * 0.12f), new Color(0.6f, 0.56f, 0.53f, 0.55f),
+                         5, bodyR * 0.10f, bodyR * 0.3f, 0.6f);
+            }
             PetProjectile.Throw(this, target, dmg, false, fire,
-                                bodyR * 0.55f, shootFlight, bodyR * 0.5f,
-                                0f, PatternSplash * (bodyR + 0.35f));
+                                pSize, pDur, pArc,
+                                0f, PatternSplash * (bodyR + 0.35f), pStyle);
             return;
+        }
+
+        // ★3점사 (연사 전용) — 타·타·탕. 발마다 총구를 다시 재는 건 그 사이에 몸이
+        //   움직일 수 있어서다. 표적이 죽으면 남은 발은 안 쏜다 (원거리의 약점 그대로).
+        System.Collections.IEnumerator RapidBurst(PetUnit t2, float dmgEach, Color fire2,
+                                                  float sz2, float dur2, float arc2)
+        {
+            for (int i = 0; i < 3; i++)
+            {
+                if (dead || t2 == null || !t2.Alive) yield break;
+                var m2 = transform.position + Vector3.up * hitOff + transform.forward * (bodyR * 0.6f);
+                // 총구 불꽃은 발마다 절반 확률 — 140마리 연사에서 버스트 풀을 지킨다
+                if (Random.value < 0.5f)
+                    FX.Burst(m2, fire2, 4, bodyR * 0.04f, bodyR * 0.6f, 0.12f);
+                PetProjectile.Throw(this, t2, dmgEach, false, fire2, sz2, dur2, arc2,
+                                    0f, 0f, PetProjectile.StyleRapid);
+                yield return new WaitForSeconds(0.07f);
+            }
         }
 
         Hit(target);
@@ -2396,9 +2509,18 @@ public class PetUnit : MonoBehaviour
 /// 투사체 — 잎/불덩이/힐 물방울 공용. heal=true 면 아군 회복
 public class PetProjectile : MonoBehaviour
 {
-    PetUnit target; float amt, dur, arc, t, push, splash; Vector3 from; bool heal;
+    // ★착탄 이펙트 갈래 — 방식마다 박히는 그림이 다르다 (2026-07-30 사용자
+    //   "피격되는 이펙트도 모두 달라야"). 발사 쪽(Strike)이 골라서 넘긴다.
+    public const int StyleShot = 0;    // 쏘기 — 불덩이가 퍼진다 (기본)
+    public const int StyleRapid = 1;   // 연사 — 잔 불꽃이 톡
+    public const int StyleSnipe = 2;   // 저격 — 강한 스파크 + 꿰뚫는 충격 고리
+    public const int StylePellet = 3;  // 산탄알 — 알갱이가 톡톡 박힌다
+
+    PetUnit target; float amt, dur, arc, t, push, splash, size; Vector3 from; bool heal;
+    int style;
     PetUnit owner;
     Color col;
+    MeshRenderer coreMr;   // 불덩이의 백열 심 (자식 구)
 
     // ── 투사체 풀 (2026-07-29) ─────────────────────────────────────────
     //
@@ -2412,7 +2534,7 @@ public class PetProjectile : MonoBehaviour
     MeshRenderer mr;
     TrailRenderer trail;
 
-    public static void Throw(PetUnit owner, PetUnit target, float amt, bool heal, Color c, float size, float dur, float arc, float push = 0f, float splash = 0f)
+    public static void Throw(PetUnit owner, PetUnit target, float amt, bool heal, Color c, float size, float dur, float arc, float push = 0f, float splash = 0f, int style = StyleShot)
     {
         GameObject g;
         if (pool.Count > 0) { g = pool.Pop(); g.SetActive(true); }
@@ -2437,10 +2559,26 @@ public class PetProjectile : MonoBehaviour
             tr.numCapVertices = 4;
             tr.alignment = LineAlignment.View;
             g.AddComponent<PetProjectile>();
+            // ★백열 심 — 불덩이의 속. 속이 하얗게 타야 '진짜 불' 로 읽힌다
+            //   (2026-07-30 사용자 "그냥 장난감 같아")
+            var core = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+            Object.Destroy(core.GetComponent<Collider>());
+            core.name = "core";
+            core.transform.SetParent(g.transform, false);
+            core.transform.localScale = Vector3.one * 0.55f;
+            var cr = core.GetComponent<MeshRenderer>();
+            cr.sharedMaterial = shared;
+            cr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
         }
         g.name = heal ? "proj_heal" : "proj";
         g.transform.position = owner.transform.position + Vector3.up * owner.hitOff;
-        g.transform.localScale = Vector3.one * Mathf.Max(0.02f, size);
+        // ★탄의 '생김새'를 방식이 정한다 (2026-07-30 사용자 — "다 똑같이 그냥 구슬에
+        //   꼬리 있는 건데"). 크기·속도만 다르면 멀리서 전부 구슬로 읽힌다 — 모양을 가른다.
+        //     저격 = 레이저 · 연사/산탄 = 빛줄기 탄환 (매 프레임 Update 가 돌려 세운다)
+        //     쏘기 = 유일하게 둥근 불덩이 — 그래야 나머지와 대비가 생긴다
+        float sz = Mathf.Max(0.02f, size);
+        g.transform.rotation = Quaternion.identity;   // 풀 재사용 — 지난 탄의 회전이 남아 있다
+        g.transform.localScale = Vector3.one * sz;
 
         var p = g.GetComponent<PetProjectile>();
         p.mr = g.GetComponent<MeshRenderer>();
@@ -2450,18 +2588,48 @@ public class PetProjectile : MonoBehaviour
         p.mr.SetPropertyBlock(mpb);
         p.col = c;
 
-        // 꼬리를 크기에 맞춰 다시 잡는다 (풀에서 꺼내 쓰므로 매번 설정)
+        // ★몸체(구)는 불덩이(쏘기·힐)만 쓴다 — 예광탄·산탄·레이저는 구가 아니라
+        //   **빛줄기(트레일)가 몸**이다 (2026-07-30 사용자 "다 투사체네").
+        bool ball = style == StyleShot;
+        p.mr.enabled = ball;
+        if (p.coreMr == null)
+        {
+            var ct = g.transform.Find("core");
+            if (ct != null) p.coreMr = ct.GetComponent<MeshRenderer>();
+        }
+        if (p.coreMr != null)
+        {
+            p.coreMr.enabled = ball;
+            if (ball)
+            {   // 백열 심 — 겉색보다 훨씬 하얗고 밝게
+                var cw = Color.Lerp(c, Color.white, 0.75f);
+                mpb.SetColor("_BaseColor", cw);
+                mpb.SetColor("_EmissionColor", cw * 6f);
+                p.coreMr.SetPropertyBlock(mpb);
+            }
+        }
+
+        // 꼬리를 방식에 맞춰 다시 잡는다 (풀에서 꺼내 쓰므로 매번 설정)
         p.trail = g.GetComponent<TrailRenderer>();
         if (p.trail != null)
         {
-            float w = Mathf.Max(0.02f, size) * 1.6f;
-            p.trail.time = Mathf.Clamp(dur * 0.5f, 0.06f, 0.25f);
+            float w, tt; Color tc = c;
+            if (style == StyleSnipe) { w = 0f; tt = 0f; }   // 레이저는 FXBeam 이 전부다 — 꼬리 없음
+            else if (style == StyleRapid)
+            { w = sz * 2f; tt = 0.13f; tc = Color.Lerp(c, Color.white, 0.65f); }    // ★예광탄 — 백열 대시. 짧고 하얗게 타는 빛만 남는다
+            else if (style == StylePellet)
+            { w = sz * 1.6f; tt = 0.11f; tc = Color.Lerp(c, Color.white, 0.5f); }   // 산탄 불티
+            else { w = sz * 2.4f; tt = Mathf.Clamp(dur * 0.35f, 0.05f, 0.14f); }    // ★불꼬리 — 굵고 짧게, 횃불처럼
+            p.trail.emitting = tt > 0f;
+            p.trail.time = tt;
             p.trail.startWidth = w; p.trail.endWidth = 0f;
-            p.trail.startColor = c; p.trail.endColor = new Color(c.r, c.g, c.b, 0f);
+            p.trail.startColor = tc; p.trail.endColor = new Color(tc.r, tc.g, tc.b, 0f);
             p.trail.Clear();                            // ★안 지우면 이전 궤적이 순간이동한 선으로 남는다
         }
         p.owner = owner; p.target = target; p.amt = amt; p.dur = dur; p.arc = arc;
-        p.heal = heal; p.push = push; p.splash = splash; p.t = 0f;
+        p.heal = heal; p.push = push; p.splash = splash; p.style = style; p.t = 0f;
+        p.size = sz;
+        p.lingerT = -1f;   // 풀 재사용 — 지난 탄의 여운 상태가 남아 있다
         p.from = g.transform.position;
     }
 
@@ -2472,14 +2640,40 @@ public class PetProjectile : MonoBehaviour
         pool.Push(gameObject);
     }
 
+    // ★도착 후 꼬리가 다 사라질 때까지 잠깐 살려 둔다 (2026-07-30 사용자 "하나도
+    //   안 보이는데?"). 예광탄·산탄은 몸체 없이 **꼬리가 곧 몸**인데, 탄속을 확
+    //   올려놔서 즉시 회수하면 꼬리가 그려지기도 전에 지워진다 — 그래서 아무것도
+    //   안 보였다. 멈춰서 여운만 남기고, 여운이 끝나면 회수한다.
+    float lingerT = -1f;
+    void BeginLinger()
+    {
+        lingerT = trail != null ? trail.time : 0f;
+        if (lingerT <= 0f) { Recycle(); return; }
+        mr.enabled = false;
+        if (coreMr != null) coreMr.enabled = false;
+        if (trail != null) trail.emitting = false;
+    }
+
     void Update()
     {
-        if (target == null || !target.Alive) { Recycle(); return; }   // 날아가는 중에 표적이 죽으면 빗나감
+        if (lingerT >= 0f)
+        {   // 여운 — 꼬리만 옅어지는 중
+            lingerT -= Time.deltaTime;
+            if (lingerT < 0f) Recycle();
+            return;
+        }
+        if (target == null || !target.Alive) { BeginLinger(); return; }   // 날아가는 중에 표적이 죽으면 빗나감
         t += Time.deltaTime / dur;
         var to = target.transform.position + Vector3.up * target.hitOff;
         var p = Vector3.Lerp(from, to, Mathf.Clamp01(t));
         p.y += Mathf.Sin(Mathf.Clamp01(t) * Mathf.PI) * arc;
         transform.position = p;
+
+        // ★불덩이 일렁임 — 크기가 파닥파닥 떨려야 '타는 것' 으로 읽힌다.
+        //   (예광탄·산탄·레이저는 몸체가 꺼져 있고 빛줄기가 몸이라 여기 볼 일이 없다)
+        if (style == StyleShot)
+            transform.localScale = Vector3.one *
+                (size * (1f + 0.22f * Mathf.Sin(Time.time * 46f + (GetInstanceID() & 15))));
         if (t >= 1f)
         {
             if (heal) target.Heal(amt);
@@ -2490,13 +2684,25 @@ public class PetProjectile : MonoBehaviour
                 if (push > 0f) target.Knock(target.transform.position - from, push);
                 // ★착탄 광역 — 산탄이 퍼진다 (흩뿌리기). 0 이면 아무 일도 안 일어난다
                 PetUnit.Splash(transform.position, splash, amt, owner, target);
-                // 착탄 — 불덩이가 터진 자리에서 같은 색으로. 날아온 것과 터진 것이 이어져 보인다
+                // ★착탄도 방식마다 다르다 (2026-07-30 사용자 "피격되는 이펙트도 모두 달라야").
+                //   비용 원칙은 발사와 같다 — 자주 박히는 것(연사·산탄알)일수록 싸게.
                 //   ★퍼지는 반경만큼 크게 터진다 — 이펙트 규칙: 실제 타격 범위와 맞아야 한다
-                FX.Burst(transform.position, col, splash > 0f ? 22 : 14,
-                         target.body * 0.07f,
-                         splash > 0f ? splash * 0.9f : target.body * 0.55f);
+                if (splash > 0f)          // 광역 착탄 — 퍼지는 반경 그대로 크게
+                    FX.Burst(transform.position, col, 22, target.body * 0.07f, splash * 0.9f);
+                else if (style == StylePellet)   // 산탄알 — 톡 박히는 잔 알갱이
+                    FX.Burst(transform.position, col, 5, target.body * 0.05f, target.body * 0.3f, 0.22f);
+                else if (style == StyleRapid)    // 연사 — 잔 불꽃이 톡톡
+                    FX.Burst(transform.position, col, 7, target.body * 0.05f, target.body * 0.4f, 0.25f);
+                else if (style == StyleSnipe)
+                {   // 저격 — 꿰뚫는 한 방: 빠르고 강한 스파크 + 탄이 날아온 방향의 충격 고리
+                    FX.Burst(transform.position, col, 16, target.body * 0.06f, target.body * 0.8f, 0.3f);
+                    FXRing.Spawn(transform.position, to - from, col,
+                                 target.body * 0.1f, target.body * 0.7f, 0.25f);
+                }
+                else                      // 쏘기 — 불덩이가 퍼진다 (기본)
+                    FX.Burst(transform.position, col, 14, target.body * 0.07f, target.body * 0.55f);
             }
-            Recycle();
+            BeginLinger();
         }
     }
 }
