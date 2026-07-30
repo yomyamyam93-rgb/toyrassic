@@ -1366,6 +1366,7 @@ public class PetUnit : MonoBehaviour
     {
         Lod();                                                   // 멀면 테두리를 끈다
         if (dead) { DeathAnim(); return; }
+        Regen();                                                 // 전투 밖 자연 재생 (내 편만)
         if (isAvatar) { HitFlash(); Bar(); return; }             // 캐릭터: 피격·바만
         if (isStructure) { HitFlash(); Bar(); return; }          // 건물
         slowT = Mathf.Max(0f, slowT - Time.deltaTime);
@@ -1535,10 +1536,28 @@ public class PetUnit : MonoBehaviour
     float Dist(Vector3 p) { p.y = 0; var q = transform.position; q.y = 0; return Vector3.Distance(p, q); }
 
 
+    // ── 전투 밖 자연 재생 (2026-07-30 사용자 "전투와 체력회복 수단이 없었네") ──
+    //
+    //   ①기본기: 마지막으로 맞은 지 6초가 지났고 싸우는 중이 아니면, 초당 최대체력의
+    //     2.5% 씩 차오른다 (풀피까지 40초 — 공짜지만 시간을 낸다).
+    //   ②쉼터: 부화터("따뜻한 자리") 반경 안에서는 빨리 회복 — 부화터 구현 때 얹는다.
+    //   ★내 편(캐릭터+펫)만. 야생이 재생하면 치고 빠지기가 무의미해진다.
+    //   전투 중 회복은 노드(부대 흡혈)와 천 재질 힐러의 몫 — 정본 "치열함은 회복에서".
+    float hurtT = 99f;   // 마지막으로 맞은 뒤 흐른 시간
+
+    void Regen()
+    {
+        hurtT += Time.deltaTime;
+        if (team != Team.Player || isStructure || hp >= maxHp) return;
+        if (InCombat || hurtT < 6f) return;
+        hp = Mathf.Min(maxHp, hp + maxHp * 0.025f * Time.deltaTime);
+    }
+
     public void TakeDamage(float dmg, PetUnit attacker = null)
     {
         if (dead) return;
         hp -= dmg;
+        hurtT = 0f;   // 재생 시계 리셋
         barShowT = 3f;   // 구조물 체력바 — 맞을 때만 잠깐 보인다
         // 피해 숫자 — 내 편이 맞으면 빨강, 적이 맞으면 밝은 노랑
         FX.DamageNum(transform.position + Vector3.up * body * 0.8f, dmg,
