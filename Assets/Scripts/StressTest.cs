@@ -208,7 +208,11 @@ public class StressTest : MonoBehaviour
         if (k.f5Key.wasPressedThisFrame) Versus(왼쪽C, 오른쪽C);
         if (k.f6Key.wasPressedThisFrame) Versus(왼쪽B, 오른쪽B);
         if (k.f7Key.wasPressedThisFrame) Versus(왼쪽, 오른쪽);
-        if (k.f8Key.wasPressedThisFrame) WildOnly();
+        if (k.f8Key.wasPressedThisFrame)
+        {   // ⇧F8 = 간극 측정 (낙오 1↔3마리) · F8 = 편성 전체를 야생으로
+            if (k.leftShiftKey.isPressed || k.rightShiftKey.isPressed) SoloTrial();
+            else WildOnly();
+        }
         if (k.f9Key.wasPressedThisFrame) SpawnBattle();
         if (k.f10Key.wasPressedThisFrame) { StopLeague(); ClearAll(); ResetSpeed(); }
         if (k.f11Key.wasPressedThisFrame) { frames.Clear(); smoothFps = 60f; }
@@ -227,7 +231,11 @@ public class StressTest : MonoBehaviour
         if (Input.GetKeyDown(KeyCode.F5)) Versus(왼쪽C, 오른쪽C);
         if (Input.GetKeyDown(KeyCode.F6)) Versus(왼쪽B, 오른쪽B);
         if (Input.GetKeyDown(KeyCode.F7)) Versus(왼쪽, 오른쪽);
-        if (Input.GetKeyDown(KeyCode.F8)) WildOnly();
+        if (Input.GetKeyDown(KeyCode.F8))
+        {
+            if (Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift)) SoloTrial();
+            else WildOnly();
+        }
         if (Input.GetKeyDown(KeyCode.F9)) SpawnBattle();
         if (Input.GetKeyDown(KeyCode.F10)) { StopLeague(); ClearAll(); ResetSpeed(); }
         if (Input.GetKeyDown(KeyCode.F11)) { frames.Clear(); smoothFps = 60f; }
@@ -325,6 +333,26 @@ public class StressTest : MonoBehaviour
     ///   덤으로 "공평한 판" 을 손으로 계산할 필요가 없어진다.
     int CountOf(Side s) =>
         예산 > 0 ? Mathf.Max(1, 예산 / PetSpawner.SupplyOf(s.크기)) : s.마릿수;
+
+    /// ⇧F8 — 캐릭터↔펫 간극 측정: 낙오 M 을 1마리 ↔ 3마리 번갈아 세운다
+    /// (알 원정 설계 §2.5). 목표: 1마리엔 잔여 30~50% 승 · 3마리엔 패.
+    /// 어긋나면 조절 손잡이는 **캐릭터 무기 수치**다 — 펫 스탯은 리그로 잡은 값이라
+    /// 건드리지 않는다 ("캐릭터를 펫에 맞춘다").
+    int soloCount = 1;
+    void SoloTrial()
+    {
+        if (!Ready()) return;
+        ClearAll(); ClearField();
+        trialT = 0f; trialResult = ""; trialRunning = true;
+        int keep = 예산; 예산 = 0;               // 마릿수를 정확히 내가 정한다 (예산 자동 계산 우회)
+        var side = new Side { 이름 = $"낙오×{soloCount}", 종 = 오른쪽.종, 마릿수 = soloCount, 크기 = PetScale.Tier.M };
+        Axes(out var fwd, out var right, out _);
+        SpawnSide(player.position + fwd * distFromPlayer, right, fwd, PetUnit.Team.Wild, side, 1f, sideB);
+        예산 = keep;
+        startHpA = 0f; startHpB = SumMaxHp(sideB);
+        SquadHUD.Toast($"간극 측정 — 낙오 M {soloCount}마리 (목표: 1마리 잔여 30~50% 승 · 3마리 패)");
+        soloCount = soloCount == 1 ? 3 : 1;      // 다음에 누르면 반대 판
+    }
 
     // ── 범인 찾기 스위치 (F1·F2) ─────────────────────────────
     //
@@ -746,7 +774,7 @@ public class StressTest : MonoBehaviour
                   $"F7 ② {왼쪽.이름}{CountOf(왼쪽)} vs {오른쪽.이름}{CountOf(오른쪽)}\n" +
                   $"F6 ③ {왼쪽B.이름}{CountOf(왼쪽B)} vs {오른쪽B.이름}{CountOf(오른쪽B)}" +
                   (예산 > 0 ? $"  (예산 {예산} 씩)\n" : "\n") +
-                  $"F8  {오른쪽.이름}{CountOf(오른쪽)}만 (나 혼자 잡기)\n" +
+                  $"F8  {오른쪽.이름}{CountOf(오른쪽)}만 (나 혼자 잡기) · ⇧F8 간극 측정 (낙오 M {soloCount}마리)\n" +
                   $"F9  {perSide}대{perSide} 무작위 (프레임용)\n" +
                   (LeagueRunning
                      ? $"■ 리그전 {leagueIdx + 1}/{bouts.Count}  —  {NameOf(bouts[leagueIdx].a)} vs {NameOf(bouts[leagueIdx].b)}  (F12 중단)\n"
