@@ -286,7 +286,8 @@ public class MotionShowcase : MonoBehaviour
         shown.Add(go);
 
         var pu = go.GetComponent<PetUnit>();
-        if (pu != null) { pu.collectible = false; pu.packBudget = 0; }
+        // 리쉬도 끈다 — 쇼케이스 펫이 "원래 자리로 돌아가는" 일이 없게 (실험대와 같은 이유)
+        if (pu != null) { pu.collectible = false; pu.packBudget = 0; pu.leashRange = 99999f; }
         return pu;
     }
 

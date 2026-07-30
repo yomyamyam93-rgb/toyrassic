@@ -443,10 +443,26 @@ public class PetSpawner : MonoBehaviour
         //   티라 힘을 낮췄던 그 문제인데, **체력 쪽은 안 올렸었다.**
         //   → 70 으로 올려 한 방에는 안 죽게 한다(66.5 < 70). 문턱 하나 넘기는 것만으로
         //     물량이 비로소 화력으로 바뀐다.
-        if (e.tier == PetScale.Tier.S) { pu.str = 4.5f; pu.agi = 16; pu.vit = 7f; }
-        else if (e.tier == PetScale.Tier.M) { pu.str = 9f; pu.agi = 12; pu.vit = 15f; }
-        else if (e.tier == PetScale.Tier.L) { pu.str = 14f; pu.agi = 8; pu.vit = 54f; }
-        else { pu.str = 19f; pu.agi = 5; pu.vit = 150f; }
+        // ★★체력을 **인구수당 고르게** 맞췄다 (2026-07-30, 78판 리그전 후).
+        //
+        //   같은 예산(140)으로 세운 한 편의 **총 체력**이 이렇게 벌어져 있었다:
+        //     S 140마리×70=9,800 · M 46×150=**6,900** · L 20×540=10,800 · XL 10×1500=**15,000**
+        //   **공평한 판이라고 세웠는데 XL 이 M 의 2.2배를 버텼다.** 78판에서 XL 셋이
+        //   1·2·3위(티라 11-1-0)를 독점하고 M 근접이 바닥(랍또 1-11·호동 3-9)이던 이유다.
+        //
+        //   → M 을 크게 올리고 XL 을 내려 넷 다 **약 1만**으로 맞춘다.
+        //     S 140×75=10,500 · M 46×220=10,120 · L 20×520=10,400 · XL 10×1050=10,500
+        //
+        // ★힘은 안 건드렸다. "작을수록 인구당 화력이 세다"(S 4.5 → XL 1.36)는
+        //   **의도된 기울기**이고, 그게 물량과 대형의 성격을 가른다. 체력만 반대로
+        //   기울어 있던 게 문제였다.
+        //
+        // ★오버킬 문턱은 지켜진다: S 체력 75 > 티라 한 대 66.5 — 여전히 한 방에 안 죽는다.
+        //   이 문턱이 깨지면 물량이 다시 무의미해진다 (위 주석 참고).
+        if (e.tier == PetScale.Tier.S) { pu.str = 4.5f; pu.agi = 16; pu.vit = 7.5f; }
+        else if (e.tier == PetScale.Tier.M) { pu.str = 9f; pu.agi = 12; pu.vit = 22f; }
+        else if (e.tier == PetScale.Tier.L) { pu.str = 14f; pu.agi = 8; pu.vit = 52f; }
+        else { pu.str = 19f; pu.agi = 5; pu.vit = 105f; }
         pu.str *= dmgMul;
         pu.vit *= hpMul;
         pu.intel = 8;

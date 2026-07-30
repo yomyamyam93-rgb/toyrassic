@@ -206,9 +206,14 @@ public class StressTest : MonoBehaviour
         if (k.f7Key.wasPressedThisFrame) Versus(왼쪽, 오른쪽);
         if (k.f8Key.wasPressedThisFrame) WildOnly();
         if (k.f9Key.wasPressedThisFrame) SpawnBattle();
-        if (k.f10Key.wasPressedThisFrame) { StopLeague(); ClearAll(); }
+        if (k.f10Key.wasPressedThisFrame) { StopLeague(); ClearAll(); ResetSpeed(); }
         if (k.f11Key.wasPressedThisFrame) { frames.Clear(); smoothFps = 60f; }
         if (k.f12Key.wasPressedThisFrame) { if (LeagueRunning) { StopLeague(); ClearAll(); } else StartLeague(); }
+        // ★배속 — 78판이 40분이라 그대로는 못 기다린다 (2026-07-30 사용자 "10배 빠르게").
+        //   ★측정값은 안 망가진다: `trialT += Time.deltaTime` 이므로 기록되는 초는
+        //   **게임 시간**이다. 10배로 돌려도 "45.1초 걸렸다" 는 그대로 45.1초다.
+        if (k.leftBracketKey.wasPressedThisFrame) SetSpeed(-1);
+        if (k.rightBracketKey.wasPressedThisFrame) SetSpeed(+1);
 #else
         if (Input.GetKeyDown(KeyCode.F1)) { PetUnit.DebugNoBars = !PetUnit.DebugNoBars; }
         if (Input.GetKeyDown(KeyCode.F2)) ToggleOutline();
@@ -219,7 +224,7 @@ public class StressTest : MonoBehaviour
         if (Input.GetKeyDown(KeyCode.F7)) Versus(왼쪽, 오른쪽);
         if (Input.GetKeyDown(KeyCode.F8)) WildOnly();
         if (Input.GetKeyDown(KeyCode.F9)) SpawnBattle();
-        if (Input.GetKeyDown(KeyCode.F10)) { StopLeague(); ClearAll(); }
+        if (Input.GetKeyDown(KeyCode.F10)) { StopLeague(); ClearAll(); ResetSpeed(); }
         if (Input.GetKeyDown(KeyCode.F11)) { frames.Clear(); smoothFps = 60f; }
         if (Input.GetKeyDown(KeyCode.F12)) { if (LeagueRunning) { StopLeague(); ClearAll(); } else StartLeague(); }
 #endif
@@ -419,6 +424,16 @@ public class StressTest : MonoBehaviour
                 pu.team = team;
                 pu.collectible = false;
                 pu.packBudget = 0;     // 증식 금지 — 마릿수가 변하면 측정이 안 된다
+                // ★★리쉬를 없앤다 (2026-07-30 사용자 — "사도사랑 랍또는 자꾸 싸우다 말고
+                //   제자리로 돌아갔다 다시 와").
+                //
+                //   야생 편은 `Dist(homePos) > leashRange(26m)` 이면 **표적을 버리고 스폰
+                //   자리로 걸어간다.** 벌판에서 플레이어를 섬 끝까지 쫓아오지 않게 만든
+                //   규칙인데, 진영 간격이 15m 인 실험장에서는 밀고 쫓다 보면 쉽게 넘는다.
+                //   **제일 빠른 놈이 제일 자주 넘어간다** — 사도사(이속 6.9)가 1승 11패였던
+                //   정체다. 왕복하는 동안 싸우지 못하니 화력이 통째로 사라진다.
+                //   → 측정판에서는 끈다. 여기서 리쉬는 재려는 대상이 아니다.
+                pu.leashRange = 99999f;
                 pu.SetWildLevel(1);    // 거리 레벨 보정 취소 (양쪽을 같은 조건으로)
                 // ★공격 방식 강제 — 새 모델 없이 "늑대를 원거리로" 같은 실험을 오늘 한다
                 if (side.방식강제)
@@ -444,6 +459,9 @@ public class StressTest : MonoBehaviour
         sideA.Clear(); sideB.Clear();
         trialRunning = false; trialResult = "";
         PetUnit.DebugNoXP = false;                  // 평소 게임으로 — 다시 레벨이 오른다
+        // ★배속은 여기서 되돌리지 않는다 (2026-07-30 사용자 — "한 번 걸어두면 쭉 가게").
+        //   `Versus` 가 판마다 `ClearAll` 을 부르므로, 여기서 되돌리면 **매 판 1배로
+        //   리셋됐다.** 배속은 F10(수동으로 판 걷기)에서만 푼다 — 아래 ReadKeys 참고.
         if (spawner != null) spawner.enabled = true;
     }
 
@@ -462,6 +480,8 @@ public class StressTest : MonoBehaviour
     public float leagueTimeout = 120f;
     [Tooltip("판 사이 텀 (초) — 시체·이펙트가 걷히는 시간")]
     public float leagueGap = 1.5f;
+    [Tooltip("리그전이 허용하는 최대 배속 — 넘으면 자동으로 내린다. 빠른 종이 프레임당 전장을 가로질러 결과가 거짓이 된다")]
+    public float leagueMaxSpeed = 10f;
     [Tooltip("결과를 적을 파일 (프로젝트 폴더 기준)")]
     public string leagueFile = "league_result.txt";
 
@@ -506,6 +526,46 @@ public class StressTest : MonoBehaviour
 
     bool LeagueRunning => leagueIdx >= 0;
 
+    // ── 배속 ────────────────────────────────────────────────
+    // ★100배까지 (2026-07-30 사용자 — "테스트 빨리빨리 좀 보게"). 78판이 40분 → 30초쯤.
+    //
+    // ★측정값은 안 망가진다: `trialT += Time.deltaTime` 이라 기록되는 초는 **게임 시간**이다.
+    //
+    // ★단 100배에서는 한 프레임의 게임 시간이 커져(60fps면 1.67초) 걸음이 뚝뚝 뛴다.
+    //   결과가 조금 달라질 수 있으니, **최종 확정값은 10배 이하에서 다시 재라.**
+    //   빠른 배속은 "방향이 맞나" 를 보는 용도다.
+    static readonly float[] speeds = { 1f, 2f, 4f, 10f, 20f, 50f, 100f };
+    int speedIdx;
+    /// 평소 게임으로 돌아갈 때만 배속을 푼다 (F10)
+    void ResetSpeed()
+    {
+        speedIdx = 0;
+        Time.timeScale = 1f;
+        Time.fixedDeltaTime = 0.02f;
+        Time.maximumDeltaTime = 0.333f;
+        QualitySettings.vSyncCount = 1;
+        Application.targetFrameRate = -1;
+    }
+
+    void SetSpeed(int d)
+    {
+        speedIdx = Mathf.Clamp(speedIdx + d, 0, speeds.Length - 1);
+        float s = speeds[speedIdx];
+        Time.timeScale = s;
+        // ★물리 스텝도 같이 늘린다 — 안 늘리면 20배에서 물리가 프레임당 20번 돌아
+        //   오히려 더 느려진다 (배속을 걸었는데 렉이 걸리는 이유가 대개 이것이다)
+        Time.fixedDeltaTime = 0.02f * s;
+        // ★★`maximumDeltaTime` 을 안 풀면 배속이 **실제로 안 걸린다.**
+        //   유니티가 한 프레임의 진행량을 이 값으로 자르기 때문에, 기본값 0.333초면
+        //   60fps 에서 아무리 timeScale 을 올려도 **최대 20배까지만** 나아간다.
+        Time.maximumDeltaTime = Mathf.Max(0.333f, 0.02f * s * 2f);
+        // ★프레임을 최대한 뽑는다 — 프레임이 많을수록 한 스텝이 작아져 왜곡이 줄어든다.
+        //   (100배에서 60fps 면 한 프레임에 1.67초가 흐른다. 300fps 면 0.33초다)
+        bool fast = s > 4f;
+        QualitySettings.vSyncCount = fast ? 0 : 1;
+        Application.targetFrameRate = fast ? 0 : -1;
+    }
+
     string NameOf(int i)
     {
         if (UseRoster) return 리그로스터[i].이름;
@@ -528,6 +588,18 @@ public class StressTest : MonoBehaviour
             for (int j = i + 1; j < n; j++)
                 bouts.Add(new Bout { a = i, b = j });
         if (bouts.Count == 0) return;
+        // ★★리그전은 배속 상한을 건다 (2026-07-30 실측 사고).
+        //   100배로 돌린 판에서 **빠른 종만 전멸했다** (사도사 이속 8.1 → 0승,
+        //   꼭꼬 → 0승 / 느린 딜롭 → 11-1-0 무패). 100배면 한 프레임에 게임 시간
+        //   1.67초가 흘러 사도사가 **프레임당 13.5m** 를 뛴다 — 실험장 폭이 15m 다.
+        //   서로를 지나쳐 버려 판이 안 끝나고(무승부 17개) 결과가 통째로 거짓이 된다.
+        //   → **결과 파일을 만드는 측정은 반드시 안전 배속 안에서** 돈다. 빠르게 보고
+        //     싶으면 F5~F9(단판)에서 올려 쓰면 된다.
+        if (speeds[speedIdx] > leagueMaxSpeed)
+        {
+            while (speedIdx > 0 && speeds[speedIdx] > leagueMaxSpeed) speedIdx--;
+            SetSpeed(0);
+        }
         leagueIdx = 0; leagueWait = 0f;
         Versus(SideOf(bouts[0].a), SideOf(bouts[0].b));
     }
@@ -587,7 +659,7 @@ public class StressTest : MonoBehaviour
         var hpSum = new float[n]; var hpCnt = new int[n];
 
         var sb = new System.Text.StringBuilder();
-        sb.AppendLine($"# 리그전 — 예산 {예산} · 제한 {leagueTimeout:F0}초 · {bouts.Count}판");
+        sb.AppendLine($"# 리그전 — 예산 {예산} · 제한 {leagueTimeout:F0}초 · {bouts.Count}판 · 배속 x{speeds[speedIdx]:0.#}");
         sb.AppendLine("# A | B | 승자 | 초 | A잔여% | B잔여%");
         foreach (var b in bouts)
         {
@@ -651,6 +723,8 @@ public class StressTest : MonoBehaviour
                   (LeagueRunning
                      ? $"■ 리그전 {leagueIdx + 1}/{bouts.Count}  —  {NameOf(bouts[leagueIdx].a)} vs {NameOf(bouts[leagueIdx].b)}  (F12 중단)\n"
                      : $"F12 리그전 — 등록된 종 전부 맞붙이고 {leagueFile} 로 저장\n") +
+                  $"[ ] 배속  ×{speeds[speedIdx]:0.#}" +
+                  (speeds[speedIdx] > 20f ? "  ⚠ 방향만 보는 값 (확정은 ×10 이하)\n" : "\n") +
                   $"F10 전부 지우기 · F11 측정 초기화\n" +
                   $"F1 체력바 {(PetUnit.DebugNoBars ? "끔 ●" : "켬")}  ·  F2 테두리 {(outlineOff ? "끔 ●" : "켬")}\n" +
                   $"F3 피해숫자 {(FX.DebugNoPops ? "끔 ●" : "켬")}  ·  F4 뜬 글자 즉시 지우기";

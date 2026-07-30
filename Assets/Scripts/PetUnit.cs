@@ -341,6 +341,8 @@ public class PetUnit : MonoBehaviour
 
     Terrain terrain;
     float footOff;
+    /// 몸 중심의 높이 (피벗 기준) — 투사체가 겨누고 맞는 지점. 모양에 상관없이 몸 안이다.
+    [HideInInspector] public float hitOff;
     Transform barRoot, barFill;
     Vector3 baseScale;
     float flashT;
@@ -386,6 +388,11 @@ public class PetUnit : MonoBehaviour
             r = rr; break;
         }
         footOff = r != null ? transform.position.y - r.bounds.min.y : 0f;
+        // ★맞는 지점 — **바운즈 중심**의 높이다 (2026-07-30 사용자 — "원거리 공격 피격되는
+        //   위치 정확히 맞춰야 할 듯, 크기 조절하면서 그 위치가 다 어긋난 듯").
+        //   전엔 `body × 0.3` 을 썼는데 `body` 는 **가장 긴 변**이라, 길쭉한 티라나
+        //   납작한 돌북에서는 그 높이가 몸 밖(허공)이었다. 중심은 어떤 모양이든 몸 안이다.
+        hitOff = r != null ? r.bounds.center.y - transform.position.y : 0f;
         // ★하한 1m 를 걷어냈다 (2026-07-28). 옛 스케일(캐릭터 4.2m)에서 만든 값인데,
         //   1/10 세계의 펫은 0.3m 남짓이라 전부 1 로 뭉개졌다. 그 결과 —
         //     · 서로 밀어내는 간격이 0.84m 인데 때리는 거리는 0.5m → 다가갈수록 밀려나
@@ -480,8 +487,14 @@ public class PetUnit : MonoBehaviour
     // ★크기 폭이 방식 폭보다 넓어야 한다. 방식 이속 배수가 0.6~1.3(2.2배)이므로
     //   크기가 3.5배 폭을 가져야 "큰 놈은 굼뜨다" 가 방식에 안 묻힌다.
     [Header("이동 속도 (m/s) — 플레이어는 3.83")]
+    // ★4.6 → 5.4 (2026-07-30). **S 셋이 전부 하위였다** (사도사 3승·꼭꼬 4승·늑구 5승).
+    //   원인은 개별 방식이 아니라 등급이다: S 는 팔이 0.54 로 제일 짧아 **광역을 뚫고
+    //   접근하는 동안** 쓸린다. 븐토(휩쓸기)의 팔은 4.19 — 7.8배다. 사용자 표현대로
+    //   "몸집이 작아서 뭉쳐맞는" 것이고, 뭉친 채로 그 거리를 건너야 한다.
+    //   → 이속을 올려 **건너는 시간을 줄인다.** "작을수록 빠르다" 를 강화하는 방향이라
+    //     법칙③(빠른 떼가 원거리를 덮친다)도 같이 세진다.
     [Tooltip("S 소형 — ★플레이어보다 빨라야 한다. 뒤로 걸으며 때리는 걸로 못 벗어나게")]
-    public float speedS = 4.6f;
+    public float speedS = 5.4f;
     [Tooltip("M 중형 — 플레이어와 비슷하게")]
     public float speedM = 3.6f;
     [Tooltip("L 대형 — 확실히 느리게")]
@@ -567,12 +580,29 @@ public class PetUnit : MonoBehaviour
     float AtkRangeTo(PetUnit t)
     {
         float arm = IsRanged ? reach * PatternReach            // 원거리 — 고정 사거리
-                             : bodyR * meleeArm * PatternReach; // 근접 — 제 몸에 비례
+                             : TierArm * meleeArm * PatternReach; // 근접 — 등급이 정한다
         return arm * rangeMul + bodyR + (t != null ? t.bodyR : 0f);
     }
 
-    [Tooltip("근접 팔 길이 = 몸 반지름 × 이 값 × 방식 배수. 크면 멀리서 때린다")]
-    public float meleeArm = 0.85f;
+    /// ★근접 팔 길이의 기준 — **등급 목표 크기**다 (`bodyR` 실측이 아니다).
+    ///
+    /// ★왜 바꿨나 (2026-07-30 실측): 전엔 `bodyR × 0.85` 였는데, `bodyR` 은
+    ///   `(가로+깊이)÷4` 라 **모델 비율이 그대로 전투력이 됐다.** 랍또는 홀쭉해서
+    ///   bodyR 0.98(같은 M 인 호동은 1.33) — 팔이 짧고 면적이 제곱으로 줄어
+    ///   **같은 등급인데 면적이 1/4**(46 vs 185)이었다. 4승 8패의 정체다.
+    ///
+    ///   그게 나쁜 건 세 가지다:
+    ///     ① **의도할 수 없다** — 모델을 홀쭉하게 조각하면 그 펫이 조용히 약해진다
+    ///     ② `bodyR` 은 팔 길이의 척도가 아니다 (가로와 깊이의 평균일 뿐)
+    ///     ③ 등급은 "인구수를 얼마 먹나" = **전력 예산**인데, 같은 예산이 4배 차이가 났다
+    ///
+    /// ★비율이 아무 데도 안 쓰이는 게 아니다 — `bodyR` 은 **밀어내는 간격**과
+    ///   위 식의 `+ bodyR + t.bodyR`(표면에서 표면까지)에 그대로 남는다.
+    ///   즉 **비율은 "몸이 어디까지 차지하나", 등급은 "팔이 얼마나 뻗나"** 를 정한다.
+    float TierArm => PetScale.Target(tier) * WorldScale.K;
+
+    [Tooltip("근접 팔 길이 = 등급 목표 크기 × 이 값 × 방식 배수. 크면 멀리서 때린다")]
+    public float meleeArm = 0.54f;
 
     /// 이 상대를 때릴 수 있는 거리 — 쇼케이스가 허수아비 세울 자리를 잡는 데 쓴다.
     /// ★몸 크기(`bodyR`)가 들어가므로 **`Start` 가 돈 뒤에** 불러야 값이 맞는다.
@@ -620,6 +650,11 @@ public class PetUnit : MonoBehaviour
       : pattern == Pattern.Swipe ? 120f     // 후려치기 — 물기와 휩쓸기 사이
       : pattern == Pattern.Stomp ? 90f      // 짓밟기 — 발밑
       : pattern == Pattern.Claw ? 70f       // 할퀴기 — 물기보다 살짝 넓다
+      // ★40 → 24 (2026-07-30 실측). "좁고 길게" 인데 **면적으로는 제일 넓었다** —
+      //   팔 길이가 면적에 **제곱으로** 들어가기 때문이다(40° × 1.8² = 130 vs 물기 55).
+      //   그래서 무거운 한 방이 넓게 들어가 법칙③("한 방이 무거운 놈은 떼엔 최악")이
+      //   거꾸로 작동했다. 늑구(체력 75)가 트리통 한 대(78.4)에 통째로 쓸린 이유다.
+      //   → 각도와 팔을 같이 줄여 면적을 3.2배 낮춘다. **여전히 제일 좁고 제일 길다.**
       : pattern == Pattern.Charge ? 40f     // 들이받기 — 좁고 길게 파고든다
       : pattern == Pattern.Scatter ? 60f    // 흩뿌리기 — 산탄. 원거리인데 넓다
       : pattern == Pattern.Shoot ? 12f      // 쏘기 — 한 놈만 겨눈다
@@ -629,12 +664,24 @@ public class PetUnit : MonoBehaviour
 
     /// 방식별 팔 길이 배수
     float PatternReach =>
-        pattern == Pattern.Slam ? 0.8f      // 내려찍기 — 사방이지만 짧다
+        // ★0.8 → 0.95 → 1.25 (2026-07-30 실측). 돌북이 3승 9패 잔여 6% 로 최하위였다.
+        //
+        //   함정: 내려찍기는 **각도가 360° 라 "제일 넓다" 고 보고 피해를 0.55 로 깎아뒀는데,
+        //   팔이 0.8 로 제일 짧아 실제 면적이 안 넓었다.** 팔은 면적에 제곱으로 들어가므로
+        //   각도로 번 것을 팔로 다 잃는다 — 같은 L 인 트리통(40°·팔 1.5)과 실면적이
+        //   거의 같았고(10.5 vs 11.9), 그런데 한 대 피해는 1/3 이었다(26.95 vs 78.4).
+        //
+        //   → 피해를 올리면 「넓을수록 약하다」 원칙이 깨진다. **팔을 늘려 실제로 넓게 만든다** —
+        //     "사방으로 찍는데 반경이 넓다" 가 이 방식의 정체성이기도 하다.
+        pattern == Pattern.Slam ? 1.25f     // 내려찍기 — 사방. 반경도 넓다
       : pattern == Pattern.Sweep ? 1.25f
       : pattern == Pattern.Swipe ? 1.1f
       : pattern == Pattern.Stomp ? 0.6f     // 짓밟기 — 제일 짧다. 발밑만
       : pattern == Pattern.Claw ? 0.9f
-      : pattern == Pattern.Charge ? 1.8f    // 들이받기 — 근접 중 제일 길다
+      // ★1.8 → 1.3 (2026-07-30). 팔은 면적에 제곱으로 들어간다 — 1.8 이면 각도를
+      //   40° 로 좁혀도 면적이 물기의 2.4배가 됐다 (위 PatternAngle 주석 참고).
+      //   1.3 도 근접 중 제일 길다 (물기 1.0 · 후려치기 1.1 · 휩쓸기 1.25).
+      : pattern == Pattern.Charge ? 1.5f    // 들이받기 — 근접 중 제일 길다
       : pattern == Pattern.Shoot ? shootReach          // 쏘기 — 기준점
       : pattern == Pattern.Rapid ? shootReach * 0.64f  // 연사 — 짧다 (14→9)
       : pattern == Pattern.Snipe ? shootReach * 1.29f  // 저격 — 제일 멀다 (14→18)
@@ -653,16 +700,23 @@ public class PetUnit : MonoBehaviour
       //   게다가 포수 역할은 공속까지 0.85배라 **화력이 두 번 할인**되고 있었다(≈0.72).
       //   실측: 같은 예산 140 에서 인구당 화력이 자글이의 2.4분의 1이었다.
       : pattern == Pattern.Shoot ? 1.25f    // 한 놈만 맞히는 대신 한 대가 무겁다
-      : pattern == Pattern.Claw ? 0.6f      // 할퀴기 — 제일 가볍다. 대신 제일 빠르다
+      : pattern == Pattern.Claw ? 0.78f     // 할퀴기 — 가볍지만 제일 빠르다
       : pattern == Pattern.Swipe ? 0.9f
-      : pattern == Pattern.Stomp ? 2.4f     // 짓밟기 — 제일 무겁다
+      // ★2.4 → 1.5 (2026-07-30 사용자 — "맘모스 피격 숫자가 너무너무 올라가서 뜸").
+      //   몸모킹(XL 짓밟기) 한 대가 **159.6** 이었다 — 늑구 체력(75)의 2.1배다.
+      //   한 대에 두 마리 몫이 버려지니, 무거운 한 방이 오히려 낭비가 된다
+      //   (위 「오버킬 문턱」 참고). 1.5 면 99.8 로 여전히 제일 무겁고 한 방에 죽인다.
+      : pattern == Pattern.Stomp ? 1.5f     // 짓밟기 — 제일 무겁다
       : pattern == Pattern.Rapid ? 0.5f     // 연사 — 가볍게 많이
       : pattern == Pattern.Snipe ? 2.0f     // 저격 — 멀리서 한 방
-      // ★0.4 → 0.8 (2026-07-30 실측). 켄트(흩뿌리기)가 **9판 전부 전멸**했다.
-      //   흩뿌리기는 카이팅을 안 하므로 결국 붙어서 싸운다 — 사거리만 조금 길 뿐
-      //   근접이나 마찬가지인데 피해가 최저(0.4)라 그냥 약한 놈이었다.
-      //   **도망 안 가는 대가를 화력으로 돌려받아야** 정체성이 선다.
-      : pattern == Pattern.Scatter ? 0.8f   // 흩뿌리기 — 넓지만 붙어서 싸우니 세야 한다
+      // ★★흩뿌리기는 **알 하나당** 피해다 (알 6개가 각각 이 값으로 박힌다).
+      //   0.4 → 0.8 → (나누기 실험 0.133, 0-0-12 전멸) → **0.45**
+      //
+      //   쏘기 1.25 의 36% 다. 그래서 성격이 이렇게 갈린다:
+      //     흩어진 적 1마리 → 알 하나만 박혀 **쏘기의 36%** (약하다)
+      //     뭉친 떼 6마리   → 알 여섯이 다 박혀 **쏘기의 2.2배** (강하다)
+      //   「가까이 뭉친 떼에 강하다」가 규칙이 아니라 **알이 나뉘는 것의 결과**로 나온다.
+      : pattern == Pattern.Scatter ? 0.45f  // 흩뿌리기 — 알당. 낱개는 약하고 뭉치면 세다
       : 1f;
 
     // ── 방식이 템포도 정한다 (2026-07-29 — 역할을 흡수했다) ──────────────
@@ -679,7 +733,7 @@ public class PetUnit : MonoBehaviour
       : pattern == Pattern.Sweep ? 0.9f
       : pattern == Pattern.Slam ? 0.7f
       : pattern == Pattern.Charge ? 0.6f
-      : pattern == Pattern.Stomp ? 0.4f     // 제일 느리다
+      : pattern == Pattern.Stomp ? 0.62f    // 제일 느리다
       : pattern == Pattern.Rapid ? 2.2f     // 다다다
       : pattern == Pattern.Shoot ? 0.85f
       : pattern == Pattern.Snipe ? 0.5f     // 오래 겨눈다
@@ -942,13 +996,24 @@ public class PetUnit : MonoBehaviour
         //    실제 게임의 버그다.
         //
         //    ★멀어도 목표로 삼는다. 걸어가는 동안 가까운 적이 생기면 다음 탐색에서 바뀐다.
-        if (Engaged) return NearestEnemy(advanceRange);
+        //    ★★단, **방금까지 싸우던 놈은 멀리 안 간다** (2026-07-30 사용자 — "종종 싸우다
+        //      말고 어그로가 풀린 것처럼 이상한 데로 달려가는 애들이 있음").
+        //
+        //      표적이 죽는 순간 주변 시야(14m)에 잠깐 아무도 없을 수 있다. 그때 바로
+        //      여기로 떨어지면 **80m 안의 엉뚱한 놈**을 골라 전장을 이탈해 버렸다.
+        //      → 방금 싸웠으면 몇 초는 제자리에서 다시 찾게 한다. 근처에 적이 남아
+        //        있으면 다음 탐색(0.5초)에서 잡히고, 진짜로 다 죽었으면 그때 진군한다.
+        if (Engaged && Time.time - lastFightT > advanceAfter)
+            return NearestEnemy(advanceRange);
 
         return null;
     }
 
     [Tooltip("근처에 적이 없을 때 전장을 찾아 걸어가는 최대 거리 (m)")]
     public float advanceRange = 80f;
+    [Tooltip("표적을 잃은 뒤 이 초가 지나야 먼 전장으로 진군한다 — 싸우다 말고 이탈하는 것 방지")]
+    public float advanceAfter = 2.5f;
+    float lastFightT = -99f;   // 마지막으로 표적을 갖고 있던 시각
 
     /// 반경 안에서 가장 가까운 적. 가까운 칸부터 넓혀 가며 찾고, 더 볼 필요가 없으면 멈춘다.
     PetUnit NearestEnemy(float range)
@@ -1178,8 +1243,19 @@ public class PetUnit : MonoBehaviour
             int pellets = PatternPellets;
             if (pellets > 1)
             {
+                // ★알당 피해는 `PatternDmg` 가 직접 정한다 — **나누지 않는다.**
+                //
+                //   처음엔 알마다 full 피해라 6배가 들어가 토리가 11-0-1 로 최강자였다.
+                //   그래서 `dmg /= pellets` 로 나눴는데 **0-0-12 로 전멸**했다 —
+                //   6마리에게 1/6씩 = 총 피해가 **단발 사격과 똑같아졌고**, 사거리는 짧고
+                //   카이팅도 안 하니 쏘기보다 모든 면에서 열등해졌다.
+                //
+                //   나누기가 틀린 접근이었다. 산탄은 "한 발을 쪼갠다" 가 아니라
+                //   **"약한 알을 여럿 뿌린다"** 다. 그래서 흩어진 적에겐 약하고
+                //   (알 하나만 박힌다) 뭉친 떼에는 총량이 커진다. 그 값은
+                //   `PatternDmg` 의 흩뿌리기 항에서 잡는다 (지금 0.45 — 쏘기의 36%).
                 // 총구 섬광 — '팡' 은 여기서 난다. 부채꼴 방향으로 확 퍼진다
-                var muzzle = transform.position + Vector3.up * body * 0.35f + transform.forward * bodyR * 0.6f;
+                var muzzle = transform.position + Vector3.up * hitOff + transform.forward * bodyR * 0.6f;
                 FX.Burst(muzzle, fire, 18, bodyR * 0.05f, bodyR * 1.5f, 0.28f);
 
                 int fired = 0;
@@ -1247,7 +1323,7 @@ public class PetUnit : MonoBehaviour
             v.TakeDamage(dmg, this);
             v.OnHit();
             // ★이펙트는 일부러 작게 (2026-07-28). 50마리가 동시에 때리면 화면이 흰 가루로 덮인다
-            FX.Burst(v.transform.position + Vector3.up * v.body * 0.3f,
+            FX.Burst(v.transform.position + Vector3.up * v.hitOff,
                      Color.white, 5, v.body * 0.04f, v.body * 0.3f);
         }
     }
@@ -1350,6 +1426,7 @@ public class PetUnit : MonoBehaviour
 
         if (target != null && target.Alive)
         {
+            lastFightT = Time.time;   // 「방금 싸웠다」 — 표적을 잃어도 바로 이탈하지 않게
             float d = Dist(target.transform.position);
             var toT = target.transform.position - transform.position;
             // ★'가는 거리' 와 '때리는 영역' 을 나눈다.
@@ -1358,6 +1435,24 @@ public class PetUnit : MonoBehaviour
             //   멈춘 뒤에 때리는 순서는 스타2와 같다. 그건 안 바꾼다.
             float areaR = AtkRangeTo(target);
             float ring = closeToContact ? ContactR(target) : areaR;
+
+            // ★★휘두르는 중에는 **발과 방향을 잠근다** (2026-07-30 사용자 — "공격 동작일
+            //   때는 방향 전환·이동이 동시에 일어나지 않도록").
+            //
+            //   전엔 예비 동작 중에도 표적이 움직이면 따라 돌고 걸어갔다. 그래서
+            //   ①한 번의 휘두르기가 한 동작으로 안 읽히고 ②몸이 도는 통에 부채꼴이
+            //   엉뚱한 데를 향했다. 동작에 **몸을 맡기는 것**이 임팩트의 조건이다.
+            //   (`WindUp` 은 최대 0.45초라 묶어도 반응이 굼떠지지 않는다)
+            //
+            //   ★`Separate` 는 계속 돈다 — 그건 이동 판단이 아니라 겹침 해소다.
+            //   여기서 멈추면 떼가 서로 파고든다.
+            if (swingPending)
+            {
+                if (motion != null) motion.speed01 = 0f;
+                curSpeed = Mathf.MoveTowards(curSpeed, 0f, MoveSpd * 3f * Time.deltaTime);
+                Separate(); Ground(false); HitFlash(); Bar();
+                return;
+            }
 
             // ★① 물러나는 중인가 — 원거리만 (위 「카이팅」 참고).
             //   물러나는 동안은 자리 계산도 사격도 하지 않는다. 오직 거리를 벌린다.
@@ -1402,12 +1497,38 @@ public class PetUnit : MonoBehaviour
             if (!arrived)
             {   // ② 아직 자리 아님 — 돌아서라도 간다
                 stuckT += Time.deltaTime;      // 너무 오래 헤매면 그 자리에서 싸운다
-                Step(toSpot, MoveSpd, dSpot);
-                if (motion != null) motion.speed01 = 1f;
+
+                // ★★못 가까워지면 밀어붙이기를 멈춘다 (2026-07-30 사용자 — "뒤쪽에
+                //   끼어서 멍청하게 비비고 있는 것들").
+                //
+                //   앞줄이 목표를 둘러싸면 뒷줄은 **영영 닿지 못한다.** 그런데 지금까지는
+                //   닿을 때까지 계속 걸었고, `Separate` 가 서로를 밀어내니 떼가 압축되며
+                //   비볐다. 걷는 판단(`Step`)과 겹침 해소(`Separate`)가 서로 싸운 것이다.
+                //
+                //   → **거리가 줄고 있나**만 본다. 줄지 않으면 앞이 막힌 것이므로 선다.
+                //     한 걸음도 못 줄인 채 `blockedGiveUp` 초가 지나면 멈추고,
+                //     그 뒤 0.8초마다 한 번씩 다시 시도한다 — 앞줄이 죽어 길이 열리면
+                //     그때 저절로 다시 걷는다 (영영 멈춰 있으면 그게 더 큰 버그다).
+                if (d < approachBestD - bodyR * 0.04f) { approachBestD = d; noProgT = 0f; }
+                else noProgT += Time.deltaTime;
+                if (noProgT > blockedGiveUp + 0.8f) { noProgT = 0f; approachBestD = d; }
+
+                if (noProgT > blockedGiveUp)
+                {   // 앞이 막혔다 — 밀지 않고 제자리에서 기다린다 (자리가 나면 다시 간다)
+                    Face(toT);
+                    if (motion != null) motion.speed01 = 0f;
+                    curSpeed = Mathf.MoveTowards(curSpeed, 0f, MoveSpd * 3f * Time.deltaTime);
+                }
+                else
+                {
+                    Step(toSpot, MoveSpd, dSpot);
+                    if (motion != null) motion.speed01 = 1f;
+                }
             }
             else
             {   // ③ 자리에 섰다 — 멈추고, 영역 안이면 때린다
                 stuckT = 0f;
+                noProgT = 0f; approachBestD = float.MaxValue;
                 Face(toT);
                 if (motion != null) motion.speed01 = 0f;
                 if (d <= areaR && atkCd <= 0f) BeginSwing();
@@ -1610,6 +1731,7 @@ public class PetUnit : MonoBehaviour
 
     /// 죽는 동안의 몸 구부림 — Dissolve 단계까지 이어진다 (여기서 만들어 두고 계속 쓴다)
     float deathBendF;
+    float deathFallV;   // 공중에서 죽었을 때의 낙하 속도 (중력처럼 점점 빨라진다)
 
     /// 죽은 몸에 셰이더 값을 넘긴다.
     ///
@@ -1668,6 +1790,25 @@ public class PetUnit : MonoBehaviour
             float e = k * k * (3f - 2f * k);                                   // 스르륵 (S곡선)
             transform.rotation = Quaternion.Euler(0f, yaw, 82f * e);
             transform.localScale = baseScale;
+            // ★공중에서 죽으면 **떨어져야 한다** (2026-07-30 사용자 — "공중에서 죽었을 때
+            //   공중에서 사라지는 버그"). 넉백·투척으로 떠 있는 중에 죽으면 `deathStartY`
+            //   가 공중이라, 그 높이에 그대로 걸린 채 디졸브됐다.
+            //   → 땅 높이를 목표로 가속 낙하시킨다 (중력처럼 점점 빨라진다).
+            float groundY = deathStartY;
+            var terrD = Terrain.activeTerrain;
+            if (terrD != null)
+                groundY = terrD.SampleHeight(transform.position) + terrD.transform.position.y;
+            if (deathStartY > groundY + 0.02f)
+            {
+                deathFallV += 9.8f * WorldScale.K * 2.2f * Time.deltaTime;
+                deathStartY = Mathf.Max(groundY, deathStartY - deathFallV * Time.deltaTime);
+                if (deathStartY <= groundY + 0.01f && deathFallV > 0.4f)
+                {   // 착지 — 먼지가 튄다 (몸이 실제로 부딪힌 자리에서)
+                    deathFallV = 0f;
+                    FX.Burst(transform.position, new Color(0.85f, 0.8f, 0.7f, 0.8f),
+                             9, body * 0.05f, body * 0.4f);
+                }
+            }
             // ★말림이 넘어가는 순간 절정(0.72) → 힘이 빠지며 펴지고 살짝 지나쳐 늘어진다(-0.16)
             deathBendF = k < 0.32f
                 ? Mathf.Lerp(0.52f, 0.72f, k / 0.32f)
@@ -1752,6 +1893,10 @@ public class PetUnit : MonoBehaviour
     float slotT; float slotAng; PetUnit slotFor;
     bool surroundOn;        // 지금 포위 대형을 쓰나 (혼자거나 내가 더 크면 안 쓴다)
     float stuckT;           // 자리에 못 서고 헤맨 시간 — 오래되면 그 자리에서 싸운다
+    float noProgT;          // 걸어도 안 가까워진 시간 — 앞이 막혔다는 신호
+    float approachBestD = float.MaxValue;   // 여태 가장 가까웠던 거리 (진척 판정 기준)
+    [Tooltip("걸어도 안 가까워지는 게 이 초를 넘으면 밀어붙이기를 멈춘다 (뒷줄이 비비는 것 방지)")]
+    public float blockedGiveUp = 0.9f;
 
     /// t 에서 봤을 때 u 가 어느 방향에 있나 (0~360°)
     static float Bearing(PetUnit t, PetUnit u)
@@ -1792,7 +1937,15 @@ public class PetUnit : MonoBehaviour
         //   ★원거리는 절대 포위하지 않는다 (2026-07-29 사용자 — "원거리 애들도 자꾸
         //     원형으로 포위하면서 때리려고 이동해서 티라노가 접근을 못 한다").
         //     쏘는 놈은 **선 자리에서 쏘는 게 전부**다. 자리를 옮기면 쏘지를 못한다.
-        surroundOn = closeToContact && mates.Count > 1 && bodyR <= t.bodyR * 1.2f;
+        // ★상대가 나보다 훨씬 크면 **포위하지 않는다** (2026-07-30 사용자 — "트리통이
+        //   티라의 피격박스까지 못 가는지 자꾸 비비고만 있는 현상").
+        //
+        //   거대한 몸을 둘러싸려면 그 몸에 붙은 채로 **한참 돌아가야** 한다. 그게
+        //   화면에서는 비비는 것으로 보였다. 게다가 큰 놈은 둘레 자체가 길어서
+        //   한쪽 면에도 여럿이 붙을 수 있으니 **굳이 돌 이유가 없다.**
+        //   → 내 몸의 2.2배가 넘는 상대는 그냥 정면으로 붙는다.
+        surroundOn = closeToContact && mates.Count > 1
+                  && bodyR <= t.bodyR * 1.2f && t.bodyR <= bodyR * 2.2f;
         if (!surroundOn || mates.Count == 0) { slotAng = Bearing(t, this); return; }
 
         // ★자리는 **각자가 온 방향 순서**로 나눈다 (2026-07-29 두 번째 수정).
@@ -2206,7 +2359,13 @@ public class PetUnit : MonoBehaviour
         //   예전 식은 Clamp(dist/42, 0.85, ...) 였는데, 1/10 세계라 카메라 거리가 12~30 이라
         //   dist/42 가 늘 하한 0.85 에 걸렸다 = 월드 크기 고정 = **줌아웃하면 화면에서 작아짐.**
         //   딱 반대로 동작하고 있었다.
-        barRoot.localScale = Vector3.one * barBaseScale * (dist / barRefDist);
+        // ★배율에 상한·하한을 건다 (2026-07-30 사용자 — "처음 시작할 때 체력바가 이렇게
+        //   오류나서 나온다"). 화면 크기를 고정하려고 **거리에 비례**해 키우는데,
+        //   시작 첫 프레임엔 카메라가 아직 제자리로 안 가 있어서 이 거리가 터무니없이
+        //   커진다(원점 ↔ 섬 위 플레이어= 수천 m). 그 결과 바가 화면을 통째로 덮었다.
+        //   ★특히 아바타는 거리 컬링에서 빠져 있어(위 참고) 이 상한이 유일한 방어선이다.
+        barRoot.localScale = Vector3.one * barBaseScale
+                           * Mathf.Clamp(dist / barRefDist, 0.35f, 3.5f);
 
         // ★레벨 — 캐릭터는 PlayerLevel(static)이 진짜 레벨이다 (2026-07-29).
         //   예전엔 PetUnit.level 을 띄웠는데, 아바타는 그 값이 영영 1이라
@@ -2280,7 +2439,7 @@ public class PetProjectile : MonoBehaviour
             g.AddComponent<PetProjectile>();
         }
         g.name = heal ? "proj_heal" : "proj";
-        g.transform.position = owner.transform.position + Vector3.up * owner.body * 0.35f;
+        g.transform.position = owner.transform.position + Vector3.up * owner.hitOff;
         g.transform.localScale = Vector3.one * Mathf.Max(0.02f, size);
 
         var p = g.GetComponent<PetProjectile>();
@@ -2317,7 +2476,7 @@ public class PetProjectile : MonoBehaviour
     {
         if (target == null || !target.Alive) { Recycle(); return; }   // 날아가는 중에 표적이 죽으면 빗나감
         t += Time.deltaTime / dur;
-        var to = target.transform.position + Vector3.up * target.body * 0.3f;
+        var to = target.transform.position + Vector3.up * target.hitOff;
         var p = Vector3.Lerp(from, to, Mathf.Clamp01(t));
         p.y += Mathf.Sin(Mathf.Clamp01(t) * Mathf.PI) * arc;
         transform.position = p;

@@ -3229,6 +3229,7 @@ MonoBehaviour:
   bodyR: 1
   separateMul: 0.9
   closeToContact: 1
+  hitOff: 0
   slowT: 0
   atkSpeedMul: 1
   moveSpeedMul: 1
@@ -3261,6 +3262,7 @@ MonoBehaviour:
   tier: 1
   alerted: 0
   advanceRange: 80
+  advanceAfter: 2.5
   magnetAfter: 2.2
   magnetRamp: 0.55
   magnetSpeed: 62
@@ -3277,6 +3279,7 @@ MonoBehaviour:
   dissolveTime: 0.9
   dissolveColor: {r: 2.2, g: 1.7, b: 0.9, a: 1}
   dissolveEdge: 0.12
+  blockedGiveUp: 0.9
   avatarBarLift: 0.45
   barGap: 5
   barLevelSize: 11
@@ -10161,7 +10164,7 @@ MonoBehaviour:
   target: {fileID: 107336113}
   distance: 24.999998
   minDist: 5
-  maxDist: 25
+  maxDist: 30
   height: 0.4
   yaw: 96.94879
   pitch: 48.860023
@@ -40728,14 +40731,14 @@ Terrain:
   m_Enabled: 1
   serializedVersion: 6
   m_TerrainData: {fileID: 15600000, guid: 8afaec49be18b3d4dac1a36d8bcd4d7d, type: 2}
-  m_TreeDistance: 160
-  m_TreeBillboardDistance: 600
+  m_TreeDistance: 110
+  m_TreeBillboardDistance: 35
   m_TreeCrossFadeLength: 40
   m_TreeMaximumFullLODCount: 4000
-  m_DetailObjectDistance: 160
+  m_DetailObjectDistance: 60
   m_DetailObjectDensity: 1
-  m_HeightmapPixelError: 5
-  m_SplatMapDistance: 20000
+  m_HeightmapPixelError: 12
+  m_SplatMapDistance: 300
   m_HeightmapMinimumLODSimplification: 0
   m_HeightmapMaximumLOD: 0
   m_ShadowCastingMode: 1
@@ -54908,6 +54911,7 @@ GameObject:
   - component: {fileID: 1834216757}
   - component: {fileID: 1834216759}
   - component: {fileID: 1834216760}
+  - component: {fileID: 1834216761}
   m_Layer: 0
   m_Name: PetSpawner
   m_TagString: Untagged
@@ -54975,7 +54979,7 @@ MonoBehaviour:
     moveSpeed: 1
     range: 1
     angle: 1
-    damage: 1
+    damage: 0.88
   - koreanName: "\uBE10\uD1A0"
     species: chibi_bronto
     prefab: {fileID: 7477283798205093626, guid: 3bfe57dc8e0aa6246aae59e81cb33834, type: 3}
@@ -55183,8 +55187,9 @@ MonoBehaviour:
   armyGap: 9
   distFromPlayer: 12
   window: 3
-  leagueTimeout: 90
+  leagueTimeout: 120
   leagueGap: 1.5
+  leagueMaxSpeed: 10
   leagueFile: league_result.txt
   "\uB9AC\uADF8\uB85C\uC2A4\uD130": []
 --- !u!114 &1834216760
@@ -55206,6 +55211,18 @@ MonoBehaviour:
   dummyCount: 5
   slowScale: 0.25
   "\uB85C\uC2A4\uD130": []
+--- !u!114 &1834216761
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1834216756}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 609ac479bbc693042b36e519c4631568, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::TerrainInstancing
 --- !u!1 &1837252251
 GameObject:
   m_ObjectHideFlags: 0
