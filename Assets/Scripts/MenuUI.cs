@@ -97,6 +97,7 @@ public class MenuUI : MonoBehaviour
     {
         IsOpen = open;
         if (win != null) win.SetActive(open);
+        if (!open && pageNode != null) pageNode.SetActive(false);   // 전체화면 노드판도 같이 닫는다
         if (open) ShowPage(curPage);
     }
 
@@ -330,12 +331,10 @@ public class MenuUI : MonoBehaviour
         }
 
         // ── 제작 ──
-        // ── 노드판 (알 원정 설계 — 정본은 docs/superpowers/specs/2026-07-30-node-catalog.md) ──
-        //   MenuUI 의 다른 페이지처럼 코드가 짓는다 (이 메뉴 전체가 런타임 생성이라
-        //   씬 배치 방식과 섞으면 두 문법이 된다). 바퀴 모양은 NodeBoardBuilder 의 표가 정본.
-        var nodeP = Page("Page_Node");
-        pageNode = nodeP.gameObject;
-        NodeBoardBuilder.Build(nodeP, font);
+        // ── 노드판 — ★전체화면 (2026-07-30 사용자 "전체로 뜨게, 드래그 확대축소,
+        //   노드에 대면 설명"). 창 안 페이지가 아니라 캔버스 바로 밑의 전면 판이다 —
+        //   노드 탭을 누르면 창이 숨고 판이 화면을 덮는다. 정본은 NodeBoardBuilder.
+        pageNode = NodeBoardBuilder.Build((RectTransform)canvasRoot.transform, font, () => ShowPage(2));
 
         var cr = Page("Page_Craft");
         pageCraft = cr.gameObject;
@@ -393,6 +392,7 @@ public class MenuUI : MonoBehaviour
         pageStat.SetActive(idx == 2);
         pageCraft.SetActive(idx == 3);
         if (pageNode != null) pageNode.SetActive(idx == 4);
+        if (win != null) win.SetActive(idx != 4);   // 노드판은 전체화면 — 창을 잠시 치운다
         for (int i = 0; i < tabImgs.Length; i++)
         {
             tabImgs[i].color = i == idx ? Accent : SlotBg;

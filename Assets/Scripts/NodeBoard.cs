@@ -41,9 +41,11 @@ public enum NodeEffect
 
 /// 노드판의 노드 한 칸 — 씬에 실존하는 uGUI 버튼에 붙는다.
 /// 그래프(이웃)는 인스펙터에서 서로 끌어다 잇는다 — 모양은 데이터다.
-public class NodeButton : MonoBehaviour
+public class NodeButton : MonoBehaviour,
+    UnityEngine.EventSystems.IPointerEnterHandler, UnityEngine.EventSystems.IPointerExitHandler
 {
     [Tooltip("표시 이름 — 툴팁·로그용")] public string 이름;
+    [Tooltip("툴팁에 뜨는 설명")] [TextArea] public string 설명;
     public NodeEffect 효과;
     [Tooltip("배수형=곱할 배수(1.15) · 스탯형=포인트 수 · 확률형=0~1")]
     public float 수치 = 1f;
@@ -93,6 +95,29 @@ public class NodeButton : MonoBehaviour
                   : CanPick ? new Color(0.95f, 0.95f, 0.9f)
                             : new Color(0.4f, 0.4f, 0.42f);
     }
+
+    public void OnPointerEnter(UnityEngine.EventSystems.PointerEventData e) => NodeBoardUI.Tip(this, true);
+    public void OnPointerExit(UnityEngine.EventSystems.PointerEventData e) => NodeBoardUI.Tip(this, false);
+}
+
+/// 판 끌기·줌 — 배경(백드롭)에 붙는다. 드래그 = 판 이동 · 휠 = 확대축소.
+public class NodeBoardPan : MonoBehaviour,
+    UnityEngine.EventSystems.IDragHandler, UnityEngine.EventSystems.IScrollHandler
+{
+    public RectTransform content;
+    float zoom = 1f;
+
+    public void OnDrag(UnityEngine.EventSystems.PointerEventData e)
+    {
+        if (content != null) content.anchoredPosition += e.delta;
+    }
+
+    public void OnScroll(UnityEngine.EventSystems.PointerEventData e)
+    {
+        if (content == null) return;
+        zoom = Mathf.Clamp(zoom * (1f + e.scrollDelta.y * 0.1f), 0.5f, 2.4f);
+        content.localScale = Vector3.one * zoom;
+    }
 }
 
 /// 노드판 전체 — 판 루트에 붙는다. 찍힌 노드를 모아 NodeMods 를 다시 짓는다.
@@ -101,6 +126,8 @@ public class NodeBoardUI : MonoBehaviour
     static NodeBoardUI live;
     NodeButton[] all;
     [HideInInspector] public UnityEngine.UI.Text pointsText;   // 남은 포인트 표시 (빌더가 꽂는다)
+    [HideInInspector] public GameObject tipRoot;               // 툴팁 패널 (빌더가 꽂는다)
+    [HideInInspector] public UnityEngine.UI.Text tipText;
 
     /// 자식 노드 수집 — 빌더가 노드를 다 만든 뒤 부른다 (Awake 는 페이지가
     /// 비활성이면 미뤄지므로 빌더 호출이 정본이다)
@@ -116,6 +143,23 @@ public class NodeBoardUI : MonoBehaviour
     }
 
     void PaintAll() { if (all != null) foreach (var n in all) if (n != null) n.Paint(); }
+
+    /// 노드에 마우스를 대면 설명이 뜬다 — 이름 · 효과 · 지금 상태
+    public static void Tip(NodeButton n, bool show)
+    {
+        if (live == null || live.tipRoot == null) return;
+        live.tipRoot.SetActive(show && n != null);
+        if (!show || n == null) return;
+        string state = n.Picked ? "✔ 찍음"
+                     : n.CanPick ? "클릭해서 찍는다 — 포인트 1"
+                     : PlayerLevel.NodePoints <= 0 ? "포인트가 없다 — 레벨업이 필요하다"
+                     : "잠김 — 이어진 노드를 먼저 찍어야 한다";
+        live.tipText.text = $"{n.이름}\n<color=#6b5d4f>{n.설명}</color>\n\n{state}";
+        var p = (Vector2)n.transform.position + new Vector2(28f, 28f);
+        p.x = Mathf.Min(p.x, Screen.width - 360f);      // 화면 밖으로 안 나가게
+        p.y = Mathf.Clamp(p.y, 150f, Screen.height - 30f);
+        live.tipRoot.transform.position = p;
+    }
 
     /// ★찍힌 노드 전부를 처음부터 다시 적용한다 — 순서·중복 걱정이 없는 방식.
     ///   캐릭터 스탯도 노드가 채운다 (레벨업 직접 분배는 잠갔다 — PlayerLevel 참고).
@@ -170,8 +214,8 @@ public class NodeBoardUI : MonoBehaviour
 /// 중형 4개는 행동 노드 자리표시(효과 없음) — 2단계에서 채운다.
 public static class NodeBoardBuilder
 {
-    const float RIn = 92f, ROut = 152f, RNot = 198f, RKey = 240f;
-    const float YSquash = 0.82f;   // 판이 가로로 넓으니 세로를 살짝 눌러 타원으로
+    const float RIn = 150f, ROut = 265f, RNot = 355f, RKey = 435f;   // 전체화면 — 시원하게
+    const float YSquash = 0.9f;
 
     static Vector2 P(float deg, float r)
     {
@@ -179,16 +223,54 @@ public static class NodeBoardBuilder
         return new Vector2(Mathf.Cos(a) * r, Mathf.Sin(a) * r * YSquash);
     }
 
-    public static void Build(RectTransform page, Font font)
+    /// 전체화면 노드판을 canvas 밑에 짓는다. 반환값 = 루트 (켜고 끄는 건 MenuUI 몫).
+    /// 백드롭 드래그 = 판 이동 · 휠 = 확대축소 (NodeBoardPan) · 노드 호버 = 설명 툴팁.
+    public static GameObject Build(RectTransform canvas, Font font, System.Action backToMenu)
     {
-        var ui = page.gameObject.AddComponent<NodeBoardUI>();
+        // 루트 — 화면 전체를 덮는 어두운 배경
+        var root = new GameObject("NodeBoard", typeof(RectTransform));
+        var rootRt = (RectTransform)root.transform;
+        rootRt.SetParent(canvas, false);
+        rootRt.anchorMin = Vector2.zero; rootRt.anchorMax = Vector2.one;
+        rootRt.offsetMin = rootRt.offsetMax = Vector2.zero;
+        var back = root.AddComponent<UnityEngine.UI.Image>();
+        back.sprite = null;
+        back.color = new Color(0.10f, 0.09f, 0.08f, 0.96f);   // 포이의 그 어둠 — 노드가 주인공
+        var pan = root.AddComponent<NodeBoardPan>();
 
-        // 안내 + 포인트 (왼쪽 위)
-        ui.pointsText = Label(page, "포인트", new Vector2(12f, -8f), font, 18,
-                              new Vector2(0f, 1f), TextAnchor.UpperLeft, 260f);
-        Label(page, "이어진 노드만 찍을 수 있다 · 안쪽 링 아무 곳에서나 시작", new Vector2(12f, -34f),
-              font, 12, new Vector2(0f, 1f), TextAnchor.UpperLeft, 380f).color
-            = new Color(0.45f, 0.4f, 0.35f);
+        // 콘텐츠 — 바퀴 전체가 이 안에 산다. 팬은 이걸 밀고, 줌은 이걸 키운다
+        var content = new GameObject("content", typeof(RectTransform));
+        var page = (RectTransform)content.transform;
+        page.SetParent(rootRt, false);
+        page.anchorMin = page.anchorMax = page.pivot = new Vector2(0.5f, 0.5f);
+        page.sizeDelta = Vector2.zero;
+        pan.content = page;
+
+        var ui = root.AddComponent<NodeBoardUI>();
+
+        // 안내 + 포인트 (왼쪽 위 — 콘텐츠 밖이라 팬·줌에 안 딸려간다)
+        ui.pointsText = Label(rootRt, "포인트", new Vector2(24f, -18f), font, 22,
+                              new Vector2(0f, 1f), TextAnchor.UpperLeft, 300f);
+        ui.pointsText.color = new Color(0.95f, 0.9f, 0.8f);
+        var hint = Label(rootRt, "드래그 이동 · 휠 확대축소 · 이어진 노드만 찍을 수 있다 · 안쪽 링 아무 곳에서나 시작",
+                         new Vector2(24f, -48f), font, 13, new Vector2(0f, 1f), TextAnchor.UpperLeft, 620f);
+        hint.color = new Color(0.6f, 0.55f, 0.48f);
+
+        // ← 메뉴로 (오른쪽 위)
+        var backGo = new GameObject("btn_back", typeof(RectTransform));
+        var backRt = (RectTransform)backGo.transform;
+        backRt.SetParent(rootRt, false);
+        backRt.anchorMin = backRt.anchorMax = backRt.pivot = new Vector2(1f, 1f);
+        backRt.anchoredPosition = new Vector2(-24f, -18f);
+        backRt.sizeDelta = new Vector2(120f, 40f);
+        var backImg = backGo.AddComponent<UnityEngine.UI.Image>();
+        backImg.sprite = null; backImg.color = new Color(0.25f, 0.22f, 0.19f);
+        backGo.AddComponent<UnityEngine.UI.Button>().onClick.AddListener(() => backToMenu?.Invoke());
+        var backTxt = Label(backRt, "← 메뉴", Vector2.zero, font, 15,
+                            new Vector2(0.5f, 0.5f), TextAnchor.MiddleCenter, 120f);
+        backTxt.color = new Color(0.9f, 0.86f, 0.78f);
+
+        // 툴팁 — 마지막에 만들어 제일 위에 그려지게 한다 (아래에서 생성)
 
         // ── 노드 표 ──────────────────────────────────────────
         // 안링 12 — 구간마다 3개, 전부 시작 노드. 소노드도 작지 않게 (+8~10%).
@@ -212,12 +294,21 @@ public static class NodeBoardBuilder
         // 중형 4 — 행동 노드 자리표시 (2단계에서 효과가 들어온다)
         var notDeg = new float[] { 90, 180, 270, 0 };
         var notables = new string[] { "연쇄 소환", "도발 맥동", "관통 화살", "사기 진작" };
+        var notDesc = new string[]
+        {
+            "펫이 적을 처치하면 15% 확률로\n그 자리에 S 펫이 임시 합류\n(효과는 2단계에서 — 지금은 길목)",
+            "XL 펫이 6초마다 주변 적의\n어그로를 끌어온다\n(효과는 2단계에서 — 지금은 길목)",
+            "활 차징 3단이 적을 관통한다\n(효과는 2단계에서 — 지금은 길목)",
+            "처치할 때마다 3초간 부대 공속 상승\n(효과는 2단계에서 — 지금은 길목)",
+        };
         // 키스톤 4
         var keyDeg = notDeg;
-        var keys = new (string n, NodeEffect e)[]
+        var keys = new (string n, NodeEffect e, string d)[]
         {
-            ("끝없는 무리", NodeEffect.키스톤_끝없는무리), ("왕의 소수", NodeEffect.키스톤_왕의소수),
-            ("우두머리 사냥", NodeEffect.키스톤_우두머리사냥), ("거점 포격", NodeEffect.키스톤_거점포격),
+            ("끝없는 무리", NodeEffect.키스톤_끝없는무리, "투척 마릿수 ×1.6 · 펫 피해 ×0.75\n— 머릿수로 덮는다"),
+            ("왕의 소수", NodeEffect.키스톤_왕의소수, "마릿수 절반 · 펫 힘·체력 ×1.7\n— 소수가 쓸어버린다"),
+            ("우두머리 사냥", NodeEffect.키스톤_우두머리사냥, "캐릭터 피해 ×1.6 · 치명타 +15%\n· 마릿수 ×0.7 — 내가 곧 병기다"),
+            ("거점 포격", NodeEffect.키스톤_거점포격, "원거리 사거리 ×1.25 · 펫 피해 ×1.5\n· 카이팅 포기 — 자리를 잡으면 못 온다"),
         };
 
         // ── 만들기 (선을 먼저 — 노드가 위에 그려지게) ──
@@ -249,10 +340,10 @@ public static class NodeBoardBuilder
 
         foreach (var (a, b) in edges) Line(page, pos[a], pos[b]);
 
-        for (int i = 0; i < 12; i++) nodes.Add(Node(page, inner[i].n, inner[i].e, inner[i].v, pos[i], 26f, true, font, false));
-        for (int i = 0; i < 16; i++) nodes.Add(Node(page, outer[i].n, outer[i].e, outer[i].v, pos[12 + i], 30f, false, font, false));
-        for (int i = 0; i < 4; i++) nodes.Add(Node(page, notables[i], NodeEffect.없음, 0f, pos[28 + i], 38f, false, font, true));
-        for (int i = 0; i < 4; i++) nodes.Add(Node(page, keys[i].n, keys[i].e, 0f, pos[32 + i], 46f, false, font, true));
+        for (int i = 0; i < 12; i++) nodes.Add(Node(page, inner[i].n, inner[i].e, inner[i].v, pos[i], 36f, true, font, false));
+        for (int i = 0; i < 16; i++) nodes.Add(Node(page, outer[i].n, outer[i].e, outer[i].v, pos[12 + i], 42f, false, font, false));
+        for (int i = 0; i < 4; i++) nodes.Add(Node(page, notables[i], NodeEffect.없음, 0f, pos[28 + i], 54f, false, font, true, notDesc[i]));
+        for (int i = 0; i < 4; i++) nodes.Add(Node(page, keys[i].n, keys[i].e, 0f, pos[32 + i], 64f, false, font, true, keys[i].d));
 
         // 이웃 배선 — 간선 목록에서 양방향으로
         var adj = new System.Collections.Generic.Dictionary<int, System.Collections.Generic.List<NodeButton>>();
@@ -265,11 +356,48 @@ public static class NodeBoardBuilder
         for (int i = 0; i < nodes.Count; i++)
             nodes[i].이웃 = adj.ContainsKey(i) ? adj[i].ToArray() : new NodeButton[0];
 
+        // 툴팁 — 루트 맨 마지막 자식 = 항상 맨 위에 그려진다
+        var tipGo = new GameObject("tooltip", typeof(RectTransform));
+        var tipRt = (RectTransform)tipGo.transform;
+        tipRt.SetParent(rootRt, false);
+        tipRt.anchorMin = tipRt.anchorMax = Vector2.zero;   // position 은 Tip() 이 화면 좌표로 직접 놓는다
+        tipRt.pivot = new Vector2(0f, 0f);
+        tipRt.sizeDelta = new Vector2(330f, 120f);
+        var tipImg = tipGo.AddComponent<UnityEngine.UI.Image>();
+        tipImg.sprite = null; tipImg.color = new Color(0.16f, 0.14f, 0.12f, 0.97f);
+        tipImg.raycastTarget = false;
+        var tipTxt = Label(tipRt, "", new Vector2(12f, -10f), font, 14,
+                           new Vector2(0f, 1f), TextAnchor.UpperLeft, 306f);
+        tipTxt.rectTransform.sizeDelta = new Vector2(306f, 100f);
+        tipTxt.color = new Color(0.93f, 0.9f, 0.84f);
+        ui.tipRoot = tipGo; ui.tipText = tipTxt;
+        tipGo.SetActive(false);
+
         ui.Collect();
+        root.SetActive(false);   // 켜고 끄는 건 MenuUI 몫
+        return root;
     }
 
+    /// 수치 노드의 설명을 효과에서 자동으로 만든다 — 손으로 쓴 설명(중형·키스톤)이 우선
+    static string DescOf(NodeEffect e, float v) => e switch
+    {
+        NodeEffect.펫피해 => $"펫 한 대 피해 ×{v:0.00}",
+        NodeEffect.펫체력 => $"펫 최대 체력 ×{v:0.00} (다음 소환부터)",
+        NodeEffect.펫공속 => $"펫 공격 속도 ×{v:0.00}",
+        NodeEffect.근접팔 => $"근접 펫 팔 길이 ×{v:0.00}\n— 타격 면적은 제곱으로 는다",
+        NodeEffect.원거리사거리 => $"원거리 펫 사거리 ×{v:0.00}",
+        NodeEffect.캐릭힘 => $"캐릭터 힘 +{v:0}",
+        NodeEffect.캐릭민첩 => $"캐릭터 민첩 +{v:0}",
+        NodeEffect.캐릭체력 => $"캐릭터 체력 +{v:0}",
+        NodeEffect.차징속도 => $"차징이 ×{v:0.00} 빨리 찬다",
+        NodeEffect.캐릭피해 => $"캐릭터 무기 피해 ×{v:0.00}",
+        NodeEffect.투척예산 => $"투척 소환 마릿수 ×{v:0.00}",
+        NodeEffect.치명타확률 => $"치명타 확률 +{v:P0} (피해 2배)",
+        _ => "",
+    };
+
     static NodeButton Node(RectTransform parent, string name, NodeEffect eff, float val,
-                           Vector2 p, float size, bool start, Font font, bool label)
+                           Vector2 p, float size, bool start, Font font, bool label, string desc = null)
     {
         var go = new GameObject("node_" + name, typeof(RectTransform));
         var rt = (RectTransform)go.transform;
@@ -283,12 +411,13 @@ public static class NodeBoardBuilder
         go.AddComponent<UnityEngine.UI.Button>();
         var nb = go.AddComponent<NodeButton>();
         nb.이름 = name; nb.효과 = eff; nb.수치 = val; nb.시작노드 = start;
+        nb.설명 = desc ?? DescOf(eff, val);
         if (label)
         {
-            var t = Label(rt, name, new Vector2(0f, -(size * 0.5f + 14f)), font, 12,
-                          new Vector2(0.5f, 0.5f), TextAnchor.UpperCenter, 110f);
+            var t = Label(rt, name, new Vector2(0f, -(size * 0.5f + 16f)), font, 14,
+                          new Vector2(0.5f, 0.5f), TextAnchor.UpperCenter, 130f);
             t.rectTransform.localRotation = Quaternion.Euler(0, 0, -45f);   // 몸의 회전을 되돌린다
-            t.color = new Color(0.32f, 0.28f, 0.24f);
+            t.color = new Color(0.8f, 0.75f, 0.66f);   // 어두운 배경 위라 밝게
         }
         return nb;
     }
