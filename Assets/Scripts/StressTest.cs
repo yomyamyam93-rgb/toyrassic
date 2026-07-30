@@ -205,6 +205,11 @@ public class StressTest : MonoBehaviour
         if (k.f3Key.wasPressedThisFrame) FX.DebugNoPops = !FX.DebugNoPops;
         if (k.f4Key.wasPressedThisFrame) ClearPops();
         if (k.homeKey.wasPressedThisFrame) FX.DebugNoShots = !FX.DebugNoShots;
+        if (k.endKey.wasPressedThisFrame)
+        {   // 측정용 — 노드판을 렙업 없이 시험한다 (곡선이 일부러 빡빡해서)
+            PlayerLevel.NodePoints++;
+            SquadHUD.Toast($"[실험] 노드 포인트 +1 → {PlayerLevel.NodePoints}");
+        }
         if (k.f5Key.wasPressedThisFrame) Versus(왼쪽C, 오른쪽C);
         if (k.f6Key.wasPressedThisFrame) Versus(왼쪽B, 오른쪽B);
         if (k.f7Key.wasPressedThisFrame) Versus(왼쪽, 오른쪽);
@@ -228,6 +233,11 @@ public class StressTest : MonoBehaviour
         if (Input.GetKeyDown(KeyCode.F3)) FX.DebugNoPops = !FX.DebugNoPops;
         if (Input.GetKeyDown(KeyCode.F4)) ClearPops();
         if (Input.GetKeyDown(KeyCode.Home)) FX.DebugNoShots = !FX.DebugNoShots;
+        if (Input.GetKeyDown(KeyCode.End))
+        {
+            PlayerLevel.NodePoints++;
+            SquadHUD.Toast($"[실험] 노드 포인트 +1 → {PlayerLevel.NodePoints}");
+        }
         if (Input.GetKeyDown(KeyCode.F5)) Versus(왼쪽C, 오른쪽C);
         if (Input.GetKeyDown(KeyCode.F6)) Versus(왼쪽B, 오른쪽B);
         if (Input.GetKeyDown(KeyCode.F7)) Versus(왼쪽, 오른쪽);
