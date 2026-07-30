@@ -10,7 +10,16 @@ public static class PlayerLevel
 {
     public static int Level = 1;
     public static float Xp;
-    public static int Points;               // 남은 스탯 포인트
+    public static int Points;               // (구) 스탯 포인트 — ★적립 중단 (아래 노드 포인트 참고)
+
+    // ★노드판 전환 (2026-07-30 알 원정 설계) — 레벨업은 이제 스탯이 아니라
+    //   **노드 포인트 1개**를 준다. 스탯은 노드판의 중간 노드(캐릭힘 등)가 올린다.
+    //   Str/Agi/Vit 필드와 배수 계산은 그대로 두고 노드판이 채워 넣는다.
+    public static int NodePoints;
+
+    /// 경험치 배속 손잡이 — 곡선 자체를 다시 쓰지 않고 페이스만 조인다.
+    /// 목표(플레이 실측으로 맞출 것): 둥지 도달 즈음 렙 14~16 · 부화 귀환까지 18~20
+    public static float XpRate = 1f;
 
     public static int Str;                  // 힘   — 피해
     public static int Agi;                  // 민첩 — 공격 속도·이동
@@ -52,19 +61,19 @@ public static class PlayerLevel
     {
         if (PetUnit.DebugNoXP) return;      // ★측정 중 — 판 도중에 플레이어가 세지면 못 잰다
         if (amt <= 0f) return;
-        Xp += amt;
+        Xp += amt * XpRate;
         int gained = 0;
         while (Xp >= XpNeed)
         {
             Xp -= XpNeed;
             Level++;
-            Points += PointsPerLevel;
+            NodePoints++;                   // ★스탯 대신 노드 포인트 (레벨당 1개)
             gained++;
         }
         if (gained > 0)
         {
             ApplyToAvatar(true);
-            SquadHUD.Toast($"레벨 업!  Lv.{Level}  —  스탯 포인트 {Points}점 (Tab → 스탯)");
+            SquadHUD.Toast($"레벨 업!  Lv.{Level}  —  노드 포인트 {NodePoints}개 (Tab → 노드)");
             var av = PetUnit.Avatar;
             if (av != null)
                 FX.Burst(av.transform.position + Vector3.up * 2f,
@@ -98,7 +107,7 @@ public static class PlayerLevel
     /// 새 게임 — 실행할 때마다 초기화 (저장 기능이 생기면 여기서 불러오면 된다)
     public static void Reset()
     {
-        Level = 1; Xp = 0f; Points = 0;
+        Level = 1; Xp = 0f; Points = 0; NodePoints = 0;
         Str = 0; Agi = 0; Vit = 0;
     }
 }
