@@ -72,6 +72,12 @@ public class PlayerMove : MonoBehaviour
             float h = t.SampleHeight(p) + o.y;
             if (h > best) best = h;
         }
+        // ★구조물 위 서기 (2026-07-31 부화터 — "이것도 구조물로 만들어야 해, 그래야
+        //   올라가지"). 지형만 보면 제단·건물을 영영 못 밟는다. 머리 위에서 아래로
+        //   레이를 쏴 콜라이더 지면(HatcherySite 가 깐 MeshCollider)이 더 높으면 그 위에 선다.
+        if (Physics.Raycast(p + Vector3.up * 4f, Vector3.down, out var hitInfo, 8f)
+            && hitInfo.point.y > best)
+            best = hitInfo.point.y;
         return best == float.MinValue ? transform.position.y : best;
     }
 
