@@ -27,7 +27,7 @@ public class MenuUI : MonoBehaviour
 
     Font font;
     GameObject canvasRoot, win;
-    GameObject pageInv, pagePet, pageStat, pageCraft;
+    GameObject pageInv, pagePet, pageStat, pageCraft, pageNode;
     Button[] petRows; Text[] petRowTexts;
     Text petDetail, petUseLabel; Button petUseBtn;
     int petSel;
@@ -202,9 +202,9 @@ public class MenuUI : MonoBehaviour
         wimg.sprite = Round; wimg.type = Image.Type.Sliced; wimg.color = PanelBg;
 
         // 탭 줄
-        string[] names = { "인벤토리", "펫", "스탯", "제작" };
-        tabImgs = new Image[4]; tabTexts = new Text[4];
-        for (int i = 0; i < 4; i++)
+        string[] names = { "인벤토리", "펫", "스탯", "제작", "노드" };
+        tabImgs = new Image[names.Length]; tabTexts = new Text[names.Length];
+        for (int i = 0; i < names.Length; i++)
         {
             int idx = i;
             var rt = RT("tab_" + names[i], w);
@@ -330,6 +330,13 @@ public class MenuUI : MonoBehaviour
         }
 
         // ── 제작 ──
+        // ── 노드판 (알 원정 설계 — 정본은 docs/superpowers/specs/2026-07-30-node-catalog.md) ──
+        //   MenuUI 의 다른 페이지처럼 코드가 짓는다 (이 메뉴 전체가 런타임 생성이라
+        //   씬 배치 방식과 섞으면 두 문법이 된다). 바퀴 모양은 NodeBoardBuilder 의 표가 정본.
+        var nodeP = Page("Page_Node");
+        pageNode = nodeP.gameObject;
+        NodeBoardBuilder.Build(nodeP, font);
+
         var cr = Page("Page_Craft");
         pageCraft = cr.gameObject;
         var cv = cr.gameObject.AddComponent<VerticalLayoutGroup>();
@@ -385,7 +392,8 @@ public class MenuUI : MonoBehaviour
         pagePet.SetActive(idx == 1);
         pageStat.SetActive(idx == 2);
         pageCraft.SetActive(idx == 3);
-        for (int i = 0; i < 4; i++)
+        if (pageNode != null) pageNode.SetActive(idx == 4);
+        for (int i = 0; i < tabImgs.Length; i++)
         {
             tabImgs[i].color = i == idx ? Accent : SlotBg;
             tabTexts[i].color = i == idx ? AccentText : TxtSub;
