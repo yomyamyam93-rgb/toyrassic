@@ -75,182 +75,15 @@ public class PetUnit : MonoBehaviour
     [HideInInspector] public bool summoned;
     [Tooltip("목표 크기(최대 변, m). 0 = 티어 기본값 사용. 인스펙터 슬라이더가 조절")]
     public float sizeM = 0f;
-    public int level = 1;
-    public float xp;
+    // ★펫 레벨 — 완전 폐기 (2026-07-30 알 원정 설계, 사용자 "펫들은 모두 그냥 같아").
+    //   펫은 종 고유 스탯으로 전부 동일하다. 성장은 캐릭터의 노드판(NodeMods)이
+    //   부대 전체에 거는 배수뿐이다. 걷어낸 것: level·xp·경험치 곡선·LevelUp·
+    //   ApplyLevels·ApplyGrowth·SetWildLevel·points(SpendPoint) — PetBox 의 종 공유
+    //   레벨과 머리 위 레벨 표시까지. PlayerLevel(캐릭터)만 남는다.
+    //   (1레벨 보정이 정확히 1배였으므로, 리그로 잰 밸런스 수치는 그대로 유효하다)
 
-    // ── 경험치 곡선 (2026-07-29 사용자) ──────────────────────────────
-    //
-    // ★"레벨업이 너무 쉽게 되진 않았으면, 고렙으로 갈수록 빡세지는 건 당연"
-    //
-    //   예전엔 `25 + 20*(lv-1)` 직선이라 100렙이 1렙의 80배밖에 안 됐다.
-    //   직선은 고렙이 '조금 더 걸리는' 정도지 **빡세지지 않는다.**
-    //   지수를 쓰면 후반이 진짜 벽이 된다 (1렙 50 → 100렙 10,095, 200배).
-    //
-    //   야생 격파 한 번이 18~72 경험치이므로 대략 —
-    //     20렙 ≈ 150마리 · 50렙 ≈ 1,550마리 · 100렙 ≈ 9,500마리
-    //   초반은 금방 오르고 100렙은 끝까지 남는 목표가 된다.
-    // ★한 번 더 크게 올렸다 (2026-07-29 사용자 — "한두 번 싸우고 10렙은 오반데,
-    //   훨씬훨씬 어려워야").
-    //   앞서 45/5/1.65 로 잡았는데, 격파당 18(종마다) 이라 한 번 싸우면(15마리쯤)
-    //   270 이 들어와 10렙 근처까지 갔다. **초반 요구치가 너무 낮았다.**
-    //   기본 몫을 3배로 올리고 격파 경험치는 3분의 1 이하로 줄인다 (아래 GainXP 호출부).
-    public const float XpBase = 140f;   // 어느 레벨이든 깔리는 몫 — 초반을 여기서 막는다
-    public const float XpGrow = 9f;     // 지수 항의 계수
-    public const float XpExp = 1.6f;    // 클수록 후반이 가팔라진다
-
-    public float XpNeed => XpNeedAt(level);
-
-    /// ★펫은 포인트를 안 쓴다 (2026-07-29) — 성격대로 저절로 오른다 (ApplyGrowth).
-    ///   필드는 남겨 둔다: 캐릭터(아바타) 스탯 창이 아직 이걸 읽는다.
-    public int points;
-    public const int PointsPerLevel = 0;
-
-    /// 레벨업 필요 경험치 — 레벨만 알면 되므로 정적으로도 쓴다 (종 단위 계산)
-    public static float XpNeedAt(int lv) => XpBase + XpGrow * Mathf.Pow(Mathf.Max(1, lv), XpExp);
-
-    /// ★경험치는 **개체가 아니라 종(species)이 받는다** (2026-07-29 사용자).
-    ///
-    /// ★왜: 던지는 것은 '배치' 지 새 개체를 만드는 게 아니다. 10마리를 던져도 그건
-    ///   한 펫의 분신이므로, 각자 따로 크면 안 된다 — 같은 종은 레벨을 공유한다.
-    ///
-    /// ★예전엔 살아 있는 분신 하나가 경험치를 먹었다. 그런데 분신은 돌아와 흡수되면서
-    ///   사라지므로, **먹은 경험치가 통째로 증발했다.** 키워도 안 크는 상태였다.
-    public void GainXP(float amt)
-    {
-        if (dead || team != Team.Player) return;
-        if (!isAvatar && !string.IsNullOrEmpty(species))
-        {
-            PetBox.GainXP(species, amt);   // 종 기록에 쌓고, 살아 있는 같은 종 전부에 반영
-            return;
-        }
-        xp += amt;
-        while (xp >= XpNeed) { xp -= XpNeed; LevelUp(true); }
-    }
-
-    /// 종 기록이 올려준 레벨을 이 개체에 반영한다 (PetBox 가 부른다)
-    public void SyncFromSpecies(int lv, float restXp)
-    {
-        xp = restXp;
-        if (lv > level) ApplyLevels(lv);
-    }
-
-    /// ★펫 스탯 찍기 — 0=힘 1=민첩 2=체력.
-    /// 기본값 대비 '비율'로 올린다. 그래야 물몸 암살자가 포인트로 탱커가 되는 일이 없고,
-    /// 종 특성이 끝까지 유지된다. 상한도 걸어 몰빵을 막는다.
-    public int pStr, pAgi, pVit;                    // 찍은 점수
-    float baseStr, baseAgi, baseVit; bool baseSet;
-    public const float PerPoint = 0.012f;           // 한 점 = 기본값의 +1.2%
-    public const int MaxPerStat = 120;              // 한 스탯에 최대 120점 (약 +144%)
-
-    void EnsureBase()
-    {
-        if (baseSet) return;
-        baseStr = str; baseAgi = agi; baseVit = vit; baseSet = true;
-    }
-
-    public bool SpendPoint(int which)
-    {
-        if (points <= 0) return false;
-        EnsureBase();
-        if (which == 0) { if (pStr >= MaxPerStat) return false; pStr++; }
-        else if (which == 1) { if (pAgi >= MaxPerStat) return false; pAgi++; }
-        else { if (pVit >= MaxPerStat) return false; pVit++; }
-        points--;
-        ApplyPoints();
-        return true;
-    }
-
-    void ApplyPoints()
-    {
-        EnsureBase();
-        str = baseStr * (1f + pStr * PerPoint);
-        agi = baseAgi * (1f + pAgi * PerPoint);
-        float before = maxHp;
-        vit = baseVit * (1f + pVit * PerPoint);
-        maxHp = vit * HpPerVit;
-        hp = Mathf.Min(maxHp, hp + Mathf.Max(0f, maxHp - before));   // 늘어난 만큼 회복
-    }
-
-    /// 최고 레벨 — 야생·내 펫 공통
-    public const int MaxLevel = 100;
-
-    void LevelUp(bool fx)
-    {
-        if (level >= MaxLevel) { xp = 0f; return; }
-        level++;
-        ApplyGrowth();                                      // 성격대로 저절로 오른다
-        hp = maxHp;                                         // 레벨업 = 풀회복
-        if (fx)
-        {
-            SquadHUD.Toast($"{name}  레벨 {level}!  스탯 포인트 {points}점 (Tab → 펫)");
-            FX.Burst(transform.position + Vector3.up * body * 0.5f,
-                     new Color(1.8f, 1.6f, 0.4f, 0.95f), 24, body * 0.07f, body * 0.6f);
-        }
-    }
-
-    /// ★야생 레벨 — 잡을수록 강한 놈이 나오도록. 레벨만큼 스탯이 조금씩 오른다.
-    /// 1렙 기준 대비 100렙이 약 4배 (레벨당 3%) — 가파르지 않게.
-    public void SetWildLevel(int lv)
-    {
-        level = Mathf.Clamp(lv, 1, MaxLevel);
-        float k = 1f + (level - 1) * 0.03f;
-        str *= k; vit *= k; agi *= 1f + (level - 1) * 0.012f;
-        maxHp = vit * HpPerVit; hp = maxHp;
-    }
-
-    /// 펫 교체 시 레벨 이어받기 — 보관함에서 꺼낼 때
-    public void ApplyLevels(int targetLevel)
-    {
-        int want = Mathf.Clamp(targetLevel, 1, MaxLevel);
-        if (want <= level) return;
-        level = want;
-        ApplyGrowth();
-        hp = maxHp;
-    }
-
-    // ── 성격대로 저절로 오른다 (2026-07-29 사용자) ─────────────────────
-    //
-    // ★"펫의 능력치 상승은 각 펫의 성격에 맞게 알아서 오르는 쪽으로 가자"
-    //   "5포인트 고정 아니고 밸런스 확인해서 정해줘"
-    //
-    // ★포인트를 직접 찍는 방식을 걷어냈다. 펫이 10종씩 되면 찍는 것 자체가 일이 되고,
-    //   무엇보다 **잘 찍은 펫과 못 찍은 펫**이 갈려서 "어떤 종이 센가" 가 흐려진다.
-    //   종의 성격이 곧 성장 방향이면, 고를 때 이미 판단이 끝난다.
-    //
-    // ★배수 (사용자: "성능차이가 나겠지만 너무 많이 나진 않았음")
-    //   레벨당 복리로 붙어서 100렙에 —
-    //     주력  +1.1%/렙 → 2.95배      (그 종이 뾰족한 스탯)
-    //     보조  +0.7%/렙 → 2.00배
-    //     약점  +0.4%/렙 → 1.48배      (끝까지 약점으로 남는다)
-    //   야생이 100렙에 4배인 것보다 완만하다. 성격은 끝까지 유지된다.
-    public const float GrowMain = 0.011f, GrowMid = 0.007f, GrowWeak = 0.004f;
-
-    /// 성격(공격 패턴)별 성장 방향 — 뾰족한 것이 더 뾰족해진다
-    void GrowthRates(out float rStr, out float rAgi, out float rVit)
-    {
-        switch (pattern)
-        {
-            case Pattern.Bite:                                   // 암살자 — 빠르고 자주
-                rStr = GrowMid; rAgi = GrowMain; rVit = GrowWeak; break;
-            case Pattern.Charge:                                 // 돌격병 — 한 방이 세다
-                rStr = GrowMain; rAgi = GrowMid; rVit = GrowWeak; break;
-            case Pattern.Sweep:                                  // 거인 — 힘으로 쓸어버린다
-                rStr = GrowMain; rAgi = GrowWeak; rVit = GrowMid; break;
-            default:                                             // 방패(Slam) — 버틴다
-                rStr = GrowMid; rAgi = GrowWeak; rVit = GrowMain; break;
-        }
-    }
-
-    void ApplyGrowth()
-    {
-        EnsureBase();
-        GrowthRates(out float rs, out float ra, out float rv);
-        float n = Mathf.Max(0, level - 1);
-        str = baseStr * Mathf.Pow(1f + rs, n);
-        agi = baseAgi * Mathf.Pow(1f + ra, n);
-        vit = baseVit * Mathf.Pow(1f + rv, n);
-        maxHp = vit * HpPerVit;
-    }
+    // (옛 경험치 곡선 주석 자리 — 위 폐기 기록 참고)
+    // (레벨·경험치·성장 코드가 있던 자리 — 위 폐기 기록 참고)
 
     [Header("코어 스탯 (코어가 전부 정함)")]
     public float str = 10f;    // 힘 = 물리 딜
@@ -437,8 +270,8 @@ public class PetUnit : MonoBehaviour
         if (motion == null) motion = gameObject.AddComponent<PetMotion>();
         MakeBar(r);
         // 평소엔 바를 숨긴다 — 전투에 들어가면 Bar() 가 켠다 (한 프레임 깜빡임 방지)
-        // 소환된 내 분신은 처음부터 켜 둔다 — 나오자마자 상태가 보여야 한다
-        if (barRoot != null) barRoot.gameObject.SetActive(summoned);
+        // ★내 분신도 개별 바 없음 (2026-07-30) — 부대 합산 바(SquadHUD)가 대신한다
+        if (barRoot != null) barRoot.gameObject.SetActive(false);
         // ★목표 탐색 시점을 개체마다 어긋나게 — 50마리가 같은 프레임에 훑으면 뚝뚝 끊긴다
         retargetT = Random.value * 0.5f;
         homePos = transform.position;   // 리쉬 기준 — 여기서 너무 멀어지면 추격을 포기한다
@@ -1793,11 +1626,7 @@ public class PetUnit : MonoBehaviour
             //   body 항을 뺐다 — 크기 격차를 벌리면서 body 가 최대 6까지 올라가
             //   덩치 큰 놈 하나가 경험치를 왕창 주는 상태였다. 등급(supply)만 본다.
             PlayerLevel.Gain(supply * 4f);
-            // ★잡은 놈만 먹는 게 아니라 **가진 펫 전부가 같이 큰다** (2026-07-29 사용자).
-            //   예전엔 살아 있는 분신 하나만 골라 줬다(break). 그 분신은 흡수되며 사라지므로
-            //   경험치가 증발했고, 설령 남았어도 "때린 애만 크는" 게 되어
-            //   부대를 굴리는 게임과 안 맞았다. 이제 보관함의 모든 종이 함께 오른다.
-            PetBox.GainXPAll(supply * 5f);
+            // (펫 경험치는 폐기 — 격파 보상은 캐릭터 레벨(노드 포인트)뿐이다)
         }
         Destroy(gameObject, 20f);   // 안전망 — 정상 흐름은 부스러짐이 끝나면서 스스로 사라진다
     }
@@ -2397,7 +2226,7 @@ public class PetUnit : MonoBehaviour
         lrt.localPosition = new Vector3(-0.95f, 0f, -0.02f);
         lrt.localRotation = Quaternion.identity;
         lrt.localScale = Vector3.one;
-        barLevel.text = level.ToString();   // 첫 프레임부터 보이게
+        barLevel.text = "";   // 펫 레벨 폐기 — 캐릭터만 Bar() 가 채운다
 
         var lmr = barLevel.GetComponent<MeshRenderer>();
         if (lmr != null)
@@ -2496,6 +2325,10 @@ public class PetUnit : MonoBehaviour
             //     「평소엔 바를 숨긴다」(평화로운 장면)와 50대50 성능 규칙은 그대로다.
             if (InCombat) barShowT = barLinger;
             bool show = summoned || barShowT > 0f;
+            // ★내 펫은 개별 바를 아예 안 띄운다 (2026-07-30 사용자 — "각 펫에 붙이는 게
+            //   아니라 파티 규모의 체력으로"). 부대 합산 바(SquadHUD)가 그 몫을 한다.
+            //   야생 바는 그대로 — 어느 놈이 빈사인지는 표적 고르기 정보다.
+            if (team == Team.Player) show = false;
             // ★멀면 안 그린다 (2026-07-29). 바 하나하나가 매 프레임 위치·카메라 정렬·
             //   거리 보정을 하는데, 저 멀리 벌어지는 싸움의 바는 화면에서 점만 하다.
             if (show && Camera.main != null
@@ -2533,14 +2366,13 @@ public class PetUnit : MonoBehaviour
         barRoot.localScale = Vector3.one * barBaseScale
                            * Mathf.Clamp(dist / barRefDist, 0.35f, 3.5f);
 
-        // ★레벨 — 캐릭터는 PlayerLevel(static)이 진짜 레벨이다 (2026-07-29).
-        //   예전엔 PetUnit.level 을 띄웠는데, 아바타는 그 값이 영영 1이라
-        //   "캐릭터는 왜 레벨이 안 오르냐" 가 됐다. 오르는 건 PlayerLevel 쪽이었다.
-        int showLv = isAvatar ? PlayerLevel.Level : level;
+        // ★레벨 숫자는 캐릭터(PlayerLevel)만 — 펫 레벨은 폐기라 펫·야생은 빈칸이다
+        //   (2026-07-30 사용자 "펫 레벨이 여전히 남아있네").
+        int showLv = isAvatar ? PlayerLevel.Level : 0;
         if (barLevel != null && barLevelShown != showLv)
         {
             barLevelShown = showLv;
-            barLevel.text = showLv.ToString();
+            barLevel.text = showLv > 0 ? showLv.ToString() : "";
         }
         // ★전투력은 바에 안 띄운다 (2026-07-29 사용자 "그냥 표기하지 말자").
         //   숫자 둘이 바보다 넓어져 몸을 가렸다. 전투력은 '붙을까 말까' 를 정하는 정보라
@@ -2840,16 +2672,14 @@ public class BlueprintPickup : MonoBehaviour
         if (player == null) { var p = GameObject.Find("Player"); if (p != null) player = p.transform; else return; }
         if (Vector3.Distance(player.position, transform.position) > 4f) return;
 
-        // 한 마리 키우기 — 주우면 기존 펫과 교체 (레벨 이어받음)
+        // 주우면 기존 펫과 교체 — 레벨 이어받기는 폐기 (펫은 종 스탯뿐)
         var cur = MyPet();
         pet.gameObject.SetActive(true);
         pet.Revive(player);
         if (cur != null && cur != pet)
         {
-            pet.ApplyLevels(cur.level);
-            pet.xp = cur.xp;
             Object.Destroy(cur.gameObject);
-            SquadHUD.Toast($"{pet.name}(으)로 교체!  Lv.{pet.level} 이어받음");
+            SquadHUD.Toast($"{pet.name}(으)로 교체!");
         }
         else SquadHUD.Toast($"{pet.name} 합류!");
         FX.Burst(transform.position, new Color(1.8f, 1.5f, 0.5f, 0.95f), 20, 0.25f, 2.2f);

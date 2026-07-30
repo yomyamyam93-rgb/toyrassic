@@ -177,7 +177,7 @@ public class NestSite : MonoBehaviour
         else { u.str = 15; u.agi = 5; u.vit = 32; }
         u.str *= dmgMul * bossDmgMul; u.vit *= hpMul * bossHpMul;
         PetSpawner.ApplyEntry(u, eggEntry);
-        u.SetWildLevel(spawner.WildLevelAt(transform.position, t));
+        // (야생 레벨 폐기 — 둥지 수호대의 강함은 종·등급이 정한다)
         int boss = Power.Of(u);
         DestroyImmediate(go);
         // 졸병 무리 — 한 마리는 약하지만 수가 압박이다

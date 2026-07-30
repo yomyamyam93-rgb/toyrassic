@@ -210,19 +210,25 @@ public class SquadHUD : MonoBehaviour
             myHpLabel.text = $"나  {Mathf.CeilToInt(me.hp)} / {Mathf.CeilToInt(me.maxHp)}";
         }
 
-        // 펫 블록 (탑승 삭제 — 늘 따로 보여준다)
-        var pet = BlueprintPickup.MyPet();
-        petBars.SetActive(pet != null);
-        petTitle.gameObject.SetActive(pet != null);
-        if (pet != null)
+        // ★부대 통합 체력 (2026-07-30 사용자 — "각 펫에 체력바를 붙이는 게 아니라
+        //   파티 규모의 체력으로, 캐릭터 체력 아래에 전체 펫 합산을 통으로").
+        //   개별 월드 바는 내 펫에겐 안 띄운다 (PetUnit.Bar 참고) — 50대50에서
+        //   바 100개 매 프레임 갱신 금지 규칙과도 맞는다.
+        float sumHp = 0f, sumMax = 0f; int alive = 0;
+        foreach (var u in PetUnit.All)
         {
-            petTitle.text = $"{pet.name}   Lv.{pet.level}";
-            {
-                SetFill(petHpFill, pet.maxHp > 0 ? pet.hp / pet.maxHp : 0f);
-                petHpLabel.text = $"{Mathf.CeilToInt(pet.hp)} / {Mathf.CeilToInt(pet.maxHp)}";
-            }
-            float need = 25f + 20f * (pet.level - 1);
-            SetFill(petXpFill, pet.xp / need);
+            if (u == null || !u.Alive || u.team != PetUnit.Team.Player) continue;
+            if (u.isAvatar || u.isStructure) continue;
+            sumHp += u.hp; sumMax += u.maxHp; alive++;
+        }
+        petBars.SetActive(alive > 0);
+        petTitle.gameObject.SetActive(alive > 0);
+        if (alive > 0)
+        {
+            petTitle.text = $"부대  {alive}마리";
+            SetFill(petHpFill, sumMax > 0 ? sumHp / sumMax : 0f);
+            petHpLabel.text = $"{Mathf.CeilToInt(sumHp)} / {Mathf.CeilToInt(sumMax)}";
+            SetFill(petXpFill, 0f);     // 펫 경험치 폐기 — 빈 줄 (틀은 추후 정리)
         }
 
         // 토스트 — 3초 표시 후 0.5초 페이드 (가이드 7)

@@ -321,12 +321,7 @@ public class MenuUI : MonoBehaviour
             brt.anchorMin = brt.anchorMax = brt.pivot = new Vector2(0, 1);
             // 캐릭터 6줄 / 펫 5줄 아래에 놓는다 (글자와 안 겹치게)
             brt.anchoredPosition = new Vector2(30f + (i % 3) * 132f, isPet ? -404f : -184f);
-            b.onClick.AddListener(() =>
-            {
-                if (idx < 3) PlayerLevel.Spend(idx);
-                else { var p = BlueprintPickup.MyPet(); if (p != null) p.SpendPoint(idx - 3); }
-                RefreshStat();
-            });
+            b.onClick.AddListener(() => { });   // ★스탯 직접 분배 폐기 — 버튼은 RefreshStat 이 숨긴다
             statBtn[i] = b;
         }
 
@@ -412,7 +407,7 @@ public class MenuUI : MonoBehaviour
             petRows[i].gameObject.SetActive(has);
             if (!has) continue;
             var d = list[i];
-            petRowTexts[i].text = (d.active ? "▶ " : "   ") + $"{d.name}   Lv.{d.level}";
+            petRowTexts[i].text = (d.active ? "▶ " : "   ") + d.name;   // 레벨 표기 폐기
             petRowTexts[i].color = i == petSel ? AccentText : TxtMain;
             petRows[i].GetComponent<Image>().color = i == petSel ? Accent : SlotBg;
         }
@@ -426,11 +421,9 @@ public class MenuUI : MonoBehaviour
         // 동행 중이면 실시간 값 반영
         var live = BlueprintPickup.MyPet();
         if (s.active && live != null) PetBox.Sync(live);
-        float need = 25f + 20f * (s.level - 1);
         petDetail.text =
-            $"<b>{s.name}</b>   Lv.{s.level}\n" +
+            $"<b>{s.name}</b>\n" +
             $"종류  {s.species}   ({s.tier})\n\n" +
-            $"경험치   {s.xp:F0} / {need:F0}\n" +
             $"체력     {s.vit * 10f:F0}\n" +
             $"힘       {s.str:F0}\n" +
             $"민첩     {s.agi:F0}\n" +
@@ -483,26 +476,17 @@ public class MenuUI : MonoBehaviour
         if (me != null) sb.AppendLine($"  체력  {Mathf.CeilToInt(me.hp)} / {Mathf.CeilToInt(me.maxHp)}");
         sb.AppendLine($"  힘 {PlayerLevel.Str}  ·  민첩 {PlayerLevel.Agi}  ·  체력 {PlayerLevel.Vit}");
         sb.AppendLine($"  피해 {PlayerLevel.DamageMul:F2}배 · 공속 {PlayerLevel.AtkSpeedMul:F2}배 · 이동 {PlayerLevel.MoveMul:F2}배");
-        sb.AppendLine(PlayerLevel.Points > 0
-            ? $"  <b>남은 포인트 {PlayerLevel.Points}점</b>"
-            : "  (남은 포인트 없음)");
-        sb.AppendLine();   // ↓ 여기 캐릭터 스탯 버튼이 놓인다 (2줄 비움)
-        sb.AppendLine();
+        // ★스탯 직접 분배 폐기 (2026-07-30) — 성장은 노드판(Tab → 노드)이 전부다
+        sb.AppendLine($"  <b>노드 포인트 {PlayerLevel.NodePoints}개</b>   (Tab → 노드에서 찍는다)");
         sb.AppendLine();
 
-        // ── 펫 ──
+        // ── 펫 (레벨·경험치·포인트 폐기 — 종 스탯만 보여준다) ──
         if (pet != null)
         {
-            sb.AppendLine($"<b>펫  {pet.name}   Lv.{pet.level}</b>   경험치 {pet.xp:F0} / {pet.XpNeed:F0}");
+            sb.AppendLine($"<b>펫  {pet.name}</b>");
             sb.AppendLine($"  <b>전투력 {Power.Of(pet)}</b>");
             sb.AppendLine($"  체력  {Mathf.CeilToInt(pet.hp)} / {Mathf.CeilToInt(pet.maxHp)}");
             sb.AppendLine($"  힘 {pet.str:F0}  ·  민첩 {pet.agi:F0}  ·  체력 {pet.vit:F0}");
-            sb.AppendLine($"  찍은 점수 — 힘 {pet.pStr} · 민첩 {pet.pAgi} · 체력 {pet.pVit}  (스탯당 최대 {PetUnit.MaxPerStat})");
-            sb.AppendLine(pet.points > 0
-                ? $"  <b>남은 포인트 {pet.points}점</b>"
-                : "  (남은 포인트 없음)");
-            sb.AppendLine();   // ↓ 펫 스탯 버튼 자리
-            sb.AppendLine();
         }
         else
         {
@@ -524,17 +508,10 @@ public class MenuUI : MonoBehaviour
 
         statText.text = sb.ToString();
 
-        // 버튼 상태 — 포인트가 없으면 잠긴다
+        // ★스탯 분배 버튼 폐기 (2026-07-30) — 캐릭터·펫 다 노드판이 대신한다
         if (statBtn != null)
             for (int i = 0; i < statBtn.Length; i++)
-            {
-                if (statBtn[i] == null) continue;
-                bool isPet = i >= 3;
-                statBtn[i].gameObject.SetActive(!isPet || pet != null);
-                statBtn[i].interactable = isPet
-                    ? (pet != null && pet.points > 0)
-                    : PlayerLevel.Points > 0;
-            }
+                if (statBtn[i] != null) statBtn[i].gameObject.SetActive(false);
     }
 
     // 레시피: [0]돌도끼 [1]돌곡괭이 [2]새총 (맨손) / [3]칼 [4]활 [5]부화기 (제작대 필요)

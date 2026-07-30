@@ -286,7 +286,10 @@ public class SkillSystem : MonoBehaviour
     //   한 마리가 계속 내 것으로 남고, 애착·육성이 그대로 산다.
     [Header("R — 대규모 투척 (펫 소환)")]
     [Tooltip("다시 던질 수 있을 때까지 (초)")] public float throwCooldown = 12f;
-    [Tooltip("던질 수 있는 최대 거리 (m) — 지금 세계 기준")] public float throwRange = 8f;
+    // ★8 → 14 (2026-07-30 사용자 "던지는 스킬이 너무 안 맞아… 사거리가 짧다 해야 하나").
+    //   적 포수 사거리(shootReach 14)보다 짧아서, 던지려면 사선 안으로 걸어 들어가야
+    //   했다. 투척이 원거리만큼은 닿아야 개전 주도권이 성립한다.
+    [Tooltip("던질 수 있는 최대 거리 (m) — 지금 세계 기준")] public float throwRange = 14f;
     // ★인구수 예산 (2026-07-28). 마릿수 = 예산 ÷ 등급(supply).
     //   20 이면 S 20마리 / M 10 / L 7 / XL 5 — '중간 등급이 10마리' 가 기준이다.
     //   12 로 뒀더니 중간 등급이 6마리라 "마릿수 제한이 걸린 것 같다" 는 인상을 줬다.
@@ -787,7 +790,7 @@ public class SkillSystem : MonoBehaviour
             u.collectible = false;
             u.summoned = true;        // 편성 목록에 안 뜨게 — 본체만 고른다
             u.owner = pet;            // 어느 펫의 부대인지 — 다시 던질 때 이것만 걷는다
-            PetBox.ApplyTo(u);        // ★레벨은 종이 공유한다 — 분신도 그 레벨로 나온다
+            // (펫 레벨 폐기 — 분신은 종 고유 스탯 그대로 나온다)
             // 착지 지점에서 퐁 하고 선다 (야생 증식과 같은 연출)
             u.LaunchTo(spot, pos, u.emergeTime, u.emergeArc + extraArc, i * u.emergeStagger);
         }

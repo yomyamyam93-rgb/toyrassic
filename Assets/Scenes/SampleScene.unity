@@ -3530,7 +3530,7 @@ MonoBehaviour:
   rollDist: 2.3
   rollTime: 0.3
   throwCooldown: 12
-  throwRange: 8
+  throwRange: 14
   throwBudget: 28
   throwImpactDamage: 45
   throwImpactRadius: 1.6

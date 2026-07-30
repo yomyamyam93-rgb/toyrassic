@@ -105,7 +105,9 @@ public class PetSpawner : MonoBehaviour
         if (player == null) { var p = GameObject.Find("Player"); if (p != null) player = p.transform; }
         // 시작 시 캡까지 즉시 채움
         for (int i = 0; i < cap * 4 && CountWild() < cap; i++) TrySpawn();
-        GiveStartPets();   // 내 펫 지급 (시험용)
+        // ★시작 펫 지급 폐기 (2026-07-30 사용자 "첫 시작이니까 다 없어야지") —
+        //   알 원정은 맨몸으로 시작해 밴드 1에서 첫 펫을 얻는다. GiveStartPets 는
+        //   실험용으로만 남긴다 (인스펙터 startPets 는 이제 안 쓰인다).
     }
 
     void Update()
@@ -201,29 +203,9 @@ public class PetSpawner : MonoBehaviour
             ? PetUnit.Pattern.Bite : PetUnit.Pattern.Slam;
     }
 
-    [Header("야생 레벨 — 시작점에서 멀수록 강하다")]
-    [Tooltip("이 지점이 1레벨 기준 (비우면 첫 플레이어 위치)")] public Transform levelOrigin;
-    [Tooltip("몇 m 마다 1레벨씩 오르나")] public float metersPerLevel = 45f;
-    [Tooltip("같은 자리에서도 흔들리는 폭 (±)")] public int levelJitter = 3;
-
-    static Vector3 originCache; static bool originSet;
-
-    /// 그 자리의 야생 레벨 — 거리 + 덩치 보정
-    public int WildLevelAt(Vector3 pos, PetScale.Tier tier)
-    {
-        if (!originSet)
-        {
-            var p = levelOrigin != null ? levelOrigin : (player != null ? player : null);
-            originCache = p != null ? p.position : Vector3.zero;
-            originSet = true;
-        }
-        float d = Vector3.Distance(new Vector3(pos.x, 0, pos.z), new Vector3(originCache.x, 0, originCache.z));
-        int byDist = Mathf.FloorToInt(d / Mathf.Max(5f, metersPerLevel));
-        int byTier = tier == PetScale.Tier.S ? 0 : tier == PetScale.Tier.M ? 2
-                   : tier == PetScale.Tier.L ? 5 : 9;      // 큰 놈이 조금 더 높다
-        int lv = 1 + byDist + byTier + Random.Range(-levelJitter, levelJitter + 1);
-        return Mathf.Clamp(lv, 1, PetUnit.MaxLevel);
-    }
+    // ★야생 레벨 폐기 (2026-07-30 알 원정 설계) — WildLevelAt·levelOrigin·metersPerLevel·
+    //   levelJitter 가 있던 자리. 난이도는 "그 지역에 무엇이 몇 마리 나오나"(밴드 테이블)
+    //   로만 낸다. 거리 기반은 tierPerMeters 와 함께 밴드 교체 때 마저 걷는다.
 
     // ★역할(암살자·돌격병·방패·거인·포수)은 **폐기했다** (2026-07-29 사용자 "합치자").
     //
@@ -272,14 +254,15 @@ public class PetSpawner : MonoBehaviour
     [Range(0f, 1f)] public float clusterChance = 0.65f;
     [Tooltip("같은 무리로 볼 거리 (m)")] public float clusterRadius = 140f;
 
+    static Vector3 originCache; static bool originSet;   // 등급 분포의 기준점 (첫 플레이어 위치)
+
     Vector3 Origin
     {
         get
         {
             if (!originSet)
             {
-                var p = levelOrigin != null ? levelOrigin : player;
-                originCache = p != null ? p.position : Vector3.zero;
+                originCache = player != null ? player.position : Vector3.zero;
                 originSet = true;
             }
             return originCache;
@@ -473,7 +456,7 @@ public class PetSpawner : MonoBehaviour
         pu.angleMul = e.angle > 0.01f ? e.angle : 1f;
         pu.hitDmgMul = e.damage > 0.01f ? e.damage : 1f;
         ApplyEntry(pu, e);                                  // 종별 기울임 + 크기별 기본 템포
-        pu.SetWildLevel(WildLevelAt(pos, e.tier));          // 멀수록 강하다
+        // (야생 레벨 폐기 — 강함은 종·등급이 정하고, 난이도는 지역 구성으로만)
         // ★야생은 어그로가 끌리면 퐁퐁퐁 튀어나와 무리가 된다 (2026-07-28).
         //   벌판에는 한 마리만 어슬렁거리고, 싸움이 붙어야 무리가 나타난다.
         //   마릿수는 예산 ÷ 등급 — 작은 놈은 떼로, 브론토 같은 놈은 두어 마리만.
@@ -507,7 +490,7 @@ public class PetSpawner : MonoBehaviour
         pu.team = PetUnit.Team.Player;
         pu.collectible = false;
         pu.packBudget = 0;           // 내 펫은 스스로 안 불어난다 (투척으로 소환한다)
-        pu.SetWildLevel(1);          // 거리 기반 레벨 보정을 취소 — 내 펫은 1레벨부터
+        // (야생 레벨 폐기 — 보정할 것이 없다)
 
         // ★몸 크기를 지금 재 둔다. 비활성이 되면 Start 가 안 돌아 body 가 안 채워지는데,
         //   머리 위 표시와 투척 이펙트가 이 값을 쓴다.

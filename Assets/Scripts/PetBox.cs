@@ -10,8 +10,6 @@ public static class PetBox
     {
         public string species;      // PetSpawner.Entry.species (스폰 복원용)
         public string name;
-        public int level = 1;
-        public float xp;
         public float str, agi, vit, intel;
         public PetScale.Tier tier;
         public bool active;         // 현재 동행 중
@@ -21,72 +19,19 @@ public static class PetBox
 
     public static PetData Active => All.Find(p => p.active);
 
-    /// 종 기록 찾기 — 레벨·경험치의 진짜 주인이다
+    /// 종 기록 찾기 — 이름·스탯 스냅샷의 주인이다 (레벨·경험치는 폐기)
     public static PetData Of(string species)
         => string.IsNullOrEmpty(species) ? null : All.Find(p => p.species == species);
 
-    // ── 레벨은 종이 공유한다 (2026-07-29 사용자) ──────────────────────
-    //
-    // ★"레벨업은 10마리가 날아가면 각각 크는 게 아냐, 종류마다 레벨을 공유하는 거야"
-    //
-    //   던지는 것은 '배치' 지 새 개체를 만드는 게 아니다. 던져 나온 10마리는 한 펫의
-    //   분신이므로 경험치도 한 곳에 쌓여야 한다. 예전엔 분신 하나가 먹었는데, 그 분신은
-    //   돌아와 흡수되며 사라지므로 **먹은 경험치가 통째로 증발했다.**
-    public static void GainXP(string species, float amt)
-    {
-        if (PetUnit.DebugNoXP) return;      // ★측정 중 — 아래 SyncFromSpecies 가 풀피로 되돌린다
-        var d = Of(species);
-        if (d == null || amt <= 0f) return;
+    // ★펫 레벨·경험치 폐기 (2026-07-30 알 원정 설계) — GainXP·GainXPAll·ApplyTo 가
+    //   있던 자리. 펫은 종 고유 스탯으로 전부 동일하고, 성장은 캐릭터 노드판뿐이다.
 
-        d.xp += amt;
-        int before = d.level;
-        while (d.level < PetUnit.MaxLevel && d.xp >= PetUnit.XpNeedAt(d.level))
-        {
-            d.xp -= PetUnit.XpNeedAt(d.level);
-            d.level++;
-        }
-        if (d.level >= PetUnit.MaxLevel) d.xp = 0f;
-
-        // 살아 있는 같은 종 전부에 반영한다 — 본체든 분신이든 같은 레벨이어야 한다
-        foreach (var u in PetUnit.All)
-        {
-            if (u == null || !u.Alive || u.isAvatar) continue;
-            if (u.species != species) continue;
-            u.SyncFromSpecies(d.level, d.xp);
-        }
-        if (d.level > before)
-            SquadHUD.Toast($"{d.name} Lv.{d.level}!");
-    }
-
-    /// ★가진 펫 전부에게 경험치 (2026-07-29 사용자 — "잡은 해당 펫만 먹는 게 아냐,
-    ///   다같이 레벨업이 되는 시스템이어야지").
-    ///
-    ///   부대를 굴리는 게임이라 "때린 애만 크면" 데려온 나머지가 영영 뒤처진다.
-    ///   전투에 안 나간 종도 같이 오른다 — 편성을 바꿔도 처음부터 키울 필요가 없다.
-    public static void GainXPAll(float amt)
-    {
-        if (amt <= 0f || All.Count == 0) return;
-        // 사본으로 돈다 — GainXP 안에서 목록이 바뀔 수 있다
-        var species = new List<string>(All.Count);
-        foreach (var d in All) if (!string.IsNullOrEmpty(d.species)) species.Add(d.species);
-        foreach (var s in species) GainXP(s, amt);
-    }
-
-    /// 새로 소환·복제한 개체를 종의 현재 레벨로 맞춘다 (던질 때마다 부른다)
-    public static void ApplyTo(PetUnit u)
-    {
-        if (u == null) return;
-        var d = Of(u.species);
-        if (d == null) return;
-        u.SyncFromSpecies(d.level, d.xp);
-    }
-
-    /// 살아있는 동행 펫 유닛에서 데이터 동기화 (레벨·경험치·체력스탯)
+    /// 살아있는 동행 펫 유닛에서 데이터 동기화 (이름·스탯)
     public static void Sync(PetUnit u)
     {
         var d = Active;
         if (d == null || u == null) return;
-        d.name = u.name; d.level = u.level; d.xp = u.xp;
+        d.name = u.name;
         d.str = u.str; d.agi = u.agi; d.vit = u.vit; d.intel = u.intel;
     }
 
@@ -96,7 +41,7 @@ public static class PetBox
         foreach (var p in All) p.active = false;
         var d = new PetData
         {
-            species = species, name = u.name, level = u.level, xp = u.xp,
+            species = species, name = u.name,
             str = u.str, agi = u.agi, vit = u.vit, intel = u.intel,
             tier = tier, active = true,
         };
@@ -162,7 +107,6 @@ public static class PetBox
         if (go == null) return null;
         var u = go.GetComponent<PetUnit>();
         u.name = d.name;
-        u.level = d.level; u.xp = d.xp;
         u.str = d.str; u.agi = d.agi; u.vit = d.vit; u.intel = d.intel;
         u.maxHp = u.hp = u.vit * 10f;
         return u;
