@@ -204,6 +204,7 @@ public class StressTest : MonoBehaviour
         if (k.f2Key.wasPressedThisFrame) ToggleOutline();
         if (k.f3Key.wasPressedThisFrame) FX.DebugNoPops = !FX.DebugNoPops;
         if (k.f4Key.wasPressedThisFrame) ClearPops();
+        if (k.homeKey.wasPressedThisFrame) FX.DebugNoShots = !FX.DebugNoShots;
         if (k.f5Key.wasPressedThisFrame) Versus(왼쪽C, 오른쪽C);
         if (k.f6Key.wasPressedThisFrame) Versus(왼쪽B, 오른쪽B);
         if (k.f7Key.wasPressedThisFrame) Versus(왼쪽, 오른쪽);
@@ -222,6 +223,7 @@ public class StressTest : MonoBehaviour
         if (Input.GetKeyDown(KeyCode.F2)) ToggleOutline();
         if (Input.GetKeyDown(KeyCode.F3)) FX.DebugNoPops = !FX.DebugNoPops;
         if (Input.GetKeyDown(KeyCode.F4)) ClearPops();
+        if (Input.GetKeyDown(KeyCode.Home)) FX.DebugNoShots = !FX.DebugNoShots;
         if (Input.GetKeyDown(KeyCode.F5)) Versus(왼쪽C, 오른쪽C);
         if (Input.GetKeyDown(KeyCode.F6)) Versus(왼쪽B, 오른쪽B);
         if (Input.GetKeyDown(KeyCode.F7)) Versus(왼쪽, 오른쪽);
@@ -753,7 +755,8 @@ public class StressTest : MonoBehaviour
                   (speeds[speedIdx] > 20f ? "  ⚠ 방향만 보는 값 (확정은 ×10 이하)\n" : "\n") +
                   $"F10 전부 지우기 · F11 측정 초기화\n" +
                   $"F1 체력바 {(PetUnit.DebugNoBars ? "끔 ●" : "켬")}  ·  F2 테두리 {(outlineOff ? "끔 ●" : "켬")}\n" +
-                  $"F3 피해숫자 {(FX.DebugNoPops ? "끔 ●" : "켬")}  ·  F4 뜬 글자 즉시 지우기";
+                  $"F3 피해숫자 {(FX.DebugNoPops ? "끔 ●" : "켬")}  ·  F4 뜬 글자 즉시 지우기\n" +
+                  $"Home 발사이펙트 {(FX.DebugNoShots ? "끔 ●" : "켬")} — 렉 범인 찾기용";
 
         // 색으로 바로 읽히게 — 초록 여유 / 노랑 아슬 / 빨강 무너짐
         var old = GUI.color;

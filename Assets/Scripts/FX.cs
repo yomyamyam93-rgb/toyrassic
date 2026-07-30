@@ -7,8 +7,102 @@ public static class FX
     static Material pmat;
     static Material PMat()
     {
-        if (pmat == null) pmat = new Material(Shader.Find("Sprites/Default"));   // 알파·정점색 지원, URP 호환
+        if (pmat == null)
+        {
+            pmat = new Material(Shader.Find("Sprites/Default"));   // 알파·정점색 지원, URP 호환
+            // ★텍스처가 없으면 파티클이 **흰 사각형**으로 그려진다 (2026-07-30 사용자
+            //   "피격됐을 때 터지는 게 그냥 사각형 박스로 되어 있는데 그게 맞나?" — 아니다).
+            //   업계 표준은 가운데가 밝고 가장자리로 부드럽게 0 이 되는 방사형 원이다.
+            pmat.mainTexture = DotTex();
+        }
         return pmat;
+    }
+
+    // ★불 계열 파티클 전용 — 더하기 혼합 + **HDR 을 재질에 싣는다** (2026-07-30 사용자
+    //   "글로우 효과는 왜 안 보여?"). 정점색(파티클 startColor·라인 색)은 내부적으로
+    //   8비트라 **1을 넘는 값이 조용히 잘린다** — HDR 을 정점색으로 넣은 게 여태
+    //   글로우가 죽어 있던 원인이다. 재질 _BaseColor 가 정점색에 곱해지므로
+    //   여기에 2.5 를 실으면 최종색이 1을 넘어 블룸이 문다.
+    static Material hotmat;
+    static Material HotMat()
+    {
+        if (hotmat != null) return hotmat;
+        var sh = Shader.Find("Universal Render Pipeline/Particles/Unlit");
+        if (sh == null) { hotmat = new Material(Shader.Find("Sprites/Default")); hotmat.color = new Color(2.5f, 2.5f, 2.5f, 1f); hotmat.mainTexture = DotTex(); return hotmat; }
+        hotmat = new Material(sh);
+        hotmat.SetFloat("_Surface", 1f);
+        hotmat.SetFloat("_SrcBlend", (float)UnityEngine.Rendering.BlendMode.SrcAlpha);
+        hotmat.SetFloat("_DstBlend", (float)UnityEngine.Rendering.BlendMode.One);   // 더하기 = 빛
+        hotmat.SetFloat("_ZWrite", 0f);
+        hotmat.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
+        hotmat.renderQueue = (int)UnityEngine.Rendering.RenderQueue.Transparent;
+        hotmat.mainTexture = DotTex();
+        hotmat.SetColor("_BaseColor", new Color(2.5f, 2.5f, 2.5f, 1f));   // ★HDR 은 여기에
+        return hotmat;
+    }
+
+    // ★애니메풍 뭉게연기 재질 — 그라데이션이 아니라 **실루엣**이다 (2026-07-30 사용자
+    //   "그라데이션 말고, 실루엣이 있는 애니메 스타일"). 속이 꽉 찬 원 + 좁은 경계선.
+    //   반투명 그라데이션 연기가 노란 사막 위에서 "아직도 회색"으로 보이던 원인 —
+    //   바닥이 비쳐 섞였기 때문이다. 속이 차면 흰색이 흰색으로 보인다.
+    static Material puffmat;
+    static Material PuffMat()
+    {
+        if (puffmat != null) return puffmat;
+        puffmat = new Material(Shader.Find("Sprites/Default"));
+        puffmat.mainTexture = PuffTex();
+        return puffmat;
+    }
+
+    static Texture2D puffTex;
+    static Texture2D PuffTex()
+    {
+        if (puffTex != null) return puffTex;
+        const int S = 64; float h = (S - 1) * 0.5f;
+        puffTex = new Texture2D(S, S, TextureFormat.RGBA32, true)
+        { wrapMode = TextureWrapMode.Clamp, filterMode = FilterMode.Bilinear };
+        var px = new Color32[S * S];
+        for (int y = 0; y < S; y++)
+        for (int x = 0; x < S; x++)
+        {
+            float dx = x - h, dy = y - h;
+            float ang = Mathf.Atan2(dy, dx);
+            // 가장자리를 혹 3~5개로 울퉁불퉁하게 — 손그림 뭉게구름의 그 실루엣
+            float wob = 0.78f + 0.10f * Mathf.Sin(ang * 3f) + 0.06f * Mathf.Sin(ang * 5f + 1.7f);
+            float d = Mathf.Sqrt(dx * dx + dy * dy) / h;
+            // 속은 꽉 차고(1), 경계는 좁게 뚝 떨어진다 — 그라데이션이 아니라 실루엣.
+            // ★Mathf.SmoothStep 은 GLSL smoothstep(경계 함수)이 아니라 **보간 함수**다
+            //   (인자 의미가 다르다). 그걸 몰라서 텍스처 전체가 알파 25% 민짜 사각형으로
+            //   구워졌었다 (2026-07-30 사용자 "사각형으로 엄청 크게 퍼지는데… 회색").
+            float t = Mathf.Clamp01((d - (wob - 0.10f)) / 0.10f);
+            t = t * t * (3f - 2f * t);
+            float a = 1f - t;
+            px[y * S + x] = new Color32(255, 255, 255, (byte)(a * 255f));
+        }
+        puffTex.SetPixels32(px); puffTex.Apply(true);
+        return puffTex;
+    }
+
+    // ── 방사형 소프트 원 텍스처 (파티클용, 1회 생성 캐시) ──
+    static Texture2D dotTex;
+    internal static Texture2D DotTex()
+    {
+        if (dotTex != null) return dotTex;
+        const int S = 64; float h = (S - 1) * 0.5f;
+        dotTex = new Texture2D(S, S, TextureFormat.RGBA32, true)
+        { wrapMode = TextureWrapMode.Clamp, filterMode = FilterMode.Bilinear };
+        var px = new Color32[S * S];
+        for (int y = 0; y < S; y++)
+        for (int x = 0; x < S; x++)
+        {
+            float d = Mathf.Sqrt((x - h) * (x - h) + (y - h) * (y - h)) / h;
+            float a = Mathf.Clamp01(1f - d);
+            a = a * a * (3f - 2f * a);      // 스무스스텝 — 가장자리가 부드럽게 0
+            a *= 0.35f + 0.65f * a;         // 심지는 진하게, 겉은 옅게 — '빛망울' 모양
+            px[y * S + x] = new Color32(255, 255, 255, (byte)(a * 255f));
+        }
+        dotTex.SetPixels32(px); dotTex.Apply(true);
+        return dotTex;
     }
 
     // ── 둥근 모서리 바 텍스처 (체력바용, 1회 생성 캐시) ──
@@ -382,6 +476,11 @@ public static class FX
     ///   "느린 게 피해 숫자 때문인가" 를 껐다 켜서 확인하는 용도다. 게임 중엔 늘 false.
     public static bool DebugNoPops;
 
+    /// ★측정용 스위치 (StressTest 가 Home 으로 켠다). 켜면 발사·타격 이펙트(버스트·
+    ///   빔·고리)를 아예 안 만든다 — "렉이 투사체 이펙트 때문인가" 를 껐다 켜서
+    ///   확인하는 용도다 (범인 찾기 규칙: 짐작 말고 껐다 켜서 재라). 게임 중엔 늘 false.
+    public static bool DebugNoShots;
+
     // ── 뜨는 글자 풀 (2026-07-29 실측 후) ────────────────────────────
     //
     // ★왜: 600마리 난전에서 F3 로 피해 숫자를 끄자 프레임이 확연히 올랐다.
@@ -506,12 +605,19 @@ public static class FX
         else Object.Destroy(ps.gameObject);
     }
 
-    public static void Burst(Vector3 pos, Color c, int count, float size, float speed, float life = 0.45f)
+    /// hot = 불 계열: 더하기 발광 재질(HotMat)로 그린다 — 어두운 배경 없이도 빛나 보인다
+    public static void Burst(Vector3 pos, Color c, int count, float size, float speed, float life = 0.45f, bool hot = false)
     {
+        if (DebugNoShots) return;
         var ps = RentBurst();
         var go = ps.gameObject;
         go.transform.position = pos;
+        go.transform.rotation = Quaternion.identity;   // ★풀 재사용 — SmokeRing 이 돌려놨을 수 있다
         ps.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);   // 설정 전 정지 (재생 중 설정 에러 방지)
+        var lv = ps.limitVelocityOverLifetime; lv.enabled = false;        // ★SmokeRing 의 감속도 끈다
+        var rr0 = ps.GetComponent<ParticleSystemRenderer>();
+        rr0.renderMode = ParticleSystemRenderMode.Billboard;              // ★MuzzleFlash 의 스트레치도 되돌린다
+        rr0.sharedMaterial = hot ? HotMat() : PMat();                     // ★풀 재사용 — 재질도 매번 고른다
         var main = ps.main;
         main.duration = 0.2f; main.loop = false;
         main.startLifetime = life;
@@ -525,6 +631,7 @@ public static class FX
         var shape = ps.shape;
         shape.shapeType = ParticleSystemShapeType.Sphere;
         shape.radius = size * 0.4f;
+        shape.radiusThickness = 1f;   // ★풀 재사용 — SmokeRing 이 0.2 로 좁혀놨을 수 있다
         var col = ps.colorOverLifetime; col.enabled = true;
         var grad = new Gradient();
         grad.SetKeys(new[] { new GradientColorKey(c, 0f), new GradientColorKey(c, 1f) },
@@ -532,6 +639,164 @@ public static class FX
         col.color = grad;
         ps.Play();
         go.GetComponent<FXBurstReturn>().Arm(life + 0.4f);   // 파괴 대신 풀로 돌려보낸다
+    }
+
+    /// ★총구 연기 고리 — 발사 방향에 수직인 원 가장자리에서 알갱이가 자글자글 태어나
+    ///   밖으로 퍼지다 감속하며 멎는다 (2026-07-30 사용자 — 케몽 에너지포에 "고리원 연기…
+    ///   자글자글 눈에 확 띄게, 퍼지면서 불규칙하게 사라지게끔").
+    ///   **불규칙 소멸의 핵심 = 알갱이마다 수명이 다르다** (0.45~1.35배) — 한꺼번에
+    ///   꺼지면 스위치를 내린 것처럼 보인다. 버스트 풀을 같이 쓴다 (생성 비용 0).
+    public static void SmokeRing(Vector3 pos, Vector3 axis, Color c, float startR, float spread, float life = 0.55f)
+    {
+        if (DebugNoShots) return;
+        if (axis.sqrMagnitude < 1e-6f) axis = Vector3.up;
+        var ps = RentBurst();
+        var go = ps.gameObject;
+        go.transform.position = pos;
+        go.transform.rotation = Quaternion.LookRotation(axis);   // 원의 법선 = 발사 방향
+        ps.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+        var rrs = ps.GetComponent<ParticleSystemRenderer>();
+        rrs.renderMode = ParticleSystemRenderMode.Billboard;     // ★풀 재사용 — 스트레치 되돌림
+        rrs.sharedMaterial = PuffMat();                          // ★애니메풍 실루엣 뭉게연기
+        var main = ps.main;
+        main.duration = 0.2f; main.loop = false;
+        main.startLifetime = new ParticleSystem.MinMaxCurve(life * 0.45f, life * 1.35f);
+        main.startSpeed = new ParticleSystem.MinMaxCurve(spread / life * 0.55f, spread / life * 1.25f);
+        // ★알갱이가 고리 반경보다 크면 서로 겹쳐 덩어리가 된다 (2026-07-30 사용자
+        //   "고리가 아니라 뭉개져서") — 알갱이는 퍼짐의 1/10 크기로, 고리 모양은
+        //   알갱이 수(32)와 원형 배치가 낸다.
+        main.startSize = new ParticleSystem.MinMaxCurve(spread * 0.08f, spread * 0.16f);
+        main.startColor = c;
+        main.startRotation = new ParticleSystem.MinMaxCurve(0f, Mathf.PI * 2f);   // 혹 무늬가 판마다 다르게
+        main.gravityModifier = 0f;
+        var em = ps.emission;
+        em.rateOverTime = 0f;
+        em.SetBursts(new[] { new ParticleSystem.Burst(0f, (short)32) });   // 잘게 많이 = 자글자글
+        var shape = ps.shape;
+        shape.shapeType = ParticleSystemShapeType.Circle;
+        shape.radius = Mathf.Max(0.01f, startR);
+        shape.radiusThickness = 0.2f;                  // 가장자리 근처에서만 — 그래야 '고리'
+        var lv = ps.limitVelocityOverLifetime;         // 퍼지다 점점 멎는다 — 연기의 그 감속
+        lv.enabled = true; lv.dampen = 0.35f;
+        lv.limit = new ParticleSystem.MinMaxCurve(0.1f);
+        var col = ps.colorOverLifetime; col.enabled = true;
+        var grad = new Gradient();
+        // ★애니메 연기 = 불투명하게 버티다 끝에서 훅 꺼진다 — 처음부터 옅어지면
+        //   그라데이션 연기로 돌아간다 (실루엣이 안 남는다)
+        grad.SetKeys(new[] { new GradientColorKey(c, 0f), new GradientColorKey(c, 1f) },
+                     new[] { new GradientAlphaKey(1f, 0f), new GradientAlphaKey(0.9f, 0.55f),
+                             new GradientAlphaKey(0f, 1f) });
+        col.color = grad;
+        ps.Play();
+        go.GetComponent<FXBurstReturn>().Arm(life * 1.35f + 0.4f);
+    }
+
+    /// ★총구 화염 — 진짜 총의 그 그림 (2026-07-30 사용자 레퍼런스 3장: 백열 심 +
+    ///   앞으로 뻗는 불혀 + 십자 스파이크 + 뒤에 남는 연기).
+    ///   스프라이트 시트 없이 부품 셋으로 조립한다:
+    ///     ① 불혀 — **속도 방향으로 길쭉하게 늘어난**(스트레치드) 화염 조각이 앞으로 뿜어짐.
+    ///        흰색→노랑→주황으로 식는다. 이 '길쭉함'이 레퍼런스 느낌의 핵심이다.
+    ///     ② 십자 스파이크 — 총구에서 옆으로 뻗는 짧은 빛가닥 4개 (그 별 모양)
+    ///     ③ 연기 — 화염이 꺼진 뒤에도 잠깐 남아 앞으로 밀려간다
+    ///   전부 풀 재사용이라 생성 비용 0. smoke=false 면 ③ 생략 (연사 2·3발째 절약용).
+    public static void MuzzleFlash(Vector3 pos, Vector3 dir, float scale, bool smoke = true)
+    {
+        if (DebugNoShots) return;
+        if (dir.sqrMagnitude < 1e-6f) dir = Vector3.forward;
+        dir.Normalize();
+
+        // ① 불혀
+        // ★스트레치드 파티클은 **위치를 중심으로 앞뒤 양쪽**으로 늘어난다 — 총구에서
+        //   태어나면 절반이 뒤로(몸 쪽으로) 뻗는다 (2026-07-30 사용자 "꼭꼬 뒤쪽으로도
+        //   이상하게 퍼지는데"). 밀어낸 거리를 반 길이로 크게 잡았더니 이번엔 화염이
+        //   총구에서 **떨어져 허공에 떴다** (같은 날 사용자 "발사 객체 시작점에 딱
+        //   맞아야 해") — 늘림 자체를 줄이고(2.4→1.6) 밀어내기는 살짝만(0.25).
+        var ps = RentBurst();
+        var go = ps.gameObject;
+        go.transform.position = pos + dir * (scale * 0.25f);
+        go.transform.rotation = Quaternion.LookRotation(dir);   // 원뿔 축 = 발사 방향
+        ps.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+        var rr = ps.GetComponent<ParticleSystemRenderer>();
+        rr.renderMode = ParticleSystemRenderMode.Stretch;       // ★속도 방향으로 길쭉 — 불혀
+        rr.lengthScale = 1.6f;
+        rr.sharedMaterial = HotMat();                           // ★불 = 더하기 발광 (HDR 은 재질에)
+        var main = ps.main;
+        main.duration = 0.2f; main.loop = false;
+        main.startLifetime = new ParticleSystem.MinMaxCurve(0.07f, 0.16f);
+        main.startSpeed = new ParticleSystem.MinMaxCurve(scale * 5f, scale * 10f);
+        main.startSize = new ParticleSystem.MinMaxCurve(scale * 0.16f, scale * 0.3f);
+        main.startColor = new Color(2.3f, 2.1f, 1.4f, 1f);      // 백열 (HDR — 블룸)
+        main.gravityModifier = 0f;
+        var em = ps.emission; em.rateOverTime = 0f;
+        em.SetBursts(new[] { new ParticleSystem.Burst(0f, (short)14) });
+        var shape = ps.shape;
+        shape.shapeType = ParticleSystemShapeType.Cone;
+        shape.angle = 9f; shape.radius = scale * 0.06f; shape.radiusThickness = 1f;
+        var lv = ps.limitVelocityOverLifetime;                  // 뿜어지다 훅 죽는다 — 화염의 그 감속
+        lv.enabled = true; lv.dampen = 0.5f;
+        lv.limit = new ParticleSystem.MinMaxCurve(scale * 1.5f);
+        var col = ps.colorOverLifetime; col.enabled = true;
+        var g1 = new Gradient();
+        g1.SetKeys(new[] { new GradientColorKey(new Color(1f, 0.97f, 0.85f), 0f),
+                           new GradientColorKey(new Color(1f, 0.72f, 0.22f), 0.45f),
+                           new GradientColorKey(new Color(1f, 0.45f, 0.08f), 1f) },
+                   new[] { new GradientAlphaKey(1f, 0f), new GradientAlphaKey(0f, 1f) });
+        col.color = g1;
+        ps.Play();
+        go.GetComponent<FXBurstReturn>().Arm(0.16f + 0.4f);
+
+        // ② 십자 스파이크 — 발사 축에 수직인 면에서 4방향, 판마다 각도가 다르게.
+        //   ★길이는 짧게 (0.15~0.25×scale) — 0.45~0.75 로 줬더니 scale 을 키우자
+        //   몸통을 관통해 **엉덩이 뒤로 삐져나왔다** (2026-07-30 사용자 "토리한테서
+        //   엉덩이 뒤쪽에 이상한 이펙트"). 스파이크는 별의 가시지 광선이 아니다.
+        var perp = Vector3.Cross(dir, Vector3.up);
+        if (perp.sqrMagnitude < 1e-4f) perp = Vector3.Cross(dir, Vector3.right);
+        perp.Normalize();
+        float baseAng = Random.Range(0f, 90f);
+        for (int i = 0; i < 4; i++)
+        {
+            var sd = Quaternion.AngleAxis(baseAng + i * 90f, dir) * perp;
+            FXTracer.Spawn(pos, pos + sd * (scale * Random.Range(0.15f, 0.25f)),
+                           new Color(1f, 0.97f, 0.75f, 1f), new Color(1f, 0.6f, 0.1f, 1f),
+                           scale * 0.14f, 0.09f);
+        }
+
+        // ③ 연기 — 애니메풍 실루엣 뭉게연기 (케찰 연기와 같은 문법). 총구보다 앞에서
+        //   태어나 몸에 안 걸린다 (사용자 "모델링에서 쬐금 떼어서").
+        if (!smoke) return;
+        var ps2 = RentBurst();
+        var go2 = ps2.gameObject;
+        go2.transform.position = pos;   // ★연기는 발사 지점에서 (2026-07-30 사용자)
+        go2.transform.rotation = Quaternion.LookRotation(dir);
+        ps2.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+        var rr2 = ps2.GetComponent<ParticleSystemRenderer>();
+        rr2.renderMode = ParticleSystemRenderMode.Billboard;
+        rr2.sharedMaterial = PuffMat();
+        var m2 = ps2.main;
+        m2.duration = 0.2f; m2.loop = false;
+        m2.startLifetime = new ParticleSystem.MinMaxCurve(0.35f, 0.8f);   // 불규칙 소멸
+        m2.startSpeed = new ParticleSystem.MinMaxCurve(scale * 1.2f, scale * 2.6f);
+        m2.startSize = new ParticleSystem.MinMaxCurve(scale * 0.14f, scale * 0.26f);  // 화염보다 확실히 작게 (사용자 "좀 더 적게")
+        m2.startColor = new Color(0.97f, 0.96f, 0.94f, 0.9f);   // ★흰색 — 회색이면 사막에 묻힌다
+        m2.startRotation = new ParticleSystem.MinMaxCurve(0f, Mathf.PI * 2f);
+        m2.gravityModifier = -0.02f;                            // 살짝 떠오른다
+        var em2 = ps2.emission; em2.rateOverTime = 0f;
+        em2.SetBursts(new[] { new ParticleSystem.Burst(0f, (short)5) });   // 7→5 (사용자 "좀 더 적게")
+        var sh2 = ps2.shape;
+        sh2.shapeType = ParticleSystemShapeType.Cone;
+        sh2.angle = 22f; sh2.radius = scale * 0.08f; sh2.radiusThickness = 1f;
+        var lv2 = ps2.limitVelocityOverLifetime;
+        lv2.enabled = true; lv2.dampen = 0.45f;
+        lv2.limit = new ParticleSystem.MinMaxCurve(scale * 0.4f);
+        var col2 = ps2.colorOverLifetime; col2.enabled = true;
+        var g2 = new Gradient();
+        g2.SetKeys(new[] { new GradientColorKey(new Color(0.97f, 0.96f, 0.94f), 0f),
+                           new GradientColorKey(new Color(0.93f, 0.92f, 0.9f), 1f) },
+                   new[] { new GradientAlphaKey(1f, 0f), new GradientAlphaKey(0.85f, 0.55f),
+                           new GradientAlphaKey(0f, 1f) });   // 실루엣 유지 → 끝에 훅
+        col2.color = g2;
+        ps2.Play();
+        go2.GetComponent<FXBurstReturn>().Arm(0.8f + 0.4f);
     }
 
     /// 한 방짜리 번개 볼트 — 두 점 사이 지그재그 (⚡번개 평타용). 잠깐 번쩍하고 사라짐
@@ -906,6 +1171,7 @@ public class FXRing : MonoBehaviour
     /// pos 에서 dir 을 향해 수직으로 선 고리가 퍼진다.
     public static void Spawn(Vector3 pos, Vector3 dir, Color color, float startR, float endR, float life)
     {
+        if (FX.DebugNoShots) return;
         FXRing r = null;
         while (pool.Count > 0) { var g = pool.Pop(); if (g != null) { r = g; break; } }
         if (r == null)
@@ -998,7 +1264,9 @@ public class FXRing : MonoBehaviour
         {
             enabled = false;
             gameObject.SetActive(false);
-            if (pool.Count < 32) pool.Push(this); else Destroy(gameObject);
+            // ★32 → 128 (2026-07-30 "투사체 렉"). 연사 예광탄·샷건 빛가닥이 빔을 발마다
+            //   쓰면서 32 로는 늘 넘쳤다 — 넘친 만큼 매 발 생성/파괴가 됐다.
+            if (pool.Count < 128) pool.Push(this); else Destroy(gameObject);
             return;
         }
         Apply(k);
@@ -1019,12 +1287,27 @@ public class FXBeam : MonoBehaviour
     static Material mat;
     static Mesh cyl;
 
-    MeshRenderer mr, coreMr; MaterialPropertyBlock mpb;
+    MeshRenderer mr, coreMr, haloMr; MaterialPropertyBlock mpb;
     float t, life, width, len; Color tint;
 
+    // 동시에 살아 있는 빔 수 — Spawn 의 상한 판정용 (OnEnable/OnDisable 이 관리하므로
+    // 파괴·씬 전환에도 어긋나지 않는다)
+    static int live;
+    void OnEnable() { live++; }
+    void OnDisable() { live = Mathf.Max(0, live - 1); }
+
     /// a(총구)에서 b(표적)까지 빔을 긋는다. width = 제일 두꺼울 때의 굵기(m).
-    public static void Spawn(Vector3 a, Vector3 b, Color color, float width, float life = 0.28f)
+    /// sparks = 줄기 중간에서 잔불이 튄다 (저격 전용 — 샷건의 짧은 빛가닥은 끈다).
+    public static void Spawn(Vector3 a, Vector3 b, Color color, float width, float life = 0.28f,
+                             bool sparks = false)
     {
+        if (FX.DebugNoShots) return;
+        // ★동시 상한 (2026-07-30 사용자 "투사체들이 렉이 너무 심한데") — 연사 예광탄이
+        //   발마다 빔을 그리므로 리그전 고배속에선 빔이 수백 개까지 쌓인다. 풀(128)이
+        //   넘치면 생성/파괴로 회귀해 — 풀을 만든 이유였던 바로 그 렉이 돌아온다.
+        //   96개면 화면은 이미 빛으로 가득이라 그 위로는 생략해도 티가 안 난다
+        //   (연사 총구 섬광을 절반 확률로 깎은 것과 같은 처방).
+        if (live >= 96) return;
         var d = b - a;
         if (d.sqrMagnitude < 1e-6f) return;
         FXBeam r = null;
@@ -1049,6 +1332,17 @@ public class FXBeam : MonoBehaviour
             r.coreMr.sharedMaterial = BeamMat();
             r.coreMr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
             r.coreMr.receiveShadows = false;
+            // ★halo — 겉빛보다 훨씬 넓고 옅은 세 번째 겹 (2026-07-30 사용자 레퍼런스:
+            //   가는 백열 심 둘레로 넓은 색 글로우가 감싼다). 겹이 셋이라야 '빛기둥'이지,
+            //   둘이면 '색칠한 막대'다.
+            var halo = new GameObject("halo");
+            halo.transform.SetParent(go.transform, false);
+            halo.transform.localScale = new Vector3(2.6f, 1f, 2.6f);
+            halo.AddComponent<MeshFilter>().sharedMesh = Cyl();
+            r.haloMr = halo.AddComponent<MeshRenderer>();
+            r.haloMr.sharedMaterial = BeamMat();
+            r.haloMr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            r.haloMr.receiveShadows = false;
         }
         r.gameObject.SetActive(true);
         r.transform.position = (a + b) * 0.5f;
@@ -1059,10 +1353,22 @@ public class FXBeam : MonoBehaviour
         r.width = width; r.len = d.magnitude; r.t = 0f;
         r.Apply(0f);
         r.enabled = true;
-        // ★빔 줄기 중간의 불티는 걷어냈다 (2026-07-30 사용자 — "피격 이펙트가 엄한 데,
-        //   저 멀리 이상한 데서 떠"). 빔은 가는데 불티만 도드라져서 **허공에서 피격이
-        //   터지는 것처럼** 보였다. 이펙트 규칙 위반이기도 하다 — 총구도 타격 지점도
-        //   아닌 허공 장식. 시작(총구 섬광)과 끝(착탄 스파크)이 이미 다 말해 준다.
+        // ★총구 플레어 — 시작점의 커다란 빛망울 (2026-07-30 사용자 레퍼런스에서
+        //   제일 존재감 있는 부분). 큰 소프트 원 몇 장을 겹쳐 뭉친 빛으로.
+        //   hot=발광 재질 — HDR 은 재질이 싣는다 (정점색 1.8배는 잘려서 무의미했다)
+        FX.Burst(a, Color.Lerp(color, Color.white, 0.7f),
+                 3, width * 3.5f, width * 1.2f, 0.22f, hot: true);
+        // ★빔 줄기 중간의 불티 — 한 번 걷어냈다가 복귀 (2026-07-30 사용자).
+        //   "피격 이펙트가 엄한 데 뜬다" 는 보고로 걷어냈는데, 실제로 본 것은 불티가
+        //   아니라 **죽음 디졸브의 경계 입자**였다 (오인 확인 후 사용자가 복귀 지시).
+        if (sparks)
+        {
+            int n = Mathf.Clamp(Mathf.RoundToInt(r.len / 4f), 2, 5);
+            for (int i = 0; i < n; i++)
+                FX.Burst(Vector3.Lerp(a, b, Random.Range(0.15f, 0.9f)),
+                         Color.Lerp(color, Color.white, 0.6f), 3, width * 0.5f, width * 4f, 0.22f,
+                         hot: true);
+        }
     }
 
     static Mesh Cyl()
@@ -1101,11 +1407,20 @@ public class FXBeam : MonoBehaviour
         mpb.SetColor("_BaseColor", c);
         mr.SetPropertyBlock(mpb);
         if (coreMr != null)
-        {   // 흰 심지는 겉빛보다 오래 버티다 마지막에 훅 꺼진다 — 럭스궁의 그 잔심
-            var cw = Color.Lerp(tint, Color.white, 0.85f) * (1f - k * k * k);
+        {   // 흰 심지는 겉빛보다 오래 버티다 마지막에 훅 꺼진다 — 럭스궁의 그 잔심.
+            // ★HDR ×2.2 — 심이 1을 넘어야 블룸이 물어서 빔 둘레가 부드럽게 번진다
+            //   (레퍼런스의 그 뽀얀 번짐은 대부분 블룸이 만든다)
+            var cw = Color.Lerp(tint, Color.white, 0.85f) * 2.2f * (1f - k * k * k);
             cw.a = 1f - k * k;
             mpb.SetColor("_BaseColor", cw);
             coreMr.SetPropertyBlock(mpb);
+        }
+        if (haloMr != null)
+        {   // 넓고 옅은 halo — 색은 겉빛 그대로, 밝기만 낮게
+            var ch = tint * 0.5f * (1f - k * k);
+            ch.a = (1f - k) * 0.35f;
+            mpb.SetColor("_BaseColor", ch);
+            haloMr.SetPropertyBlock(mpb);
         }
     }
 
@@ -1117,7 +1432,115 @@ public class FXBeam : MonoBehaviour
         {
             enabled = false;
             gameObject.SetActive(false);
-            if (pool.Count < 32) pool.Push(this); else Destroy(gameObject);
+            // ★32 → 128 (2026-07-30 "투사체 렉"). 연사 예광탄·샷건 빛가닥이 빔을 발마다
+            //   쓰면서 32 로는 늘 넘쳤다 — 넘친 만큼 매 발 생성/파괴가 됐다.
+            if (pool.Count < 128) pool.Push(this); else Destroy(gameObject);
+            return;
+        }
+        Apply(k);
+    }
+}
+
+/// ★예광탄 선 — 총구~착탄을 잇는 한 줄이 쫙 났다가 바로 꺼진다 (총 계열: 연사·샷건).
+///
+/// FXBeam(원기둥)과의 차이 = **양끝 색이 다르다** (2026-07-30 사용자 — "노란색
+/// 그라데이션으로 첫 발사 부분 그리고 피격되는 부분까지의 색을 좀 다르게 하고
+/// 글로우하게"). LineRenderer 는 정점색을 지원해서 그라데이션이 공짜다 —
+/// 총구 쪽은 백열, 착탄 쪽으로 갈수록 식은 색. 재질은 더하기(빛) 하나를 공유한다.
+public class FXTracer : MonoBehaviour
+{
+    static readonly System.Collections.Generic.Stack<FXTracer> pool
+        = new System.Collections.Generic.Stack<FXTracer>();
+    static Material mat;
+
+    LineRenderer lr, core; float t, life, width; Color near, far;
+
+    public static void Spawn(Vector3 a, Vector3 b, Color near, Color far, float width, float life = 0.12f)
+    {
+        if (FX.DebugNoShots) return;
+        FXTracer r = null;
+        while (pool.Count > 0) { var g = pool.Pop(); if (g != null) { r = g; break; } }
+        if (r == null)
+        {
+            var go = new GameObject("fx_tracer");
+            if (SceneBuckets.Fx != null) go.transform.SetParent(SceneBuckets.Fx);
+            r = go.AddComponent<FXTracer>();
+            r.lr = MakeLine(go);
+            // ★글로우의 정체 = 2겹이다 (2026-07-30 사용자 "글로우 이펙트가 확" — 1겹
+            //   선은 아무리 밝혀도 '그냥 선'이다). 넓고 옅은 겉빛 위에 가는 백열 심.
+            //   FXBeam 의 심지와 같은 원리.
+            var cg = new GameObject("core");
+            cg.transform.SetParent(go.transform, false);
+            r.core = MakeLine(cg);
+        }
+        r.gameObject.SetActive(true);
+        r.lr.SetPosition(0, a); r.lr.SetPosition(1, b);
+        r.core.SetPosition(0, a); r.core.SetPosition(1, b);
+        r.near = near; r.far = far; r.width = width;
+        r.life = Mathf.Max(0.04f, life); r.t = 0f;
+        r.Apply(0f);
+        r.enabled = true;
+    }
+
+    static LineRenderer MakeLine(GameObject go)
+    {
+        var l = go.AddComponent<LineRenderer>();
+        l.material = Mat();
+        l.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+        l.receiveShadows = false;
+        l.useWorldSpace = true;
+        l.positionCount = 2;
+        l.numCapVertices = 4;
+        return l;
+    }
+
+    static Material Mat()
+    {   // PetProjectile.TrailMat 과 같은 레시피 — 정점색을 읽는 셰이더 + 더하기 혼합.
+        if (mat != null) return mat;
+        var sh = Shader.Find("Universal Render Pipeline/Particles/Unlit");
+        if (sh == null) sh = Shader.Find("Sprites/Default");
+        mat = new Material(sh);
+        mat.SetFloat("_Surface", 1f);
+        mat.SetFloat("_SrcBlend", (float)UnityEngine.Rendering.BlendMode.SrcAlpha);
+        mat.SetFloat("_DstBlend", (float)UnityEngine.Rendering.BlendMode.One);   // 더하기 = 빛
+        mat.SetFloat("_ZWrite", 0f);
+        mat.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
+        mat.renderQueue = (int)UnityEngine.Rendering.RenderQueue.Transparent;
+        // ★텍스처가 없으면 모서리가 딱딱한 리본 = '그냥 선' (2026-07-30 사용자).
+        //   소프트 원 텍스처가 선의 **폭 방향으로도** 부드럽게 빠져 빛줄기로 읽힌다.
+        mat.mainTexture = FX.DotTex();
+        // ★HDR 은 재질에 싣는다 — 정점색(start/endColor)은 8비트라 1을 넘는 값이
+        //   조용히 잘린다. 이게 "글로우가 왜 안 보여?" 의 원인이었다 (2026-07-30).
+        mat.SetColor("_BaseColor", new Color(3f, 3f, 3f, 1f));
+        return mat;
+    }
+
+    void Apply(float k)
+    {
+        // 쫙(첫 15% 굵어짐) → 얇아지며 꺼짐. **총구 쪽이 굵고 착탄 쪽은 가늘고 옅다**
+        // (2026-07-30 사용자 "나가는 쪽이 두껍고") — 탄이 그쪽으로 갔다는 방향성.
+        float w = width * (k < 0.15f ? Mathf.Lerp(0.55f, 1f, k / 0.15f)
+                                     : 1f - (k - 0.15f) / 0.85f);
+        lr.startWidth = w; lr.endWidth = w * 0.3f;
+        core.startWidth = w * 0.45f; core.endWidth = w * 0.14f;
+        float fade = 1f - k * k;
+        var cn = near * fade; cn.a = (1f - k) * 0.85f;
+        var cf = far * fade;  cf.a = (1f - k) * 0.25f;   // 착탄 쪽은 옅게 — 총구가 주인공
+        lr.startColor = cn; lr.endColor = cf;
+        var hn = Color.Lerp(near, Color.white, 0.65f) * fade; hn.a = 1f - k;
+        var hf = Color.Lerp(far, Color.white, 0.35f) * fade; hf.a = (1f - k) * 0.4f;
+        core.startColor = hn; core.endColor = hf;
+    }
+
+    void Update()
+    {
+        t += Time.deltaTime;
+        float k = Mathf.Clamp01(t / life);
+        if (k >= 1f)
+        {
+            enabled = false;
+            gameObject.SetActive(false);
+            if (pool.Count < 128) pool.Push(this); else Destroy(gameObject);
             return;
         }
         Apply(k);
