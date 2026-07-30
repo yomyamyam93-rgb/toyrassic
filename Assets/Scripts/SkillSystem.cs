@@ -113,7 +113,7 @@ public class SkillSystem : MonoBehaviour
 
         var p = slot >= 0 && slot < PetCommand.SlotPet.Length ? PetCommand.SlotPet[slot] : null;
         string who = p != null
-            ? $"{p.name} × {PetUnit.CountFor(throwBudget, p.supply)}마리"
+            ? $"{p.name} × {PetUnit.CountFor(BudgetNow, p.supply)}마리"
             : $"{slot + 1}번 칸에 묶인 펫이 없다";
 
         string cd2 = p == null ? "—"
@@ -292,6 +292,9 @@ public class SkillSystem : MonoBehaviour
     //   12 로 뒀더니 중간 등급이 6마리라 "마릿수 제한이 걸린 것 같다" 는 인상을 줬다.
     [Tooltip("★인구수 예산 — 실제 마릿수 = 이 값 ÷ 등급. 작은 펫은 떼로, 큰 펫은 몇 마리만")]
     public int throwBudget = 28;   // ★인구수 1/3/7/14 와 짝 — S 28 · M 9 · L 4 · XL 2
+
+    /// 노드판 배수를 얹은 실제 예산 — 마릿수를 세는 모든 자리가 이걸 쓴다
+    int BudgetNow => Mathf.Max(1, Mathf.RoundToInt(throwBudget * NodeMods.throwBudgetMul));
     [Tooltip("착탄 순간 주변에 주는 피해 (팡!)")] public float throwImpactDamage = 45f;
     [Tooltip("착탄 피해가 닿는 반경 (m)")] public float throwImpactRadius = 1.6f;
 
@@ -388,7 +391,7 @@ public class SkillSystem : MonoBehaviour
         var dir = to.sqrMagnitude > 1e-4f ? to.normalized : transform.forward;
         float half = (gear == GearKind.Sword ? swordScatterAngle : axeScatterAngle) * 0.5f;
 
-        int n = PetUnit.CountFor(throwBudget, pet.supply);
+        int n = PetUnit.CountFor(BudgetNow, pet.supply);
         ClearOldSummons(pet);
         for (int i = 0; i < n; i++)
         {
@@ -416,7 +419,7 @@ public class SkillSystem : MonoBehaviour
         yield return new WaitForSeconds(Mathf.Max(0f, throwWindupTime));
 
         if (head != null) head.Hide();
-        int n = PetUnit.CountFor(throwBudget, pet.supply);
+        int n = PetUnit.CountFor(BudgetNow, pet.supply);
         ClearOldSummons(pet);
 
         for (int i = 0; i < n; i++)
@@ -794,7 +797,7 @@ public class SkillSystem : MonoBehaviour
     void SummonPack(PetUnit pet, Vector3 spot)
     {
         ClearOldSummons(pet);
-        int n = PetUnit.CountFor(throwBudget, pet.supply);
+        int n = PetUnit.CountFor(BudgetNow, pet.supply);
         SummonAt(pet, spot, n);
         SquadHUD.Toast($"{pet.name} {n}마리 소환!");
     }

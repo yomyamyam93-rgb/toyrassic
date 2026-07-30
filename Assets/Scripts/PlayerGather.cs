@@ -382,7 +382,7 @@ public class PlayerGather : MonoBehaviour
             // 몸 반지름 그대로 — 보이는 덩치와 맞는 자리에서 맞는다
             if (!InArc(u.transform.position, u.body * 0.5f)) continue;
             hitUnits.Add(u);
-            u.TakeDamage(mobDmg, PetUnit.Avatar);
+            u.TakeDamage(mobDmg * NodeMods.charDmg, PetUnit.Avatar);   // 노드판 「우두머리 사냥」 등
             u.OnHit();
             FX.Burst(u.transform.position + Vector3.up * u.body * 0.4f,
                      Color.white, 10, u.body * 0.06f, u.body * 0.4f);

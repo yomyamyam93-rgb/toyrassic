@@ -378,7 +378,8 @@ public class PetUnit : MonoBehaviour
     void Start()
     {
         terrain = Terrain.activeTerrain;
-        maxHp = hp = vit * HpPerVit;
+        maxHp = hp = vit * HpPerVit
+              * (team == Team.Player && !isAvatar && !isStructure ? NodeMods.petHp : 1f);   // 노드판 — 내 편 펫만
         baseScale = transform.localScale;
         // ※파티클(꽃잎 등) 렌더러는 바운즈가 엉뚱해서 제외 — 체력바가 하늘로 가는 사고 방지
         Renderer r = null;
@@ -592,6 +593,9 @@ public class PetUnit : MonoBehaviour
     {
         float arm = IsRanged ? reach * PatternReach            // 원거리 — 고정 사거리
                              : TierArm * meleeArm * PatternReach; // 근접 — 등급이 정한다
+        // 노드판 — 내 편에만 (야생이 노드를 받으면 안 된다)
+        if (team == Team.Player && !isAvatar && !isStructure)
+            arm *= IsRanged ? NodeMods.rangedRange : NodeMods.meleeArm;
         return arm * rangeMul + bodyR + (t != null ? t.bodyR : 0f);
     }
 
@@ -644,8 +648,9 @@ public class PetUnit : MonoBehaviour
     float ContactR(PetUnit t) =>
         (bodyR + (t != null ? t.bodyR : 0f)) * separateMul * 1.05f;
 
-    // ★공속 = 크기가 준 기본 간격 ÷ (방식 배수 × 종별 기울임)
-    float AtkPeriodNow => atkPeriod / Mathf.Max(0.1f, PatternAtkSpeed * atkSpeedMul);
+    // ★공속 = 크기가 준 기본 간격 ÷ (방식 배수 × 종별 기울임 × 노드판[내 편만])
+    float AtkPeriodNow => atkPeriod / Mathf.Max(0.1f, PatternAtkSpeed * atkSpeedMul
+        * (team == Team.Player && !isAvatar ? NodeMods.petAtkSpeed : 1f));
 
     // ── 덩치 = 공격 범위 ──────────────────────────────────────────────
     //
@@ -937,6 +942,8 @@ public class PetUnit : MonoBehaviour
     /// 지금 물러나는 중인가 — 상태를 갱신하고 답한다. **원거리에서만 부른다.**
     bool KiteUpdate(float d, float areaR)
     {
+        // 노드판 「거점 포격」 — 카이팅을 포기하는 대가로 화력을 받는다 (내 편만)
+        if (NodeMods.noKiting && team == Team.Player && !isAvatar) { kiteLeft = 0f; return false; }
         kiteCdT = Mathf.Max(0f, kiteCdT - Time.deltaTime);
 
         if (kiteLeft > 0f)
@@ -1262,6 +1269,12 @@ public class PetUnit : MonoBehaviour
 
         // ★밸런스는 데미지로 잡는다 (2026-07-29 사용자) — 넓게 때릴수록 한 대가 약하다
         float dmg = str * dmgPerStr * PatternDmg * hitDmgMul;
+        if (team == Team.Player && !isAvatar)
+        {   // 노드판 — 내 편에만. 치명타는 스윙당 한 번 굴린다 (근접 광역이면 그 스윙 전체가 치명타)
+            dmg *= NodeMods.petDmg;
+            if (NodeMods.critChance > 0f && Random.value < NodeMods.critChance)
+                dmg *= NodeMods.critMul;
+        }
 
         // ★원거리는 투사체를 날린다 — 곁다리 타격 없이 겨눈 놈만.
         //   날아가는 동안 표적이 죽으면 그냥 사라진다(빗나감). 그게 원거리의 약점이다.
@@ -1291,22 +1304,27 @@ public class PetUnit : MonoBehaviour
                 //   (알 하나만 박힌다) 뭉친 떼에는 총량이 커진다. 그 값은
                 //   `PatternDmg` 의 흩뿌리기 항에서 잡는다 (지금 0.45 — 쏘기의 36%).
                 // 총구 섬광 — '팡' 은 여기서 난다. 부채꼴 방향으로 확 퍼진다
-                var muzzle = transform.position + Vector3.up * hitOff + transform.forward * bodyR * 0.6f;
-                FX.Burst(muzzle, fire, 18, bodyR * 0.05f, bodyR * 1.5f, 0.28f);
+                // ★총구는 몸 **밖**이다 — bodyR(반지름) 안쪽이면 화염이 모델 속에서 태어나
+                //   몸에 먹힌다 (2026-07-30 사용자 "이펙트를 모델링에서 쬐금 떼어서")
+                var muzzle = transform.position + Vector3.up * hitOff + transform.forward * (bodyR * 1.35f);
+                // ★샷건의 '팡' = 총구 화염 컴포지트 — 불혀+십자 스파이크+연기 (2026-07-30
+                //   사용자 레퍼런스). 종색이 아니라 화약의 노랑·백열이다. 연사보다 크게.
+                //   ★크기 여정: 1.2× "너무 작아" → 4× → 8× "너무 크긴 하네" → 5.5×
+                FX.MuzzleFlash(muzzle, target.transform.position + Vector3.up * target.hitOff - muzzle,
+                               bodyR * 5.5f);
                 // ★샷건의 총구 충격 고리 — 쏘는 방향으로 먼지 고리가 퍼진다 (2026-07-30
                 //   사용자 "발사했을 때의 부가 이펙트 모두 달라야"). 활이 쓰는 그 부품이다.
                 FXRing.Spawn(muzzle, target.transform.position + Vector3.up * target.hitOff - muzzle,
                              fire, bodyR * 0.15f, bodyR * 1.0f, 0.2f);
-                // ★샷건의 '팡' 은 총구에서 다 일어난다 (2026-07-30 사용자) — 연기 한 뭉치
-                //   + 부챗살로 퍼지는 짧은 빛가닥들. 탄 자체는 거의 안 보인다.
-                FX.Burst(muzzle + Vector3.up * (bodyR * 0.1f), new Color(0.6f, 0.56f, 0.53f, 0.5f),
-                         5, bodyR * 0.12f, bodyR * 0.35f, 0.55f);
                 var fwd = transform.forward;
                 for (int i = 0; i < 5; i++)
-                {
+                {   // 부챗살 빛가닥 — 총구 백열 노랑에서 끝은 주황으로 식는 그라데이션.
+                    // 총구 쪽이 굵고 끝이 가늘다 (사용자 "나가는 쪽이 두껍고").
+                    // 길이·굵기 2.5배 상향 (사용자 "산탄 효과… 5배는 커야")
                     var ray = Quaternion.AngleAxis(Random.Range(-0.5f, 0.5f) * AtkSpread, Vector3.up) * fwd;
-                    FXBeam.Spawn(muzzle, muzzle + ray * (bodyR * Random.Range(1.6f, 2.8f)),
-                                 fire, bodyR * 0.07f, 0.13f);
+                    FXTracer.Spawn(muzzle, muzzle + ray * (bodyR * Random.Range(6f, 10f)),
+                                   new Color(1f, 0.97f, 0.75f, 1f), new Color(1f, 0.62f, 0.1f, 1f),
+                                   bodyR * 0.7f, 0.13f);
                 }
 
                 // ★산탄 = 빛줄기 여러 개가 팡 (2026-07-30 사용자 — "구슬이 아니라
@@ -1341,7 +1359,7 @@ public class PetUnit : MonoBehaviour
             // ★발사 이펙트도 방식마다 다르다 — 총구에서, 실제 쏘는 방향으로만
             //   (이펙트 규칙: 몸이 하는 일을 따라간다). 비용 원칙: **자주 쏘는 방식일수록
             //   싸게** — 연사(공속 2.2배)는 알갱이 5개뿐, 저격(0.5배)은 반동 고리까지.
-            var mzl = transform.position + Vector3.up * hitOff + transform.forward * (bodyR * 0.6f);
+            var mzl = transform.position + Vector3.up * hitOff + transform.forward * (bodyR * 1.35f);   // 몸 밖 (위 총구 주석 참고)
             var aim = target.transform.position + Vector3.up * target.hitOff - mzl;
             if (pattern == Pattern.Snipe)
             {   // ★저격 = 레이저 (2026-07-30 사용자 "에너지포처럼 팡"). 탄이 거의 즉시
@@ -1349,12 +1367,20 @@ public class PetUnit : MonoBehaviour
                 //   비행 0.35→0.12 — 그만큼 빨라진 것은 다음 F12 에서 같이 잰다.
                 pSize = bodyR * 0.3f; pDur = shootFlight * 0.12f; pArc = 0f;
                 pStyle = PetProjectile.StyleSnipe;
-                FX.Burst(mzl, fire, 14, bodyR * 0.07f, bodyR * 1.3f, 0.18f);       // 팡 — 강한 섬광
-                FXRing.Spawn(mzl, aim, fire, bodyR * 0.12f, bodyR * 1.2f, 0.22f);  // 반동 충격 고리
+                FX.Burst(mzl, fire, 14, bodyR * 0.36f, bodyR * 2.0f, 0.18f, hot: true);  // 팡 — 강한 섬광
+                FXRing.Spawn(mzl, aim, fire, bodyR * 0.2f, bodyR * 2.4f, 0.25f);         // 반동 충격 고리
+                // ★총구 연기 고리 (2026-07-30 사용자 — 에너지포에 "고리원 연기 나가는거…
+                //   자글자글 눈에 확 띄게, 퍼지면서 불규칙하게 사라지게").
+                //   ★회색은 노란 사막에서 하나도 안 보였다 (같은 날 사용자) — **흰색**으로,
+                //   반경도 몸의 2.6배까지 크게.
+                // ★순수 흰색 + 몸의 6배까지 — "아직도 회색" 은 반투명 그라데이션이
+                //   바닥과 섞여서였다. 애니메 실루엣(PuffMat)은 속이 차서 흰색이 흰색으로 보인다.
+                FX.SmokeRing(mzl, aim, new Color(1f, 1f, 1f, 0.95f),
+                             bodyR * 0.8f, bodyR * 6f, 0.7f);
                 // ★럭스궁 — 흰 심 + 겉빛 두 겹의 빔이 쫙 그어지고, 맥동하다가
                 //   얇아지며 꺼진다. 빔 줄기에서 불티가 튄다 (FXBeam 안에서)
                 FXBeam.Spawn(mzl, target.transform.position + Vector3.up * target.hitOff,
-                             fire, bodyR * 0.3f, 0.35f);
+                             fire, bodyR * 1.0f, 0.35f, sparks: true);   // ×2 (사용자 "2배 더")
             }
             else if (pattern == Pattern.Rapid)
             {   // ★연사 = 3점사 예광탄 (2026-07-30 사용자 "꼭꼬는 3발쏘기로 했는데
@@ -1366,9 +1392,9 @@ public class PetUnit : MonoBehaviour
             }
             else
             {   // 쏘기 — 불 뿜기 + 연기 한 모금 (연기는 회색으로 천천히, 잠깐 머문다)
-                FX.Burst(mzl, fire, 9, bodyR * 0.07f, bodyR * 0.9f, 0.2f);
+                FX.Burst(mzl, fire, 9, bodyR * 0.32f, bodyR * 1.3f, 0.2f, hot: true);
                 FX.Burst(mzl + Vector3.up * (bodyR * 0.12f), new Color(0.6f, 0.56f, 0.53f, 0.55f),
-                         5, bodyR * 0.10f, bodyR * 0.3f, 0.6f);
+                         5, bodyR * 0.3f, bodyR * 0.5f, 0.6f);
             }
             PetProjectile.Throw(this, target, dmg, false, fire,
                                 pSize, pDur, pArc,
@@ -1384,10 +1410,24 @@ public class PetUnit : MonoBehaviour
             for (int i = 0; i < 3; i++)
             {
                 if (dead || t2 == null || !t2.Alive) yield break;
-                var m2 = transform.position + Vector3.up * hitOff + transform.forward * (bodyR * 0.6f);
-                // 총구 불꽃은 발마다 절반 확률 — 140마리 연사에서 버스트 풀을 지킨다
-                if (Random.value < 0.5f)
-                    FX.Burst(m2, fire2, 4, bodyR * 0.04f, bodyR * 0.6f, 0.12f);
+                var m2 = transform.position + Vector3.up * hitOff + transform.forward * (bodyR * 1.35f);   // 몸 밖 (위 총구 주석 참고)
+                // ★총구 화염 — 불혀+십자 스파이크+연기 컴포지트 (2026-07-30 사용자
+                //   레퍼런스 — 동그란 알갱이는 '반짝'이지 '팡'이 아니었다).
+                //   연기는 3점사의 첫 발에만 — 두두두 사이마다 연기가 겹치면 안개가 된다.
+                // ★크기 기준 = 화면에서 몸통만큼 (2026-07-30 사용자 "모든 이펙트가 너무
+                //   작아" — 0.9×반지름은 몸의 1/5 라 반짝임 수준이었다. 실측 꼭꼬 bodyR 0.65m)
+                var aimDir = (t2.transform.position + Vector3.up * t2.hitOff - m2).normalized;
+                FX.MuzzleFlash(m2, aimDir, bodyR * 4.5f, smoke: i == 0);   // ×2 (사용자 "2배 더")
+                // ★예광탄 = 순간의 빛줄 + 노란 그라데이션 (2026-07-30 사용자 — "총 느낌…
+                //   노란색 그라데이션으로 첫 발사 부분 그리고 피격되는 부분까지의 색을
+                //   좀 다르게 하고 글로우하게"). 총구는 백열 노랑, 착탄 쪽은 주황으로 식는다.
+                //   ★HDR 을 3배까지 올리면 노랑이 아니라 **흰색으로 날아간다** (과노출) —
+                //   2배 언저리가 색이 살아남는 한계였다. 피해는 보이지 않는 탄이 나른다.
+                // ★부리 앞 = 아주 밝은 흰~노랑 (2026-07-30 사용자). 색은 1 이하로 채도를
+                //   지키고, 밝기는 FXTracer 재질(HDR ×3)이 낸다.
+                FXTracer.Spawn(m2, t2.transform.position + Vector3.up * t2.hitOff,
+                               new Color(1f, 0.97f, 0.75f, 1f), new Color(1f, 0.62f, 0.1f, 1f),
+                               bodyR * 0.7f, 0.12f);
                 PetProjectile.Throw(this, t2, dmgEach, false, fire2, sz2, dur2, arc2,
                                     0f, 0f, PetProjectile.StyleRapid);
                 yield return new WaitForSeconds(0.07f);
@@ -2132,6 +2172,7 @@ public class PetUnit : MonoBehaviour
         transform.position += dir * step;
         curSpeed = spd;
         movedThisFrame = true;   // 이동 중에는 자리를 잡느라 밀린다 (서 있으면 안 밀린다)
+        moveFrame = Time.frameCount;   // ★아군 밀치기 판정용 — 아래 Separate 참고
         Face(dir);
     }
 
@@ -2145,6 +2186,11 @@ public class PetUnit : MonoBehaviour
 
     /// Step 이 이번 프레임에 나를 움직였나 — 밀림 판정에 쓴다
     bool movedThisFrame;
+
+    /// 마지막으로 걸은 프레임 번호. movedThisFrame 은 자기 Separate() 끝에서 리셋되므로
+    /// **남이** 읽으면 갱신 순서에 따라 반은 헛읽는다 — 남 판정은 이 도장으로 한다.
+    int moveFrame = -9;
+    bool MovingNow => Time.frameCount - moveFrame <= 1;
 
     void Separate()
     {
@@ -2170,7 +2216,14 @@ public class PetUnit : MonoBehaviour
             //   예외: 심하게 겹쳤을 때(스폰이 겹치는 등)는 서로 빠져나온다 — 안 그러면
             //   가만히 선 둘이 영원히 한 몸처럼 붙어 있다.
             bool deep = dist < need * 0.45f;
-            if (!movedThisFrame && !deep) continue;
+            // ★아군은 밀고 지나간다 (2026-07-30 사용자 "같은 종끼리 막혀서 못 가는데
+            //   지들끼리는 좀 밀면서 전진할 수 있게") — 서 있는 나도, **같은 편**이
+            //   전진하며 비비면 조금 밀려 길을 내준다. 적 사이는 그대로다 —
+            //   큰 놈이 벽 노릇을 해야 "타이탄은 스웜에 안 밀린다" 가 성립한다.
+            //   0.4배로 약하게: 때리던 놈이 제 사거리 밖까지 튕겨나가면 안 되니까.
+            bool allyShove = !movedThisFrame && !deep && team == u.team
+                             && !isStructure && !isAvatar && u.MovingNow;
+            if (!movedThisFrame && !deep && !allyShove) continue;
 
             // ★무게 — 큰 놈은 작은 놈에게 잘 안 밀린다 (2026-07-29 사용자 "미세하게 밀리는게 있네").
             //   저글링이 울트라를 못 미는 것과 같다. 설계에도 필요한 규칙이다 —
@@ -2180,7 +2233,7 @@ public class PetUnit : MonoBehaviour
             //   지금까지의 감각이 그대로 유지되고, 크기가 벌어질수록 한쪽으로 쏠린다.
             float mine = bodyR * bodyR, yours = u.bodyR * u.bodyR;
             float w = Mathf.Min(2f, 2f * yours / Mathf.Max(1e-4f, mine + yours));
-            push += d / dist * (need - dist) * 2.2f * w;
+            push += d / dist * (need - dist) * 2.2f * w * (allyShove ? 0.4f : 1f);
         }
         }
 
@@ -2530,7 +2583,31 @@ public class PetProjectile : MonoBehaviour
     //   재질은 **하나를 공유**하고 색만 프로퍼티 블록으로 바꾼다.
     static readonly Stack<GameObject> pool = new Stack<GameObject>();
     static Material shared;
+    static Material trailMat;   // ★꼬리 전용 — 더하기 빛 (아래 TrailMat 참고)
     static MaterialPropertyBlock mpb;
+
+    // ★꼬리가 회색이던 원인 (2026-07-30 사용자 "빛이 안 나고 회색이라 눈에 너무 안 뛰는데"):
+    //   꼬리에 몸체와 같은 Lit 재질을 물렸는데, Lit 는 TrailRenderer 의 정점색
+    //   (startColor/endColor)을 **읽지 않는다**. 색도 발광도 다 무시되고 재질 기본색
+    //   (회백색)이 조명만 받아 그려졌다. 꼬리는 정점색 + 더하기 혼합의 전용 재질로
+    //   그린다 — FXBeam 과 같은 '빛' 처방이고, 재질은 하나를 공유한다.
+    static Material TrailMat()
+    {
+        if (trailMat != null) return trailMat;
+        var sh = Shader.Find("Universal Render Pipeline/Particles/Unlit");
+        if (sh == null) sh = Shader.Find("Sprites/Default");   // 예비 — 얘도 정점색은 읽는다
+        trailMat = new Material(sh);
+        trailMat.SetFloat("_Surface", 1f);
+        trailMat.SetFloat("_SrcBlend", (float)UnityEngine.Rendering.BlendMode.SrcAlpha);
+        trailMat.SetFloat("_DstBlend", (float)UnityEngine.Rendering.BlendMode.One);   // 더하기 = 빛
+        trailMat.SetFloat("_ZWrite", 0f);
+        trailMat.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
+        trailMat.renderQueue = (int)UnityEngine.Rendering.RenderQueue.Transparent;
+        // ★HDR 은 재질에 — 정점색은 8비트라 1을 넘는 값이 잘린다 (2026-07-30,
+        //   "글로우가 왜 안 보여" 의 원인). 재질 색이 정점색에 곱해져 블룸을 문다.
+        trailMat.SetColor("_BaseColor", new Color(2.6f, 2.6f, 2.6f, 1f));
+        return trailMat;
+    }
     MeshRenderer mr;
     TrailRenderer trail;
 
@@ -2555,7 +2632,7 @@ public class PetProjectile : MonoBehaviour
             // ★꼬리 — 날아간 자리를 따라간다. 어디서 어디로 갔는지가 눈에 남는다
             //   (이펙트 규칙: 실제 움직임을 따라가는 것만 넣는다)
             var tr = g.AddComponent<TrailRenderer>();
-            tr.material = shared;
+            tr.material = TrailMat();
             tr.numCapVertices = 4;
             tr.alignment = LineAlignment.View;
             g.AddComponent<PetProjectile>();
@@ -2571,7 +2648,11 @@ public class PetProjectile : MonoBehaviour
             cr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
         }
         g.name = heal ? "proj_heal" : "proj";
-        g.transform.position = owner.transform.position + Vector3.up * owner.hitOff;
+        // ★탄은 **총구**에서 태어난다 — 몸 중심에서 태어나면 총구 화염과 시작점이
+        //   어긋난다 (2026-07-30 사용자 "발사체 나가는 처음 부분이랑 총구 쪽 빛
+        //   퍼지는 거가 위치가 안 맞아"). 총구 공식은 발사 이펙트와 같은 1.35×반지름.
+        g.transform.position = owner.transform.position + Vector3.up * owner.hitOff
+                             + owner.transform.forward * (owner.bodyR * 1.35f);
         // ★탄의 '생김새'를 방식이 정한다 (2026-07-30 사용자 — "다 똑같이 그냥 구슬에
         //   꼬리 있는 건데"). 크기·속도만 다르면 멀리서 전부 구슬로 읽힌다 — 모양을 가른다.
         //     저격 = 레이저 · 연사/산탄 = 빛줄기 탄환 (매 프레임 Update 가 돌려 세운다)
@@ -2584,12 +2665,12 @@ public class PetProjectile : MonoBehaviour
         p.mr = g.GetComponent<MeshRenderer>();
         if (mpb == null) mpb = new MaterialPropertyBlock();
         mpb.SetColor("_BaseColor", c);
-        mpb.SetColor("_EmissionColor", c * 3.2f);      // 불덩이 — 확 밝게
+        mpb.SetColor("_EmissionColor", c * 7f);   // ★3.2→7 (2026-07-30 "파이어볼도 글로우")
         p.mr.SetPropertyBlock(mpb);
         p.col = c;
 
-        // ★몸체(구)는 불덩이(쏘기·힐)만 쓴다 — 예광탄·산탄·레이저는 구가 아니라
-        //   **빛줄기(트레일)가 몸**이다 (2026-07-30 사용자 "다 투사체네").
+        // ★몸체(구)는 불덩이(쏘기·힐)만 쓴다 — 산탄은 **빛줄기(트레일)가 몸**이고,
+        //   예광탄·레이저는 발사 순간의 FXBeam 빛줄이 전부다 (2026-07-30 사용자 "다 투사체네").
         bool ball = style == StyleShot;
         p.mr.enabled = ball;
         if (p.coreMr == null)
@@ -2604,7 +2685,7 @@ public class PetProjectile : MonoBehaviour
             {   // 백열 심 — 겉색보다 훨씬 하얗고 밝게
                 var cw = Color.Lerp(c, Color.white, 0.75f);
                 mpb.SetColor("_BaseColor", cw);
-                mpb.SetColor("_EmissionColor", cw * 6f);
+                mpb.SetColor("_EmissionColor", cw * 12f);   // ★6→12 (블룸이 확실히 물게)
                 p.coreMr.SetPropertyBlock(mpb);
             }
         }
@@ -2614,16 +2695,22 @@ public class PetProjectile : MonoBehaviour
         if (p.trail != null)
         {
             float w, tt; Color tc = c;
-            if (style == StyleSnipe) { w = 0f; tt = 0f; }   // 레이저는 FXBeam 이 전부다 — 꼬리 없음
-            else if (style == StyleRapid)
-            { w = sz * 2f; tt = 0.13f; tc = Color.Lerp(c, Color.white, 0.65f); }    // ★예광탄 — 백열 대시. 짧고 하얗게 타는 빛만 남는다
+            // ★레이저·예광탄은 FXBeam 이 전부다 — 꼬리 없음. 연사도 2026-07-30 사용자
+            //   ("선이 생겼다 없어지는 수준의 빠른 모션인데 지금은 쭉 선이 가서 사라지는
+            //   물줄기 같다") 로 나는 꼬리를 걷고 발사 순간의 빛줄(RapidBurst)로 옮겼다.
+            if (style == StyleSnipe || style == StyleRapid) { w = 0f; tt = 0f; }
             else if (style == StylePellet)
-            { w = sz * 1.6f; tt = 0.11f; tc = Color.Lerp(c, Color.white, 0.5f); }   // 산탄 불티
+            {   // 산탄 불티 — 총 계열이라 종색 대신 화약 노랑으로 (2026-07-30 사용자)
+                w = sz * 1.6f; tt = 0.11f; tc = Color.Lerp(c, new Color(1f, 0.85f, 0.4f), 0.75f);
+            }
             else { w = sz * 2.4f; tt = Mathf.Clamp(dur * 0.35f, 0.05f, 0.14f); }    // ★불꼬리 — 굵고 짧게, 횃불처럼
             p.trail.emitting = tt > 0f;
             p.trail.time = tt;
             p.trail.startWidth = w; p.trail.endWidth = 0f;
-            p.trail.startColor = tc; p.trail.endColor = new Color(tc.r, tc.g, tc.b, 0f);
+            // 광은 TrailMat 의 _BaseColor(HDR ×2.6)가 낸다 — 정점색에 1 넘는 값을 넣으면
+            //   8비트라 조용히 잘리므로 여기서는 채도만 지킨다 (2026-07-30 교훈)
+            var hot = tc; hot.a = 1f;
+            p.trail.startColor = hot; p.trail.endColor = new Color(tc.r, tc.g, tc.b, 0f);
             p.trail.Clear();                            // ★안 지우면 이전 궤적이 순간이동한 선으로 남는다
         }
         p.owner = owner; p.target = target; p.amt = amt; p.dur = dur; p.arc = arc;
@@ -2687,20 +2774,24 @@ public class PetProjectile : MonoBehaviour
                 // ★착탄도 방식마다 다르다 (2026-07-30 사용자 "피격되는 이펙트도 모두 달라야").
                 //   비용 원칙은 발사와 같다 — 자주 박히는 것(연사·산탄알)일수록 싸게.
                 //   ★퍼지는 반경만큼 크게 터진다 — 이펙트 규칙: 실제 타격 범위와 맞아야 한다
+                // ★크기 상향 두 번 (2026-07-30 사용자 "모든 이펙트가 너무 작아" → "2배 더").
+                //   불꽃은 전부 hot(발광 재질) — 정점색 HDR 은 잘려서 소용없었다.
                 if (splash > 0f)          // 광역 착탄 — 퍼지는 반경 그대로 크게
-                    FX.Burst(transform.position, col, 22, target.body * 0.07f, splash * 0.9f);
-                else if (style == StylePellet)   // 산탄알 — 톡 박히는 잔 알갱이
-                    FX.Burst(transform.position, col, 5, target.body * 0.05f, target.body * 0.3f, 0.22f);
-                else if (style == StyleRapid)    // 연사 — 잔 불꽃이 톡톡
-                    FX.Burst(transform.position, col, 7, target.body * 0.05f, target.body * 0.4f, 0.25f);
+                    FX.Burst(transform.position, col, 22, target.body * 0.26f, splash * 0.9f, 0.45f, hot: true);
+                else if (style == StylePellet)   // 산탄알 — 톡 박히는 잔 알갱이 (착탄은 식은 주황)
+                    FX.Burst(transform.position, Color.Lerp(col, new Color(1f, 0.6f, 0.15f), 0.7f),
+                             5, target.body * 0.24f, target.body * 0.6f, 0.22f, hot: true);
+                else if (style == StyleRapid)    // 연사 — 잔 불꽃이 톡톡 (착탄은 식은 주황)
+                    FX.Burst(transform.position, Color.Lerp(col, new Color(1f, 0.6f, 0.15f), 0.7f),
+                             7, target.body * 0.24f, target.body * 0.7f, 0.25f, hot: true);
                 else if (style == StyleSnipe)
                 {   // 저격 — 꿰뚫는 한 방: 빠르고 강한 스파크 + 탄이 날아온 방향의 충격 고리
-                    FX.Burst(transform.position, col, 16, target.body * 0.06f, target.body * 0.8f, 0.3f);
+                    FX.Burst(transform.position, col, 16, target.body * 0.28f, target.body * 1.2f, 0.3f, hot: true);
                     FXRing.Spawn(transform.position, to - from, col,
-                                 target.body * 0.1f, target.body * 0.7f, 0.25f);
+                                 target.body * 0.2f, target.body * 1.3f, 0.25f);
                 }
                 else                      // 쏘기 — 불덩이가 퍼진다 (기본)
-                    FX.Burst(transform.position, col, 14, target.body * 0.07f, target.body * 0.55f);
+                    FX.Burst(transform.position, col, 14, target.body * 0.3f, target.body * 0.9f, 0.45f, hot: true);
             }
             BeginLinger();
         }

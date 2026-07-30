@@ -1139,7 +1139,7 @@ public class PlayerBow : MonoBehaviour
             if (pressed)
             {
                 charging = true;
-                chargeT += Time.deltaTime;
+                chargeT += Time.deltaTime * NodeMods.chargeSpeed;   // 노드판 「차징 달인」
             }
             else if (released && charging)
             {
@@ -1163,7 +1163,7 @@ public class PlayerBow : MonoBehaviour
             if (pressed)
             {
                 charging = true;
-                chargeT += Time.deltaTime;
+                chargeT += Time.deltaTime * NodeMods.chargeSpeed;   // 노드판 「차징 달인」
                 drawing = true;
                 drawT = Mathf.Min(drawTime, drawT + Time.deltaTime);
                 aimLen = Mathf.MoveTowards(aimLen, range, range / Mathf.Max(0.05f, aimFillTime) * Time.deltaTime);
@@ -1932,7 +1932,7 @@ public class ArrowProj : MonoBehaviour
             if (flat < u.body * 0.55f + HitPad && dy < HeightWindow + u.body * 0.5f)
             {
                 hitSet.Add(u);           // 같은 놈 중복 타격 방지 — 관통해 지나감
-                u.TakeDamage(dmg, PetUnit.Avatar);   // 어그로: 쏜 사람(캐릭터)을 쫓아온다
+                u.TakeDamage(dmg * NodeMods.charDmg, PetUnit.Avatar);   // 어그로: 쏜 사람(캐릭터)을 쫓아온다. 노드판 배수 포함
                 u.OnHit();
                 // 피격 지점 = 화살이 실제로 닿은 몸체 표면 (바운즈 최근접점)
                 var rend = u.GetComponentInChildren<Renderer>();
