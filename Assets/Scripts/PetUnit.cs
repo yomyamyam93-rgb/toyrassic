@@ -1549,9 +1549,14 @@ public class PetUnit : MonoBehaviour
         if (!isAvatar && !isStructure) alerted = true;
 
         // 때린 놈을 기억한다 — 잠깐은 그놈을 우선해서 문다 (FindTarget ①)
-        // ★단 플레이어에게는 안 걸린다. 전투를 여는 건 늘 플레이어라, 걸어두면
-        //   전투마다 전원이 주인공에게 몰린다. 주인공은 '앞을 막은 펫이 없을 때'만 노려진다.
-        if (attacker != null && attacker.team != team && !attacker.isAvatar && !returning)
+        // ★플레이어(아바타)는 절충 규칙 (2026-07-30 사용자 "맞아도 어그로가 안 끌리는 게
+        //   많네" + "화살로 혼자 다 잡네"):
+        //   전엔 아예 안 걸었다 — 부대전에서 전원이 주인공에게 몰리는 걸 막으려고.
+        //   그런데 맨몸 시작이라 밴드 1 솔로 사냥에선 그 규칙이 "반격 안 하는 과녁"을
+        //   만들었다. → **딴 상대가 없을 때만** 플레이어에게도 걸린다. 부대가 붙으면
+        //   펫이 표적을 채우므로 예전 규칙이 저절로 복원된다.
+        if (attacker != null && attacker.team != team && !returning
+            && (!attacker.isAvatar || target == null || !target.Alive))
         {
             lastAttacker = attacker;
             grudgeT = grudgeTime;

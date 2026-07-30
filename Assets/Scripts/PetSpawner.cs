@@ -288,12 +288,69 @@ public class PetSpawner : MonoBehaviour
         return 1f / (1f + gap * tierSharpness);
     }
 
-    /// 그 자리에 어울리는 종을 뽑는다 (거리 + 무리 짓기)
+    // ── ★밴드 스폰 (2026-07-30 알 원정 설계 §난이도) ─────────────────────
+    //
+    //   난이도는 "어디에 무엇이 몇 마리 나오나"뿐이다 (레벨 폐기). 스폰 위치를
+    //   시작점→알 마커 직선에 투영해 진행도 0~1 을 얻고 4개 밴드로 자른다.
+    //   밴드 = 질문 순서다: ①S 소수(배움) ②S 떼(물량→광역이 답) ③M 혼성(포수→
+    //   빠른 떼가 답) ④L/XL(종합 시험). 마커가 없으면 옛 거리 분포로 동작한다.
+    [Header("★밴드 스폰 — 시작점→알 경로를 4구간으로")]
+    [Tooltip("알 마커 (비우면 이름 'named_37_31' 로 찾는다)")] public Transform eggMarker;
+    [Tooltip("밴드 경계 (진행도 0~1, 오름차순)")] public float[] bandEdge = { 0.25f, 0.5f, 0.78f };
+    [Tooltip("밴드별 무리 예산 — 야생 증식 규모 (①~④)")] public int[] bandPack = { 6, 16, 30, 50 };
+
+    bool markerTried;
+
+    /// 스폰 위치의 밴드 (0~3). 마커가 없으면 -1 (옛 분포로)
+    public int BandAt(Vector3 pos)
+    {
+        if (eggMarker == null && !markerTried)
+        {
+            markerTried = true;
+            var go = GameObject.Find("named_37_31 (1)");
+            if (go == null) go = GameObject.Find("named_37_31");
+            if (go != null) eggMarker = go.transform;
+        }
+        if (eggMarker == null) return -1;
+        var o = Origin; var g = eggMarker.position;
+        Vector2 a = new Vector2(o.x, o.z), b = new Vector2(g.x, g.z), p = new Vector2(pos.x, pos.z);
+        float len2 = (b - a).sqrMagnitude;
+        if (len2 < 1f) return -1;
+        float t = Mathf.Clamp01(Vector2.Dot(p - a, b - a) / len2);
+        for (int i = 0; i < bandEdge.Length; i++) if (t < bandEdge[i]) return i;
+        return bandEdge.Length;
+    }
+
+    /// 밴드가 허용하는 등급 — 스펙의 질문 순서 그대로
+    static bool BandAllows(int band, PetScale.Tier t) => band switch
+    {
+        0 => t == PetScale.Tier.S,
+        1 => t == PetScale.Tier.S || t == PetScale.Tier.M,
+        2 => t == PetScale.Tier.M || t == PetScale.Tier.L,
+        3 => t == PetScale.Tier.L || t == PetScale.Tier.XL,
+        _ => true,
+    };
+
+    /// 이 자리의 무리 예산 — 밴드가 정한다 (마커 없으면 인스펙터 기본값)
+    public int PackBudgetAt(Vector3 pos)
+    {
+        int b = BandAt(pos);
+        return b >= 0 && b < bandPack.Length ? bandPack[b] : wildPackBudget;
+    }
+
+    /// 그 자리에 어울리는 종을 뽑는다 (밴드 + 무리 짓기)
     public Entry PickAt(Vector3 pos)
     {
         if (entries.Count == 0) return null;
+        int band = BandAt(pos);
+
+        // 밴드가 있으면 등급 게이트, 없으면 옛 거리 가중치
+        float W(Entry e) => band >= 0
+            ? (BandAllows(band, e.tier) ? Mathf.Max(0f, e.weight) : 0f)
+            : Mathf.Max(0f, e.weight) * TierWeightAt(e.tier, pos);
 
         // ② 무리 짓기 — 근처에 사는 종이 있으면 그 종일 확률이 높다
+        //   (★단 밴드가 금지한 등급이면 무리를 따라가지 않는다 — 경계에서 새는 구멍)
         if (clusterChance > 0f && Random.value < clusterChance)
         {
             Entry near = null; float bd = clusterRadius;
@@ -304,20 +361,20 @@ public class PetSpawner : MonoBehaviour
                                            new Vector3(u.transform.position.x, 0, u.transform.position.z));
                 if (d >= bd) continue;
                 var e = entries.Find(x => x.species == u.species);
-                if (e == null) continue;
+                if (e == null || W(e) <= 0f) continue;
                 bd = d; near = e;
             }
             if (near != null) return near;
         }
 
-        // ① 거리 = 등급
+        // ① 밴드(또는 거리)가 정하는 가중 추첨
         float total = 0f;
-        foreach (var e in entries) total += Mathf.Max(0f, e.weight) * TierWeightAt(e.tier, pos);
+        foreach (var e in entries) total += W(e);
         if (total <= 0f) return entries[Random.Range(0, entries.Count)];
         float r = Random.Range(0f, total);
         foreach (var e in entries)
         {
-            r -= Mathf.Max(0f, e.weight) * TierWeightAt(e.tier, pos);
+            r -= W(e);
             if (r <= 0f) return e;
         }
         return entries[entries.Count - 1];
@@ -460,7 +517,7 @@ public class PetSpawner : MonoBehaviour
         // ★야생은 어그로가 끌리면 퐁퐁퐁 튀어나와 무리가 된다 (2026-07-28).
         //   벌판에는 한 마리만 어슬렁거리고, 싸움이 붙어야 무리가 나타난다.
         //   마릿수는 예산 ÷ 등급 — 작은 놈은 떼로, 브론토 같은 놈은 두어 마리만.
-        pu.packBudget = Mathf.Max(0, wildPackBudget);
+        pu.packBudget = Mathf.Max(0, PackBudgetAt(pos));   // ★밴드가 무리 규모를 정한다
         return unit;
     }
 
