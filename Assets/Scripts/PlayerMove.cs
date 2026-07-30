@@ -75,8 +75,14 @@ public class PlayerMove : MonoBehaviour
         // ★구조물 위 서기 (2026-07-31 부화터 — "이것도 구조물로 만들어야 해, 그래야
         //   올라가지"). 지형만 보면 제단·건물을 영영 못 밟는다. 머리 위에서 아래로
         //   레이를 쏴 콜라이더 지면(HatcherySite 가 깐 MeshCollider)이 더 높으면 그 위에 선다.
+        // ★단 두 제한을 건다 (같은 날 사용자 "기둥이 걸어 올라가지네"):
+        //   ①턱 제한 — 지금 발보다 0.65m 위까지만 밟는다. 기둥 꼭대기(3m+)로 순간 못 오른다.
+        //   ②경사 제한 — 면이 가파르면(normal.y < 0.55 ≈ 57°↑) 지면이 아니라 벽이다.
+        //     턱 제한만으로는 비스듬한 버팀대를 한 프레임에 조금씩 끝까지 걸어 오른다.
         if (Physics.Raycast(p + Vector3.up * 4f, Vector3.down, out var hitInfo, 8f)
-            && hitInfo.point.y > best)
+            && hitInfo.point.y > best
+            && hitInfo.point.y <= transform.position.y + 0.65f
+            && hitInfo.normal.y >= 0.55f)
             best = hitInfo.point.y;
         return best == float.MinValue ? transform.position.y : best;
     }

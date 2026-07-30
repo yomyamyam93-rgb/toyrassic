@@ -106,8 +106,10 @@ public class PetSpawner : MonoBehaviour
         // 시작 시 캡까지 즉시 채움
         for (int i = 0; i < cap * 4 && CountWild() < cap; i++) TrySpawn();
         // ★시작 펫 지급 폐기 (2026-07-30 사용자 "첫 시작이니까 다 없어야지") —
-        //   알 원정은 맨몸으로 시작해 밴드 1에서 첫 펫을 얻는다. GiveStartPets 는
-        //   실험용으로만 남긴다 (인스펙터 startPets 는 이제 안 쓰인다).
+        //   알 원정은 맨몸으로 시작해 밴드 1에서 첫 펫을 얻는다.
+        // ★단 지금은 부화 디펜스 시험 키트를 준다 (2026-07-31 사용자 "펫 3마리만줘,
+        //   꼭꼬를 포함해서 그리고 알도주고"). 시험이 끝나면 startSpecies 를 비운다.
+        GiveStartPets();
     }
 
     void Update()
@@ -526,6 +528,9 @@ public class PetSpawner : MonoBehaviour
     [Tooltip("시작할 때 내 펫을 몇 마리 줄까 (0 = 안 줌). E 펫 선택을 시험하려면 3")]
     public int startPets = 3;
     [Tooltip("지급한 펫이 내 주위 이 거리에 선다 (m)")] public float startPetGap = 1.5f;
+    [Tooltip("시험 키트 — 이 종들을 시작할 때 지급 (koreanName). 비우면 지급 없음")]
+    public string[] startSpecies = { "꼭꼬", "늑구", "호동" };
+    [Tooltip("시험 키트 — 시작할 때 주는 알(M) 개수")] public int startEggs = 1;
 
     /// 내가 가진 펫 한 마리를 만든다.
     ///
@@ -566,17 +571,27 @@ public class PetSpawner : MonoBehaviour
         return go;
     }
 
-    /// 시작 지급 — 서로 다른 종으로 startPets 마리
+    /// 시험 키트 지급 — startSpecies 로 지목한 종 + 알 (2026-07-31 부화 디펜스 시험용)
     void GiveStartPets()
     {
-        if (startPets <= 0 || player == null || entries.Count == 0) return;
-        int n = Mathf.Min(startPets, entries.Count);
-        for (int i = 0; i < n; i++)
+        if (player == null || entries.Count == 0 || startSpecies == null) return;
+        int given = 0;
+        foreach (var nm in startSpecies)
         {
-            float a = (i / (float)n) * Mathf.PI * 2f;
+            if (string.IsNullOrEmpty(nm)) continue;
+            var e = entries.Find(x => x.koreanName == nm);
+            if (e == null) e = entries.Find(x => x.species == nm);
+            if (e == null) { Debug.LogWarning($"시작 키트 — '{nm}' 종이 entries 에 없다"); continue; }
+            float a = given / (float)Mathf.Max(1, startSpecies.Length) * Mathf.PI * 2f;
             var pos = player.position + new Vector3(Mathf.Cos(a), 0f, Mathf.Sin(a)) * startPetGap;
             if (terr != null) pos.y = terr.SampleHeight(pos) + terr.transform.position.y;
-            SpawnPlayerPet(entries[i], pos);
+            SpawnPlayerPet(e, pos);
+            given++;
+        }
+        if (startEggs > 0)
+        {
+            Inv.Add("알", startEggs);
+            if (Hotbar.I != null) Hotbar.I.AutoAssign("알");   // 핫바에도 바로 보이게 (없으면 인벤에만)
         }
     }
 }

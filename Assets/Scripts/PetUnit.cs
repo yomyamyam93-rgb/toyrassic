@@ -2358,7 +2358,9 @@ public class PetUnit : MonoBehaviour
             // ★내 펫은 개별 바를 아예 안 띄운다 (2026-07-30 사용자 — "각 펫에 붙이는 게
             //   아니라 파티 규모의 체력으로"). 부대 합산 바(SquadHUD)가 그 몫을 한다.
             //   야생 바는 그대로 — 어느 놈이 빈사인지는 표적 고르기 정보다.
-            if (team == Team.Player) show = false;
+            //   ★단 구조물(부화 중인 알·건축물)은 예외 — 부대 합산 바에 안 잡히므로
+            //     맞는 동안엔 제 바를 보여야 얼마나 버티는지 안다.
+            if (team == Team.Player && !isStructure) show = false;
             // ★멀면 안 그린다 (2026-07-29). 바 하나하나가 매 프레임 위치·카메라 정렬·
             //   거리 보정을 하는데, 저 멀리 벌어지는 싸움의 바는 화면에서 점만 하다.
             if (show && Camera.main != null

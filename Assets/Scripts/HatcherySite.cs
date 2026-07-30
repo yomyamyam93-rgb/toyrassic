@@ -1,10 +1,17 @@
+using System.Collections.Generic;
 using UnityEngine;
+#if ENABLE_INPUT_SYSTEM
+using UnityEngine.InputSystem;
+#endif
 
 /// ★부화터 자리 (2026-07-31) — 제단 인스턴스에 붙이면:
 ///   ① 자식 메시 전부에 MeshCollider — 밟고 올라갈 수 있다 (PlayerMove.GroundAt 이 읽음)
 ///   ② 유리판 위에서 하늘로 광선 다발 — 가는 세로 광선 여러 가닥 + 바닥 글로우 + 옅은 외피
 ///      (2026-07-31 사용자 레퍼런스 — 통짜 원통이 아니라 오로라처럼 갈라진 빛)
-/// 부화·디펜스 기능은 다음 단계에서 이 컴포넌트에 얹는다.
+///   ③ ★부화 디펜스 (같은 날 사용자 "알을 저기 안에 넣고 디펜스한번 구현해보자") —
+///      알을 들고 와 F 로 안치면 타이머가 돌고, 야생 웨이브가 부화터로 몰려온다.
+///      알(구조물)이 버티면 부화 = 새 종 획득. 부서지면 알을 잃는다.
+///      로직은 구식 Incubator(설치형)에서 이식 — 기준점은 전부 부화터다 (플레이어 아님).
 public class HatcherySite : MonoBehaviour
 {
     [Tooltip("광선 가닥 수")] public int rayCount = 12;
@@ -13,7 +20,33 @@ public class HatcherySite : MonoBehaviour
 
     MeshRenderer[] rays; float[] rayPhase; MaterialPropertyBlock mpb;
     static readonly int ColorId = Shader.PropertyToID("_BaseColor");
-    float[] rayAlpha;
+    Color[] rayCol;   // 요소별 최종색 — ★HDR 은 여기(재질 색)에 싣는다. 알파는 혼합 모양用
+    // ★품는 동안 빛이 물러난다 (2026-07-31 사용자 "빛이 너무 쎄서 알이 하나도 안 보여") —
+    //   0 = 바닥층(백열 광선·바닥 글로우) → 거의 끔. 알이 앉는 바로 그 자리라 알을 삼킨다.
+    //   1 = 윗층(긴 광선·외피) → 절반. 멀리서 "여기서 뭔가 벌어진다" 는 남긴다.
+    byte[] rayCat;
+    float dimT;       // 0 = 평소 화려 ↔ 1 = 품는 중 (부드럽게 넘어간다)
+
+    // ── 부화 디펜스 ──────────────────────────────────────────────────
+    [Header("부화 디펜스")]
+    [Tooltip("알 구조물 체력")] public float eggHp = 600f;
+    [Tooltip("첫 차수 마릿수")] public int baseWaveSize = 6;
+    [Tooltip("차수마다 몇 마리씩 늘어나나")] public int waveSizeGrow = 4;
+    [Tooltip("소환 흘려보내는 간격 (초)")] public float spawnInterval = 0.5f;
+    [Tooltip("습격 쫄병 배율 — 크기·체력·피해")]
+    public float sizeMul = 0.85f, hpMul = 0.7f, dmgMul = 0.7f;
+
+    bool incubating;
+    float hatchT, hatchDuration; int totalWaves, wavesSent; float firstWaveDelay;
+    int toSpawn; float spawnT;
+    PetScale.Tier eggTier = PetScale.Tier.M;
+    PetUnit eggUnit; Transform eggVis;
+    Transform gaugeRoot, gaugeFill;
+    readonly List<PetUnit> attackers = new List<PetUnit>();
+    PetSpawner spawner; Transform player;
+    Vector3 beamBase;      // 유리판 위 — 알이 앉는 자리
+    Vector3 siteCenter; float siteR = 5f;   // 제단 실측 (배치·스케일 무관)
+    bool prompted;
 
     void Start()
     {
@@ -25,14 +58,20 @@ public class HatcherySite : MonoBehaviour
             mc.sharedMesh = mf.sharedMesh;
         }
 
-        // ── ② 유리판을 찾아 그 위에 앵커 — 좌표 하드코딩 금지 (스케일·배치 무관) ──
-        Renderer glass = null;
+        // ── ② 유리판을 찾아 그 위에 앵커 + 제단 전체 실측 — 좌표 하드코딩 금지 ──
+        Renderer glass = null; Bounds all = default; bool first = true;
         foreach (var r in GetComponentsInChildren<Renderer>())
-            if (r.name.Contains("유리")) { glass = r; break; }
+        {
+            if (glass == null && r.name.Contains("유리")) glass = r;
+            if (first) { all = r.bounds; first = false; } else all.Encapsulate(r.bounds);
+        }
+        siteCenter = first ? transform.position : all.center;
+        siteR = first ? 5f : Mathf.Max(all.extents.x, all.extents.z);
         Vector3 basePos = glass != null
             ? new Vector3(glass.bounds.center.x, glass.bounds.max.y + 0.02f, glass.bounds.center.z)
             : transform.position + Vector3.up * 2f;
         float R = glass != null ? Mathf.Max(glass.bounds.extents.x, 0.5f) : 2f;
+        beamBase = basePos;
 
         var root = new GameObject("빛기둥");
         root.transform.SetParent(transform, true);
@@ -40,37 +79,44 @@ public class HatcherySite : MonoBehaviour
         root.transform.rotation = Quaternion.identity;
 
         var mat = RayMat();
-        rays = new MeshRenderer[rayCount * 2 + 2];
-        rayPhase = new float[rays.Length];
-        rayAlpha = new float[rays.Length];
+        var list = new List<(MeshRenderer r, float ph, Color c, byte cat)>();
         mpb = new MaterialPropertyBlock();
-        int k = 0;
+        Color cyan = beamColor;
+        Color white = Color.Lerp(beamColor, Color.white, 0.85f);
 
-        // 가는 세로 광선 — 가닥마다 위치·높이·굵기·밝기가 다르다 (레퍼런스의 그 다발)
-        for (int i = 0; i < rayCount; i++)
+        void Ray(Vector3 pos, float ang, float w, float h, Color col, byte cat)
         {
-            float ang = Random.Range(0f, Mathf.PI * 2f);
-            float rad = Mathf.Pow(Random.value, 0.7f) * R * 0.85f;   // 중심 쪽이 조금 촘촘
-            float h = Random.Range(rayHeight.x, rayHeight.y);
-            float w = Random.Range(0.06f, 0.3f) * R;
-            float a = Random.Range(0.25f, 0.75f);
-            var pos = new Vector3(Mathf.Cos(ang) * rad, 0f, Mathf.Sin(ang) * rad);
             for (int q = 0; q < 2; q++)   // 십자 두 장 — 어느 방향에서 봐도 보인다
             {
                 var quad = GameObject.CreatePrimitive(PrimitiveType.Quad);
                 Destroy(quad.GetComponent<Collider>());
-                quad.name = $"ray{i}_{q}";
                 quad.transform.SetParent(root.transform, false);
                 quad.transform.localPosition = pos + Vector3.up * (h * 0.5f);
                 quad.transform.localRotation = Quaternion.Euler(0f, q * 90f + ang * Mathf.Rad2Deg, 0f);
                 quad.transform.localScale = new Vector3(w, h, 1f);
-                rays[k] = Setup(quad, mat);
-                rayPhase[k] = Random.Range(0f, 6.28f);
-                rayAlpha[k] = a;
-                k++;
+                list.Add((Setup(quad, mat), Random.Range(0f, 6.28f), col, cat));
             }
         }
-        // 옅은 외피 원통 — 다발을 감싸는 은은한 볼륨감
+
+        // ── 1층: 짧고 굵은 백열 광선 — 레퍼런스 하단의 그 과노출 (★HDR ×4) ──
+        for (int i = 0; i < 8; i++)
+        {
+            float ang = Random.Range(0f, Mathf.PI * 2f);
+            float rad = Mathf.Pow(Random.value, 0.8f) * R * 0.7f;
+            var col = white * 4f; col.a = Random.Range(0.55f, 0.9f);
+            Ray(new Vector3(Mathf.Cos(ang) * rad, 0f, Mathf.Sin(ang) * rad), ang,
+                Random.Range(0.18f, 0.45f) * R, Random.Range(1.2f, 3.5f), col, 0);
+        }
+        // ── 2층: 길고 가는 시안 광선 (HDR ×1.6) ──
+        for (int i = 0; i < rayCount; i++)
+        {
+            float ang = Random.Range(0f, Mathf.PI * 2f);
+            float rad = Mathf.Pow(Random.value, 0.7f) * R * 0.85f;
+            var col = cyan * 1.6f; col.a = Random.Range(0.25f, 0.6f);
+            Ray(new Vector3(Mathf.Cos(ang) * rad, 0f, Mathf.Sin(ang) * rad), ang,
+                Random.Range(0.05f, 0.22f) * R, Random.Range(rayHeight.x, rayHeight.y), col, 1);
+        }
+        // ── 외피 원통 — 은은한 볼륨 ──
         {
             var hull = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
             Destroy(hull.GetComponent<Collider>());
@@ -79,23 +125,31 @@ public class HatcherySite : MonoBehaviour
             float h = rayHeight.y * 0.55f;
             hull.transform.localPosition = Vector3.up * (h * 0.5f);
             hull.transform.localScale = new Vector3(R * 2.1f, h * 0.5f, R * 2.1f);
-            rays[k] = Setup(hull, mat); rayPhase[k] = 0f; rayAlpha[k] = 0.10f; k++;
+            var col = cyan; col.a = 0.10f;
+            list.Add((Setup(hull, mat), 0f, col, 1));
         }
-        // 바닥 글로우 — 발원지가 빛난다 (레퍼런스 하단의 그 밝음)
+        // ── 바닥 글로우 두 겹: 좁고 백열(★×5) + 넓고 시안(×1.5) ──
+        void Glow(float radius, Color col, float y)
         {
-            var baseGlow = GameObject.CreatePrimitive(PrimitiveType.Quad);
-            Destroy(baseGlow.GetComponent<Collider>());
-            baseGlow.name = "baseGlow";
-            baseGlow.transform.SetParent(root.transform, false);
-            baseGlow.transform.localPosition = Vector3.up * 0.05f;
-            baseGlow.transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
-            baseGlow.transform.localScale = new Vector3(R * 2.6f, R * 2.6f, 1f);
-            var mrB = baseGlow.GetComponent<MeshRenderer>();
-            mrB.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
-            mrB.receiveShadows = false;
-            mrB.material = GlowMat();
-            rays[k] = mrB; rayPhase[k] = 1.7f; rayAlpha[k] = 0.85f; k++;
+            var g = GameObject.CreatePrimitive(PrimitiveType.Quad);
+            Destroy(g.GetComponent<Collider>());
+            g.transform.SetParent(root.transform, false);
+            g.transform.localPosition = Vector3.up * y;
+            g.transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
+            g.transform.localScale = new Vector3(radius * 2f, radius * 2f, 1f);
+            list.Add((Setup(g, GlowMat()), Random.Range(0f, 6.28f), col, 0));
         }
+        { var c1 = white * 5f; c1.a = 0.95f; Glow(R * 1.25f, c1, 0.06f); }
+        { var c2 = cyan * 1.5f; c2.a = 0.55f; Glow(R * 2.6f, c2, 0.04f); }
+
+        rays = new MeshRenderer[list.Count];
+        rayPhase = new float[list.Count];
+        rayCol = new Color[list.Count];
+        rayCat = new byte[list.Count];
+        for (int i = 0; i < list.Count; i++)
+        { rays[i] = list[i].r; rayPhase[i] = list[i].ph; rayCol[i] = list[i].c; rayCat[i] = list[i].cat; }
+
+        spawner = FindFirstObjectByType<PetSpawner>();
     }
 
     MeshRenderer Setup(GameObject go, Material m)
@@ -108,17 +162,257 @@ public class HatcherySite : MonoBehaviour
     }
 
     void Update()
-    {   // 가닥마다 어긋난 맥동 — 살아있는 빛 (렌더러 26개 남짓, 부담 없음)
-        if (rays == null) return;
-        for (int i = 0; i < rays.Length; i++)
+    {   // 가닥마다 어긋난 맥동 — 살아있는 빛 (렌더러 40개 남짓, 부담 없음)
+        // ★품는 동안엔 빛이 물러난다 — 바닥층은 거의 꺼서 알이 주인공이 되게
+        dimT = Mathf.MoveTowards(dimT, incubating ? 1f : 0f, Time.deltaTime * 1.5f);
+        if (rays != null)
+            for (int i = 0; i < rays.Length; i++)
+            {
+                if (rays[i] == null) continue;
+                float pulse = 0.8f + 0.2f * Mathf.Sin(Time.time * 1.6f + rayPhase[i]);
+                float dim = rayCat[i] == 0 ? Mathf.Lerp(1f, 0.06f, dimT)
+                                           : Mathf.Lerp(1f, 0.45f, dimT);
+                var c = rayCol[i] * (pulse * dim);   // ★HDR 유지 — 색에 실린 밝기가 블룸을 문다
+                c.a = rayCol[i].a * pulse * dim;
+                mpb.SetColor(ColorId, c);
+                rays[i].SetPropertyBlock(mpb);
+            }
+
+        DefenseUpdate();
+    }
+
+    // ── 부화 디펜스 본체 ─────────────────────────────────────────────
+
+    /// 알 등급 → 판의 크기 (구식 Incubator 에서 이식 — 등급이 곧 난이도이자 보상)
+    void ApplyTier(PetScale.Tier t)
+    {
+        switch (t)
         {
-            if (rays[i] == null) continue;
-            float pulse = 0.8f + 0.2f * Mathf.Sin(Time.time * 1.6f + rayPhase[i]);
-            var c = beamColor; c.a = rayAlpha[i] * pulse;
-            mpb.SetColor(ColorId, c);
-            rays[i].SetPropertyBlock(mpb);
+            case PetScale.Tier.S: hatchDuration = 25f; totalWaves = 1; baseWaveSize = 6; waveSizeGrow = 0; firstWaveDelay = 4f; break;
+            case PetScale.Tier.M: hatchDuration = 45f; totalWaves = 2; baseWaveSize = 6; waveSizeGrow = 4; firstWaveDelay = 5f; break;
+            case PetScale.Tier.L: hatchDuration = 75f; totalWaves = 3; baseWaveSize = 8; waveSizeGrow = 5; firstWaveDelay = 6f; break;
+            default: hatchDuration = 110f; totalWaves = 4; baseWaveSize = 10; waveSizeGrow = 6; firstWaveDelay = 6f; break;
         }
     }
+
+    /// 지금 안칠 알 — 핫바에 든 알이 우선, 아니면 가진 것 중 제일 좋은 알
+    static string EggPicked()
+    {
+        var held = Hotbar.I != null ? Hotbar.I.CurrentId : null;
+        if (held != null && ItemDB.EggTier(held) != null && Inv.Count(held) > 0) return held;
+        return ItemDB.BestEggHeld();
+    }
+
+    void DefenseUpdate()
+    {
+        if (player == null) { var p = GameObject.Find("Player"); if (p != null) player = p.transform; else return; }
+
+        float d = Flat(player.position, siteCenter);
+
+        // ── 안치 전 — 알을 들고 오면 F 안내, F 로 시작 ──
+        if (!incubating)
+        {
+            var eggId = EggPicked();
+            bool near = d < siteR + 4f && eggId != null;
+            if (near && !prompted) { SquadHUD.Toast($"F — {eggId}을 부화터에 안친다"); prompted = true; }
+            if (!near) prompted = false;
+#if ENABLE_INPUT_SYSTEM
+            var k = Keyboard.current;
+            if (near && !MenuUI.IsOpen && k != null && k.fKey.wasPressedThisFrame)
+                BeginIncubation(eggId);
+#endif
+            return;
+        }
+
+        // ── 알이 부서졌나 ──
+        if (eggUnit == null || !eggUnit.Alive)
+        {
+            SquadHUD.Toast("알이 부서졌다… 부화 실패!");
+            FX.Burst(beamBase + Vector3.up * 0.4f, new Color(0.9f, 0.8f, 0.6f, 1f), 30, 0.4f, 3f);
+            FollowCam.Shake(0.4f);
+            EndDefense();
+            return;
+        }
+
+        // ── 부화는 시간이 채운다 — 적을 다 잡든 말든 시계는 흐른다 ──
+        hatchT += Time.deltaTime;
+        if (hatchT >= hatchDuration) { Hatch(); return; }
+
+        // 정해진 시각이 되면 다음 차수 (앞 차수가 남아 있어도 겹쳐서 온다)
+        if (wavesSent < totalWaves)
+        {
+            float slot = (hatchDuration - firstWaveDelay) / Mathf.Max(1, totalWaves);
+            float due = firstWaveDelay + slot * wavesSent;
+            if (hatchT >= due)
+            {
+                wavesSent++;
+                toSpawn += baseWaveSize + waveSizeGrow * (wavesSent - 1);
+                spawnT = 0.2f;
+                SquadHUD.Toast(wavesSent >= totalWaves
+                    ? "마지막 습격이다! 버텨라"
+                    : $"{wavesSent}차 습격이 온다! ({wavesSent}/{totalWaves})");
+                FollowCam.Shake(0.2f);
+            }
+        }
+
+        // 대기 중인 소환분을 조금씩 흘려보낸다 — 부화터를 둘러싼 링에서 몰려온다
+        if (toSpawn > 0 && spawner != null)
+        {
+            spawnT -= Time.deltaTime;
+            if (spawnT <= 0f)
+            {
+                spawnT = spawnInterval;
+                var pool = new List<PetSpawner.Entry>();
+                foreach (var e in spawner.entries)
+                    if (e.tier == PetScale.Tier.S || e.tier == PetScale.Tier.M ||
+                        (wavesSent >= totalWaves && e.tier == PetScale.Tier.L)) pool.Add(e);
+                if (pool.Count == 0) pool.AddRange(spawner.entries);
+                var entry = pool[Random.Range(0, pool.Count)];
+                float ang = Random.Range(0f, Mathf.PI * 2f);
+                float ringMin = siteR + 12f, ringMax = siteR + 20f;
+                var pos = siteCenter + new Vector3(Mathf.Cos(ang), 0, Mathf.Sin(ang)) * Random.Range(ringMin, ringMax);
+                var terr = Terrain.activeTerrain;
+                if (terr != null) pos.y = terr.SampleHeight(pos) + terr.transform.position.y;
+                var g = spawner.Spawn(entry, pos, sizeMul, hpMul, dmgMul);
+                if (g != null)
+                {
+                    var u = g.GetComponent<PetUnit>();
+                    u.name = entry.koreanName + "(습격)";
+                    // ★부화터로 진군 — 처음부터 전투 상태 + 시야·리쉬를 넓힌다.
+                    //   알(구조물·내 편)이 시야에 들어오므로 알아서 그리로 몰려간다.
+                    //   (NestSite 습격조와 같은 수법 — 평소 시야 3m 면 서서 구경만 한다)
+                    u.alerted = true;
+                    u.joinRange = ringMax + siteR + 15f;
+                    u.leashRange = 99999f;
+                    attackers.Add(u);
+                    toSpawn--;
+                }
+            }
+        }
+
+        // 품는 알 연출 — 두근두근
+        if (eggVis != null)
+        {
+            float pulse = 1f + Mathf.Sin(Time.time * 5f) * 0.03f;
+            eggVis.localScale = new Vector3(0.6f * pulse, 0.78f / pulse, 0.6f * pulse);
+        }
+
+        // 부화 게이지 — 알 위, 줌 무관 크기 (구식 Incubator 방식)
+        if (gaugeRoot != null && Camera.main != null)
+        {
+            var camT = Camera.main.transform;
+            gaugeRoot.position = beamBase + Vector3.up * 1.6f;
+            gaugeRoot.rotation = camT.rotation;
+            float dist = Vector3.Distance(camT.position, gaugeRoot.position);
+            gaugeRoot.localScale = Vector3.one * 0.15f * Mathf.Clamp(dist / 4.2f, 0.85f, 6f);
+            float f = hatchDuration > 0f ? Mathf.Clamp01(hatchT / hatchDuration) : 0f;
+            var s = gaugeFill.localScale; s.x = 1.95f * Mathf.Max(0.02f, f); gaugeFill.localScale = s;
+            var lp = gaugeFill.localPosition; lp.x = -(1.95f - s.x) * 0.5f; gaugeFill.localPosition = lp;
+        }
+    }
+
+    void BeginIncubation(string eggId)
+    {
+        if (!Inv.Consume(eggId, 1)) return;
+        eggTier = ItemDB.EggTier(eggId) ?? PetScale.Tier.M;
+        ApplyTier(eggTier);
+        incubating = true;
+        hatchT = 0f; wavesSent = 0; toSpawn = 0;
+        attackers.Clear();
+        MakeEgg();
+        MakeGauge();
+        SquadHUD.Toast($"{eggId}을 안쳤다!  {hatchDuration:F0}초 · {totalWaves}차례 습격을 막아야 한다");
+        FollowCam.Shake(0.3f);
+    }
+
+    /// 알 = 때릴 수 있는 구조물 (BuildSystem.Structure 와 같은 수법)
+    void MakeEgg()
+    {
+        var egg = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+        Destroy(egg.GetComponent<Collider>());
+        egg.name = "부화 중인 알";
+        egg.transform.position = beamBase + Vector3.up * 0.42f;
+        egg.transform.localScale = new Vector3(0.6f, 0.78f, 0.6f);
+        var em = new Material(Shader.Find("Universal Render Pipeline/Lit"));
+        em.color = new Color(0.98f, 0.93f, 0.80f);
+        em.SetFloat("_Smoothness", 0.6f);
+        // 은은한 자체 발광 — 물러난 빛 속에서 알이 또렷이 읽히게 (과하면 또 삼킨다)
+        em.EnableKeyword("_EMISSION");
+        em.SetColor("_EmissionColor", new Color(0.55f, 0.48f, 0.30f));
+        egg.GetComponent<MeshRenderer>().sharedMaterial = em;
+        eggVis = egg.transform;
+
+        var pu = egg.AddComponent<PetUnit>();
+        pu.isStructure = true; pu.team = PetUnit.Team.Player;
+        pu.mat = PetUnit.Mat.Basic; pu.species = "hatch_egg";
+        pu.vit = eggHp / 10f; pu.str = 0; pu.agi = 0; pu.intel = 0;
+        eggUnit = pu;
+    }
+
+    void Hatch()
+    {
+        SquadHUD.Toast("🎉 알이 부화했다!");
+        FX.Burst(beamBase + Vector3.up * 0.6f, new Color(1.9f, 1.7f, 0.6f, 1f), 40, 0.3f, 4f);
+        FollowCam.Shake(0.4f);
+
+        if (spawner != null && spawner.entries.Count > 0)
+        {
+            // ★알 등급대로 태어난다 — 큰 알을 걸고 큰 판을 치른 만큼 큰 펫이 나온다
+            var pool = new List<PetSpawner.Entry>();
+            foreach (var e in spawner.entries) if (e.tier == eggTier) pool.Add(e);
+            if (pool.Count == 0) pool.AddRange(spawner.entries);
+            var entry = pool[Random.Range(0, pool.Count)];
+            var pos = player != null ? player.position + player.forward : siteCenter;
+            var terr = Terrain.activeTerrain;
+            if (terr != null) pos.y = terr.SampleHeight(pos) + terr.transform.position.y;
+            // 비활성 틀로 지급 — 보관함 등록 + 무기 칸 자동 결합 (던져야 나온다)
+            var g = spawner.SpawnPlayerPet(entry, pos);
+            SquadHUD.Toast(g != null
+                ? $"{entry.koreanName}을 얻었다! 무기 칸에 묶어 Q·E·R 로 던진다"
+                : "…그런데 태어날 종을 못 찾았다");
+        }
+        EndDefense();
+    }
+
+    /// 판 정리 — 성공이든 실패든: 알 오브젝트 철거, 남은 습격조는 리쉬를 되돌려 흩어진다
+    void EndDefense()
+    {
+        incubating = false;
+        hatchT = 0f; wavesSent = 0; toSpawn = 0;
+        KillGauge();
+        if (eggVis != null) { Destroy(eggVis.gameObject); eggVis = null; }
+        eggUnit = null;
+        foreach (var u in attackers)
+            if (u != null && u.Alive) u.leashRange = 26f;
+        attackers.Clear();
+    }
+
+    /// 부화 게이지 — 각진 바 규칙 (흰 1픽셀, CLAUDE.md)
+    void MakeGauge()
+    {
+        gaugeRoot = new GameObject("hatch_gauge").transform;
+        Transform Quad(string n, Color c, float z, int order, Vector2 scale)
+        {
+            var q = GameObject.CreatePrimitive(PrimitiveType.Quad).transform;
+            Destroy(q.GetComponent<Collider>());
+            q.name = n; q.SetParent(gaugeRoot, false);
+            q.localPosition = new Vector3(0, 0, z);
+            q.localScale = new Vector3(scale.x, scale.y, 1f);
+            var mm = q.GetComponent<MeshRenderer>();
+            mm.material = new Material(Shader.Find("Toyrassic/GroundDecal"));
+            mm.material.mainTexture = Texture2D.whiteTexture;
+            mm.material.color = c;
+            mm.sortingOrder = order;
+            mm.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            return q;
+        }
+        Quad("bg", new Color(0.08f, 0.08f, 0.10f, 0.92f), 0.02f, 10, new Vector2(2.1f, 0.5f));
+        gaugeFill = Quad("fill", new Color(1f, 0.84f, 0.28f, 1f), 0f, 11, new Vector2(1.95f, 0.36f));
+    }
+
+    void KillGauge() { if (gaugeRoot != null) { Destroy(gaugeRoot.gameObject); gaugeRoot = null; } }
+
+    static float Flat(Vector3 a, Vector3 b) { a.y = 0f; b.y = 0f; return Vector3.Distance(a, b); }
 
     static Material rayMat, glowMat;
     static Material AdditiveMat(Texture2D tex)
