@@ -1561,6 +1561,12 @@ public class PetUnit : MonoBehaviour
             lastAttacker = attacker;
             grudgeT = grudgeTime;
             if (target == null || !target.Alive) target = attacker;   // 즉시 보복
+            // ★맞으면서 먼 놈만 보고 서 있던 것 (2026-07-30 사용자 "내 편이 쳐맞는데
+            //   가만히 서있는 건 뭐냐") — 지금 표적이 가해자보다 한참 멀면 가해자로
+            //   갈아탄다. 0.8배 문턱은 갈아타기가 핑퐁이 되지 않게 하는 여유다.
+            else if (!isAvatar
+                     && Dist(attacker.transform.position) < Dist(target.transform.position) * 0.8f)
+                target = attacker;
         }
         if (hp <= 0f)
         {
