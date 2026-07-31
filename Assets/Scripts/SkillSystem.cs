@@ -1001,9 +1001,12 @@ public class SkillSystem : MonoBehaviour
     public float refillSecPerSupply = 1.5f;
     [Tooltip("부상 예비대가 쉬면서 회복하는 속도 (비율/초)")] public float reserveHealRate = 0.03f;
     float squadTickT;
+    /// 스탯창(PetUnit.CombatSheet)이 읽는 거울값 — 인스펙터에서 바꿔도 표시가 따라온다
+    public static float RefillSecPerSupplyLive = 1.5f;
 
     void SquadRefill()
     {
+        RefillSecPerSupplyLive = refillSecPerSupply;
         squadTickT -= Time.deltaTime;
         if (squadTickT > 0f) return;
         squadTickT = 0.5f;

@@ -577,6 +577,9 @@ public class PetUnit : MonoBehaviour
             ? $"  사거리 {reach:F1}m  (원거리 · 단일 표적)"
             : $"  사거리 {reach:F1}m  ·  부채꼴 {AtkSpread:F0}°");
         sb.AppendLine($"  이동 {MoveSpd:F1}m/s  ·  투사체 회피 {dodge:F0}%");
+        // ★회복·충원 — 부대 운용 스탯 (2026-07-31 사용자 "빠진 게 없는지 넣어줘")
+        sb.AppendLine($"  회복 초당 {maxHp * RegenPerSec:F1}  (전투 밖 6초 뒤)"
+                    + $"  ·  충원 {supply * SkillSystem.RefillSecPerSupplyLive:F1}초/마리");
         sb.Append($"  {tier} 등급  ·  {PatternKorean}  ·  인구수 {supply}");
         if (IsRanged)
             sb.Append(KitingPattern(pattern) ? "  ·  카이팅 함" : "  ·  카이팅 안 함(산탄)");
@@ -1624,13 +1627,15 @@ public class PetUnit : MonoBehaviour
     //   ★내 편(캐릭터+펫)만. 야생이 재생하면 치고 빠지기가 무의미해진다.
     //   전투 중 회복은 노드(부대 흡혈)와 천 재질 힐러의 몫 — 정본 "치열함은 회복에서".
     float hurtT = 99f;   // 마지막으로 맞은 뒤 흐른 시간
+    /// 전투 밖 초당 회복 비율 — 스탯창(CombatSheet)도 이 값을 그대로 읽는다 (그림=실제)
+    public const float RegenPerSec = 0.025f;
 
     void Regen()
     {
         hurtT += Time.deltaTime;
         if (team != Team.Player || isStructure || hp >= maxHp) return;
         if (InCombat || hurtT < 6f) return;
-        hp = Mathf.Min(maxHp, hp + maxHp * 0.025f * Time.deltaTime);
+        hp = Mathf.Min(maxHp, hp + maxHp * RegenPerSec * Time.deltaTime);
     }
 
     public void TakeDamage(float dmg, PetUnit attacker = null)
