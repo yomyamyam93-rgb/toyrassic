@@ -2098,8 +2098,10 @@ public class PetUnit : MonoBehaviour
     //   두 루트의 성격이 이렇게 갈린다: 둥지 = 확실하지만 찾아가야 함 / 사냥 = 운.
     [Header("알 드랍")]
     [Tooltip("평범한 야생이 알을 떨굴 확률")] public float eggDropChance = 0.12f;
+    // ★0.45 → 0.22 (2026-07-31 사용자 "드랍률도 그닥 안 높게"). 그 알은 등급 바닥이
+    //   보장되므로, 확률까지 높으면 좋은 개체가 흔해진다. 자주 만나되 귀하게 나온다.
     [Tooltip("우두머리가 알을 떨굴 확률 — ★확정이 아니다 (확정은 둥지의 몫)")]
-    public float eliteEggDropChance = 0.45f;
+    public float eliteEggDropChance = 0.22f;
 
     void DropEgg()
     {
@@ -2111,8 +2113,15 @@ public class PetUnit : MonoBehaviour
         var id = ItemDB.EggId(t);
         var d = ItemDrop.Spawn(ItemDrop.Kind.Egg, transform.position + Vector3.up * body * 0.3f, 1);
         if (d != null) d.itemId = id;
-        if (elite) FX.Burst(transform.position + Vector3.up * body * 0.5f,
-                            PetRank.Color1(RankOverall), 22, body * 0.06f, body * 0.9f, 0.7f);
+        if (elite)
+        {
+            // ★★그 알은 **최소 이 우두머리의 등급**이 된다 (바닥이지 상한이 아니다).
+            //   빛나는 놈을 잡는 일이 곧 밑바닥을 끌어올리는 일이다.
+            PetSpawner.ReserveEggFloor(t, ranks);
+            FX.Burst(transform.position + Vector3.up * body * 0.5f,
+                     PetRank.Color1(RankOverall), 22, body * 0.06f, body * 0.9f, 0.7f);
+            SquadHUD.Toast($"우두머리를 잡았다 — 최소 <b>{PetRank.Letter(RankOverall)}급</b>이 보장된 알!");
+        }
     }
 
     // ── 이동 ──

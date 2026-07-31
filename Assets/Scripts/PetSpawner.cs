@@ -543,6 +543,8 @@ public class PetSpawner : MonoBehaviour
 
     [Tooltip("우두머리가 데리고 다니는 호위 수 — 벌판에서도 무리로 보인다")]
     [Range(0, 8)] public int eliteEscort = 4;
+    [Tooltip("호위의 등급 행운 — 0이면 평범, 1~2면 개중에 빛나는 놈이 섞인다")]
+    [Range(0, 4)] public int eliteEscortLuck = 1;
 
     /// 호위를 뽑는 중인가 — 호위가 또 우두머리를 뽑는 무한 재귀를 막는다
     bool spawningEscort;
@@ -574,7 +576,12 @@ public class PetSpawner : MonoBehaviour
             if (terr != null) p.y = terr.SampleHeight(p) + terr.transform.position.y;
             var g = Spawn(e, p);
             var u = g != null ? g.GetComponent<PetUnit>() : null;
-            if (u != null) u.packBudget = 0;   // 호위는 스스로 또 불어나지 않는다
+            if (u == null) continue;
+            u.packBudget = 0;                  // 호위는 스스로 또 불어나지 않는다
+            // ★호위도 등급이 제각각이다 (2026-07-31 사용자 "다양한 등급 무리").
+            //   전부 C 면 우두머리 하나만 특별하고 무리는 배경이 된다. 섞여 있으면
+            //   **누굴 먼저 잡을지** 라는 판단이 생기고, 개중에 빛나는 놈도 있다.
+            u.RollRanks(eliteEscortLuck);
         }
         spawningEscort = false;
     }
@@ -594,6 +601,39 @@ public class PetSpawner : MonoBehaviour
     /// ★미리 정해진 등급 (부화가 넣는다) — 알을 **넣는 순간** 뽑아 두고 그걸 그대로 준다.
     ///   있으면 pendingLuck 보다 우선한다.
     public static int[] pendingRanks;
+
+    // ── 우두머리가 남긴 「등급 바닥」 (2026-07-31) ──────────────────────────
+    //
+    // ★우두머리를 잡으면 그 알은 **최소 그 등급**이 된다 (사용자 "그 등급에서 끝이
+    //   아니라 최소 그 등급으로") — 상한이 아니라 바닥이라 위로는 더 나올 수 있다.
+    //   즉 빛나는 놈을 잡는 것은 **밑바닥을 끌어올리는** 일이다.
+    //
+    // ★왜 이런 우회를 쓰나: 인벤토리는 아이템을 「이름 + 개수」로만 저장해서
+    //   **알 하나하나가 등급을 들고 있을 수 없다.** 그래서 등급별로 「예약된 바닥」을
+    //   쌓아 두고, 그 등급 알을 부화할 때 하나 꺼내 쓴다. 플레이 체감은 같다.
+    static readonly Dictionary<PetScale.Tier, List<int[]>> eggFloors
+        = new Dictionary<PetScale.Tier, List<int[]>>();
+
+    /// 우두머리가 떨군 알에 등급 바닥을 예약해 둔다
+    public static void ReserveEggFloor(PetScale.Tier t, int[] ranks)
+    {
+        if (ranks == null || ranks.Length != PetRank.StatCount) return;
+        if (!eggFloors.TryGetValue(t, out var list)) eggFloors[t] = list = new List<int[]>();
+        if (list.Count < 32) list.Add(ranks);   // 무한정 쌓이진 않게
+    }
+
+    /// 그 등급 알을 부화할 때 — 예약된 바닥을 하나 꺼낸다 (없으면 null)
+    public static int[] TakeEggFloor(PetScale.Tier t)
+    {
+        if (!eggFloors.TryGetValue(t, out var list) || list.Count == 0) return null;
+        // 제일 좋은 것부터 쓴다 — 애써 잡은 보람이 바로 온다
+        int best = 0;
+        for (int i = 1; i < list.Count; i++)
+            if (PetRank.Overall(list[i]) > PetRank.Overall(list[best])) best = i;
+        var r = list[best];
+        list.RemoveAt(best);
+        return r;
+    }
 
     /// 내가 가진 펫 한 마리를 만든다.
     ///

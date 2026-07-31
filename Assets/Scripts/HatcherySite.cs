@@ -399,6 +399,12 @@ public class HatcherySite : MonoBehaviour
         ApplyTier(eggTier);
         // ★여기서 뽑는다 — 알 등급이 행운을 준다 (S1 · M2 · L3 · XL4)
         eggRanks = PetRank.RollAll((int)eggTier + 1);
+        // ★우두머리가 남긴 「등급 바닥」이 있으면 스탯마다 그 아래로는 안 내려간다
+        //   (사용자 "그 등급에서 끝이 아니라 최소 그 등급으로") — 위로는 더 나올 수 있다.
+        var floor = PetSpawner.TakeEggFloor(eggTier);
+        if (floor != null)
+            for (int i = 0; i < eggRanks.Length && i < floor.Length; i++)
+                eggRanks[i] = Mathf.Max(eggRanks[i], floor[i]);
         eggGrade = PetRank.Overall(eggRanks);
         incubating = true;
         hatchT = 0f; wavesSent = 0; toSpawn = 0;
