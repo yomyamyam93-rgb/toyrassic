@@ -2080,6 +2080,32 @@ public class PetUnit : MonoBehaviour
                           : mat == Mat.Water ? new Color(0.35f, 0.6f, 1f)
                           : new Color(0.6f, 0.8f, 1f);
         g.AddComponent<DropPickup>().matName = n;
+        DropEgg();
+    }
+
+    // ── 알 드랍 (2026-07-31 사용자 — "알 둥지 찾으러 가는 거 좆같긴 함") ──────
+    //
+    // ★알을 **사냥에서** 나오게 해 루프를 닫는다: 사냥 → 알 → 부화 디펜스 → 펫 →
+    //   더 센 사냥. 전엔 알을 구하려면 둥지를 찾아 돌아다녀야 했는데, 그건 재미가
+    //   아니라 이동 노동이었다 (게임의 재미는 전투와 부화에 있다).
+    //
+    // ★우두머리를 잡을 이유도 여기서 생긴다 (사용자 "그걸 잡아서 뭐해?"):
+    //   **확정 드랍 + 한 등급 위 알.** 빛나는 놈을 굳이 건드리는 값이 이것이다.
+    [Header("알 드랍")]
+    [Tooltip("평범한 야생이 알을 떨굴 확률")] public float eggDropChance = 0.12f;
+
+    void DropEgg()
+    {
+        if (team != Team.Wild || isStructure) return;
+        bool elite = RankOverall >= 5;                       // 우두머리 = 오라가 켜지는 등급
+        if (!elite && Random.value >= eggDropChance) return;
+        // 우두머리는 한 등급 위 알 — "저 빛나는 놈을 잡으면 좋은 알이 나온다"
+        var t = elite ? (PetScale.Tier)Mathf.Min((int)tier + 1, (int)PetScale.Tier.XL) : tier;
+        var id = ItemDB.EggId(t);
+        var d = ItemDrop.Spawn(ItemDrop.Kind.Egg, transform.position + Vector3.up * body * 0.3f, 1);
+        if (d != null) d.itemId = id;
+        if (elite) FX.Burst(transform.position + Vector3.up * body * 0.5f,
+                            PetRank.Color1(RankOverall), 22, body * 0.06f, body * 0.9f, 0.7f);
     }
 
     // ── 이동 ──
