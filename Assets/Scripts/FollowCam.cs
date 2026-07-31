@@ -87,22 +87,22 @@ public class FollowCam : MonoBehaviour
     //        "높낮이 만들면서 너무 답답해졌다" 로 되돌린 이력이 있다. 6km 지형에서
     //        고정 각도는 한 번 실패한 답이다.
     //
-    //   → **평소엔 우클릭 드래그로 회전, 조준 중(Q·E·R 홀드)엔 잠금 + 우클릭은 취소.**
-    //     배치하는 순간만 화면이 고정되므로 손도 안 흔들리고 시야도 자유롭다.
-    [Tooltip("우클릭 드래그 회전 (조준 중에는 자동으로 잠긴다)")]
+    //   → **언제나 우클릭 드래그로 회전한다** (2026-07-31 사용자 "풀자 다시").
+    //     조준 중에도 잠그지 않는다 — 배치할 자리를 보려고 돌리는 일이 제일 잦다.
+    //     대신 조준 취소는 `SkillSystem` 이 **딸깍했을 때만** 받는다 (끌면 회전).
+    [Tooltip("우클릭 드래그로 카메라 회전")]
     public bool allowRotate = true;
 
     void ReadLook(out Vector2 delta, out float scroll)
     {
         delta = Vector2.zero; scroll = 0f;
-        bool can = allowRotate && !SkillSystem.AimingNow;   // 조준 중엔 화면을 고정
 #if ENABLE_INPUT_SYSTEM
         var m = Mouse.current;
         if (m == null) return;
-        if (can && m.rightButton.isPressed) delta = m.delta.ReadValue();
+        if (allowRotate && m.rightButton.isPressed) delta = m.delta.ReadValue();
         scroll = m.scroll.ReadValue().y * 0.01f;
 #else
-        if (can && Input.GetMouseButton(1)) delta = new Vector2(Input.GetAxis("Mouse X") * 12f, Input.GetAxis("Mouse Y") * 12f);
+        if (allowRotate && Input.GetMouseButton(1)) delta = new Vector2(Input.GetAxis("Mouse X") * 12f, Input.GetAxis("Mouse Y") * 12f);
         scroll = Input.GetAxis("Mouse ScrollWheel");
 #endif
     }

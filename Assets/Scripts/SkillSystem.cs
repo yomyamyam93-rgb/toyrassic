@@ -227,16 +227,24 @@ public class SkillSystem : MonoBehaviour
                : k.rKey.isPressed ? 2 : k.spaceKey.isPressed ? RollHud : -1;
 
         // ★조준하다 우클릭하면 취소 (2026-07-28 사용자) — 잘못 눌렀을 때 무르는 길이
-        //   없으면 일단 나간 뒤 쿨을 12초 기다려야 한다. 쿨이 도는 능력일수록 물러설 수
-        //   있어야 한다. (우클릭은 카메라 회전도 하지만, 취소가 우선이고 둘이 안 부딪힌다)
+        //   없으면 일단 나간 뒤 쿨을 기다려야 한다. 물러설 수 있어야 한다.
+        //
+        // ★★단, **딸깍했을 때만 취소한다** (2026-07-31 사용자 "우클릭 카메라 바꾸는 건
+        //   풀자 다시"). 조준 중에도 회전이 되게 풀었으므로, 누르는 즉시 취소하면
+        //   **돌려 보려다 배치가 취소된다.** 끌었으면 회전, 안 끌었으면 취소로 가른다.
         var ms = Mouse.current;
-        if (aiming >= 0 && ms != null && ms.rightButton.wasPressedThisFrame)
+        if (ms != null)
         {
-            throwCancelled = true;
-            SquadHUD.Toast("취소");
+            if (ms.rightButton.wasPressedThisFrame) rmbDrag = 0f;
+            else if (ms.rightButton.isPressed) rmbDrag += ms.delta.ReadValue().magnitude;
+            if (aiming >= 0 && ms.rightButton.wasReleasedThisFrame && rmbDrag < 12f)
+            {
+                throwCancelled = true;
+                SquadHUD.Toast("취소");
+            }
         }
         if (throwCancelled) aiming = -1;   // 미리보기·장판도 즉시 사라진다
-        AimingNow = aiming >= 0;           // 카메라가 이걸 보고 회전을 잠근다
+        AimingNow = aiming >= 0;
         UpdatePreview();
 
         // ★E 로 조준하는 동안엔 발이 묶인다 (2026-07-28 사용자).
@@ -1352,6 +1360,7 @@ public class SkillSystem : MonoBehaviour
     ///   배치하는 순간에는 화면이 고정이어야 손이 안 흔들리고, 그 외엔 자유롭게 본다.
     public static bool AimingNow;
     int aiming = -1;
+    float rmbDrag;   // 우클릭을 누른 뒤 움직인 양 — 회전(끌기)과 취소(딸깍)를 가른다
     float holdT;
     LineRenderer previewLine;
     Transform previewCircle, previewWall;
