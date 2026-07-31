@@ -226,21 +226,23 @@ public class SkillSystem : MonoBehaviour
         aiming = k.qKey.isPressed ? 0 : k.eKey.isPressed ? 1
                : k.rKey.isPressed ? 2 : k.spaceKey.isPressed ? RollHud : -1;
 
-        // ★조준하다 우클릭하면 취소 (2026-07-28 사용자) — 잘못 눌렀을 때 무르는 길이
-        //   없으면 일단 나간 뒤 쿨을 기다려야 한다. 물러설 수 있어야 한다.
+        // ★취소는 **R(궁극기)에만** 있다 (2026-07-31 재정리).
         //
-        // ★★단, **딸깍했을 때만 취소한다** (2026-07-31 사용자 "우클릭 카메라 바꾸는 건
-        //   풀자 다시"). 조준 중에도 회전이 되게 풀었으므로, 누르는 즉시 취소하면
-        //   **돌려 보려다 배치가 취소된다.** 끌었으면 회전, 안 끌었으면 취소로 가른다.
+        //   Q·E 는 누르고 있는 동안 펫이 **실시간으로 나온다** — 대기 중인 것이 없으니
+        //   무를 것도 없다. 손만 떼면 끝이다. 반면 R 은 놓는 순간 발동하고 쿨이 18초라,
+        //   잘못 겨눴을 때 물러설 길이 있어야 한다.
+        //
+        // ★딸깍했을 때만 취소한다 — 조준 중에도 회전이 되므로(사용자 "풀자 다시"),
+        //   누르는 즉시 취소하면 **돌려 보려다 궁극기가 취소된다.**
         var ms = Mouse.current;
         if (ms != null)
         {
             if (ms.rightButton.wasPressedThisFrame) rmbDrag = 0f;
             else if (ms.rightButton.isPressed) rmbDrag += ms.delta.ReadValue().magnitude;
-            if (aiming >= 0 && ms.rightButton.wasReleasedThisFrame && rmbDrag < 12f)
+            if (aiming == 2 && ms.rightButton.wasReleasedThisFrame && rmbDrag < 12f)
             {
                 throwCancelled = true;
-                SquadHUD.Toast("취소");
+                SquadHUD.Toast("궁극기 취소");
             }
         }
         if (throwCancelled) aiming = -1;   // 미리보기·장판도 즉시 사라진다
