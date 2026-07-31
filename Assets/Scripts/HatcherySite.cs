@@ -43,6 +43,18 @@ public class HatcherySite : MonoBehaviour
     bool incubating;
     float hatchT, hatchDuration; int totalWaves, wavesSent; float firstWaveDelay;
     int toSpawn; float spawnT;
+    // ★연속 습격 (웨이브 뭉치 폐지) — 총량을 시간에 걸쳐 흘린다
+    int spawnedTotal; float spawnCredit; bool raidToastShown;
+    /// 판의 총 습격 마릿수 = 옛 웨이브들의 합 (totalWaves·baseWaveSize·waveSizeGrow 로 계산)
+    int TotalRaid
+    {
+        get
+        {
+            int sum = 0;
+            for (int w = 0; w < totalWaves; w++) sum += baseWaveSize + waveSizeGrow * w;
+            return sum;
+        }
+    }
     PetScale.Tier eggTier = PetScale.Tier.M;
     PetUnit eggUnit; Transform eggVis;
     Transform gaugeRoot, gaugeFill;
@@ -258,19 +270,25 @@ public class HatcherySite : MonoBehaviour
         hatchT += Time.deltaTime;
         if (hatchT >= hatchDuration) { Hatch(); return; }
 
-        // 정해진 시각이 되면 다음 차수 (앞 차수가 남아 있어도 겹쳐서 온다)
-        if (wavesSent < totalWaves)
+        // ★웨이브 뭉치 폐지 — 쉴 틈 없이 이어서 온다 (2026-07-31 사용자 "웨이브 개념
+        //   없이 쭉 다 나오게, 쉴 틈을 주지 말고"). 확정 설계 ⑥의 「연속 웨이브」다.
+        //
+        //   판의 총 마릿수(= 옛 웨이브 합)를 부화 시간에 걸쳐 **연속으로** 흘린다.
+        //   처음엔 드문드문 → 끝으로 갈수록 빽빽하게 (밀도 1:3) — 조여 오는 압박이
+        //   웨이브 예고를 대신한다. totalWaves·waveSizeGrow 는 총량 계산에만 쓰인다.
+        if (hatchT >= firstWaveDelay && spawnedTotal < TotalRaid)
         {
-            float slot = (hatchDuration - firstWaveDelay) / Mathf.Max(1, totalWaves);
-            float due = firstWaveDelay + slot * wavesSent;
-            if (hatchT >= due)
+            float k = Mathf.Clamp01((hatchT - firstWaveDelay)
+                                   / Mathf.Max(1f, hatchDuration - firstWaveDelay));
+            // 평균 밀도 × (0.5 → 1.5 램프) — 적분하면 총량이 얼추 TotalRaid 로 떨어진다
+            float perSec = TotalRaid / Mathf.Max(1f, hatchDuration - firstWaveDelay);
+            spawnCredit += perSec * (0.5f + k) * Time.deltaTime;
+            while (spawnCredit >= 1f && spawnedTotal < TotalRaid)
+            { spawnCredit -= 1f; toSpawn++; spawnedTotal++; }
+            if (!raidToastShown)
             {
-                wavesSent++;
-                toSpawn += baseWaveSize + waveSizeGrow * (wavesSent - 1);
-                spawnT = 0.2f;
-                SquadHUD.Toast(wavesSent >= totalWaves
-                    ? "마지막 습격이다! 버텨라"
-                    : $"{wavesSent}차 습격이 온다! ({wavesSent}/{totalWaves})");
+                raidToastShown = true;
+                SquadHUD.Toast("습격이 시작됐다 — 부화가 끝날 때까지 멈추지 않는다!");
                 FollowCam.Shake(0.2f);
             }
         }
@@ -283,9 +301,11 @@ public class HatcherySite : MonoBehaviour
             {
                 spawnT = spawnInterval;
                 var pool = new List<PetSpawner.Entry>();
+                // ★후반(진행 60%↑)부터 L 이 섞인다 — 웨이브 차수가 없어졌으니 시간이 대신한다
+                bool late = hatchT > hatchDuration * 0.6f;
                 foreach (var e in spawner.entries)
                     if (e.tier == PetScale.Tier.S || e.tier == PetScale.Tier.M ||
-                        (wavesSent >= totalWaves && e.tier == PetScale.Tier.L)) pool.Add(e);
+                        (late && e.tier == PetScale.Tier.L)) pool.Add(e);
                 if (pool.Count == 0) pool.AddRange(spawner.entries);
                 var entry = pool[Random.Range(0, pool.Count)];
                 float ang = Random.Range(0f, Mathf.PI * 2f);
@@ -338,6 +358,7 @@ public class HatcherySite : MonoBehaviour
         ApplyTier(eggTier);
         incubating = true;
         hatchT = 0f; wavesSent = 0; toSpawn = 0;
+        spawnedTotal = 0; spawnCredit = 0f; raidToastShown = false;
         attackers.Clear();
         MakeEgg();
         MakeGauge();
@@ -399,6 +420,7 @@ public class HatcherySite : MonoBehaviour
     {
         incubating = false;
         hatchT = 0f; wavesSent = 0; toSpawn = 0;
+        spawnedTotal = 0; spawnCredit = 0f; raidToastShown = false;
         KillGauge();
         if (eggVis != null) { Destroy(eggVis.gameObject); eggVis = null; }
         eggUnit = null;
