@@ -296,6 +296,10 @@ public class PlayerGather : MonoBehaviour
     }
     float SwingSpread => Mathf.Min(360f, swingAngle * WeaponAngleMul);
 
+    /// 차징 해방 이펙트가 **실제 부채꼴 그대로** 참격을 그리는 데 쓴다 (이펙트 규칙)
+    public float ReachNow => SwingReach;
+    public float SpreadNow => SwingSpread;
+
     [Header("판정 정밀도")]
     [Tooltip("이보다 높이 차이가 나면 안 맞는다 (절벽 위/아래 헛맞음 방지, m)")]
     public float swingHeightTolerance = 4f;

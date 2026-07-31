@@ -98,6 +98,9 @@ public class PetCommand : MonoBehaviour
     }
 
     /// 전투가 끝났나 — 내 쪽(플레이어·소환 분신) 근처에 살아있는 야생이 하나도 없으면 끝.
+    /// ★부대 충원(SkillSystem.SquadRefill)이 이 깃발을 본다 — 전투 중엔 충원이 없다.
+    public static bool Fighting { get; private set; }
+
     void CheckCombatEnd()
     {
         bool fighting = false;
@@ -106,6 +109,7 @@ public class PetCommand : MonoBehaviour
             if (u == null || !u.Alive || u.team != PetUnit.Team.Wild) continue;
             if (NearMine(u.transform.position)) { fighting = true; break; }
         }
+        Fighting = fighting;
         if (fighting) { calmT = 0f; return; }
 
         calmT += Time.deltaTime;
@@ -128,8 +132,23 @@ public class PetCommand : MonoBehaviour
 
     static float Flat(Vector3 a, Vector3 b) { a.y = 0f; b.y = 0f; return Vector3.Distance(a, b); }
 
-    /// 전투 종료 — 분신은 각자 알아서 걸어 돌아와 퐁 하고 들어가고, 쿨타임은 즉시 풀린다
+    /// ★전투 종료 ≠ 회수 (2026-07-31 사용자 — "애매하게 다시 돌아오는 경우가 많아서").
+    ///
+    ///   전투 상태는 깜빡인다 — 무리 사이를 이동하는 소강에도 "끝났다" 로 읽혀서,
+    ///   아직 싸우는 중인데 부대가 집에 가 버렸다. 소강과 종료를 기계는 구분 못 한다.
+    ///
+    ///   그래서 **배치는 명령이다: 던진 펫은 그 자리를 지킨다.** 돌아오는 길은 셋뿐 —
+    ///     ① 재투척 (기존 분신을 걷고 새로 깖 — 수·체력 승계)
+    ///     ② C 집합 (아래 RecallAll)
+    ///     ③ 40m 안전망 (주인이 멀리 떠나면 자석 복귀 — PetUnit.squadLeashRange)
+    ///   여기서는 쿨만 돌려준다. 디펜스에서 부대가 거점을 지키는 것도 이걸로 성립한다.
     void EndCombat()
+    {
+        cool.Clear();             // ★전투가 끝나면 쿨타임 즉시 초기화
+    }
+
+    /// C 집합 — 전 분신 회수. 흡수되면 예비대가 된다 (PetUnit.Absorb)
+    public static void RecallAll()
     {
         bool any = false;
         foreach (var u in PetUnit.All)
@@ -138,8 +157,7 @@ public class PetCommand : MonoBehaviour
             u.returning = true;   // 한 번 켜지면 새 전투가 열려도 안 멈춘다
             any = true;
         }
-        cool.Clear();             // ★전투가 끝나면 쿨타임 즉시 초기화
-        if (any) SquadHUD.Toast("전투 종료 — 펫이 돌아온다");
+        SquadHUD.Toast(any ? "집합! — 부대가 돌아온다" : "돌아올 부대가 없다");
     }
 
     /// 결합 정리 — 죽거나 사라진 펫을 칸에서 빼고, 아직 안 묶인 내 펫을 빈 칸에 채운다.

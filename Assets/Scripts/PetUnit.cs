@@ -180,6 +180,25 @@ public class PetUnit : MonoBehaviour
     Vector3 baseScale;
     float flashT;
     [HideInInspector] public float slowT;            // 둔화 (밖에서 걸어 주는 효과)
+    // ★시한 공버프 (활R 오로라가 건다) — 시간이 남아 있는 동안만 배수가 먹는다
+    [HideInInspector] public float atkBuffT;
+    [HideInInspector] public float atkBuffMul = 1f;
+
+    // ── 부대의 실체 (2026-07-31 사용자 — "재배치가 무조건 유리하지 않나") ────
+    //
+    // ★재배치는 "이동"이지 "재생산"이 아니다 — 수와 체력이 부대의 실체고, 어디로
+    //   옮기든 따라다닌다. 회복은 공짜가 아니라 전투 밖의 시간이 지불한다.
+    //   본체(틀) PetUnit 에만 의미 있는 값들이다:
+    /// 예비대 수 — 흡수·충원으로 쌓이고 배치가 꺼내 쓴다. -1 = 아직 미초기화(완편으로 시작)
+    [HideInInspector] public int squadReserve = -1;
+    /// 예비대 평균 체력 비율 (0~1) — 다친 채 흡수되면 다친 채 다시 나온다
+    [HideInInspector] public float squadReserveFrac = 1f;
+    /// 충원 진행 시계 (SkillSystem.SquadRefill 이 쓴다)
+    [HideInInspector] public float squadRefillT;
+    /// 분신이 태어날 때 받을 체력 비율 — SummonAt 이 넣고 Start 가 소비한다
+    [HideInInspector] public float spawnHpFrac = 1f;
+    [Tooltip("소환 분신이 주인에게서 이보다 멀어지면 자석 복귀한다 (m) — 두고 간 부대 안전망")]
+    public float squadLeashRange = 40f;
     float airT, airDur, airHeight, airY;             // 에어본 — 붕 떴다 내려옴
     float ghostHp;                                   // 롤식 지연 감소 바
     Transform barGhost;
@@ -213,6 +232,8 @@ public class PetUnit : MonoBehaviour
         terrain = Terrain.activeTerrain;
         maxHp = hp = vit * HpPerVit
               * (team == Team.Player && !isAvatar && !isStructure ? NodeMods.petHp : 1f);   // 노드판 — 내 편 펫만
+        // ★분신은 부대의 체력을 이어받는다 (2026-07-31) — 재배치는 이동이지 재생산이 아니다
+        if (spawnHpFrac < 1f) hp = Mathf.Max(1f, maxHp * Mathf.Clamp01(spawnHpFrac));
         baseScale = transform.localScale;
         // ※파티클(꽃잎 등) 렌더러는 바운즈가 엉뚱해서 제외 — 체력바가 하늘로 가는 사고 방지
         Renderer r = null;
@@ -1051,8 +1072,18 @@ public class PetUnit : MonoBehaviour
     }
 
     /// 퐁 — 주인에게 흡수된다 (죽는 게 아니다)
+    /// ★흡수 = 예비대 편입 (2026-07-31) — 다친 채 돌아오면 다친 채 쌓인다.
+    ///   C 집합으로 걷었다 다시 깔아도 체력이 공짜로 차지 않는 이유가 이 줄이다.
     void Absorb()
     {
+        if (owner != null)
+        {
+            if (owner.squadReserve < 0) owner.squadReserve = 0;
+            float f = maxHp > 0f ? Mathf.Clamp01(hp / maxHp) : 1f;
+            owner.squadReserveFrac = (owner.squadReserveFrac * owner.squadReserve + f)
+                                   / (owner.squadReserve + 1);
+            owner.squadReserve++;
+        }
         if (motion != null) motion.ClearEmission();
         FX.Burst(transform.position + Vector3.up * body * 0.4f,
                  new Color(0.6f, 1.5f, 1.9f, 0.95f), 14, body * 0.06f, body * 0.6f, 0.35f);
@@ -1101,7 +1132,8 @@ public class PetUnit : MonoBehaviour
         if (target == null || !target.Alive) return;
 
         // ★밸런스는 데미지로 잡는다 (2026-07-29 사용자) — 넓게 때릴수록 한 대가 약하다
-        float dmg = str * dmgPerStr * PatternDmg * hitDmgMul;
+        float dmg = str * dmgPerStr * PatternDmg * hitDmgMul
+                  * (atkBuffT > 0f ? atkBuffMul : 1f);   // 활R 오로라 축복
         if (team == Team.Player && !isAvatar)
         {   // 노드판 — 내 편에만. 치명타는 스윙당 한 번 굴린다 (근접 광역이면 그 스윙 전체가 치명타)
             dmg *= NodeMods.petDmg;
@@ -1370,6 +1402,7 @@ public class PetUnit : MonoBehaviour
         if (isAvatar) { HitFlash(); Bar(); return; }             // 캐릭터: 피격·바만
         if (isStructure) { HitFlash(); Bar(); return; }          // 건물
         slowT = Mathf.Max(0f, slowT - Time.deltaTime);
+        atkBuffT = Mathf.Max(0f, atkBuffT - Time.deltaTime);     // 오로라 축복이 식는다
 
         // 에어본 — 붕 떴다 내려올 때까지 아무것도 못 한다
         if (airT > 0f)
@@ -1399,6 +1432,15 @@ public class PetUnit : MonoBehaviour
             // ★리쉬 — 원래 자리에서 너무 멀어지면 포기하고 돌아간다 (2026-07-28).
             //   없으면 야생이 섬 끝까지 플레이어를 쫓아온다.
             if (team == Team.Wild && Dist(homePos) > leashRange)
+            {
+                target = null; returning = true;
+                ReturnStep(); return;
+            }
+            // ★부대 안전망 (2026-07-31) — 전투 종료 자동 회수를 없앴으므로, 두고 간
+            //   부대는 주인이 멀어지면 스스로 돌아온다. 이 셋이 회수의 전부다
+            //   (재투척 · C 집합 · 이 안전망).
+            if (summoned && team == Team.Player && Avatar != null
+                && Dist(Avatar.transform.position) > squadLeashRange)
             {
                 target = null; returning = true;
                 ReturnStep(); return;

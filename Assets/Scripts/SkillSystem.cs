@@ -194,6 +194,7 @@ public class SkillSystem : MonoBehaviour
         AdvanceDash();
         AdvanceRoll();
         ChargePose();
+        SquadRefill();
         RefreshHUD();
 
         // 창·건축 모드에선 스킬 입력 잠금 (Q·E 가 건축 조작과 겹치지 않게)
@@ -252,6 +253,8 @@ public class SkillSystem : MonoBehaviour
             if (k.rKey.wasReleasedThisFrame) TryThrow(2);   // 3번 칸 펫
             if (k.spaceKey.wasReleasedThisFrame) TryE();    // 구르기
         }
+        // ★C = 집합 (2026-07-31) — 자동 회수를 없앤 대신, 거두는 것도 명령이다
+        if (k.cKey.wasPressedThisFrame) PetCommand.RecallAll();
         // 손을 떼야 취소가 풀린다 — 취소한 뒤 계속 쥐고 있으면 그대로 취소 상태다
         if (anyReleased) throwCancelled = false;
 #endif
@@ -365,14 +368,164 @@ public class SkillSystem : MonoBehaviour
             return;
         }
 
-        PetCommand.StartCool(pet, throwCooldown);
-        var gear = SlotGear(slot);   // 그 칸의 무기가 출현 방식을 정한다
-        switch (StyleOf(gear))
+        // ★부대가 없으면 못 던진다 (2026-07-31) — 수와 체력이 부대의 실체다.
+        //   전멸했으면 충원(전투 밖 한 마리씩)을 기다려야 한다. 재편성이 곧 대가다.
+        if (SquadCountOf(pet) <= 0)
         {
-            case ThrowStyle.Scatter: StartCoroutine(ScatterThrow(pet, gear)); break;
-            case ThrowStyle.Rapid:   StartCoroutine(RapidThrow(pet)); break;
-            default:                 StartCoroutine(ThrowFlight(pet, ThrowSpot())); break;
+            SquadHUD.Toast($"{pet.name} 부대 전멸 — 재편성 중");
+            return;
         }
+
+        // ★R = 무기 궁극기 (2026-07-31 사용자). 3번 펫이 **지금 든 무기**의 방식으로
+        //   특수 출격한다 — 전부 펫이 주인공이다 (플레이어가 직접 딜하는 마법 금지).
+        //     칼   = 참격 비행: 펫이 베는 궤적으로 날아가며 경로 피해+넉백
+        //     도끼 = 거대 낙하: 거대화한 펫이 쿵 — 진형파괴(큰 피해+강넉백+붕 뜸) 후 분산
+        //     활   = 오로라 소환: 빛기둥 속에서 퐁퐁퐁 + 시한 공버프
+        //   채집 장비(곡괭이)는 스킬이 없다 (같은 날 사용자 확정) — 기본 투척으로 나간다.
+        if (slot == 2)
+        {
+            var held = Hotbar.I != null ? Hotbar.I.Current : GearKind.None;
+            if (held == GearKind.Sword || held == GearKind.Axe
+             || held == GearKind.Bow || held == GearKind.Sling)
+            {
+                PetCommand.StartCool(pet, ultCooldown);
+                if (held == GearKind.Sword) StartCoroutine(SwordUlt(pet));
+                else if (held == GearKind.Axe) StartCoroutine(AxeUlt(pet));
+                else StartCoroutine(BowUlt(pet));
+                return;
+            }
+        }
+
+        PetCommand.StartCool(pet, throwCooldown);
+        // ★Q·E = "조준 위치에 배치" 하나다 (2026-07-31 ⑧ — 사용자 "단순하게, 진형
+        //   세분화하지 말고"). 무기별 출현 스타일(흩뿌리기·연발)은 은퇴 —
+        //   출현의 개성은 R 궁극기(무기별)가 맡는다.
+        StartCoroutine(ThrowFlight(pet, ThrowSpot()));
+    }
+
+    // ── R 궁극기 (2026-07-31) ────────────────────────────────────────────
+    [Header("★R 궁극기 — 든 무기가 정한다 (전부 펫이 주인공)")]
+    [Tooltip("R 궁극기 쿨타임 (초) — 일반 투척보다 길어야 궁극기다")]
+    public float ultCooldown = 18f;
+    [Tooltip("칼R 참격비행 — 경로에 주는 피해")] public float ultSwordDamage = 60f;
+    [Tooltip("칼R 넉백 (m)")] public float ultSwordKnock = 2.2f;
+    [Tooltip("칼R 비행 속도 (m/s)")] public float ultSwordSpeed = 16f;
+    [Tooltip("도끼R 착탄 피해")] public float ultAxeDamage = 85f;
+    [Tooltip("도끼R 착탄 반경 (m)")] public float ultAxeRadius = 3.2f;
+    [Tooltip("도끼R 넉백 (m)")] public float ultAxeKnock = 3.5f;
+    [Tooltip("도끼R 거대화 배수")] public float ultAxeGiant = 3.2f;
+    [Tooltip("도끼R 낙하 높이 (m)")] public float ultAxeDropHeight = 10f;
+    [Tooltip("도끼R 낙하 시간 (초)")] public float ultAxeDropTime = 0.45f;
+    [Tooltip("활R 오로라 반경 (m)")] public float ultBowRadius = 1.6f;
+    [Tooltip("활R 공버프 배수")] public float ultBowBuff = 1.5f;
+    [Tooltip("활R 버프 시간 (초)")] public float ultBowBuffTime = 8f;
+
+    /// 칼R — 펫이 곧 칼날이다. 베는 초승달을 따라 낮고 빠르게 날아가며 경로를 쓸고,
+    /// 착지 지점에 무리로 선다 (참격 + 배치가 한 동작).
+    System.Collections.IEnumerator SwordUlt(PetUnit pet)
+    {
+        var head = PetHeadDisplay.I;
+        if (blob != null) StartCoroutine(ThrowMotion());
+        yield return new WaitForSeconds(Mathf.Max(0f, throwWindupTime));
+        var from = head != null ? head.HeadPoint : transform.position + Vector3.up * 0.25f * WorldScale.K;
+        if (head != null) head.Hide();
+
+        var spot = ThrowSpot();
+        var dirF = spot - transform.position; dirF.y = 0f;
+        float yaw = dirF.sqrMagnitude > 1e-4f ? Quaternion.LookRotation(dirF).eulerAngles.y
+                                              : transform.eulerAngles.y;
+        // 발사 순간 — 초승달 참격이 먼저 지나가고, 펫이 그 궤적을 탄다
+        FX.SweepArc(transform.position, yaw - 70f, 140f, 2.2f,
+                    new Color(2.0f, 1.9f, 1.5f, 0.95f), 0.14f, 0.18f);
+        FollowCam.Shake(0.22f);
+
+        float dist = Mathf.Max(0.5f, dirF.magnitude);
+        int n = SquadTake(pet, out float frac);   // ★수·체력 승계 (2026-07-31)
+        yield return BallFlight(pet, from, Ground(spot), dist / Mathf.Max(4f, ultSwordSpeed),
+                                0.4f, n, 0.35f, false, ultSwordDamage, ultSwordKnock, frac);
+        SquadHUD.Toast($"{pet.name} 참격 출진!");
+        if (head != null) head.Show();
+    }
+
+    /// 도끼R — 거대화한 펫이 하늘에서 쿵. 진형을 부수고(큰 피해+강넉백+붕 뜸),
+    /// 착지하면 원래 크기의 무리로 분산된다.
+    System.Collections.IEnumerator AxeUlt(PetUnit pet)
+    {
+        var head = PetHeadDisplay.I;
+        if (blob != null) StartCoroutine(ThrowMotion());
+        yield return new WaitForSeconds(Mathf.Max(0f, throwWindupTime));
+        if (head != null) head.Hide();
+
+        var spot = ThrowSpot();
+        var ghost = MakeFlyingCopy(pet);
+        if (ghost != null) ghost.transform.localScale *= ultAxeGiant;
+        var top = spot + Vector3.up * ultAxeDropHeight;
+        float t = 0f;
+        while (t < 1f)
+        {
+            t += Time.deltaTime / Mathf.Max(0.05f, ultAxeDropTime);
+            float k = Mathf.Clamp01(t);
+            if (ghost != null) ghost.transform.position = Vector3.Lerp(top, spot, k * k);   // 가속 낙하
+            yield return null;
+        }
+        if (ghost != null) Destroy(ghost);
+
+        // 쿵 — 이펙트 규칙대로 실제 타격 반경 그대로 그린다
+        FX.Burst(spot, new Color(1.9f, 1.4f, 0.5f, 1f), 40, 0.16f, ultAxeRadius * 0.7f, 0.6f);
+        FX.Sweep(spot, 0f, 360f, ultAxeRadius, new Color(1.9f, 1.3f, 0.5f, 0.9f), 0.4f, 0.3f);
+        FX.GroundCrack(spot, ultAxeRadius, new Color(1.8f, 1.3f, 0.6f), 9, 0.6f);
+        FollowCam.Shake(0.5f);
+        foreach (var u in PetUnit.All)
+        {
+            if (u == null || !u.Alive || u.team != PetUnit.Team.Wild) continue;
+            var d = u.transform.position - spot; d.y = 0f;
+            if (d.magnitude > ultAxeRadius + u.body * 0.4f) continue;
+            u.TakeDamage(ultAxeDamage, PetUnit.Avatar);
+            u.OnHit();
+            u.Knock(d, ultAxeKnock);
+            u.Airborne(0.45f, 0.8f);
+        }
+        yield return new WaitForSeconds(0.1f);
+        SummonPack(pet, spot);   // 착지 후 원래 크기의 무리로 분산
+        if (head != null) head.Show();
+    }
+
+    /// 활R — 오로라 빛기둥이 원을 그리며 솟고, 그 안에서 무리가 퐁퐁퐁 나온다.
+    /// 등장이 끝나면 잠시 공격력이 오른다.
+    System.Collections.IEnumerator BowUlt(PetUnit pet)
+    {
+        var head = PetHeadDisplay.I;
+        if (blob != null) StartCoroutine(ThrowMotion());
+        yield return new WaitForSeconds(Mathf.Max(0f, throwWindupTime));
+        if (head != null) head.Hide();
+
+        var spot = ThrowSpot();
+        // 오로라 — 초록~보라 빛기둥. FXBeam 을 세로로 세운다 (재질 공유·풀 재사용)
+        for (int i = 0; i < 9; i++)
+        {
+            float a = i / 9f * Mathf.PI * 2f;
+            var p = Ground(spot + new Vector3(Mathf.Cos(a), 0f, Mathf.Sin(a)) * ultBowRadius);
+            var c = Color.Lerp(new Color(0.4f, 1.7f, 1.0f), new Color(1.0f, 0.5f, 1.9f), (i % 3) / 2f);
+            FXBeam.Spawn(p, p + Vector3.up * 3.2f, c, 0.22f, 0.9f);
+        }
+        FollowCam.Shake(0.15f);
+        yield return new WaitForSeconds(0.25f);
+
+        int n = SquadTake(pet, out float frac);   // ★수·체력 승계 (2026-07-31)
+        SummonAt(pet, spot, n, 0f, frac);   // 퐁퐁퐁 — 시차 등장은 SummonAt 이 이미 한다
+        SquadHUD.Toast($"{pet.name} {n}마리 — 오로라 축복! (공격 ×{ultBowBuff:0.0#} · {ultBowBuffTime:0}초)");
+
+        // 등장이 끝날 때쯤 축복 — 이 펫의 분신 전부에게 시한 공버프
+        yield return new WaitForSeconds(0.6f);
+        foreach (var u in PetUnit.All)
+        {
+            if (u == null || !u.Alive || u.team != PetUnit.Team.Player || u.isAvatar || u.isStructure) continue;
+            if (u.owner != pet) continue;
+            u.atkBuffT = ultBowBuffTime; u.atkBuffMul = ultBowBuff;
+            FX.Burst(u.transform.position + Vector3.up * u.body * 0.6f,
+                     new Color(0.6f, 1.6f, 1.2f, 0.9f), 6, u.body * 0.05f, u.body * 0.4f, 0.4f);
+        }
+        if (head != null) head.Show();
     }
 
     /// 도끼·칼 — 부채꼴로 흩뿌린다. 한 발에 한 마리씩, 발마다 조금씩 늦게 나가 촤라락 퍼진다.
@@ -394,8 +547,7 @@ public class SkillSystem : MonoBehaviour
         var dir = to.sqrMagnitude > 1e-4f ? to.normalized : transform.forward;
         float half = (gear == GearKind.Sword ? swordScatterAngle : axeScatterAngle) * 0.5f;
 
-        int n = PetUnit.CountFor(BudgetNow, pet.supply);
-        ClearOldSummons(pet);
+        int n = SquadTake(pet, out float frac);   // ★수·체력 승계 (2026-07-31)
         for (int i = 0; i < n; i++)
         {
             // 부채꼴 안에 고르게 — 각도는 펼치고 거리는 앞뒤로 흩어 '깔리는' 그림을 만든다
@@ -408,7 +560,7 @@ public class SkillSystem : MonoBehaviour
             //   착지 시점만 조금씩 어긋나 '촥' 하고 흩어져 떨어진다.
             float fly = scatterFlyTime * (1f + Random.Range(-scatterTimeJitter, scatterTimeJitter));
             // ★낮게 깔려 날아간다 — 높이 띄우면 적 머리 위로 지나가 아무것도 안 부딪힌다
-            StartCoroutine(BallFlight(pet, from, land, fly, scatterArc, 1, 0f));
+            StartCoroutine(BallFlight(pet, from, land, fly, scatterArc, 1, 0f, false, -1f, -1f, frac));
         }
         SquadHUD.Toast($"{pet.name} {n}마리 흩뿌림!");
         if (head != null) head.Show();
@@ -422,8 +574,7 @@ public class SkillSystem : MonoBehaviour
         yield return new WaitForSeconds(Mathf.Max(0f, throwWindupTime));
 
         if (head != null) head.Hide();
-        int n = PetUnit.CountFor(BudgetNow, pet.supply);
-        ClearOldSummons(pet);
+        int n = SquadTake(pet, out float frac);   // ★수·체력 승계 (2026-07-31)
 
         for (int i = 0; i < n; i++)
         {
@@ -433,7 +584,7 @@ public class SkillSystem : MonoBehaviour
             var land = Ground(transform.position + dir * rapidRange);
             float dur = rapidRange / Mathf.Max(1f, rapidSpeed);
             // 낮고 빠른 궤적 + 맞으면 그 자리에서 멈춘다(관통 안 함) → 팅기며 등장
-            StartCoroutine(BallFlight(pet, from, land, dur, 0.25f, 1, rapidBounce, true));
+            StartCoroutine(BallFlight(pet, from, land, dur, 0.25f, 1, rapidBounce, true, -1f, -1f, frac));
             FX.Burst(from, throwTrailColor, 4, 0.02f, 0.25f, 0.2f);
             FollowCam.Shake(0.05f);
             yield return new WaitForSeconds(Mathf.Max(0.01f, rapidInterval));
@@ -446,8 +597,13 @@ public class SkillSystem : MonoBehaviour
     /// stopOnHit 이면 첫 충돌 지점에서 멈춘다 (연발용 — 적에게 꽂혀 팅긴다).
     System.Collections.IEnumerator BallFlight(PetUnit pet, Vector3 from, Vector3 to,
                                               float dur, float arc, int summon,
-                                              float bounce, bool stopOnHit = false)
+                                              float bounce, bool stopOnHit = false,
+                                              float dmgOv = -1f, float knockOv = -1f,
+                                              float hpFrac = 1f)
     {
+        // ★dmgOv·knockOv — 칼R 참격비행이 평소 투척보다 세게 벤다 (기본값 -1 = 평소 값)
+        float pathDmg = dmgOv > 0f ? dmgOv : flyDamage;
+        float pathKnock = knockOv > 0f ? knockOv : flyKnock;
         var ghost = MakeFlyingCopy(pet);
         var flat = to - from; flat.y = 0f;
         var spinAxis = flat.sqrMagnitude > 1e-4f
@@ -484,10 +640,10 @@ public class SkillSystem : MonoBehaviour
                 if (fd.magnitude > hitR + u.body * 0.5f) continue;
                 if (Mathf.Abs(q.y - c.y) > flyHitHeight + u.body * 0.5f) continue;
                 hitSet.Add(u);
-                u.TakeDamage(flyDamage, PetUnit.Avatar);
+                u.TakeDamage(pathDmg, PetUnit.Avatar);
                 u.OnHit();
                 var kd = u.transform.position - p; kd.y = 0f;
-                u.Knock(kd, flyKnock);
+                u.Knock(kd, pathKnock);
                 FX.Burst(c, Color.white, 8, u.body * 0.05f, u.body * 0.5f, 0.3f);
                 struck = true;
             }
@@ -500,7 +656,7 @@ public class SkillSystem : MonoBehaviour
         // 착지 — 팅김
         FX.Burst(landAt, new Color(1.9f, 1.5f, 0.6f, 1f), 16, 0.06f, 0.5f, 0.45f);
         FollowCam.Shake(0.08f);
-        SummonAt(pet, landAt, summon, bounce);
+        SummonAt(pet, landAt, summon, bounce, hpFrac);
     }
 
     /// 선분 a→b 위에서 p 에 수평으로 가장 가까운 점 (높이는 그 지점의 실제 높이를 돌려준다).
@@ -771,7 +927,7 @@ public class SkillSystem : MonoBehaviour
     }
 
     /// 이 자리에 n마리를 세운다 (분신 정리는 부르는 쪽이 미리 한다)
-    void SummonAt(PetUnit pet, Vector3 spot, int n, float extraArc = 0f)
+    void SummonAt(PetUnit pet, Vector3 spot, int n, float extraArc = 0f, float hpFrac = 1f)
     {
         for (int i = 0; i < n; i++)
         {
@@ -790,18 +946,105 @@ public class SkillSystem : MonoBehaviour
             u.collectible = false;
             u.summoned = true;        // 편성 목록에 안 뜨게 — 본체만 고른다
             u.owner = pet;            // 어느 펫의 부대인지 — 다시 던질 때 이것만 걷는다
+            u.spawnHpFrac = hpFrac;   // ★부대의 체력을 이어받는다 (Start 가 소비)
             // (펫 레벨 폐기 — 분신은 종 고유 스탯 그대로 나온다)
             // 착지 지점에서 퐁 하고 선다 (야생 증식과 같은 연출)
             u.LaunchTo(spot, pos, u.emergeTime, u.emergeArc + extraArc, i * u.emergeStagger);
         }
     }
 
-    /// 곡괭이 — 한 발이 찍히고 그 자리에 무리가 통째로 선다
+    // ── 부대의 실체 (2026-07-31 사용자 — "재배치가 무조건 유리하지 않나") ────
+    //
+    // ★재배치는 "이동"이지 "재생산"이 아니다. 살아있는 수와 평균 체력을 스냅샷해서
+    //   그대로 이어받는다 — 반쯤 죽은 부대는 어디에 다시 깔아도 반쯤 죽어 있다.
+    //   회복은 전투 밖의 시간이 지불한다 (아래 SquadRefill).
+
+    /// 지금 던질 수 있는 마릿수 (소비 안 함) — 배치된 분신 + 예비대
+    int SquadCountOf(PetUnit pet)
+    {
+        int max = PetUnit.CountFor(BudgetNow, pet.supply);
+        if (pet.squadReserve < 0) return max;   // 처음 — 완편으로 시작
+        int alive = 0;
+        foreach (var u in PetUnit.All)
+            if (u != null && u.Alive && u.summoned && u.owner == pet) alive++;
+        return Mathf.Min(max, alive + pet.squadReserve);
+    }
+
+    /// 배치 직전에 부른다 — 생존 분신 스냅샷 + 예비대를 **소비**하고, 기존 분신을 걷는다.
+    /// 반환 = 이번 배치 마릿수. hpFrac = 이어받을 평균 체력 비율.
+    int SquadTake(PetUnit pet, out float hpFrac)
+    {
+        int max = PetUnit.CountFor(BudgetNow, pet.supply);
+        if (pet.squadReserve < 0) { pet.squadReserve = max; pet.squadReserveFrac = 1f; }
+        int alive = 0; float sum = 0f;
+        foreach (var u in PetUnit.All)
+        {
+            if (u == null || !u.Alive || !u.summoned || u.owner != pet) continue;
+            alive++; sum += u.maxHp > 0f ? Mathf.Clamp01(u.hp / u.maxHp) : 1f;
+        }
+        int n = Mathf.Min(max, alive + pet.squadReserve);
+        hpFrac = n > 0 ? Mathf.Clamp01((sum + pet.squadReserveFrac * pet.squadReserve) / n) : 1f;
+        pet.squadReserve = 0; pet.squadReserveFrac = 1f;
+        ClearOldSummons(pet);   // 스냅샷을 뜬 뒤에 걷는다 — 순서 중요
+        return n;
+    }
+
+    // ── 부대 충원 — 전투 밖에서 한 마리씩 (2026-07-31 사용자 "천천히 한 마리 한 마리,
+    //    다음 전투를 생각하게 만드는 속도로") ──────────────────────────────
+    //
+    // ★야생에선 전투가 끝나야 충원된다. **부화 방어 중엔 거점 근처에서 상시** —
+    //   버티는 싸움에선 회복이 곧 컨텐츠다 (거점의 특권, HatcherySite.RefillZone).
+    [Header("★부대 충원 (전투 밖 — 한 마리씩)")]
+    [Tooltip("1마리 충원 시간 = 인구수 × 이 값 (초). 늑구(1) 1.5초 · 티라(14) 21초 — 전멸 복구 ≈ 예산×이 값")]
+    public float refillSecPerSupply = 1.5f;
+    [Tooltip("부상 예비대가 쉬면서 회복하는 속도 (비율/초)")] public float reserveHealRate = 0.03f;
+    float squadTickT;
+
+    void SquadRefill()
+    {
+        squadTickT -= Time.deltaTime;
+        if (squadTickT > 0f) return;
+        squadTickT = 0.5f;
+
+        // 전투 중엔 충원 없음 — 단 부화 방어 중 거점 근처면 예외
+        bool zone = HatcherySite.Active != null && HatcherySite.Active.RefillZone(transform.position);
+        if (PetCommand.Fighting && !zone) return;
+
+        for (int s = 0; s < PetCommand.SlotPet.Length; s++)
+        {
+            var pet = PetCommand.SlotPet[s];
+            if (pet == null) continue;
+            int max = PetUnit.CountFor(BudgetNow, pet.supply);
+            if (pet.squadReserve < 0) { pet.squadReserve = max; pet.squadReserveFrac = 1f; continue; }
+
+            // 부상 예비대 치료 — 쉬는 시간이 체력을 지불한다
+            if (pet.squadReserve > 0 && pet.squadReserveFrac < 1f)
+                pet.squadReserveFrac = Mathf.Min(1f, pet.squadReserveFrac + reserveHealRate * 0.5f);
+
+            int alive = 0; PetUnit near = null;
+            foreach (var u in PetUnit.All)
+            {
+                if (u == null || !u.Alive || !u.summoned || u.owner != pet) continue;
+                alive++; if (near == null) near = u;
+            }
+            if (alive + pet.squadReserve >= max) { pet.squadRefillT = 0f; continue; }
+
+            pet.squadRefillT += 0.5f;
+            float need = Mathf.Max(0.1f, pet.supply * refillSecPerSupply);
+            if (pet.squadRefillT < need) continue;
+            pet.squadRefillT -= need;
+            // ★부대가 나와 있으면 그 곁에 퐁 — 충원이 눈에 보인다. 아니면 예비대로
+            if (near != null) SummonAt(pet, near.transform.position, 1);
+            else pet.squadReserve++;
+        }
+    }
+
+    /// 한 발이 찍히고 그 자리에 무리가 통째로 선다 (기본 투척·도끼R)
     void SummonPack(PetUnit pet, Vector3 spot)
     {
-        ClearOldSummons(pet);
-        int n = PetUnit.CountFor(BudgetNow, pet.supply);
-        SummonAt(pet, spot, n);
+        int n = SquadTake(pet, out float frac);
+        if (n <= 0) { SquadHUD.Toast($"{pet.name} 부대 전멸 — 재편성 중"); return; }
+        SummonAt(pet, spot, n, 0f, frac);
         SquadHUD.Toast($"{pet.name} {n}마리 소환!");
     }
 
@@ -1203,6 +1446,119 @@ public class SkillSystem : MonoBehaviour
     }
 
     /// 조준 중인 스킬의 영역 표시 + 그 안의 대상 빨갛게 마킹
+    // ── 착지 홀로그램 (2026-07-31 사용자 — "반투명보단 실루엣 홀로그램 느낌,
+    //    그럼 퐁퐁퐁 생성되도록") ────────────────────────────────────────
+    //
+    // ★조준하는 동안: 착탄 지점에 그 펫의 **홀로그램 실루엣**(더하기 재질 + 맥동 +
+    //   천천히 회전 — RTS 건설 고스트 문법)과, **마리수만큼 착지점 도트**가 뜬다.
+    //   도트 자리는 SummonAt 의 자리 계산 그대로다 — 그림 = 실제 (이펙트 규칙).
+    //   반피 부대면 도트도 그만큼만 뜬다 — "지금 던질까" 판단 정보가 된다.
+    //   놓으면 그 자리에 퐁퐁퐁(기존 시차 등장) 나온다.
+    static Material holoSharedMat;
+    static readonly int HoloColorId = Shader.PropertyToID("_BaseColor");
+    GameObject holoPet; PetUnit holoOwner; Renderer[] holoRs;
+    MaterialPropertyBlock holoMpb;
+    readonly List<Transform> holoDots = new List<Transform>();
+
+    static Material HoloMat()
+    {
+        if (holoSharedMat != null) return holoSharedMat;
+        var m = new Material(Shader.Find("Universal Render Pipeline/Unlit"));
+        m.SetFloat("_Surface", 1f);
+        m.SetFloat("_Blend", 0f);
+        m.SetFloat("_SrcBlend", (float)UnityEngine.Rendering.BlendMode.SrcAlpha);
+        m.SetFloat("_DstBlend", (float)UnityEngine.Rendering.BlendMode.One);   // 더하기 = 빛으로 그린 느낌
+        m.SetFloat("_ZWrite", 0f);
+        m.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
+        m.renderQueue = (int)UnityEngine.Rendering.RenderQueue.Transparent;
+        m.SetColor("_BaseColor", new Color(0.35f, 1.1f, 1.3f, 0.5f));
+        holoSharedMat = m;
+        return m;
+    }
+
+    /// 펫 겉모습만 남긴 홀로그램 — 논리(PetUnit·콜라이더 등)는 **켜기 전에** 떼야
+    /// Awake 가 안 돌아 표적·전투 목록에 안 들어간다 (본체 틀이 비활성이라 가능한 수법)
+    void BuildHoloPet(PetUnit pet)
+    {
+        if (holoPet != null) Destroy(holoPet);
+        holoOwner = pet;
+        holoPet = Instantiate(pet.gameObject);   // 틀이 비활성이라 복제도 비활성
+        holoPet.name = "착지_홀로그램";
+        for (int pass = 0; pass < 3; pass++)     // RequireComponent 의존 순서 — 몇 번 돌면 다 떨어진다
+            foreach (var c in holoPet.GetComponentsInChildren<Component>(true))
+            {
+                if (c == null || c is Transform || c is MeshFilter
+                 || c is MeshRenderer || c is SkinnedMeshRenderer) continue;
+                DestroyImmediate(c);
+            }
+        holoPet.SetActive(true);
+        holoRs = holoPet.GetComponentsInChildren<Renderer>(true);
+        foreach (var r in holoRs)
+        {
+            var mats = new Material[r.sharedMaterials.Length];
+            for (int i = 0; i < mats.Length; i++) mats[i] = HoloMat();
+            r.sharedMaterials = mats;
+            r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+        }
+    }
+
+    void HideHolo()
+    {
+        if (holoPet != null) holoPet.SetActive(false);
+        for (int i = 0; i < holoDots.Count; i++)
+            if (holoDots[i] != null) holoDots[i].gameObject.SetActive(false);
+    }
+
+    Transform MakeDot()
+    {
+        var g = GameObject.CreatePrimitive(PrimitiveType.Quad);
+        DestroyImmediate(g.GetComponent<Collider>());
+        g.name = "착지_도트";
+        g.transform.rotation = Quaternion.Euler(90f, 0f, 0f);
+        g.transform.localScale = Vector3.one * 0.22f;
+        var mr = g.GetComponent<MeshRenderer>();
+        mr.sharedMaterial = HoloMat();
+        mr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+        return g.transform;
+    }
+
+    void UpdateHolo()
+    {
+        var pet = AimSlot >= 0 && AimSlot < PetCommand.SlotPet.Length
+                ? PetCommand.SlotPet[AimSlot] : null;
+        int n = pet != null ? SquadCountOf(pet) : 0;
+        if (pet == null || n <= 0) { HideHolo(); return; }
+
+        if (holoOwner != pet || holoPet == null) BuildHoloPet(pet);
+        holoPet.SetActive(true);
+        var spot = ThrowSpot();
+        holoPet.transform.position = spot + Vector3.up * 0.04f;
+        holoPet.transform.rotation = Quaternion.Euler(0f, Time.time * 35f, 0f);   // 천천히 돈다
+
+        // 맥동 — 두 주파수를 섞어야 기계적인 깜빡임이 아니라 '홀로그램 지글거림' 이 된다
+        if (holoMpb == null) holoMpb = new MaterialPropertyBlock();
+        float fl = 0.6f + 0.22f * Mathf.Sin(Time.time * 9f) + 0.1f * Mathf.Sin(Time.time * 31f);
+        var hc = new Color(0.35f * fl, 1.1f * fl, 1.3f * fl, 0.5f * fl);
+        holoMpb.SetColor(HoloColorId, hc);
+        if (holoRs != null)
+            foreach (var r in holoRs) { if (r != null) r.SetPropertyBlock(holoMpb); }
+
+        // 착지점 도트 — SummonAt 의 자리 계산 그대로. 떼(S 140)는 60개까지만 그린다
+        int shown = Mathf.Min(n, 60);
+        while (holoDots.Count < shown) holoDots.Add(MakeDot());
+        for (int i = 0; i < holoDots.Count; i++)
+        {
+            bool onDot = i < shown;
+            if (holoDots[i] == null) continue;
+            holoDots[i].gameObject.SetActive(onDot);
+            if (!onDot) continue;
+            float a = n > 1 ? (i / (float)n) * Mathf.PI * 2f : 0f;
+            float rr = n > 1 ? throwSpread * (0.35f + 0.65f * (i % 3) / 2f) : 0f;
+            var p = Ground(spot + new Vector3(Mathf.Cos(a), 0f, Mathf.Sin(a)) * rr);
+            holoDots[i].position = p + Vector3.up * 0.03f;
+        }
+    }
+
     void UpdatePreview()
     {
         if (previewLine == null) MakePreview();
@@ -1212,6 +1568,7 @@ public class SkillSystem : MonoBehaviour
             previewLine.enabled = false;
             previewCircle.gameObject.SetActive(false);
             if (previewWall != null) previewWall.gameObject.SetActive(false);
+            HideHolo();
             return;
         }
 
@@ -1222,6 +1579,9 @@ public class SkillSystem : MonoBehaviour
         //   Q·E·R 이 각자 다른 칸의 무기 방식으로 나가므로, 표시도 그 칸을 따라야 한다.
         var gear = AimSlot >= 0 ? SlotGear(AimSlot)
                  : Hotbar.I != null ? Hotbar.I.Current : GearKind.None;
+        // ★출현 방식 단순화 (2026-07-31 ⑧) — 투척 미리보기는 전부 "착탄원 + 포물선"
+        //   하나다. Pick = 기본 스타일이라 아래 분기들이 전부 기본 길로 간다.
+        if (AimSlot >= 0) gear = GearKind.Pick;
 
         float lineLen = 0f, lineWidth = 0f, circleR = 0f, circleIn = 0f;
         Vector3 circleAt = body;
@@ -1314,7 +1674,8 @@ public class SkillSystem : MonoBehaviour
         UpdateWall(gear, dir, circleAt, circleR);
 
         // 영역 안 대상 빨갛게 — 공격 조준일 때만. 소집·돌격은 적을 겨누는 게 아니다
-        if (AimSlot >= 0) return;
+        if (AimSlot >= 0) { UpdateHolo(); return; }
+        HideHolo();
         foreach (var u in PetUnit.All)
         {
             if (u == null || !u.Alive || u.team != PetUnit.Team.Wild) continue;

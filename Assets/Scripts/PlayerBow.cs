@@ -327,10 +327,17 @@ public class PlayerBow : MonoBehaviour
 
         if (meleeQ && gather != null)
         {
-            if (gather.ChargedSwing(meleeQAim, meleeQPick, meleeQSword,
-                                    ChargeDmgMul(meleeQLv), ChargeRangeMul(meleeQLv)))
+            // ★배수의 출처가 갈린다 — 차징(2단↑)은 차징표, 탭은 콤보표 (합 3.0 = 화력 중립)
+            float dmgMul = meleeQLv >= 2 ? ChargeDmgMul(meleeQLv)
+                         : meleeQCombo == 3 ? combo3Dmg
+                         : meleeQCombo == 2 ? combo2Dmg : combo1Dmg;
+            float rngMul = meleeQLv >= 2 ? ChargeRangeMul(meleeQLv)
+                         : meleeQCombo == 3 ? combo3Range : 1f;
+            if (gather.ChargedSwing(meleeQAim, meleeQPick, meleeQSword, dmgMul, rngMul))
             {
-                if (meleeQLv >= 2) FollowCam.Shake(meleeQLv >= 3 ? 0.3f : 0.15f);
+                SwingComboStep = meleeQLv >= 2 ? 0 : meleeQCombo;
+                if (meleeQLv >= 2) ChargeReleaseFx(meleeQLv, rngMul);
+                else if (meleeQCombo == 3) FollowCam.Shake(0.13f);   // 마무리 타 — 손맛
                 meleeQ = false;
             }
         }
@@ -344,6 +351,61 @@ public class PlayerBow : MonoBehaviour
             fireCd = fireCooldown * mul / Mathf.Max(0.5f, PlayerLevel.AtkSpeedMul);
             shotQ = false;
         }
+    }
+
+    // ── 차징 이펙트 (2026-07-31 사용자 — "차징은 그대로, 좀 더 이펙트 있고 강하게") ──
+    //
+    // ★모으는 동안은 무기께에서, 해방하는 순간은 **실제 부채꼴 그대로** 참격을 긋는다.
+    //   이펙트 규칙: 범위와 그림이 다르면 안 된다 — SweepArc 반지름 = 실제 타격 거리.
+    int prevChargeLv; float chargeEmberT;
+    /// 무기께 위치 — 본을 프레임마다 쫓으면 흔들려서 오히려 지저분하다. 가슴 앞으로 고정.
+    Vector3 ChargeFxPos => transform.position + aimDir * 0.45f + Vector3.up * 0.5f;
+
+    void ChargeAuraFx()
+    {
+        int lv = ChargeLevel;
+        if (lv != prevChargeLv)
+        {
+            prevChargeLv = lv;
+            if (lv >= 2)
+            {   // 단수 진입 펄스 — 게이지를 안 보고도 "지금 2단" 이 읽힌다
+                var c = lv >= 3 ? new Color(1.9f, 1.2f, 0.4f) : new Color(1.4f, 1.3f, 0.9f);
+                FX.Burst(ChargeFxPos, c, lv >= 3 ? 18 : 10, 0.05f, lv >= 3 ? 0.9f : 0.5f, 0.3f);
+                if (lv >= 3) FXRing.Spawn(ChargeFxPos, Vector3.up, c, 0.15f, 0.7f, 0.3f);
+            }
+        }
+        // 모으는 동안 잔불 — 2단부터 은은하게 (플레이어 하나뿐이라 비용 걱정 없음)
+        if (lv >= 2)
+        {
+            chargeEmberT -= Time.deltaTime;
+            if (chargeEmberT <= 0f)
+            {
+                chargeEmberT = 0.14f;
+                var c = lv >= 3 ? new Color(1.7f, 1.1f, 0.4f, 0.8f) : new Color(1.2f, 1.15f, 0.85f, 0.7f);
+                FX.Burst(ChargeFxPos, c, 3, 0.035f, 0.25f, 0.4f);
+            }
+        }
+    }
+
+    void ChargeReleaseFx(int lv, float rangeMul)
+    {
+        FollowCam.Shake(lv >= 3 ? 0.32f : 0.16f);
+        // 참격 궤적 — 실제 부채꼴(사거리×범위배수·각도)을 그대로 긋는다
+        float reach = gather != null ? gather.ReachNow * rangeMul : 1.2f;
+        float spread = gather != null ? gather.SpreadNow : 130f;
+        float yaw = Quaternion.LookRotation(aimDir, Vector3.up).eulerAngles.y;
+        var c = lv >= 3 ? new Color(2.0f, 1.4f, 0.5f, 0.95f) : new Color(1.7f, 1.6f, 1.2f, 0.9f);
+        FX.SweepArc(transform.position, yaw - spread * 0.5f, spread, reach, c,
+                    lv >= 3 ? 0.16f : 0.12f, 0.2f, 70f, lv >= 3 ? 1.5f : 1f);
+        // ★히트스톱 — 3단에만 0.05초. 실험대 배속 중(timeScale≠1)에는 안 건다
+        if (lv >= 3 && Mathf.Approximately(Time.timeScale, 1f)) StartCoroutine(HitStop(0.05f));
+    }
+
+    System.Collections.IEnumerator HitStop(float sec)
+    {
+        Time.timeScale = 0.06f;
+        yield return new WaitForSecondsRealtime(sec);
+        if (Time.timeScale < 0.1f) Time.timeScale = 1f;   // 그 사이 남이 만졌으면 안 되돌린다
     }
 
     // ── 좌클릭 차징 (2026-07-28 사용자 개편) ────────────────────────────
@@ -364,6 +426,21 @@ public class PlayerBow : MonoBehaviour
     [Tooltip("3단 피해·범위 배수")] public float charge3Dmg = 3.2f, charge3Range = 1.6f;
 
     float chargeT; bool charging;
+
+    // ── 좌클릭 콤보 (2026-07-31 사용자 — "연타하면 몬헌처럼") ─────────────
+    //
+    // ★같은 버튼에 콤보와 차징이 공존한다: 짧게 톡(차징 1단 = 그냥 탭) = 콤보 진행,
+    //   꾹 눌러 2단 이상 = 차징 한 방(콤보는 끊긴다). 새로 배울 조작이 없다.
+    [Header("좌클릭 콤보 (탭 연타 — 근접만)")]
+    [Tooltip("이 시간 안에 다시 탭해야 다음 타로 이어진다 (초)")]
+    public float comboWindow = 1.1f;
+    // ★셋의 합 = 3.0 — 평타 3방과 같다 (총 화력 중립, 기준선 "플레이어 ≈ 펫 3마리")
+    [Tooltip("1·2·3타 피해 배수 — ★셋의 합 3.0 을 지킬 것 (화력 중립)")]
+    public float combo1Dmg = 0.85f, combo2Dmg = 0.9f, combo3Dmg = 1.25f;
+    [Tooltip("3타(마무리)의 범위 배수")] public float combo3Range = 1.15f;
+    int comboStep; float comboLastT; int meleeQCombo;
+    /// 방금 나간 스윙의 콤보 단계 (0 = 콤보 아님) — 손 클립 선택이 읽는다
+    [HideInInspector] public int SwingComboStep;
 
     /// 지금 차징 단계 (1~3)
     public int ChargeLevel => chargeT >= chargeStep3 ? 3 : chargeT >= chargeStep2 ? 2 : 1;
@@ -1140,6 +1217,7 @@ public class PlayerBow : MonoBehaviour
             {
                 charging = true;
                 chargeT += Time.deltaTime * NodeMods.chargeSpeed;   // 노드판 「차징 달인」
+                ChargeAuraFx();   // ★단수가 오를 때 무기가 화답한다 — "지금 2단" 이 읽히게
             }
             else if (released && charging)
             {
@@ -1151,6 +1229,15 @@ public class PlayerBow : MonoBehaviour
                 meleeQPick = gear == GearKind.Pick;
                 meleeQSword = gear == GearKind.Sword;
                 meleeQLv = ChargeLevel;
+                // ★탭(1단) = 콤보 진행 · 2단 이상 = 차징 한 방 (콤보를 끊는다)
+                if (meleeQLv <= 1)
+                {
+                    if (Time.time - comboLastT > comboWindow) comboStep = 0;
+                    comboStep = comboStep % 3 + 1;
+                    meleeQCombo = comboStep;
+                }
+                else { comboStep = 0; meleeQCombo = 0; }
+                comboLastT = Time.time;
                 charging = false; chargeT = 0f;
             }
             drawing = false; drawT = 0f; aimLen = 0f;
@@ -1182,7 +1269,7 @@ public class PlayerBow : MonoBehaviour
                 charging = false; chargeT = 0f;
             }
         }
-        if (released) { drawing = false; drawT = 0f; aimLen = 0f; charging = false; chargeT = 0f; }
+        if (released) { drawing = false; drawT = 0f; aimLen = 0f; charging = false; chargeT = 0f; prevChargeLv = 0; }
     }
 
     /// 통통 바운스를 걸러낸 안정 발사점 — 활 중앙 위치에서, 위아래로 안 떨림
@@ -1716,7 +1803,14 @@ public class PlayerBow : MonoBehaviour
                 if (clipOwnsHandR && handAnim != null && gather != null && gather.SwingSeq != prevSwingSeq)
                 {
                     prevSwingSeq = gather.SwingSeq;
-                    handAnim.Play(setup.style == SwingStyle.Horizontal ? "Swing_Horizontal" : "Swing_Vertical", 0, 0f);
+                    // ★콤보가 클립을 고른다 (2026-07-31) — 1타 무기 기본 · 2타 반대 방향 ·
+                    //   3타 세로 강타. 방향이 번갈아야 '연속기' 로 읽힌다
+                    //   (같은 방향 반복이면 그냥 평타 연사로 보인다).
+                    string clip = setup.style == SwingStyle.Horizontal ? "Swing_Horizontal" : "Swing_Vertical";
+                    if (SwingComboStep == 2)
+                        clip = clip == "Swing_Horizontal" ? "Swing_Vertical" : "Swing_Horizontal";
+                    else if (SwingComboStep == 3) clip = "Swing_Vertical";
+                    handAnim.Play(clip, 0, 0f);
                     if (rig.trail != null) rig.trail.Clear();   // 되감을 때 옛 궤적이 남지 않게
                 }
                 prevSwingT = gather != null ? gather.SwingT : 0f;

@@ -46,6 +46,15 @@ public class HatcherySite : MonoBehaviour
     PetSpawner spawner; Transform player;
     Vector3 beamBase;      // 유리판 위 — 알이 앉는 자리
     Vector3 siteCenter; float siteR = 5f;   // 제단 실측 (배치·스케일 무관)
+
+    // ★부화 방어 중엔 부대 충원이 **전투 중에도** 돈다 (2026-07-31 사용자 — "거점알
+    //   방어 시에는 상시 회복"). 야생에선 전투가 끝나야 충원되는 것과 달리, 거점은
+    //   버티는 싸움이라 회복이 곧 컨텐츠다 — 거점의 특권이자 존재 이유.
+    public static HatcherySite Active;
+    void OnEnable() { Active = this; }
+    void OnDisable() { if (Active == this) Active = null; }
+    /// p(플레이어)가 방어전 중인 이 거점 근처인가 — SkillSystem.SquadRefill 이 묻는다
+    public bool RefillZone(Vector3 p) => incubating && Flat(p, siteCenter) < siteR * 4f;
     bool prompted;
 
     void Start()
@@ -98,23 +107,25 @@ public class HatcherySite : MonoBehaviour
             }
         }
 
-        // ── 1층: 짧고 굵은 백열 광선 — 레퍼런스 하단의 그 과노출 (★HDR ×4) ──
+        // ── 1층: 짧고 굵은 백열 광선 (★×4 → ×2 로 절반 — 2026-07-31 사용자
+        //   "빛 나오는 거 너무 강해서 안 보여". 과노출은 분위기가 아니라 가림막이었다) ──
         for (int i = 0; i < 8; i++)
         {
             float ang = Random.Range(0f, Mathf.PI * 2f);
             float rad = Mathf.Pow(Random.value, 0.8f) * R * 0.7f;
-            var col = white * 4f; col.a = Random.Range(0.55f, 0.9f);
+            var col = white * 2f; col.a = Random.Range(0.35f, 0.6f);
             Ray(new Vector3(Mathf.Cos(ang) * rad, 0f, Mathf.Sin(ang) * rad), ang,
                 Random.Range(0.18f, 0.45f) * R, Random.Range(1.2f, 3.5f), col, 0);
         }
-        // ── 2층: 길고 가는 시안 광선 (HDR ×1.6) ──
+        // ── 2층: 길고 가는 시안 광선 — ★주인공은 이쪽이다 (2026-07-31 사용자 "위로 쭉
+        //   뻗는 빛은 아직 없는 것 같다"). 바닥 블룸에 묻혀 안 보이던 것을 굵고 진하게 ──
         for (int i = 0; i < rayCount; i++)
         {
             float ang = Random.Range(0f, Mathf.PI * 2f);
             float rad = Mathf.Pow(Random.value, 0.7f) * R * 0.85f;
-            var col = cyan * 1.6f; col.a = Random.Range(0.25f, 0.6f);
+            var col = cyan * 2.4f; col.a = Random.Range(0.45f, 0.85f);
             Ray(new Vector3(Mathf.Cos(ang) * rad, 0f, Mathf.Sin(ang) * rad), ang,
-                Random.Range(0.05f, 0.22f) * R, Random.Range(rayHeight.x, rayHeight.y), col, 1);
+                Random.Range(0.09f, 0.28f) * R, Random.Range(rayHeight.x, rayHeight.y), col, 1);
         }
         // ── 외피 원통 — 은은한 볼륨 ──
         {
@@ -139,8 +150,11 @@ public class HatcherySite : MonoBehaviour
             g.transform.localScale = new Vector3(radius * 2f, radius * 2f, 1f);
             list.Add((Setup(g, GlowMat()), Random.Range(0f, 6.28f), col, 0));
         }
-        { var c1 = white * 5f; c1.a = 0.95f; Glow(R * 1.25f, c1, 0.06f); }
-        { var c2 = cyan * 1.5f; c2.a = 0.55f; Glow(R * 2.6f, c2, 0.04f); }
+        // ★백열 원반이 범인이었다 (2026-07-31 사용자 스크린샷 — 화면이 통째로 하얗게).
+        //   HDR ×5 에 유리판보다 넓은 원반이라 블룸이 다 먹었다. 좁고 순하게 줄인다 —
+        //   "빛나는 자리" 표시면 충분하고, 주인공은 위로 뻗는 광선 다발이다.
+        { var c1 = white * 2f; c1.a = 0.7f; Glow(R * 0.6f, c1, 0.06f); }
+        { var c2 = cyan * 1.2f; c2.a = 0.32f; Glow(R * 2.2f, c2, 0.04f); }
 
         rays = new MeshRenderer[list.Count];
         rayPhase = new float[list.Count];
