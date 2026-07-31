@@ -77,22 +77,32 @@ public class FollowCam : MonoBehaviour
         return best == float.MinValue ? p.y : best;
     }
 
-    // ★카메라 회전 폐지 (2026-07-31 사용자 — "카메라 회전은 없는 게 나을 것 같지?").
-    //   배치·지휘 게임은 화면과 땅의 대응이 늘 같아야 근육 기억이 생긴다 (스타·디아블로
-    //   문법). 각도는 인스펙터의 yaw·pitch 고정값, 휠은 줌만. 되살리려면 이 스위치만 켠다.
-    [Tooltip("우클릭 드래그 회전을 허용할까 — 배치 게임이라 기본 꺼짐")]
-    public bool allowRotate = false;
+    // ★회전을 되살렸다 — 단 **조준 중에만 잠근다** (2026-07-31, 한 번 껐다가 되돌림).
+    //
+    //   껐던 이유(배치 게임은 화면·땅 대응이 고정이어야 손에 익는다)는 맞지만,
+    //   두 가지가 그보다 무겁다:
+    //     ① **부화 투기장의 엄폐물이 시야를 가린다** — 바위가 앞을 막았을 때
+    //        고정 카메라로는 돌려 볼 방법이 아예 없다. 엄폐물을 넣어 놓고 못 보게 하는 셈.
+    //     ② 이미 겪고 고친 문제다 — 위 주석 참고: 상하 각도를 줌에 묶었다가
+    //        "높낮이 만들면서 너무 답답해졌다" 로 되돌린 이력이 있다. 6km 지형에서
+    //        고정 각도는 한 번 실패한 답이다.
+    //
+    //   → **평소엔 우클릭 드래그로 회전, 조준 중(Q·E·R 홀드)엔 잠금 + 우클릭은 취소.**
+    //     배치하는 순간만 화면이 고정되므로 손도 안 흔들리고 시야도 자유롭다.
+    [Tooltip("우클릭 드래그 회전 (조준 중에는 자동으로 잠긴다)")]
+    public bool allowRotate = true;
 
     void ReadLook(out Vector2 delta, out float scroll)
     {
         delta = Vector2.zero; scroll = 0f;
+        bool can = allowRotate && !SkillSystem.AimingNow;   // 조준 중엔 화면을 고정
 #if ENABLE_INPUT_SYSTEM
         var m = Mouse.current;
         if (m == null) return;
-        if (allowRotate && m.rightButton.isPressed) delta = m.delta.ReadValue();
+        if (can && m.rightButton.isPressed) delta = m.delta.ReadValue();
         scroll = m.scroll.ReadValue().y * 0.01f;
 #else
-        if (allowRotate && Input.GetMouseButton(1)) delta = new Vector2(Input.GetAxis("Mouse X") * 12f, Input.GetAxis("Mouse Y") * 12f);
+        if (can && Input.GetMouseButton(1)) delta = new Vector2(Input.GetAxis("Mouse X") * 12f, Input.GetAxis("Mouse Y") * 12f);
         scroll = Input.GetAxis("Mouse ScrollWheel");
 #endif
     }

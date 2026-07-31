@@ -236,6 +236,7 @@ public class SkillSystem : MonoBehaviour
             SquadHUD.Toast("취소");
         }
         if (throwCancelled) aiming = -1;   // 미리보기·장판도 즉시 사라진다
+        AimingNow = aiming >= 0;           // 카메라가 이걸 보고 회전을 잠근다
         UpdatePreview();
 
         // ★E 로 조준하는 동안엔 발이 묶인다 (2026-07-28 사용자).
@@ -1347,6 +1348,9 @@ public class SkillSystem : MonoBehaviour
 
 
     // ── 조준 영역 미리보기 (활 에임 라인과 같은 결) ──
+    /// ★조준 중인가 — `FollowCam` 이 이때만 회전을 잠근다 (2026-07-31).
+    ///   배치하는 순간에는 화면이 고정이어야 손이 안 흔들리고, 그 외엔 자유롭게 본다.
+    public static bool AimingNow;
     int aiming = -1;
     float holdT;
     LineRenderer previewLine;
