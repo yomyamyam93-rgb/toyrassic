@@ -130,11 +130,19 @@ public static class PetRank
         s == Stat.MoveSpeed || s == Stat.Range || s == Stat.Area;
 
     /// `now` 등급에서 한 칸 올리는 데 드는 조각 수 (올라갈수록 급하게 비싸진다)
+    ///
+    /// ★★값을 크게 올렸다 (2026-07-31 사용자 — "그렇게 쉽게 등급업 된다고? 무슨 단판
+    ///   모바일 게임도 아니고"). 처음 값(26/58/128)은 늑구 무리 하나에 다섯 번 올릴 수
+    ///   있는 수준이라 한 시간이면 만렙이었다.
+    ///   지금: **B 40 · A 120 · S 360** (위험 스탯은 ×3 → 120·360·1080).
+    ///   한 스탯을 S 까지 올리는 데 520 — 이건 **몇 시간짜리 목표**이고,
+    ///   펫 하나의 아홉 스탯을 다 채우는 건 **여러 날짜리 프로젝트**다.
+    ///   ★수집 게임의 성장은 그래야 값이 있다. 후하게 잡으면 수집할 이유가 사라진다.
     public static int UpgradeCost(Stat s, int now)
     {
         int next = now + 1;
         if (next > BuyMax) return -1;                    // 더는 못 산다
-        int c = 12 * Mathf.RoundToInt(Mathf.Pow(2.2f, next - Base));   // B12 · A26 · S58
+        int c = 40 * Mathf.RoundToInt(Mathf.Pow(3f, next - 4));   // B 40 · A 120 · S 360
         return Risky(s) ? c * 3 : c;
     }
 

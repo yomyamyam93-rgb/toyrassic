@@ -2108,19 +2108,34 @@ public class PetUnit : MonoBehaviour
     // ★수는 **인구수에 비례**한다 — 늑구 1 · 티라 14. 그래야 어떤 종을 잡든
     //   한 무리에서 나오는 총량이 얼추 같다 (알 드랍이 무리당 한 번인 것과 같은 이유:
     //   작은 종만 잡는 게 최적해가 되면 안 된다).
-    // ★우두머리는 조각을 삼킨 놈이라 훨씬 많이 뱉는다.
-    [Tooltip("잡았을 때 나오는 조각 = 인구수 × 이 값")] public float shardPerSupply = 1f;
-    [Tooltip("우두머리 조각 배수")] public float eliteShardMul = 6f;
+    //
+    // ★★양을 확 줄였다 (2026-07-31 사용자 "너무 후한 거 아니냐"). 1.0 이던 것을
+    //   **0.05** 로 — 늑구 무리(140) 하나에 7개, 티라 무리(10)도 7개.
+    //   한 스탯 B 가 40 이니 **무리 여섯을 잡아야 한 칸** 오른다.
+    //   ★그래도 한 마리 잡을 때마다 조금씩 들어온다 (사용자 "잡을 때마다 계속 나오게") —
+    //     소수점은 쌓아 두고 1 이 넘을 때 들어간다.
+    //
+    // ★우두머리는 **조각을 삼킨 놈**이라 통째로 뱉는다 — 조각의 주 공급원이 여기다.
+    //   빛나는 놈을 사냥하는 것이 곧 성장이라는 그림이 이걸로 완성된다.
+    [Tooltip("잡았을 때 나오는 조각 = 인구수 × 이 값 (소수는 쌓인다)")]
+    public float shardPerSupply = 0.05f;
+    [Tooltip("우두머리를 잡으면 추가로 주는 조각 — 조각의 주 공급원")]
+    public int eliteShardBonus = 30;
+
+    static float shardPool;   // 소수점 적립 — 한 마리마다 찔끔씩 들어오게
 
     void DropShards()
     {
         if (team != Team.Wild || isStructure) return;
         bool elite = RankOverall >= 5;
-        int n = Mathf.Max(1, Mathf.RoundToInt(supply * shardPerSupply * (elite ? eliteShardMul : 1f)));
-        Inv.Add("조각", n);
+        shardPool += supply * shardPerSupply + (elite ? eliteShardBonus : 0f);
+        int give = Mathf.FloorToInt(shardPool);
+        if (give <= 0) return;
+        shardPool -= give;
+        Inv.Add("조각", give);
         // ★줍는 물건이 아니라 바로 들어온다 — 140마리 싸움에서 줍기를 시키면 노동이 된다
         FX.Burst(transform.position + Vector3.up * body * 0.4f,
-                 new Color(0.7f, 1.4f, 1.9f, 0.95f), elite ? 16 : 6,
+                 new Color(0.7f, 1.4f, 1.9f, 0.95f), elite ? 20 : 6,
                  body * 0.05f, body * 0.5f, 0.5f);
     }
 
