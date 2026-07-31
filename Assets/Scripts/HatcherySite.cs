@@ -242,14 +242,6 @@ public class HatcherySite : MonoBehaviour
         }
     }
 
-    /// 지금 안칠 알 — 핫바에 든 알이 우선, 아니면 가진 것 중 제일 좋은 알
-    static string EggPicked()
-    {
-        var held = Hotbar.I != null ? Hotbar.I.CurrentId : null;
-        if (held != null && ItemDB.EggTier(held) != null && Inv.Count(held) > 0) return held;
-        return ItemDB.BestEggHeld();
-    }
-
     // ── 알 합성 (2026-07-31 사용자) ────────────────────────────────────
     //
     // ★**같은 등급 알 3개 → 최소 다음 등급 알 1개.** 수량을 등급으로 바꾸는 환전소다.
@@ -264,24 +256,11 @@ public class HatcherySite : MonoBehaviour
     [Tooltip("몇 개를 합칠까")] public int mergeCost = 3;
     [Tooltip("두 등급을 건너뛸 확률")] [Range(0f, 0.5f)] public float mergeLeapChance = 0.15f;
 
-    /// 합칠 수 있는 제일 낮은 등급 — 없으면 null
-    string MergeSource()
+    /// ★창에서 「합치기」를 눌렀을 때 — 알 3개는 창이 이미 가져갔다.
+    ///   자동으로 고르지 않는다 (사용자 "왔다갔다하다가 알을 합치고 말지").
+    public void MergeResult(PetScale.Tier src)
     {
-        foreach (var t in new[] { PetScale.Tier.S, PetScale.Tier.M, PetScale.Tier.L, PetScale.Tier.XL })
-        {
-            var id = ItemDB.EggId(t);
-            if (Inv.Count(id) >= mergeCost) return id;
-        }
-        return null;
-    }
-
-    void MergeEggs()
-    {
-        var srcId = MergeSource();
-        if (srcId == null) { SquadHUD.Toast($"같은 알이 {mergeCost}개 있어야 합친다"); return; }
-        var src = ItemDB.EggTier(srcId) ?? PetScale.Tier.S;
-        if (!Inv.Consume(srcId, mergeCost)) return;
-
+        var srcId = ItemDB.EggId(src);
         int up = src == PetScale.Tier.XL ? 0
                : (Random.value < mergeLeapChance ? 2 : 1);
         var dst = (PetScale.Tier)Mathf.Min((int)src + up, (int)PetScale.Tier.XL);
@@ -312,25 +291,18 @@ public class HatcherySite : MonoBehaviour
 
         float d = Flat(player.position, siteCenter);
 
-        // ── 안치 전 — 알을 들고 오면 F 안내, F 로 시작 ──
+        // ── 안치 전 — F 로 **부화터 창**을 연다 (알은 창에서 골라 넣는다) ──
         if (!incubating)
         {
-            var eggId = EggPicked();
-            bool near = d < siteR + 4f && eggId != null;
-            if (near && !prompted)
-            {
-                SquadHUD.Toast($"F — {eggId}을 부화터에 안친다"
-                             + (MergeSource() != null ? "\nG — 같은 알 3개를 합친다" : ""));
-                prompted = true;
-            }
+            bool near = d < siteR + 4f;
+            if (near && !prompted && !HatcheryUI.IsOpen)
+            { SquadHUD.Toast("F — 부화터 열기 (알 안치 · 합치기)"); prompted = true; }
             if (!near) prompted = false;
 #if ENABLE_INPUT_SYSTEM
             var k = Keyboard.current;
-            if (near && !MenuUI.IsOpen && k != null)
-            {
-                if (k.fKey.wasPressedThisFrame) BeginIncubation(eggId);
-                else if (k.gKey.wasPressedThisFrame) MergeEggs();
-            }
+            if (near && !MenuUI.IsOpen && !HatcheryUI.IsOpen
+                && k != null && k.fKey.wasPressedThisFrame)
+                OpenUI();
 #endif
             return;
         }
@@ -459,9 +431,20 @@ public class HatcherySite : MonoBehaviour
     //     "오늘따라 왜 이렇게 많이 오지?" → 끝나고 나서 "그래서였구나" 로 이어진다.
     //     알려주는 것보다 이쪽이 낫다 — 정보가 아니라 **경험**으로 전해진다.
 
-    void BeginIncubation(string eggId)
+    /// 부화터 창 열기 — 없으면 만든다 (씬에 미리 붙여둘 필요 없게)
+    void OpenUI()
     {
-        if (!Inv.Consume(eggId, 1)) return;
+        var ui = HatcheryUI.I;
+        if (ui == null) ui = gameObject.AddComponent<HatcheryUI>();
+        ui.Open(this);
+    }
+
+    /// ★창에서 「안치」를 눌렀을 때 — 알은 창이 이미 인벤토리에서 빼 갔다
+    public void PlaceEgg(string eggId) => BeginIncubation(eggId, alreadyTaken: true);
+
+    void BeginIncubation(string eggId, bool alreadyTaken = false)
+    {
+        if (!alreadyTaken && !Inv.Consume(eggId, 1)) return;
         eggTier = ItemDB.EggTier(eggId) ?? PetScale.Tier.M;
         ApplyTier(eggTier);
         // ★여기서 뽑는다 — 알 등급이 행운을 준다 (S1 · M2 · L3 · XL4)
