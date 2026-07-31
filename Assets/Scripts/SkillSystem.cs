@@ -1035,7 +1035,9 @@ public class SkillSystem : MonoBehaviour
             if (alive + pet.squadReserve >= max) { pet.squadRefillT = 0f; continue; }
 
             pet.squadRefillT += 0.5f;
-            float need = Mathf.Max(0.1f, pet.supply * refillSecPerSupply);
+            // 개체 등급 — 충원 속도는 전투 밖 전용이라 폭이 제일 넓다 (헌법상 안전지대)
+            float need = Mathf.Max(0.1f, pet.supply * refillSecPerSupply
+                                       / Mathf.Max(0.1f, pet.RankMul(PetRank.Stat.Refill)));
             if (pet.squadRefillT < need) continue;
             pet.squadRefillT -= need;
             // ★부대가 나와 있으면 그 곁에 퐁 — 충원이 눈에 보인다. 아니면 예비대로

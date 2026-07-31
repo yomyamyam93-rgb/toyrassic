@@ -33,6 +33,13 @@ public class PetCommand : MonoBehaviour
     ///   (세계에 세워뒀더니 던지지도 않았는데 알아서 싸우다 죽었다 — 2026-07-28)
     public static readonly List<PetUnit> Owned = new List<PetUnit>();
 
+    /// 종 ID 로 내 본체 펫 찾기 — 보관함 화면이 개체 등급을 보여줄 때 쓴다
+    public static PetUnit OwnedOf(string species)
+    {
+        foreach (var p in Owned) if (p != null && p.species == species) return p;
+        return null;
+    }
+
     public static void Own(PetUnit pet)
     {
         if (pet != null && !Owned.Contains(pet)) Owned.Add(pet);

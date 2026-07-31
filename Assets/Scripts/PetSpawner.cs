@@ -532,6 +532,10 @@ public class PetSpawner : MonoBehaviour
     public string[] startSpecies = { "꼭꼬", "늑구", "호동" };
     [Tooltip("시험 키트 — 시작할 때 주는 알(M) 개수")] public int startEggs = 1;
 
+    /// ★다음 `SpawnPlayerPet` 한 번에만 적용되는 등급 행운 (부화가 넣는다).
+    ///   0 = 순수 무작위(야생 포획) · 클수록 여러 번 뽑아 제일 좋은 것을 준다.
+    public static int pendingLuck;
+
     /// 내가 가진 펫 한 마리를 만든다.
     ///
     /// ★★★세계에 세우지 않는다 (2026-07-28 버그 수정).
@@ -552,6 +556,11 @@ public class PetSpawner : MonoBehaviour
         pu.team = PetUnit.Team.Player;
         pu.collectible = false;
         pu.packBudget = 0;           // 내 펫은 스스로 안 불어난다 (투척으로 소환한다)
+        // ★개체 등급을 여기서 딱 한 번 뽑는다 (2026-07-31) — 본체(틀)의 등급이
+        //   복제되는 분신 전부에게 그대로 간다. 야생은 안 뽑는다(전부 C = 실측 기준).
+        //   luck 은 부화가 넘긴다 — 잘 지켜낸 알일수록 좋은 개체가 태어난다.
+        pu.RollRanks(pendingLuck);
+        pendingLuck = 0;
         // (야생 레벨 폐기 — 보정할 것이 없다)
 
         // ★몸 크기를 지금 재 둔다. 비활성이 되면 Start 가 안 돌아 body 가 안 채워지는데,

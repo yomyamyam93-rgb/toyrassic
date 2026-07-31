@@ -199,6 +199,91 @@ public class PetUnit : MonoBehaviour
     [HideInInspector] public float spawnHpFrac = 1f;
     [Tooltip("소환 분신이 주인에게서 이보다 멀어지면 자석 복귀한다 (m) — 두고 간 부대 안전망")]
     public float squadLeashRange = 40f;
+
+    // ── 개체 등급 (2026-07-31) ────────────────────────────────────────
+    //
+    // ★스탯 9개가 각자 F~SSS. 같은 종이라도 개체가 다르다 = 수집의 이유.
+    //   ★복제(분신)는 Instantiate 라 이 배열이 그대로 따라온다 — 본체의 등급이
+    //     곧 부대 전체의 등급이다. 뽑기는 본체를 만들 때 딱 한 번 (RollRanks).
+    //   ★야생은 안 뽑는다 — 전부 C(기준). 리그전 실측값이 그 상태의 값이라
+    //     지금까지 잰 상성이 그대로 유효하다 (사용자 "적 팻은 같아도 좋다").
+    [Tooltip("스탯별 등급 (0=F … 3=C 기준 … 8=SSS). 비어 있으면 전부 C")]
+    public int[] ranks;
+    /// 종합 등급 — 표시·이펙트가 쓴다
+    public int RankOverall => PetRank.Overall(ranks != null && ranks.Length == PetRank.StatCount
+                                              ? ranks : PetRank.AllBase());
+    /// 그 스탯의 배수 (등급이 없으면 1.0)
+    public float RankMul(PetRank.Stat s) =>
+        ranks != null && ranks.Length == PetRank.StatCount
+            ? PetRank.Mul(s, ranks[(int)s]) : 1f;
+
+    /// ★측정 오염 방지 — 실험대가 켜면 등급을 안 뽑는다 (`DebugNoXP` 와 같은 자리).
+    ///   리그전은 종 고유 스탯(C 등급)끼리 붙어야 상성을 잰다.
+    public static bool DebugNoRanks;
+
+    /// 개체 등급을 뽑는다 — **본체(틀)를 만들 때 한 번만.** luck 은 부화가 준다
+    public void RollRanks(int luck = 0)
+    {
+        ranks = DebugNoRanks ? PetRank.AllBase() : PetRank.RollAll(luck);
+    }
+
+    // ── 등급 오라 (2026-07-31 사용자 "등급에 따라 이펙트") ──────────────────
+    //
+    // ★A 등급부터만 켠다 — 흔한 개체까지 빛나면 특별함이 사라지고, 140마리 부대에
+    //   전부 켜지면 비용도 진짜가 된다. 높은 등급이 드물다는 설계가 곧 비용 상한이다.
+    // ★비용: 발밑 고리 **평면 1장**(공유 재질·그림자 없음) + 몸 발광은 프로퍼티
+    //   블록이라 공짜. 파티클은 안 쓴다 (부대 규모에서 위험).
+    static Material auraMat;
+    Transform auraRing; float auraT;
+
+    void RankAura()
+    {
+        int r = RankOverall;
+        if (r < 5 || dead || isAvatar || isStructure)   // A(5) 미만이면 없음
+        {
+            if (auraRing != null) auraRing.gameObject.SetActive(false);
+            return;
+        }
+        if (auraRing == null)
+        {
+            if (auraMat == null)
+            {
+                auraMat = new Material(Shader.Find("Universal Render Pipeline/Unlit"));
+                auraMat.SetFloat("_Surface", 1f);
+                auraMat.SetFloat("_Blend", 0f);
+                auraMat.SetFloat("_SrcBlend", (float)UnityEngine.Rendering.BlendMode.SrcAlpha);
+                auraMat.SetFloat("_DstBlend", (float)UnityEngine.Rendering.BlendMode.One);
+                auraMat.SetFloat("_ZWrite", 0f);
+                auraMat.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
+                auraMat.renderQueue = (int)UnityEngine.Rendering.RenderQueue.Transparent;
+                auraMat.mainTexture = FX.CircleThinTex();
+            }
+            var g = GameObject.CreatePrimitive(PrimitiveType.Quad);
+            Destroy(g.GetComponent<Collider>());
+            g.name = "등급오라";
+            g.transform.SetParent(transform, false);
+            g.transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
+            var mr2 = g.GetComponent<MeshRenderer>();
+            mr2.sharedMaterial = auraMat;
+            mr2.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            mr2.receiveShadows = false;
+            auraRing = g.transform;
+        }
+        auraRing.gameObject.SetActive(true);
+        // 발밑에 눕힌 고리 — 몸 크기에 비례해야 "그 놈의 것" 으로 읽힌다
+        float k = 1f / Mathf.Max(1e-4f, transform.localScale.x);
+        auraRing.localPosition = new Vector3(0f, 0.02f * k, 0f);
+        auraT += Time.deltaTime;
+        float pulse = 0.85f + 0.15f * Mathf.Sin(auraT * (2f + (r - 5) * 0.8f));
+        float sz = bodyR * 2.6f * k * pulse;
+        auraRing.localScale = new Vector3(sz, sz, 1f);
+        if (auraMpb == null) auraMpb = new MaterialPropertyBlock();
+        var c = PetRank.Color1(r) * ((r - 4) * 0.22f) * pulse;   // 등급이 높을수록 진하다
+        c.a = 0.5f + (r - 5) * 0.1f;
+        auraMpb.SetColor("_BaseColor", c);
+        auraRing.GetComponent<MeshRenderer>().SetPropertyBlock(auraMpb);
+    }
+    static MaterialPropertyBlock auraMpb;
     float airT, airDur, airHeight, airY;             // 에어본 — 붕 떴다 내려옴
     float ghostHp;                                   // 롤식 지연 감소 바
     Transform barGhost;
@@ -231,7 +316,8 @@ public class PetUnit : MonoBehaviour
     {
         terrain = Terrain.activeTerrain;
         maxHp = hp = vit * HpPerVit
-              * (team == Team.Player && !isAvatar && !isStructure ? NodeMods.petHp : 1f);   // 노드판 — 내 편 펫만
+              * (team == Team.Player && !isAvatar && !isStructure ? NodeMods.petHp : 1f)   // 노드판 — 내 편 펫만
+              * RankMul(PetRank.Stat.Hp);                                                  // 개체 등급
         // ★분신은 부대의 체력을 이어받는다 (2026-07-31) — 재배치는 이동이지 재생산이 아니다
         if (spawnHpFrac < 1f) hp = Mathf.Max(1f, maxHp * Mathf.Clamp01(spawnHpFrac));
         baseScale = transform.localScale;
@@ -365,7 +451,8 @@ public class PetUnit : MonoBehaviour
     // ★이속 = 크기가 준 기본 속도 × 방식 배수 × 종별 기울임
     float MoveSpd => (TierSpeed + agi * agiSpeedPer)
                      * (slowT > 0f ? 0.55f : 1f)
-                     * PatternMoveSpeed * moveSpeedMul;
+                     * PatternMoveSpeed * moveSpeedMul
+                     * RankMul(PetRank.Stat.MoveSpeed);   // 개체 등급 (★폭이 아주 좁다 — 헌법)
 
     // ── 전투 행동 (2026-07-28 재작성) ──────────────────────────────────────
     //
@@ -450,6 +537,7 @@ public class PetUnit : MonoBehaviour
         // 노드판 — 내 편에만 (야생이 노드를 받으면 안 된다)
         if (team == Team.Player && !isAvatar && !isStructure)
             arm *= IsRanged ? NodeMods.rangedRange : NodeMods.meleeArm;
+        arm *= RankMul(PetRank.Stat.Range);   // 개체 등급 (★폭이 아주 좁다 — 면적은 제곱)
         return arm * rangeMul + bodyR + (t != null ? t.bodyR : 0f);
     }
 
@@ -504,7 +592,8 @@ public class PetUnit : MonoBehaviour
 
     // ★공속 = 크기가 준 기본 간격 ÷ (방식 배수 × 종별 기울임 × 노드판[내 편만])
     float AtkPeriodNow => atkPeriod / Mathf.Max(0.1f, PatternAtkSpeed * atkSpeedMul
-        * (team == Team.Player && !isAvatar ? NodeMods.petAtkSpeed : 1f));
+        * (team == Team.Player && !isAvatar ? NodeMods.petAtkSpeed : 1f)
+        * RankMul(PetRank.Stat.AtkSpeed));   // 개체 등급
 
     // ── 덩치 = 공격 범위 ──────────────────────────────────────────────
     //
@@ -566,23 +655,27 @@ public class PetUnit : MonoBehaviour
     ///   (한 대 피해는 Strike, 사거리는 AttackReachTo, 회피는 투사체 명중 굴림 그대로).
     public string CombatSheet()
     {
-        float hit = str * dmgPerStr * PatternDmg * hitDmgMul * (atkBuffT > 0f ? atkBuffMul : 1f);
+        float hit = str * dmgPerStr * PatternDmg * hitDmgMul * (atkBuffT > 0f ? atkBuffMul : 1f)
+                  * RankMul(PetRank.Stat.Damage);
         float period = AtkPeriodNow;
         float dps = period > 0.01f ? hit / period : 0f;
         float reach = AttackReachTo(null);
-        float dodge = Mathf.Min(35f, agi * 0.8f);
+        float dodge = DodgeChance * 100f;
         var sb = new System.Text.StringBuilder();
-        sb.AppendLine($"  한 대 {hit:F0}  ·  간격 {period:F2}초  ·  초당 {dps:F0}");
+        // ★스탯마다 등급을 옆에 붙인다 — 어느 스탯이 특출난지가 한 줄에서 읽혀야 한다
+        string R(PetRank.Stat s) => ranks != null && ranks.Length == PetRank.StatCount
+            ? $"[{PetRank.Letter(ranks[(int)s])}]" : "";
+        sb.AppendLine($"  한 대 {hit:F0}{R(PetRank.Stat.Damage)}  ·  간격 {period:F2}초{R(PetRank.Stat.AtkSpeed)}  ·  초당 {dps:F0}");
         sb.AppendLine(IsRanged
-            ? $"  사거리 {reach:F1}m  (원거리 · 단일 표적)"
-            : $"  사거리 {reach:F1}m  ·  부채꼴 {AtkSpread:F0}°");
-        sb.AppendLine($"  이동 {MoveSpd:F1}m/s  ·  투사체 회피 {dodge:F0}%");
+            ? $"  사거리 {reach:F1}m{R(PetRank.Stat.Range)}  (원거리 · 단일 표적)"
+            : $"  사거리 {reach:F1}m{R(PetRank.Stat.Range)}  ·  부채꼴 {AtkSpread:F0}°{R(PetRank.Stat.Area)}");
+        sb.AppendLine($"  이동 {MoveSpd:F1}m/s{R(PetRank.Stat.MoveSpeed)}  ·  투사체 회피 {dodge:F0}%{R(PetRank.Stat.Dodge)}");
         // ★회복·충원 — 부대 운용 스탯 (2026-07-31 사용자 "빠진 게 없는지 넣어줘")
-        sb.AppendLine($"  회복 초당 {maxHp * RegenPerSec:F1}  (전투 밖 6초 뒤)"
-                    + $"  ·  충원 {supply * SkillSystem.RefillSecPerSupplyLive:F1}초/마리");
-        sb.Append($"  {tier} 등급  ·  {PatternKorean}  ·  인구수 {supply}");
-        if (IsRanged)
-            sb.Append(KitingPattern(pattern) ? "  ·  카이팅 함" : "  ·  카이팅 안 함(산탄)");
+        sb.AppendLine($"  회복 초당 {maxHp * RegenPerSec * RankMul(PetRank.Stat.Regen):F1}{R(PetRank.Stat.Regen)}  (전투 밖 6초 뒤)"
+                    + $"  ·  충원 {supply * SkillSystem.RefillSecPerSupplyLive / RankMul(PetRank.Stat.Refill):F1}초/마리{R(PetRank.Stat.Refill)}");
+        sb.AppendLine($"  {tier} 등급  ·  {PatternKorean}  ·  인구수 {supply}"
+                    + (IsRanged ? (KitingPattern(pattern) ? "  ·  카이팅 함" : "  ·  카이팅 안 함(산탄)") : ""));
+        sb.Append($"  <b>개체 등급  {PetRank.Letter(RankOverall)}</b>");
         return sb.ToString();
     }
 
@@ -857,7 +950,7 @@ public class PetUnit : MonoBehaviour
     public PetScale.Tier tier = PetScale.Tier.M;
 
     int SizeTier => (int)tier + 1;   // S=1 · M=2 · L=3 · XL=4
-    float AtkSpread => Mathf.Min(360f, PatternAngle * angleMul);
+    float AtkSpread => Mathf.Min(360f, PatternAngle * angleMul * RankMul(PetRank.Stat.Area));
     // ★타격 수 상한은 없앴다 (2026-07-29). 부채꼴 안이면 전부 맞는다 — Strike 참고.
     //   광역의 세기는 **면적**(AtkSpread × 팔 길이)으로만 조절한다.
 
@@ -1167,7 +1260,8 @@ public class PetUnit : MonoBehaviour
 
         // ★밸런스는 데미지로 잡는다 (2026-07-29 사용자) — 넓게 때릴수록 한 대가 약하다
         float dmg = str * dmgPerStr * PatternDmg * hitDmgMul
-                  * (atkBuffT > 0f ? atkBuffMul : 1f);   // 활R 오로라 축복
+                  * (atkBuffT > 0f ? atkBuffMul : 1f)    // 활R 오로라 축복
+                  * RankMul(PetRank.Stat.Damage);        // 개체 등급
         if (team == Team.Player && !isAvatar)
         {   // 노드판 — 내 편에만. 치명타는 스윙당 한 번 굴린다 (근접 광역이면 그 스윙 전체가 치명타)
             dmg *= NodeMods.petDmg;
@@ -1432,6 +1526,7 @@ public class PetUnit : MonoBehaviour
     {
         Lod();                                                   // 멀면 테두리를 끈다
         if (dead) { DeathAnim(); return; }
+        RankAura();                                              // 개체 등급 오라 (A 이상만)
         Regen();                                                 // 전투 밖 자연 재생 (내 편만)
         if (isAvatar) { HitFlash(); Bar(); return; }             // 캐릭터: 피격·바만
         if (isStructure) { HitFlash(); Bar(); return; }          // 건물
@@ -1630,12 +1725,16 @@ public class PetUnit : MonoBehaviour
     /// 전투 밖 초당 회복 비율 — 스탯창(CombatSheet)도 이 값을 그대로 읽는다 (그림=실제)
     public const float RegenPerSec = 0.025f;
 
+    /// 투사체 회피 확률 (0~1) — 명중 굴림과 스탯창이 **같은 식**을 쓴다
+    public float DodgeChance =>
+        Mathf.Min(0.35f, agi * 0.008f * RankMul(PetRank.Stat.Dodge));
+
     void Regen()
     {
         hurtT += Time.deltaTime;
         if (team != Team.Player || isStructure || hp >= maxHp) return;
         if (InCombat || hurtT < 6f) return;
-        hp = Mathf.Min(maxHp, hp + maxHp * RegenPerSec * Time.deltaTime);
+        hp = Mathf.Min(maxHp, hp + maxHp * RegenPerSec * RankMul(PetRank.Stat.Regen) * Time.deltaTime);
     }
 
     public void TakeDamage(float dmg, PetUnit attacker = null)
@@ -2713,7 +2812,7 @@ public class PetProjectile : MonoBehaviour
         if (t >= 1f)
         {
             if (heal) target.Heal(amt);
-            else if (Random.value >= Mathf.Min(0.35f, target.agi * 0.008f))
+            else if (Random.value >= target.DodgeChance)
             {
                 target.TakeDamage(amt, owner); target.OnHit();
                 // 💧물살 밀치기 — 날아온 방향으로

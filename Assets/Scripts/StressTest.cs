@@ -277,6 +277,9 @@ public class StressTest : MonoBehaviour
     void ClearField()
     {
         PetUnit.DebugNoXP = true;
+        // ★개체 등급도 잠근다 (2026-07-31) — 리그전은 **종 고유 스탯(C 등급)** 끼리
+        //   붙어야 상성을 잰다. 등급이 섞이면 「측정 오염」 네 번째 항목이 된다.
+        PetUnit.DebugNoRanks = true;
         if (spawner != null) spawner.enabled = false;      // 새 야생 그만
         for (int i = PetUnit.All.Count - 1; i >= 0; i--)   // 이미 있던 야생도 치운다
         {
@@ -502,6 +505,7 @@ public class StressTest : MonoBehaviour
         sideA.Clear(); sideB.Clear();
         trialRunning = false; trialResult = "";
         PetUnit.DebugNoXP = false;                  // 평소 게임으로 — 다시 레벨이 오른다
+        PetUnit.DebugNoRanks = false;               // 개체 등급도 다시 뽑힌다
         // ★배속은 여기서 되돌리지 않는다 (2026-07-30 사용자 — "한 번 걸어두면 쭉 가게").
         //   `Versus` 가 판마다 `ClearAll` 을 부르므로, 여기서 되돌리면 **매 판 1배로
         //   리셋됐다.** 배속은 F10(수동으로 판 걷기)에서만 푼다 — 아래 ReadKeys 참고.

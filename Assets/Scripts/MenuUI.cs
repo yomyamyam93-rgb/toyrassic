@@ -421,9 +421,22 @@ public class MenuUI : MonoBehaviour
         // 동행 중이면 실시간 값 반영
         var live = BlueprintPickup.MyPet();
         if (s.active && live != null) PetBox.Sync(live);
+        // ★개체 등급 — 보관함에서도 보여야 "어느 놈을 데려갈까" 가 판단이 된다
+        var unit = PetCommand.OwnedOf(s.species);
+        string rankLine = "";
+        if (unit != null && unit.ranks != null && unit.ranks.Length == PetRank.StatCount)
+        {
+            var sbr = new System.Text.StringBuilder();
+            sbr.Append($"<b>개체 등급  {PetRank.Letter(unit.RankOverall)}</b>\n");
+            for (int i = 0; i < PetRank.StatCount; i++)
+                sbr.Append($"  {PetRank.StatName[i]} <b>{PetRank.Letter(unit.ranks[i])}</b>"
+                         + ((i % 2 == 1) ? "\n" : ""));
+            rankLine = sbr.ToString().TrimEnd() + "\n\n";
+        }
         petDetail.text =
             $"<b>{s.name}</b>\n" +
             $"종류  {s.species}   ({s.tier})\n\n" +
+            rankLine +
             $"체력     {s.vit * 10f:F0}\n" +
             $"힘       {s.str:F0}\n" +
             $"민첩     {s.agi:F0}\n" +

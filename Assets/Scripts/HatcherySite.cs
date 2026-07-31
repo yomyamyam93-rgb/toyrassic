@@ -406,10 +406,22 @@ public class HatcherySite : MonoBehaviour
             var pos = player != null ? player.position + player.forward : siteCenter;
             var terr = Terrain.activeTerrain;
             if (terr != null) pos.y = terr.SampleHeight(pos) + terr.transform.position.y;
+            // ★부화는 좋은 개체를 낳는다 (2026-07-31) — 알을 지켜낸 혜택이 여기 있다.
+            //   알 등급이 기본 행운을 주고(S1·M2·L3·XL4), **알을 얼마나 잘 지켰나**가
+            //   더한다: 무피해 사수면 +2, 반 이상 남기면 +1.
+            //   → 야생 포획은 순수 무작위, 부화는 확실히 좋은 개체. 디펜스의 보상 구조다.
+            int luck = (int)eggTier + 1;
+            float eggFrac = eggUnit != null && eggUnit.maxHp > 0f ? eggUnit.hp / eggUnit.maxHp : 1f;
+            if (eggFrac >= 0.999f) luck += 2;
+            else if (eggFrac >= 0.5f) luck += 1;
+
             // 비활성 틀로 지급 — 보관함 등록 + 무기 칸 자동 결합 (던져야 나온다)
+            PetSpawner.pendingLuck = luck;
             var g = spawner.SpawnPlayerPet(entry, pos);
-            SquadHUD.Toast(g != null
-                ? $"{entry.koreanName}을 얻었다! 무기 칸에 묶어 Q·E·R 로 던진다"
+            var born = g != null ? g.GetComponent<PetUnit>() : null;
+            SquadHUD.Toast(born != null
+                ? $"{entry.koreanName}을 얻었다!  개체 등급 {PetRank.Letter(born.RankOverall)}"
+                  + (eggFrac >= 0.999f ? "  (무피해 사수 보너스!)" : "")
                 : "…그런데 태어날 종을 못 찾았다");
         }
         EndDefense();
