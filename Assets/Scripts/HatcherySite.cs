@@ -208,7 +208,22 @@ public class HatcherySite : MonoBehaviour
                 rays[i].SetPropertyBlock(mpb);
             }
 
+        ArenaUpdate();
         DefenseUpdate();
+    }
+
+    /// 투기장이 솟는 동안 — 지진처럼 흔들린다 (사용자 "두두두두")
+    void ArenaUpdate()
+    {
+        if (!arena.HasRocks) return;
+        bool moving = arena.Step(Time.deltaTime);
+        if (arenaShakeT > 0f)
+        {
+            arenaShakeT -= Time.deltaTime;
+            // 짧게 여러 번 — 한 번 크게 흔들면 '쿵' 이지 '두두두두' 가 아니다
+            if (Random.value < 0.35f) FollowCam.Shake(0.16f);
+        }
+        if (!moving && !incubating) arena.Clear();   // 다 가라앉았으면 치운다
     }
 
     // ── 부화 디펜스 본체 ─────────────────────────────────────────────
@@ -308,7 +323,14 @@ public class HatcherySite : MonoBehaviour
                         (late && e.tier == PetScale.Tier.L)) pool.Add(e);
                 if (pool.Count == 0) pool.AddRange(spawner.entries);
                 var entry = pool[Random.Range(0, pool.Count)];
-                float ang = Random.Range(0f, Mathf.PI * 2f);
+                // ★길목에서만 들어온다 (2026-07-31) — 이래야 솟아오른 지형이 **의미**가
+                //   된다. 길목 수는 알 등급이 정하므로, 지형이 곧 「방향」 난이도다
+                //   (확정 설계 ⑥). 성벽 쪽에서 나오면 지형이 장식이 되어 버린다.
+                float ang;
+                if (arena.Lanes.Count > 0)
+                    ang = arena.Lanes[Random.Range(0, arena.Lanes.Count)]
+                        + Random.Range(-0.16f, 0.16f);
+                else ang = Random.Range(0f, Mathf.PI * 2f);
                 float ringMin = siteR + 12f, ringMax = siteR + 20f;
                 var pos = siteCenter + new Vector3(Mathf.Cos(ang), 0, Mathf.Sin(ang)) * Random.Range(ringMin, ringMax);
                 var terr = Terrain.activeTerrain;
@@ -359,6 +381,8 @@ public class HatcherySite : MonoBehaviour
     //   먼저 밝히면 도박이 된다: "SS 급 기운이 감돈다 — 대신 지옥이 온다."
     //   그리고 **그 등급만큼 습격이 거세진다** (아래 raidScale) — 좋은 알일수록 험한 판.
     int[] eggRanks; int eggGrade = PetRank.Base;
+    readonly HatcheryArena arena = new HatcheryArena();
+    float arenaShakeT;
     /// 등급이 올릴 난이도 배수 — C 기준 1.0, SSS 면 약 2배
     float RaidScale => 1f + Mathf.Max(0, eggGrade - PetRank.Base) * 0.2f;
 
@@ -386,6 +410,9 @@ public class HatcherySite : MonoBehaviour
         attackers.Clear();
         MakeEgg();
         MakeGauge();
+        // ★투기장이 솟는다 — 매판 새 지형 (2026-07-31 사용자). 등급이 길목 수를 정한다
+        arena.Build(siteCenter, siteR, eggGrade);
+        arenaShakeT = 1.6f;
         // ★어느 알이든 같은 문장 — 등급을 드러내는 것은 아무것도 없다 (위 주석 참고)
         SquadHUD.Toast($"{eggId}을 안쳤다!  {hatchDuration:F0}초를 버텨야 한다");
         FollowCam.Shake(0.3f);
@@ -452,6 +479,7 @@ public class HatcherySite : MonoBehaviour
         hatchT = 0f; wavesSent = 0; toSpawn = 0;
         spawnedTotal = 0; spawnCredit = 0f; raidToastShown = false;
         eggRanks = null; eggGrade = PetRank.Base;   // 다음 알은 다시 뽑는다
+        arena.BeginSink();                          // 투기장이 도로 땅속으로
         KillGauge();
         if (eggVis != null) { Destroy(eggVis.gameObject); eggVis = null; }
         eggUnit = null;
