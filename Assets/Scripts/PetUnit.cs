@@ -227,6 +227,22 @@ public class PetUnit : MonoBehaviour
         ranks = DebugNoRanks ? PetRank.AllBase() : PetRank.RollAll(luck);
     }
 
+    /// ★조각으로 스탯 등급 한 칸 올리기 — 성공하면 true.
+    ///   본체(틀)의 등급이 오르면 다음에 뿌리는 분신부터 그 값으로 나온다.
+    public bool BuyRank(PetRank.Stat s)
+    {
+        if (ranks == null || ranks.Length != PetRank.StatCount) ranks = PetRank.AllBase();
+        int now = ranks[(int)s];
+        int cost = PetRank.UpgradeCost(s, now);
+        if (cost < 0) return false;                       // S 가 상한 — 그 위는 운으로만
+        if (Inv.Count("조각") < cost) return false;
+        if (!Inv.Consume("조각", cost)) return false;
+        ranks[(int)s] = now + 1;
+        maxHp = vit * HpPerVit * RankMul(PetRank.Stat.Hp);   // 체력은 즉시 반영
+        hp = Mathf.Min(hp, maxHp);
+        return true;
+    }
+
     // ── 등급 오라 (2026-07-31 사용자 "등급에 따라 이펙트") ──────────────────
     //
     // ★A 등급부터만 켠다 — 흔한 개체까지 빛나면 특별함이 사라지고, 140마리 부대에
@@ -2081,6 +2097,31 @@ public class PetUnit : MonoBehaviour
                           : new Color(0.6f, 0.8f, 1f);
         g.AddComponent<DropPickup>().matName = n;
         DropEgg();
+        DropShards();
+    }
+
+    // ── 조각 (2026-07-31 사용자) ────────────────────────────────────────
+    //
+    // ★야생을 잡을 때마다 나온다. 이걸로 내 펫의 **스탯 등급**을 올린다
+    //   (`PetRank.UpgradeCost` — 새 스탯 층이 아니라 기존 F~SSS 를 산다).
+    //
+    // ★수는 **인구수에 비례**한다 — 늑구 1 · 티라 14. 그래야 어떤 종을 잡든
+    //   한 무리에서 나오는 총량이 얼추 같다 (알 드랍이 무리당 한 번인 것과 같은 이유:
+    //   작은 종만 잡는 게 최적해가 되면 안 된다).
+    // ★우두머리는 조각을 삼킨 놈이라 훨씬 많이 뱉는다.
+    [Tooltip("잡았을 때 나오는 조각 = 인구수 × 이 값")] public float shardPerSupply = 1f;
+    [Tooltip("우두머리 조각 배수")] public float eliteShardMul = 6f;
+
+    void DropShards()
+    {
+        if (team != Team.Wild || isStructure) return;
+        bool elite = RankOverall >= 5;
+        int n = Mathf.Max(1, Mathf.RoundToInt(supply * shardPerSupply * (elite ? eliteShardMul : 1f)));
+        Inv.Add("조각", n);
+        // ★줍는 물건이 아니라 바로 들어온다 — 140마리 싸움에서 줍기를 시키면 노동이 된다
+        FX.Burst(transform.position + Vector3.up * body * 0.4f,
+                 new Color(0.7f, 1.4f, 1.9f, 0.95f), elite ? 16 : 6,
+                 body * 0.05f, body * 0.5f, 0.5f);
     }
 
     // ── 알 드랍 (2026-07-31 사용자 — "알 둥지 찾으러 가는 거 좆같긴 함") ──────

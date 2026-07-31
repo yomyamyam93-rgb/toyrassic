@@ -30,6 +30,7 @@ public class MenuUI : MonoBehaviour
     GameObject pageInv, pagePet, pageStat, pageCraft, pageNode;
     Button[] petRows; Text[] petRowTexts;
     Text petDetail, petUseLabel; Button petUseBtn;
+    Button[] rankBtn; Text[] rankBtnLabel;   // 조각으로 스탯 등급 올리기
     int petSel;
     Image[] tabImgs; Text[] tabTexts;
     Text statText;
@@ -298,6 +299,20 @@ public class MenuUI : MonoBehaviour
         pubrt.anchoredPosition = new Vector2(360, -240);
         petUseBtn.onClick.AddListener(UsePet);
 
+        // ★조각으로 스탯 등급 올리기 (2026-07-31) — 스탯 9개마다 버튼 하나.
+        //   새 창을 안 만든다: 등급이 이미 여기 표시되고 있으니 그 옆에서 올리는 게 맞다.
+        rankBtn = new Button[PetRank.StatCount];
+        rankBtnLabel = new Text[PetRank.StatCount];
+        for (int i = 0; i < PetRank.StatCount; i++)
+        {
+            int idx = i;
+            rankBtn[i] = MakeButton(pp, "", new Vector2(196, 34), out rankBtnLabel[i]);
+            var rrt = (RectTransform)rankBtn[i].transform;
+            rrt.anchorMin = rrt.anchorMax = rrt.pivot = new Vector2(0, 1);
+            rrt.anchoredPosition = new Vector2(360 + (i % 2) * 204, -292 - (i / 2) * 40);
+            rankBtn[i].onClick.AddListener(() => BuyRank(idx));
+        }
+
         // ── 스탯 ──
         var st2 = Page("Page_Stat");
         pageStat = st2.gameObject;
@@ -413,8 +428,9 @@ public class MenuUI : MonoBehaviour
         }
         if (list.Count == 0)
         {
-            petDetail.text = "아직 부화한 펫이 없다.\n둥지에서 알을 구해 부화기에서 부화시키자.";
+            petDetail.text = "";
             petUseBtn.gameObject.SetActive(false);
+            if (rankBtn != null) foreach (var b in rankBtn) b.gameObject.SetActive(false);
             return;
         }
         var s = list[petSel];
@@ -439,12 +455,44 @@ public class MenuUI : MonoBehaviour
             rankLine +
             $"체력     {s.vit * 10f:F0}\n" +
             $"힘       {s.str:F0}\n" +
-            $"민첩     {s.agi:F0}\n" +
-            $"지력     {s.intel:F0}\n\n" +
-            (s.active ? "<b>지금 데리고 다니는 중</b>" : "보관함에서 대기 중");
+            $"민첩     {s.agi:F0}\n\n" +
+            $"조각  {Inv.Count("조각")}";
         // ★탑승 삭제 (2026-07-28) — 나와 있는 펫은 더 할 게 없다
         petUseBtn.gameObject.SetActive(!s.active);
         petUseLabel.text = "데리고 다니기";
+
+        // ★조각으로 등급 올리기 — 버튼에 「스탯 C→B  12」 처럼 상태만 적는다
+        if (rankBtn != null)
+            for (int i = 0; i < rankBtn.Length; i++)
+            {
+                bool has = unit != null && unit.ranks != null && unit.ranks.Length == PetRank.StatCount;
+                rankBtn[i].gameObject.SetActive(has);
+                if (!has) continue;
+                int now = unit.ranks[i];
+                int cost = PetRank.UpgradeCost((PetRank.Stat)i, now);
+                if (cost < 0)
+                {
+                    rankBtnLabel[i].text = $"{PetRank.StatName[i]}  {PetRank.Letter(now)}";
+                    rankBtn[i].interactable = false;
+                }
+                else
+                {
+                    rankBtnLabel[i].text = $"{PetRank.StatName[i]}  {PetRank.Letter(now)}→{PetRank.Letter(now + 1)}   {cost}";
+                    rankBtn[i].interactable = Inv.Count("조각") >= cost;
+                }
+            }
+    }
+
+    /// 조각으로 그 스탯을 한 칸 올린다
+    void BuyRank(int statIdx)
+    {
+        var list = PetBox.All;
+        if (petSel < 0 || petSel >= list.Count) return;
+        var unit = PetCommand.OwnedOf(list[petSel].species);
+        if (unit == null) return;
+        if (unit.BuyRank((PetRank.Stat)statIdx))
+            SquadHUD.Toast($"{PetRank.StatName[statIdx]}  {PetRank.Letter(unit.ranks[statIdx])}");
+        RefreshPets();
     }
 
     void UsePet()

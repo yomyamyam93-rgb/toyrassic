@@ -113,6 +113,31 @@ public static class PetRank
         return a;
     }
 
+    // ── 조각으로 등급 올리기 (2026-07-31 사용자) ────────────────────────
+    //
+    // ★야생을 잡으면 **조각**이 나오고, 그것으로 내 펫의 스탯 등급을 올린다.
+    //   새 스탯 층을 만들지 않는다 — **이미 있는 F~SSS 배수를 그대로 쓴다.**
+    //   곡선이 위로 몰려 있어(지수 2.0) C→B 는 +3%, A→S 는 +15% — "아주 미세하게"
+    //   라는 요구가 계산을 안 건드리고 저절로 지켜진다.
+    //
+    // ★★**조각으로는 S(6)까지만.** SS·SSS 는 오직 뽑기와 우두머리 바닥으로만 나온다.
+    //   안 그러면 모든 펫이 결국 만렙이 되어 **수집의 의미가 사라진다** —
+    //   "살 수 있는 건 S 까지, 그 위는 운" 이라는 선이 이 게임의 수집을 지킨다.
+    public const int BuyMax = 6;
+
+    /// 위험한 스탯은 값이 비싸다 — 폭이 좁아 안전하긴 하지만, 쉽게 오르면 안 된다
+    static bool Risky(Stat s) =>
+        s == Stat.MoveSpeed || s == Stat.Range || s == Stat.Area;
+
+    /// `now` 등급에서 한 칸 올리는 데 드는 조각 수 (올라갈수록 급하게 비싸진다)
+    public static int UpgradeCost(Stat s, int now)
+    {
+        int next = now + 1;
+        if (next > BuyMax) return -1;                    // 더는 못 산다
+        int c = 12 * Mathf.RoundToInt(Mathf.Pow(2.2f, next - Base));   // B12 · A26 · S58
+        return Risky(s) ? c * 3 : c;
+    }
+
     /// 종합 등급 — **평균 6 : 최고 4** 의 혼합.
     ///
     /// ★순수 평균이면 안 된다: 아홉 개 평균은 큰 수의 법칙으로 가운데(C~B)에 못 박혀
