@@ -14,9 +14,11 @@ using UnityEngine.InputSystem.UI;
 ///   "왔다갔다하다가 알을 합치고 마는" 사고가 난다. 인벤토리처럼 열어서 **넣은 것만**
 ///   처리해야 한다.
 ///
-/// 한 창에서 둘 다 한다 (알을 다루는 자리는 하나여야 헷갈리지 않는다):
-///   · 칸에 **1개** → 「안치」 로 부화 디펜스 시작
-///   · 칸에 **같은 알 3개** → 「합치기」 로 한 등급 위 (15% 로 두 등급)
+/// ★★행위는 **안치 하나**다 — 「합치기」 라는 따로 있는 버튼이 아니라
+///   (사용자 "합치기에 왜 이렇게 꽂혔어"), **넣은 개수가 결과를 정한다:**
+///     1개 → 그 등급 그대로 · 2개마다 한 등급 위 · 많이 넣을수록 개체 등급도 좋아진다
+///   "적게 넣고 쉽게 갈까, 많이 넣고 크게 갈까" 가 이 창의 유일한 판단이다.
+///   (결과 등급이 곧 판의 난이도라, 크게 걸면 험한 판이 저절로 따라온다)
 ///
 /// ★넣은 알은 창을 닫으면 **반드시 인벤토리로 돌아온다** — 창에 두고 나갔다가
 ///   사라지면 그건 잃어버린 것이다.
@@ -37,10 +39,11 @@ public class HatcheryUI : MonoBehaviour
     GameObject canvasRoot, win;
     HatcherySite site;
     readonly List<string> slots = new List<string>();   // 칸에 넣은 알 (아이템 id)
-    Text[] slotLabels = new Text[3];
-    Text stockText, hintText;
-    Button mergeBtn, placeBtn;
-    Text mergeLabel, placeLabel;
+    const int MaxSlots = 5;
+    Text[] slotLabels = new Text[MaxSlots];
+    Text hintText, resultText;
+    Button placeBtn;
+    Text placeLabel;
 
     static readonly PetScale.Tier[] Tiers =
         { PetScale.Tier.S, PetScale.Tier.M, PetScale.Tier.L, PetScale.Tier.XL };
@@ -188,43 +191,45 @@ public class HatcheryUI : MonoBehaviour
         slotTitle.rectTransform.anchorMin = slotTitle.rectTransform.anchorMax = slotTitle.rectTransform.pivot = new Vector2(0, 1);
         slotTitle.rectTransform.anchoredPosition = new Vector2(370, -64);
         slotTitle.rectTransform.sizeDelta = new Vector2(360, 28);
-        slotTitle.text = "넣은 알  (눌러서 빼기)";
+        slotTitle.text = "넣은 알  (눌러서 빼기 · 많이 넣을수록 좋다)";
 
-        for (int i = 0; i < 3; i++)
+        for (int i = 0; i < MaxSlots; i++)
         {
             int idx = i;
             var rt = RT("slot" + i, w);
             rt.anchorMin = rt.anchorMax = rt.pivot = new Vector2(0, 1);
-            rt.anchoredPosition = new Vector2(370 + i * 116, -100);
-            rt.sizeDelta = new Vector2(104, 104);
+            rt.anchoredPosition = new Vector2(370 + i * 72, -100);
+            rt.sizeDelta = new Vector2(64, 88);
             var img = rt.gameObject.AddComponent<Image>();
             img.sprite = Round; img.type = Image.Type.Sliced; img.color = SlotBg;
             var b = rt.gameObject.AddComponent<Button>();
             b.onClick.AddListener(() => TakeOut(idx));
-            slotLabels[i] = MakeText("label", rt, 18, TxtMain, false, TextAnchor.MiddleCenter);
+            slotLabels[i] = MakeText("label", rt, 15, TxtMain, false, TextAnchor.MiddleCenter);
             Stretch(slotLabels[i].rectTransform);
         }
 
-        hintText = MakeText("hint", w, 19, TxtMain, false, TextAnchor.UpperLeft);
-        hintText.rectTransform.anchorMin = hintText.rectTransform.anchorMax = hintText.rectTransform.pivot = new Vector2(0, 1);
-        hintText.rectTransform.anchoredPosition = new Vector2(370, -216);
-        hintText.rectTransform.sizeDelta = new Vector2(340, 96);
+        // ★결과 미리보기 — 넣기 전에 "뭐가 나오는지" 가 보여야 판단이 된다
+        resultText = MakeText("result", w, 24, TxtMain, true, TextAnchor.UpperLeft);
+        resultText.rectTransform.anchorMin = resultText.rectTransform.anchorMax = resultText.rectTransform.pivot = new Vector2(0, 1);
+        resultText.rectTransform.anchoredPosition = new Vector2(370, -206);
+        resultText.rectTransform.sizeDelta = new Vector2(350, 34);
 
-        placeBtn = MakeButton("place", w, new Vector2(-100, -170), new Vector2(200, 56), "안치하기", out placeLabel);
+        hintText = MakeText("hint", w, 18, TxtMain, false, TextAnchor.UpperLeft);
+        hintText.rectTransform.anchorMin = hintText.rectTransform.anchorMax = hintText.rectTransform.pivot = new Vector2(0, 1);
+        hintText.rectTransform.anchoredPosition = new Vector2(370, -244);
+        hintText.rectTransform.sizeDelta = new Vector2(350, 90);
+
+        placeBtn = MakeButton("place", w, new Vector2(120, -170), new Vector2(230, 60), "안치하기", out placeLabel);
         placeBtn.onClick.AddListener(Place);
-        mergeBtn = MakeButton("merge", w, new Vector2(120, -170), new Vector2(200, 56), "합치기", out mergeLabel);
-        mergeBtn.onClick.AddListener(Merge);
 
         var closeBtn = MakeButton("close", w, new Vector2(300, 180), new Vector2(56, 44), "✕", out _);
         closeBtn.onClick.AddListener(Close);
-
-        stockText = null;
     }
 
     // ── 조작 ──────────────────────────────────────────────────────────
     void PutIn(string id)
     {
-        if (slots.Count >= 3) { Toast("칸이 다 찼다"); return; }
+        if (slots.Count >= MaxSlots) { Toast("더 넣을 수 없다"); return; }
         // ★섞어 넣지 못하게 — 합치기는 같은 알끼리만이고, 안치는 어차피 하나다
         if (slots.Count > 0 && slots[0] != id) { Toast("같은 알끼리만 넣을 수 있다"); return; }
         if (Inv.Count(id) <= 0) { Toast($"{id}이 없다"); return; }
@@ -243,21 +248,12 @@ public class HatcheryUI : MonoBehaviour
 
     void Place()
     {
-        if (slots.Count != 1) { Toast("안치는 알 하나만 넣고 누른다"); return; }
+        if (slots.Count < 1) { Toast("알을 하나 이상 넣어야 한다"); return; }
         var id = slots[0];
+        int n = slots.Count;
         slots.Clear();          // 인벤토리로 안 돌린다 — 이제 부화터가 품는다
         if (win != null) win.SetActive(false);
-        if (site != null) site.PlaceEgg(id);
-    }
-
-    void Merge()
-    {
-        if (slots.Count != 3) { Toast("합치려면 같은 알 3개가 필요하다"); return; }
-        var id = slots[0];
-        var src = ItemDB.EggTier(id) ?? PetScale.Tier.S;
-        slots.Clear();          // 세 개는 여기서 사라진다
-        if (site != null) site.MergeResult(src);
-        Refresh();
+        if (site != null) site.PlaceEgg(id, n);
     }
 
     static void Toast(string s) => SquadHUD.Toast(s);
@@ -274,19 +270,27 @@ public class HatcheryUI : MonoBehaviour
         }
         for (int i = 0; i < slotLabels.Length; i++)
             if (slotLabels[i] != null)
-                slotLabels[i].text = i < slots.Count ? slots[i] : "( 비어 있음 )";
+                slotLabels[i].text = i < slots.Count ? slots[i] : "－";
 
-        bool canPlace = slots.Count == 1;
-        bool canMerge = slots.Count == 3;
-        if (placeBtn != null) placeBtn.interactable = canPlace;
-        if (mergeBtn != null) mergeBtn.interactable = canMerge;
+        bool can = slots.Count >= 1;
+        if (placeBtn != null) placeBtn.interactable = can;
+
+        // ★결과를 **실제 계산과 같은 식**으로 미리 보여준다 (그림 = 실제)
+        if (resultText != null)
+        {
+            if (!can || site == null) resultText.text = "";
+            else
+            {
+                var src = ItemDB.EggTier(slots[0]) ?? PetScale.Tier.S;
+                var dst = site.ResultTier(src, slots.Count);
+                resultText.text = $"→ 부화 결과   <b>{ItemDB.EggId(dst)}</b>";
+            }
+        }
         if (hintText != null)
-            hintText.text = canMerge
-                ? "합치면 <b>최소 한 등급 위</b> 알이 된다\n(운이 좋으면 두 등급)"
-                : canPlace
-                    ? "안치하면 부화가 시작되고\n야생이 몰려온다"
-                    : slots.Count == 0
-                        ? "알 1개 = 안치 (부화 시작)\n같은 알 3개 = 합치기"
-                        : "하나 더 넣으면 합칠 수 있다\n(같은 알 3개)";
+            hintText.text = slots.Count == 0
+                ? "알을 넣을수록 좋은 것이 나온다.\n대신 그만큼 습격도 거세진다."
+                : slots.Count >= MaxSlots
+                    ? "더는 못 넣는다. 크게 걸었다 — 각오할 것."
+                    : "더 넣으면 등급도, 개체 등급도 올라간다.";
     }
 }

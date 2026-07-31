@@ -242,47 +242,22 @@ public class HatcherySite : MonoBehaviour
         }
     }
 
-    // ── 알 합성 (2026-07-31 사용자) ────────────────────────────────────
+    // ── 알을 몇 개 넣느냐가 결과를 정한다 (2026-07-31 사용자) ──────────────
     //
-    // ★**같은 등급 알 3개 → 최소 다음 등급 알 1개.** 수량을 등급으로 바꾸는 환전소다.
-    //   작은 알이 계속 쌓이는데 쓸 데가 없던 문제를 푼다 — 사냥이 헛되지 않게 된다.
-    //
-    // ★"최소" 다음 등급 — 15% 로 **두 등급**을 뛴다 (사용자 "최소 다음 등급의 알").
-    //   확정 위에 얹힌 도박이라, 합성 자체가 작은 이벤트가 된다.
-    //
-    // ★거대한 알(XL)은 위가 없다 → **3개를 합치면 XL 하나 + 등급 바닥 A 보장.**
-    //   꼭대기에서도 "수량 → 품질" 이라는 규칙이 이어진다 (우두머리의 바닥과 같은 길).
-    [Header("알 합성 (G)")]
-    [Tooltip("몇 개를 합칠까")] public int mergeCost = 3;
-    [Tooltip("두 등급을 건너뛸 확률")] [Range(0f, 0.5f)] public float mergeLeapChance = 0.15f;
+    // ★"합치기" 라는 **따로 있는 행위가 아니다** (사용자 "합치기에 왜 이렇게 꽂혔어").
+    //   행위는 **안치 하나**뿐이고, **넣은 개수**가 결과를 정한다:
+    //     1개 → 그 등급 그대로 · 2개마다 한 등급 위 · 넣을수록 개체 등급 행운도 오른다
+    //   같은 자리에서 "적게 넣고 쉽게 갈까, 많이 넣고 크게 갈까" 가 판단이 된다.
+    //   (넣은 만큼 판도 험해진다 — 결과 등급이 곧 난이도이므로 자동으로 그렇게 된다)
+    [Header("알 넣기")]
+    [Tooltip("몇 개마다 한 등급 오를까")] public int eggsPerTierUp = 2;
+    [Tooltip("한 번에 넣을 수 있는 최대 개수")] public int maxEggsIn = 5;
 
-    /// ★창에서 「합치기」를 눌렀을 때 — 알 3개는 창이 이미 가져갔다.
-    ///   자동으로 고르지 않는다 (사용자 "왔다갔다하다가 알을 합치고 말지").
-    public void MergeResult(PetScale.Tier src)
+    /// 넣은 개수 → 결과 알 등급 (창의 미리보기와 실제가 같은 식을 쓴다)
+    public PetScale.Tier ResultTier(PetScale.Tier src, int count)
     {
-        var srcId = ItemDB.EggId(src);
-        int up = src == PetScale.Tier.XL ? 0
-               : (Random.value < mergeLeapChance ? 2 : 1);
-        var dst = (PetScale.Tier)Mathf.Min((int)src + up, (int)PetScale.Tier.XL);
-        var dstId = ItemDB.EggId(dst);
-        Inv.Add(dstId, 1);
-
-        // XL 은 올라갈 곳이 없으니 **개체 등급 바닥**으로 값을 치른다
-        if (src == PetScale.Tier.XL)
-        {
-            var floor = PetRank.AllBase();
-            for (int i = 0; i < floor.Length; i++) floor[i] = 5;   // 전 스탯 최소 A
-            PetSpawner.ReserveEggFloor(PetScale.Tier.XL, floor);
-        }
-
-        FX.Burst(beamBase + Vector3.up * 0.5f,
-                 up >= 2 ? new Color(1.9f, 1.2f, 0.5f) : new Color(0.8f, 1.5f, 1.9f),
-                 up >= 2 ? 40 : 22, 0.2f, up >= 2 ? 3f : 1.8f, 0.6f);
-        FollowCam.Shake(up >= 2 ? 0.35f : 0.18f);
-        SquadHUD.Toast(src == PetScale.Tier.XL
-            ? $"거대한 알 {mergeCost}개를 합쳤다 — <b>최소 A급</b>이 보장된 알!"
-            : (up >= 2 ? $"…빛이 크게 번졌다! <b>{dstId}</b> 획득 (두 등급!)"
-                       : $"{srcId} {mergeCost}개 → <b>{dstId}</b>"));
+        int up = Mathf.Max(0, count - 1) / Mathf.Max(1, eggsPerTierUp);
+        return (PetScale.Tier)Mathf.Min((int)src + up, (int)PetScale.Tier.XL);
     }
 
     void DefenseUpdate()
@@ -439,16 +414,23 @@ public class HatcherySite : MonoBehaviour
         ui.Open(this);
     }
 
-    /// ★창에서 「안치」를 눌렀을 때 — 알은 창이 이미 인벤토리에서 빼 갔다
-    public void PlaceEgg(string eggId) => BeginIncubation(eggId, alreadyTaken: true);
+    /// ★창에서 「안치」를 눌렀을 때 — 알 `count` 개는 창이 이미 인벤토리에서 빼 갔다.
+    ///   많이 넣을수록 등급이 오르고(ResultTier) 개체 등급 행운도 커진다.
+    public void PlaceEgg(string eggId, int count)
+    {
+        var src = ItemDB.EggTier(eggId) ?? PetScale.Tier.M;
+        BeginIncubation(ItemDB.EggId(ResultTier(src, count)),
+                        alreadyTaken: true, extraLuck: Mathf.Max(0, count - 1));
+    }
 
-    void BeginIncubation(string eggId, bool alreadyTaken = false)
+    void BeginIncubation(string eggId, bool alreadyTaken = false, int extraLuck = 0)
     {
         if (!alreadyTaken && !Inv.Consume(eggId, 1)) return;
         eggTier = ItemDB.EggTier(eggId) ?? PetScale.Tier.M;
         ApplyTier(eggTier);
-        // ★여기서 뽑는다 — 알 등급이 행운을 준다 (S1 · M2 · L3 · XL4)
-        eggRanks = PetRank.RollAll((int)eggTier + 1);
+        // ★여기서 뽑는다 — 알 등급이 행운을 준다 (S1 · M2 · L3 · XL4).
+        //   많이 넣었으면 그만큼 더 (extraLuck) — 개수가 등급도 밀어 올린다.
+        eggRanks = PetRank.RollAll((int)eggTier + 1 + extraLuck);
         // ★우두머리가 남긴 「등급 바닥」이 있으면 스탯마다 그 아래로는 안 내려간다
         //   (사용자 "그 등급에서 끝이 아니라 최소 그 등급으로") — 위로는 더 나올 수 있다.
         var floor = PetSpawner.TakeEggFloor(eggTier);
