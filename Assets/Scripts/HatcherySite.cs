@@ -345,6 +345,9 @@ public class HatcherySite : MonoBehaviour
                     u.alerted = true;
                     u.joinRange = ringMax + siteR + 15f;
                     u.leashRange = 99999f;
+                    // ★습격조는 무리를 또 불리지 않는다 (웨이브 수는 여기서 정한 값이
+                    //   전부여야 한다) — 겸사겸사 알도 안 떨군다. 알은 필드 사냥의 몫.
+                    u.packBudget = 0;
                     attackers.Add(u);
                     toSpawn--;
                 }

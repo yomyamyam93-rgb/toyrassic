@@ -2106,6 +2106,14 @@ public class PetUnit : MonoBehaviour
     void DropEgg()
     {
         if (team != Team.Wild || isStructure) return;
+        // ★★굴리기는 **무리 하나당 한 번**이다 (2026-07-31 사용자 — "분산돼서 나오는
+        //   모든 마릿수 중에서가 아니라 그 덩어리에서").
+        //
+        //   마리마다 굴리면 늑구 28마리 무리에서 12%×28 = **알 3개**가 쏟아진다.
+        //   무리의 크기가 곧 알 생산량이 되어 버려, 작은 종만 잡는 게 최적해가 된다.
+        //   → **무리 대표(원본)만** 굴린다. 튀어나온 분신은 `packBudget = 0` 이라
+        //     여기서 걸러진다 (`WakePack` 이 그렇게 설정한다).
+        if (packBudget <= 0) return;
         bool elite = RankOverall >= 5;                       // 우두머리 = 오라가 켜지는 등급
         if (Random.value >= (elite ? eliteEggDropChance : eggDropChance)) return;
         // 우두머리는 한 등급 위 알 — "저 빛나는 놈을 잡으면 좋은 알이 나온다"
