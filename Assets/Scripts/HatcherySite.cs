@@ -250,6 +250,62 @@ public class HatcherySite : MonoBehaviour
         return ItemDB.BestEggHeld();
     }
 
+    // ── 알 합성 (2026-07-31 사용자) ────────────────────────────────────
+    //
+    // ★**같은 등급 알 3개 → 최소 다음 등급 알 1개.** 수량을 등급으로 바꾸는 환전소다.
+    //   작은 알이 계속 쌓이는데 쓸 데가 없던 문제를 푼다 — 사냥이 헛되지 않게 된다.
+    //
+    // ★"최소" 다음 등급 — 15% 로 **두 등급**을 뛴다 (사용자 "최소 다음 등급의 알").
+    //   확정 위에 얹힌 도박이라, 합성 자체가 작은 이벤트가 된다.
+    //
+    // ★거대한 알(XL)은 위가 없다 → **3개를 합치면 XL 하나 + 등급 바닥 A 보장.**
+    //   꼭대기에서도 "수량 → 품질" 이라는 규칙이 이어진다 (우두머리의 바닥과 같은 길).
+    [Header("알 합성 (G)")]
+    [Tooltip("몇 개를 합칠까")] public int mergeCost = 3;
+    [Tooltip("두 등급을 건너뛸 확률")] [Range(0f, 0.5f)] public float mergeLeapChance = 0.15f;
+
+    /// 합칠 수 있는 제일 낮은 등급 — 없으면 null
+    string MergeSource()
+    {
+        foreach (var t in new[] { PetScale.Tier.S, PetScale.Tier.M, PetScale.Tier.L, PetScale.Tier.XL })
+        {
+            var id = ItemDB.EggId(t);
+            if (Inv.Count(id) >= mergeCost) return id;
+        }
+        return null;
+    }
+
+    void MergeEggs()
+    {
+        var srcId = MergeSource();
+        if (srcId == null) { SquadHUD.Toast($"같은 알이 {mergeCost}개 있어야 합친다"); return; }
+        var src = ItemDB.EggTier(srcId) ?? PetScale.Tier.S;
+        if (!Inv.Consume(srcId, mergeCost)) return;
+
+        int up = src == PetScale.Tier.XL ? 0
+               : (Random.value < mergeLeapChance ? 2 : 1);
+        var dst = (PetScale.Tier)Mathf.Min((int)src + up, (int)PetScale.Tier.XL);
+        var dstId = ItemDB.EggId(dst);
+        Inv.Add(dstId, 1);
+
+        // XL 은 올라갈 곳이 없으니 **개체 등급 바닥**으로 값을 치른다
+        if (src == PetScale.Tier.XL)
+        {
+            var floor = PetRank.AllBase();
+            for (int i = 0; i < floor.Length; i++) floor[i] = 5;   // 전 스탯 최소 A
+            PetSpawner.ReserveEggFloor(PetScale.Tier.XL, floor);
+        }
+
+        FX.Burst(beamBase + Vector3.up * 0.5f,
+                 up >= 2 ? new Color(1.9f, 1.2f, 0.5f) : new Color(0.8f, 1.5f, 1.9f),
+                 up >= 2 ? 40 : 22, 0.2f, up >= 2 ? 3f : 1.8f, 0.6f);
+        FollowCam.Shake(up >= 2 ? 0.35f : 0.18f);
+        SquadHUD.Toast(src == PetScale.Tier.XL
+            ? $"거대한 알 {mergeCost}개를 합쳤다 — <b>최소 A급</b>이 보장된 알!"
+            : (up >= 2 ? $"…빛이 크게 번졌다! <b>{dstId}</b> 획득 (두 등급!)"
+                       : $"{srcId} {mergeCost}개 → <b>{dstId}</b>"));
+    }
+
     void DefenseUpdate()
     {
         if (player == null) { var p = GameObject.Find("Player"); if (p != null) player = p.transform; else return; }
@@ -261,12 +317,20 @@ public class HatcherySite : MonoBehaviour
         {
             var eggId = EggPicked();
             bool near = d < siteR + 4f && eggId != null;
-            if (near && !prompted) { SquadHUD.Toast($"F — {eggId}을 부화터에 안친다"); prompted = true; }
+            if (near && !prompted)
+            {
+                SquadHUD.Toast($"F — {eggId}을 부화터에 안친다"
+                             + (MergeSource() != null ? "\nG — 같은 알 3개를 합친다" : ""));
+                prompted = true;
+            }
             if (!near) prompted = false;
 #if ENABLE_INPUT_SYSTEM
             var k = Keyboard.current;
-            if (near && !MenuUI.IsOpen && k != null && k.fKey.wasPressedThisFrame)
-                BeginIncubation(eggId);
+            if (near && !MenuUI.IsOpen && k != null)
+            {
+                if (k.fKey.wasPressedThisFrame) BeginIncubation(eggId);
+                else if (k.gKey.wasPressedThisFrame) MergeEggs();
+            }
 #endif
             return;
         }
