@@ -246,11 +246,13 @@ public class SkillSystem : MonoBehaviour
 
         bool anyReleased = k.qKey.wasReleasedThisFrame || k.eKey.wasReleasedThisFrame
                         || k.rKey.wasReleasedThisFrame || k.spaceKey.wasReleasedThisFrame;
+        // ★Q·E = 끌어 뿌리기 (2026-07-31 사용자 — "누르고 드래그하면 다다다닥").
+        //   누르고 있는 동안 마우스 자리에 한 마리씩 태어난다 — 놓는 순간엔 아무 일도
+        //   없다. 쿨도 없다: **예비대가 곧 자원**이다 (다 쓰면 충원을 기다린다).
+        if (!throwCancelled && (AimSlot == 0 || AimSlot == 1)) PaintTick(AimSlot);
         if (!throwCancelled)
         {
-            if (k.qKey.wasReleasedThisFrame) TryThrow(0);   // 1번 칸 펫
-            if (k.eKey.wasReleasedThisFrame) TryThrow(1);   // 2번 칸 펫
-            if (k.rKey.wasReleasedThisFrame) TryThrow(2);   // 3번 칸 펫
+            if (k.rKey.wasReleasedThisFrame) TryThrow(2);   // R = 궁극기 — 한방에 빡 (쿨 있음)
             if (k.spaceKey.wasReleasedThisFrame) TryE();    // 구르기
         }
         // ★C = 집합 (2026-07-31) — 자동 회수를 없앤 대신, 거두는 것도 명령이다
@@ -1039,6 +1041,37 @@ public class SkillSystem : MonoBehaviour
         }
     }
 
+    // ── Q·E 끌어 뿌리기 (2026-07-31 사용자 — "누르고 드래그하면 다다다닥") ──
+    //
+    // ★쿨이 없다. **예비대가 곧 자원**이다: 뿌릴수록 줄고, 전투 밖에서 한 마리씩
+    //   차고, C 로 걷으면 돌아와 다시 뿌릴 수 있다. 이미 나가 있는 분신은 안 걷는다 —
+    //   뿌리기는 "추가" 다 (재집결은 C, 전군 재배치는 R 의 몫).
+    // ★뿌리기 생성엔 착탄 피해가 없다 — 팡(투척 피해)은 R 궁극기의 것. 안 그러면
+    //   걷었다 뿌리기가 무한 딜 기계가 된다.
+    [Header("★Q·E 끌어 뿌리기")]
+    [Tooltip("1마리 뿌리는 간격 = 이 값 × 인구수 (초). 늑구(1)는 다다다닥, 티라(14)는 쿵…쿵")]
+    public float paintInterval = 0.09f;
+    float paintT, paintEmptyToastT;
+
+    void PaintTick(int slot)
+    {
+        var pet = slot >= 0 && slot < PetCommand.SlotPet.Length ? PetCommand.SlotPet[slot] : null;
+        if (pet == null) return;
+        paintT -= Time.deltaTime;
+        if (paintT > 0f) return;
+
+        if (pet.squadReserve < 0) { pet.squadReserve = PetUnit.CountFor(BudgetNow, pet.supply); pet.squadReserveFrac = 1f; }
+        if (pet.squadReserve <= 0)
+        {   // 빈 통 — 계속 누르고 있어도 1.5초에 한 번만 알린다
+            paintEmptyToastT -= Time.deltaTime;
+            if (paintEmptyToastT <= 0f) { paintEmptyToastT = 1.5f; SquadHUD.Toast($"{pet.name} 예비대 없음 — 충원 대기"); }
+            return;
+        }
+        paintT = paintInterval * Mathf.Max(1, pet.supply);   // 큰 놈일수록 무겁게 나온다
+        pet.squadReserve--;
+        SummonAt(pet, ThrowSpot(), 1, 0f, pet.squadReserveFrac);   // 퐁 — 착탄 피해 없음
+    }
+
     /// 한 발이 찍히고 그 자리에 무리가 통째로 선다 (기본 투척·도끼R)
     void SummonPack(PetUnit pet, Vector3 spot)
     {
@@ -1458,7 +1491,8 @@ public class SkillSystem : MonoBehaviour
     static readonly int HoloColorId = Shader.PropertyToID("_BaseColor");
     GameObject holoPet; PetUnit holoOwner; Renderer[] holoRs;
     MaterialPropertyBlock holoMpb;
-    readonly List<Transform> holoDots = new List<Transform>();
+    readonly System.Collections.Generic.List<Transform> holoDots
+        = new System.Collections.Generic.List<Transform>();
 
     static Material HoloMat()
     {
@@ -1524,8 +1558,9 @@ public class SkillSystem : MonoBehaviour
 
     void UpdateHolo()
     {
-        var pet = AimSlot >= 0 && AimSlot < PetCommand.SlotPet.Length
-                ? PetCommand.SlotPet[AimSlot] : null;
+        // ★홀로그램은 R(한방 배치)만 — 뿌리기(Q·E)는 실물이 즉시 태어나니 예고가 필요 없다
+        if (AimSlot != 2) { HideHolo(); return; }
+        var pet = AimSlot < PetCommand.SlotPet.Length ? PetCommand.SlotPet[AimSlot] : null;
         int n = pet != null ? SquadCountOf(pet) : 0;
         if (pet == null || n <= 0) { HideHolo(); return; }
 
@@ -1586,40 +1621,19 @@ public class SkillSystem : MonoBehaviour
         float lineLen = 0f, lineWidth = 0f, circleR = 0f, circleIn = 0f;
         Vector3 circleAt = body;
 
-        // Q·E·R = 각 칸 펫 투척. Space(2) = 구르기 (표시 없음).
+        // Q·E = 뿌리기 커서 · R = 궁극기 착탄원. Space = 구르기 (표시 없음).
         if (AimSlot >= 0)
         {
-                // ★무기마다 나오는 모양이 다르니 표시도 달라야 한다.
-                //   "보이는 것과 나오는 것이 같다" 는 원칙을 여기서도 지킨다.
-                switch (StyleOf(gear))
-                {
-                    case ThrowStyle.Rapid:
-                        // 연발 — 에임 쪽으로 뻗는 직선 (여기로 다다다 나간다)
-                        lineLen = rapidRange; lineWidth = 0.3f * WorldScale.K;
-                        circleAt = Ground(transform.position + dir * rapidRange);
-                        circleR = throwSpread * 0.5f;   // 끝에 작은 원 — 어디까지 가는지
-                        break;
-                    case ThrowStyle.Scatter:
-                        // 흩뿌리기 — 부채꼴이 덮는 자리를 원으로. 반지름은 실제 퍼지는 폭에서 나온다
-                        circleAt = ThrowSpot();
-                        float sp = Vector3.Distance(
-                            new Vector3(circleAt.x, 0f, circleAt.z),
-                            new Vector3(transform.position.x, 0f, transform.position.z));
-                        float halfA = (gear == GearKind.Sword ? swordScatterAngle : axeScatterAngle) * 0.5f;
-                        circleR = Mathf.Max(scatterDepth,
-                                            sp * Mathf.Sin(halfA * Mathf.Deg2Rad));
-                        break;
-                    default:
-                        circleAt = ThrowSpot();
-                        circleR = throwSpread;
-                        break;
-                }
+            circleAt = ThrowSpot();
+            // ★뿌리기(Q·E)는 정확히 커서 자리에 한 마리씩 태어난다 — 작은 점 커서만.
+            //   R 는 부대가 퍼져 깔리므로 실제 퍼짐 반지름 그대로.
+            circleR = AimSlot == 2 ? throwSpread : 0.55f;
         }
 
         // ★R 투척 — 곧은 선이 아니라 실제로 날아갈 포물선을 그린다 (2026-07-28).
         //   던지기 전에 "저기로 이렇게 날아간다"가 보여야 조준이 된다.
-        // 연발은 포물선이 아니라 직선으로 나가므로 아래 일반 라인 처리에 맡긴다
-        if (AimSlot >= 0 && StyleOf(gear) != ThrowStyle.Rapid)
+        // ★뿌리기(Q·E)는 날아가지 않는다 — 커서 자리에 바로 태어나므로 포물선은 R 만
+        if (AimSlot == 2)
         {   // E 대규모 출현 — 실제로 날아갈 포물선을 그린다
             var from = body + Vector3.up * 0.25f * WorldScale.K;
             previewLine.enabled = true;

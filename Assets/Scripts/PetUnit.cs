@@ -1419,7 +1419,14 @@ public class PetUnit : MonoBehaviour
         if (Emerging) { FlyStep(); return; }
 
         // ★복귀 중이면 다른 건 아무것도 안 한다 — 새 전투가 열려도 멈추지 않는다
-        if (returning) { returnT += Time.deltaTime; ReturnStep(); return; }
+        if (returning)
+        {
+            returnT += Time.deltaTime;
+            // ★오래 못 돌아오면 그 자리에서 흡수 (2026-07-31 사용자 — "일정 시간 이상
+            //   못 돌아오면 흡수"). 자석이 대개 데려오지만, 어디 끼었어도 부대는 돌아온다
+            if (summoned && returnT > 6f) { Absorb(); return; }
+            ReturnStep(); return;
+        }
         returnT = 0f;   // 복귀가 아니면 시계를 되돌린다 (다음 복귀가 처음부터 세게)
 
         grudgeT = Mathf.Max(0f, grudgeT - Time.deltaTime);

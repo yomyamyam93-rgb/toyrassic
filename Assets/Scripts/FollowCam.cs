@@ -77,16 +77,22 @@ public class FollowCam : MonoBehaviour
         return best == float.MinValue ? p.y : best;
     }
 
+    // ★카메라 회전 폐지 (2026-07-31 사용자 — "카메라 회전은 없는 게 나을 것 같지?").
+    //   배치·지휘 게임은 화면과 땅의 대응이 늘 같아야 근육 기억이 생긴다 (스타·디아블로
+    //   문법). 각도는 인스펙터의 yaw·pitch 고정값, 휠은 줌만. 되살리려면 이 스위치만 켠다.
+    [Tooltip("우클릭 드래그 회전을 허용할까 — 배치 게임이라 기본 꺼짐")]
+    public bool allowRotate = false;
+
     void ReadLook(out Vector2 delta, out float scroll)
     {
         delta = Vector2.zero; scroll = 0f;
 #if ENABLE_INPUT_SYSTEM
         var m = Mouse.current;
         if (m == null) return;
-        if (m.rightButton.isPressed) delta = m.delta.ReadValue();
+        if (allowRotate && m.rightButton.isPressed) delta = m.delta.ReadValue();
         scroll = m.scroll.ReadValue().y * 0.01f;
 #else
-        if (Input.GetMouseButton(1)) delta = new Vector2(Input.GetAxis("Mouse X") * 12f, Input.GetAxis("Mouse Y") * 12f);
+        if (allowRotate && Input.GetMouseButton(1)) delta = new Vector2(Input.GetAxis("Mouse X") * 12f, Input.GetAxis("Mouse Y") * 12f);
         scroll = Input.GetAxis("Mouse ScrollWheel");
 #endif
     }
