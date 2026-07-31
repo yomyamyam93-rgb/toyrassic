@@ -2090,15 +2090,22 @@ public class PetUnit : MonoBehaviour
     //   아니라 이동 노동이었다 (게임의 재미는 전투와 부화에 있다).
     //
     // ★우두머리를 잡을 이유도 여기서 생긴다 (사용자 "그걸 잡아서 뭐해?"):
-    //   **확정 드랍 + 한 등급 위 알.** 빛나는 놈을 굳이 건드리는 값이 이것이다.
+    //   **잘 나오고 한 등급 위 알.** 빛나는 놈을 굳이 건드리는 값이 이것이다.
+    //
+    // ★★단 **확정은 아니다** (2026-07-31 사용자 "확정이면 안 되지, 랜덤해야지").
+    //   확정 드랍이 사냥에 있으면 **둥지를 갈 이유가 사라진다.** 확정은 둥지의 몫이고
+    //   (거기는 무리를 전멸시켜야 얻는다), 사냥은 "가다가 운 좋으면" 이어야 한다.
+    //   두 루트의 성격이 이렇게 갈린다: 둥지 = 확실하지만 찾아가야 함 / 사냥 = 운.
     [Header("알 드랍")]
     [Tooltip("평범한 야생이 알을 떨굴 확률")] public float eggDropChance = 0.12f;
+    [Tooltip("우두머리가 알을 떨굴 확률 — ★확정이 아니다 (확정은 둥지의 몫)")]
+    public float eliteEggDropChance = 0.45f;
 
     void DropEgg()
     {
         if (team != Team.Wild || isStructure) return;
         bool elite = RankOverall >= 5;                       // 우두머리 = 오라가 켜지는 등급
-        if (!elite && Random.value >= eggDropChance) return;
+        if (Random.value >= (elite ? eliteEggDropChance : eggDropChance)) return;
         // 우두머리는 한 등급 위 알 — "저 빛나는 놈을 잡으면 좋은 알이 나온다"
         var t = elite ? (PetScale.Tier)Mathf.Min((int)tier + 1, (int)PetScale.Tier.XL) : tier;
         var id = ItemDB.EggId(t);

@@ -541,9 +541,15 @@ public class PetSpawner : MonoBehaviour
     [Tooltip("우두머리 몸집 배수 — 한눈에 커 보이게")]
     public float eliteSizeMul = 1.18f;
 
+    [Tooltip("우두머리가 데리고 다니는 호위 수 — 벌판에서도 무리로 보인다")]
+    [Range(0, 8)] public int eliteEscort = 4;
+
+    /// 호위를 뽑는 중인가 — 호위가 또 우두머리를 뽑는 무한 재귀를 막는다
+    bool spawningEscort;
+
     void MaybeElite(PetUnit pu, Entry e)
     {
-        if (pu == null || PetUnit.DebugNoRanks) return;      // 측정 중엔 안 나온다
+        if (pu == null || PetUnit.DebugNoRanks || spawningEscort) return;   // 측정 중엔 안 나온다
         if (Random.value >= eliteChance) return;
         pu.RollRanks(eliteLuck);
         // ★평범하게 뽑히면 우두머리라 부를 게 없다 — 오라가 켜지는 A 이상만 인정
@@ -551,6 +557,26 @@ public class PetSpawner : MonoBehaviour
         pu.transform.localScale *= eliteSizeMul;
         string nm = string.IsNullOrEmpty(e.koreanName) ? e.species : e.koreanName;
         pu.name = $"우두머리 {nm}";
+
+        // ★호위를 **처음부터** 데리고 다닌다 (2026-07-31 사용자 "다닐 때도 무리를
+        //   데리고 돌아다니게"). 어그로가 끌려야 무리가 나타나는 평범한 야생과 달리,
+        //   우두머리는 벌판에서 볼 때부터 무리다 — 멀리서 보고 "저건 건드리면 안 되겠다"
+        //   또는 "한번 붙어볼까" 를 **미리 판단**할 수 있어야 한다.
+        spawningEscort = true;
+        var center = pu.transform.position;
+        for (int i = 0; i < eliteEscort; i++)
+        {
+            float a = (i / (float)Mathf.Max(1, eliteEscort)) * Mathf.PI * 2f
+                    + Random.Range(-0.3f, 0.3f);
+            float rr = pu.body * Random.Range(1.6f, 3.2f);
+            var p = center + new Vector3(Mathf.Cos(a), 0f, Mathf.Sin(a)) * rr;
+            var terr = Terrain.activeTerrain;
+            if (terr != null) p.y = terr.SampleHeight(p) + terr.transform.position.y;
+            var g = Spawn(e, p);
+            var u = g != null ? g.GetComponent<PetUnit>() : null;
+            if (u != null) u.packBudget = 0;   // 호위는 스스로 또 불어나지 않는다
+        }
+        spawningEscort = false;
     }
 
     // ── 내 펫 (시험용 지급) ────────────────────────────────────────────
