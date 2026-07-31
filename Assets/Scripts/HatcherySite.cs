@@ -271,7 +271,7 @@ public class HatcherySite : MonoBehaviour
         {
             bool near = d < siteR + 4f;
             if (near && !prompted && !HatcheryUI.IsOpen)
-            { SquadHUD.Toast("F — 부화터 열기 (알 안치 · 합치기)"); prompted = true; }
+            { SquadHUD.Toast("F  부화터"); prompted = true; }   // ★상호작용 표시만 (설명 금지)
             if (!near) prompted = false;
 #if ENABLE_INPUT_SYSTEM
             var k = Keyboard.current;
@@ -314,7 +314,7 @@ public class HatcherySite : MonoBehaviour
             if (!raidToastShown)
             {
                 raidToastShown = true;
-                SquadHUD.Toast("습격이 시작됐다 — 부화가 끝날 때까지 멈추지 않는다!");
+                SquadHUD.Toast("습격이다!");
                 FollowCam.Shake(0.2f);
             }
         }
@@ -448,7 +448,7 @@ public class HatcherySite : MonoBehaviour
         arena.Build(siteCenter, siteR, eggGrade);
         arenaShakeT = 1.6f;
         // ★어느 알이든 같은 문장 — 등급을 드러내는 것은 아무것도 없다 (위 주석 참고)
-        SquadHUD.Toast($"{eggId}을 안쳤다!  {hatchDuration:F0}초를 버텨야 한다");
+        SquadHUD.Toast($"{eggId}  부화 시작");   // ★상태만 — 게이지가 시간을 말한다
         FollowCam.Shake(0.3f);
     }
 

@@ -2128,7 +2128,7 @@ public class PetUnit : MonoBehaviour
             PetSpawner.ReserveEggFloor(t, ranks);
             FX.Burst(transform.position + Vector3.up * body * 0.5f,
                      PetRank.Color1(RankOverall), 22, body * 0.06f, body * 0.9f, 0.7f);
-            SquadHUD.Toast($"우두머리를 잡았다 — 최소 <b>{PetRank.Letter(RankOverall)}급</b>이 보장된 알!");
+            SquadHUD.Toast($"우두머리 격파  <b>{PetRank.Letter(RankOverall)}</b>");
         }
     }
 

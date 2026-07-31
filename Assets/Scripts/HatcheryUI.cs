@@ -41,7 +41,7 @@ public class HatcheryUI : MonoBehaviour
     readonly List<string> slots = new List<string>();   // 칸에 넣은 알 (아이템 id)
     const int MaxSlots = 5;
     Text[] slotLabels = new Text[MaxSlots];
-    Text hintText, resultText;
+    Text resultText;
     Button placeBtn;
     Text placeLabel;
 
@@ -163,12 +163,6 @@ public class HatcheryUI : MonoBehaviour
         title.text = "부화터";
 
         // ── 왼쪽: 내가 가진 알 (눌러서 칸에 넣는다) ──
-        var stockTitle = MakeText("stockTitle", w, 20, TxtMain, true, TextAnchor.UpperLeft);
-        stockTitle.rectTransform.anchorMin = stockTitle.rectTransform.anchorMax = stockTitle.rectTransform.pivot = new Vector2(0, 1);
-        stockTitle.rectTransform.anchoredPosition = new Vector2(24, -64);
-        stockTitle.rectTransform.sizeDelta = new Vector2(300, 28);
-        stockTitle.text = "가진 알  (눌러서 칸에 넣기)";
-
         for (int i = 0; i < Tiers.Length; i++)
         {
             var t = Tiers[i];
@@ -186,13 +180,7 @@ public class HatcheryUI : MonoBehaviour
             lb.name = "count_" + (int)t;
         }
 
-        // ── 오른쪽: 넣는 칸 3개 ──
-        var slotTitle = MakeText("slotTitle", w, 20, TxtMain, true, TextAnchor.UpperLeft);
-        slotTitle.rectTransform.anchorMin = slotTitle.rectTransform.anchorMax = slotTitle.rectTransform.pivot = new Vector2(0, 1);
-        slotTitle.rectTransform.anchoredPosition = new Vector2(370, -64);
-        slotTitle.rectTransform.sizeDelta = new Vector2(360, 28);
-        slotTitle.text = "넣은 알  (눌러서 빼기 · 많이 넣을수록 좋다)";
-
+        // ── 오른쪽: 넣는 칸 ──
         for (int i = 0; i < MaxSlots; i++)
         {
             int idx = i;
@@ -208,16 +196,11 @@ public class HatcheryUI : MonoBehaviour
             Stretch(slotLabels[i].rectTransform);
         }
 
-        // ★결과 미리보기 — 넣기 전에 "뭐가 나오는지" 가 보여야 판단이 된다
-        resultText = MakeText("result", w, 24, TxtMain, true, TextAnchor.UpperLeft);
+        // ★결과 미리보기 — 설명이 아니라 **상태**다. 넣은 것이 무엇이 되는지만 보여준다
+        resultText = MakeText("result", w, 26, TxtMain, true, TextAnchor.UpperLeft);
         resultText.rectTransform.anchorMin = resultText.rectTransform.anchorMax = resultText.rectTransform.pivot = new Vector2(0, 1);
         resultText.rectTransform.anchoredPosition = new Vector2(370, -206);
         resultText.rectTransform.sizeDelta = new Vector2(350, 34);
-
-        hintText = MakeText("hint", w, 18, TxtMain, false, TextAnchor.UpperLeft);
-        hintText.rectTransform.anchorMin = hintText.rectTransform.anchorMax = hintText.rectTransform.pivot = new Vector2(0, 1);
-        hintText.rectTransform.anchoredPosition = new Vector2(370, -244);
-        hintText.rectTransform.sizeDelta = new Vector2(350, 90);
 
         placeBtn = MakeButton("place", w, new Vector2(120, -170), new Vector2(230, 60), "안치하기", out placeLabel);
         placeBtn.onClick.AddListener(Place);
@@ -283,14 +266,8 @@ public class HatcheryUI : MonoBehaviour
             {
                 var src = ItemDB.EggTier(slots[0]) ?? PetScale.Tier.S;
                 var dst = site.ResultTier(src, slots.Count);
-                resultText.text = $"→ 부화 결과   <b>{ItemDB.EggId(dst)}</b>";
+                resultText.text = $"→  {ItemDB.EggId(dst)}";
             }
         }
-        if (hintText != null)
-            hintText.text = slots.Count == 0
-                ? "알을 넣을수록 좋은 것이 나온다.\n대신 그만큼 습격도 거세진다."
-                : slots.Count >= MaxSlots
-                    ? "더는 못 넣는다. 크게 걸었다 — 각오할 것."
-                    : "더 넣으면 등급도, 개체 등급도 올라간다.";
     }
 }
