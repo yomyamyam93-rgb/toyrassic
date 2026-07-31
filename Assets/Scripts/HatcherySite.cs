@@ -52,7 +52,7 @@ public class HatcherySite : MonoBehaviour
         {
             int sum = 0;
             for (int w = 0; w < totalWaves; w++) sum += baseWaveSize + waveSizeGrow * w;
-            return sum;
+            return Mathf.RoundToInt(sum * RaidScale);   // ★좋은 알일수록 더 많이 온다
         }
     }
     PetScale.Tier eggTier = PetScale.Tier.M;
@@ -313,7 +313,10 @@ public class HatcherySite : MonoBehaviour
                 var pos = siteCenter + new Vector3(Mathf.Cos(ang), 0, Mathf.Sin(ang)) * Random.Range(ringMin, ringMax);
                 var terr = Terrain.activeTerrain;
                 if (terr != null) pos.y = terr.SampleHeight(pos) + terr.transform.position.y;
-                var g = spawner.Spawn(entry, pos, sizeMul, hpMul, dmgMul);
+                // ★좋은 알일수록 습격도 세다 — 인스펙터 값을 건드리지 않고 여기서 곱한다
+                //   (직접 대입하면 판마다 누적된다)
+                float raidK = 1f + (RaidScale - 1f) * 0.5f;
+                var g = spawner.Spawn(entry, pos, sizeMul, hpMul * raidK, dmgMul * raidK);
                 if (g != null)
                 {
                     var u = g.GetComponent<PetUnit>();
@@ -351,18 +354,46 @@ public class HatcherySite : MonoBehaviour
         }
     }
 
+    // ★알의 등급은 **넣는 순간** 정해지고 공개된다 (2026-07-31 사용자).
+    //   전엔 싸움이 끝난 뒤에 뽑아서 **뭘 위해 싸우는지 모른 채** 버텼다.
+    //   먼저 밝히면 도박이 된다: "SS 급 기운이 감돈다 — 대신 지옥이 온다."
+    //   그리고 **그 등급만큼 습격이 거세진다** (아래 raidScale) — 좋은 알일수록 험한 판.
+    int[] eggRanks; int eggGrade = PetRank.Base;
+    /// 등급이 올릴 난이도 배수 — C 기준 1.0, SSS 면 약 2배
+    float RaidScale => 1f + Mathf.Max(0, eggGrade - PetRank.Base) * 0.2f;
+
+    /// ★징조 — 힌트는 **좋을 때만** 말한다 (2026-07-31 사용자 "등급 낮으니까 어차피
+    ///   포기하자 라는 우려가 있어").
+    ///
+    ///   낮은 등급을 알려주면 그 판은 시작도 전에 버려진다. 그래서 **나쁜 소식은
+    ///   침묵**하고, 좋을 때만 목소리를 낸다 — 어느 알이든 열어보기 전엔 모른다.
+    ///   (슬롯머신이 "이번 판은 꽝입니다" 라고 안 알려주는 것과 같은 이유)
+    static string Omen(int g) =>
+        g >= 8 ? "…공기가 멎었다. <b>지옥이 온다.</b>"
+      : g >= 7 ? "땅이 울린다 — <b>무언가 크게 몰려오고 있다</b>"
+      : g >= 6 ? "심상치 않다. 단단히 준비해라"
+               : "부화를 시작한다";   // C 이하도 B 도 같은 말 — 낮다는 걸 못 읽게
+
     void BeginIncubation(string eggId)
     {
         if (!Inv.Consume(eggId, 1)) return;
         eggTier = ItemDB.EggTier(eggId) ?? PetScale.Tier.M;
         ApplyTier(eggTier);
+        // ★여기서 뽑는다 — 알 등급이 행운을 준다 (S1 · M2 · L3 · XL4)
+        eggRanks = PetRank.RollAll((int)eggTier + 1);
+        eggGrade = PetRank.Overall(eggRanks);
         incubating = true;
         hatchT = 0f; wavesSent = 0; toSpawn = 0;
         spawnedTotal = 0; spawnCredit = 0f; raidToastShown = false;
         attackers.Clear();
         MakeEgg();
         MakeGauge();
-        SquadHUD.Toast($"{eggId}을 안쳤다!  {hatchDuration:F0}초 · {totalWaves}차례 습격을 막아야 한다");
+        // ★정확한 등급은 안 알려준다 — **힌트만** (2026-07-31 사용자 "평균 등급에 따라서
+        //   힌트를 살짝"). 넣을 때는 "얼마나 위험한 도박인가" 만 알고, 정확한 답은
+        //   지켜낸 뒤에 나온다. 알의 빛 색도 같은 힌트를 준다 (MakeEgg).
+        // ★난이도 배수도 안 띄운다 — 숫자가 곧 등급표가 되어 같은 문제를 만든다
+        SquadHUD.Toast($"{eggId}을 안쳤다!  {Omen(eggGrade)}\n"
+                     + $"{hatchDuration:F0}초를 버텨야 한다");
         FollowCam.Shake(0.3f);
     }
 
@@ -378,8 +409,10 @@ public class HatcherySite : MonoBehaviour
         em.color = new Color(0.98f, 0.93f, 0.80f);
         em.SetFloat("_Smoothness", 0.6f);
         // 은은한 자체 발광 — 물러난 빛 속에서 알이 또렷이 읽히게 (과하면 또 삼킨다)
+        // ★알빛으로 등급을 드러내지 않는다 (2026-07-31 사용자) — 색이 등급표가 되면
+        //   **낮은 색을 보는 순간 "어차피 포기하자" 가 된다.** 알은 늘 같은 빛이다.
         em.EnableKeyword("_EMISSION");
-        em.SetColor("_EmissionColor", new Color(0.55f, 0.48f, 0.30f));
+        var glow = new Color(0.55f, 0.48f, 0.30f);
         egg.GetComponent<MeshRenderer>().sharedMaterial = em;
         eggVis = egg.transform;
 
@@ -406,22 +439,13 @@ public class HatcherySite : MonoBehaviour
             var pos = player != null ? player.position + player.forward : siteCenter;
             var terr = Terrain.activeTerrain;
             if (terr != null) pos.y = terr.SampleHeight(pos) + terr.transform.position.y;
-            // ★부화는 좋은 개체를 낳는다 (2026-07-31) — 알을 지켜낸 혜택이 여기 있다.
-            //   알 등급이 기본 행운을 주고(S1·M2·L3·XL4), **알을 얼마나 잘 지켰나**가
-            //   더한다: 무피해 사수면 +2, 반 이상 남기면 +1.
-            //   → 야생 포획은 순수 무작위, 부화는 확실히 좋은 개체. 디펜스의 보상 구조다.
-            int luck = (int)eggTier + 1;
-            float eggFrac = eggUnit != null && eggUnit.maxHp > 0f ? eggUnit.hp / eggUnit.maxHp : 1f;
-            if (eggFrac >= 0.999f) luck += 2;
-            else if (eggFrac >= 0.5f) luck += 1;
-
-            // 비활성 틀로 지급 — 보관함 등록 + 무기 칸 자동 결합 (던져야 나온다)
-            PetSpawner.pendingLuck = luck;
+            // ★등급은 **알을 넣을 때 이미 정해졌다** — 여기서는 약속을 지킬 뿐이다.
+            //   (그래서 습격이 그 등급만큼 거셌다. 뭘 위해 싸웠는지 알고 싸운 것)
+            PetSpawner.pendingRanks = eggRanks;
             var g = spawner.SpawnPlayerPet(entry, pos);
             var born = g != null ? g.GetComponent<PetUnit>() : null;
             SquadHUD.Toast(born != null
-                ? $"{entry.koreanName}을 얻었다!  개체 등급 {PetRank.Letter(born.RankOverall)}"
-                  + (eggFrac >= 0.999f ? "  (무피해 사수 보너스!)" : "")
+                ? $"<b>{PetRank.Letter(born.RankOverall)}급</b> {entry.koreanName}을 지켜냈다!"
                 : "…그런데 태어날 종을 못 찾았다");
         }
         EndDefense();
@@ -433,6 +457,7 @@ public class HatcherySite : MonoBehaviour
         incubating = false;
         hatchT = 0f; wavesSent = 0; toSpawn = 0;
         spawnedTotal = 0; spawnCredit = 0f; raidToastShown = false;
+        eggRanks = null; eggGrade = PetRank.Base;   // 다음 알은 다시 뽑는다
         KillGauge();
         if (eggVis != null) { Destroy(eggVis.gameObject); eggVis = null; }
         eggUnit = null;

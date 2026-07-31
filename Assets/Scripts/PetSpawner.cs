@@ -535,6 +535,9 @@ public class PetSpawner : MonoBehaviour
     /// ★다음 `SpawnPlayerPet` 한 번에만 적용되는 등급 행운 (부화가 넣는다).
     ///   0 = 순수 무작위(야생 포획) · 클수록 여러 번 뽑아 제일 좋은 것을 준다.
     public static int pendingLuck;
+    /// ★미리 정해진 등급 (부화가 넣는다) — 알을 **넣는 순간** 뽑아 두고 그걸 그대로 준다.
+    ///   있으면 pendingLuck 보다 우선한다.
+    public static int[] pendingRanks;
 
     /// 내가 가진 펫 한 마리를 만든다.
     ///
@@ -559,8 +562,10 @@ public class PetSpawner : MonoBehaviour
         // ★개체 등급을 여기서 딱 한 번 뽑는다 (2026-07-31) — 본체(틀)의 등급이
         //   복제되는 분신 전부에게 그대로 간다. 야생은 안 뽑는다(전부 C = 실측 기준).
         //   luck 은 부화가 넘긴다 — 잘 지켜낸 알일수록 좋은 개체가 태어난다.
-        pu.RollRanks(pendingLuck);
-        pendingLuck = 0;
+        if (pendingRanks != null && pendingRanks.Length == PetRank.StatCount)
+            pu.ranks = pendingRanks;          // 알을 넣을 때 이미 정해진 등급
+        else pu.RollRanks(pendingLuck);
+        pendingRanks = null; pendingLuck = 0;
         // (야생 레벨 폐기 — 보정할 것이 없다)
 
         // ★몸 크기를 지금 재 둔다. 비활성이 되면 Start 가 안 돌아 body 가 안 채워지는데,
