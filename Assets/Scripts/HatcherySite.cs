@@ -323,14 +323,10 @@ public class HatcherySite : MonoBehaviour
                         (late && e.tier == PetScale.Tier.L)) pool.Add(e);
                 if (pool.Count == 0) pool.AddRange(spawner.entries);
                 var entry = pool[Random.Range(0, pool.Count)];
-                // ★길목에서만 들어온다 (2026-07-31) — 이래야 솟아오른 지형이 **의미**가
-                //   된다. 길목 수는 알 등급이 정하므로, 지형이 곧 「방향」 난이도다
-                //   (확정 설계 ⑥). 성벽 쪽에서 나오면 지형이 장식이 되어 버린다.
-                float ang;
-                if (arena.Lanes.Count > 0)
-                    ang = arena.Lanes[Random.Range(0, arena.Lanes.Count)]
-                        + Random.Range(-0.16f, 0.16f);
-                else ang = Random.Range(0f, Mathf.PI * 2f);
+                // ★사방에서 온다 — 길목으로 몰지 않는다 (2026-07-31 사용자 "맵 자체를
+                //   막아버리진 않았으면"). 지형은 길을 정하는 게 아니라 **가는 길을
+                //   구불리게** 한다: 떼가 바위를 돌며 갈라지고, 사격선이 끊긴다.
+                float ang = Random.Range(0f, Mathf.PI * 2f);
                 float ringMin = siteR + 12f, ringMax = siteR + 20f;
                 var pos = siteCenter + new Vector3(Mathf.Cos(ang), 0, Mathf.Sin(ang)) * Random.Range(ringMin, ringMax);
                 var terr = Terrain.activeTerrain;

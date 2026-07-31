@@ -13,16 +13,17 @@ using UnityEngine;
 ///   못 뚫고 미끄러져 돌아간다.** 게다가 밀어내는 반지름에 상한이 있어(2.6×K)
 ///   **영영 끼는 일이 없다** — 좁아도 비집고 나온다. 새 길찾기를 안 짜도 되는 자리다.
 ///
-/// ★지형이 정하는 것 = **적이 들어오는 길목의 수.** 확정 설계 ⑥ 「난이도는 물량이
-///   아니라 방향으로 조인다」 를 지형이 직접 만드는 것이다:
-///     · 낮은 등급 → 성벽이 두껍고 **길목 3개** (막기 쉽다)
-///     · 높은 등급 → 성벽이 성기고 **길목 8개** (사방에서 온다)
-///   습격은 이 길목에서만 나온다 (HatcherySite 가 `Lanes` 를 읽어 쓴다).
+/// ★★맵을 막지 않는다 (2026-07-31 사용자 — "맵 자체를 막아버리진 않았으면 해,
+///   그냥 구조물과 장애물을 말하는 거야").
+///   처음엔 성벽으로 둘러싸고 길목을 뚫었는데, 그러면 **투기장이 감옥이 된다** —
+///   적도 나도 정해진 길로만 다녀 답답하고, 배치의 자유가 사라진다.
+///   지금은 **흩어진 장애물**이다: 어디로든 갈 수 있되 곧장 못 간다.
+///     · 시야와 사격선을 끊는다 (원거리가 자리를 골라야 한다)
+///     · 떼가 갈라진다 (뭉쳐 오던 무리가 바위를 돌아가며 흩어진다)
+///     · 등에 지고 싸울 자리가 생긴다 (포위를 덜 당한다)
+///   등급이 높을수록 **엄폐물이 적어** 개활지가 된다 — 숨을 데 없이 싸운다.
 public class HatcheryArena
 {
-    /// 이번 판의 길목 방향 (라디안) — 습격이 여기로만 들어온다
-    public readonly List<float> Lanes = new List<float>();
-
     readonly List<Rock> rocks = new List<Rock>();
     static Material rockMat;
 
@@ -37,56 +38,42 @@ public class HatcheryArena
     float riseT;
     bool sinking;
 
-    /// 투기장을 짓는다. grade = 알의 종합 등급 (높을수록 험한 맵)
+    [Tooltip("장애물이 흩어지는 범위 — 부화터 반경의 몇 배까지")]
+    const float FieldMul = 2.4f;
+
+    /// 투기장을 짓는다. grade = 알의 종합 등급 (높을수록 엄폐물이 적은 개활지)
     public void Build(Vector3 center, float siteR, int grade)
     {
         Clear();
-
-        // ★길목 수 = 난이도. C(3) 3개 → SSS(8) 8개. 좋은 알일수록 사방이 뚫린다
-        int laneCount = Mathf.Clamp(3 + Mathf.Max(0, grade - PetRank.Base), 3, 8);
-        float start = Random.value * Mathf.PI * 2f;
-        for (int i = 0; i < laneCount; i++)
-        {
-            // 고르게 두되 흔든다 — 정확히 등간격이면 인공적으로 보인다 (길 규칙과 같은 이유)
-            float a = start + (i / (float)laneCount) * Mathf.PI * 2f
-                    + Random.Range(-0.22f, 0.22f);
-            Lanes.Add(a);
-        }
-
-        float ringR = siteR * 1.7f;
-        const int Seg = 40;                       // 9° 마다 한 칸
-        float laneHalf = 16f * Mathf.Deg2Rad;     // 길목이 비우는 폭 (좌우 16°)
         var terr = Terrain.activeTerrain;
 
-        for (int i = 0; i < Seg; i++)
-        {
-            float a = (i / (float)Seg) * Mathf.PI * 2f;
-            bool inLane = false;
-            foreach (var l in Lanes)
-            {
-                float d = Mathf.Abs(Mathf.DeltaAngle(a * Mathf.Rad2Deg, l * Mathf.Rad2Deg));
-                if (d < laneHalf * Mathf.Rad2Deg) { inLane = true; break; }
-            }
-            if (inLane) continue;
-            // 성기게 — 등급이 높을수록 벽에 구멍이 많다 (C 는 촘촘, SSS 는 듬성듬성)
-            float keep = Mathf.Lerp(1f, 0.55f, Mathf.Clamp01((grade - PetRank.Base) / 5f));
-            if (Random.value > keep) continue;
+        // ★수는 등급이 정한다 — 좋은 알일수록 **숨을 데가 없다.**
+        //   벽으로 막는 대신 "엄폐가 얼마나 있나" 로 난이도를 낸다.
+        int n = Mathf.RoundToInt(Mathf.Lerp(16f, 6f,
+                    Mathf.Clamp01((grade - PetRank.Base) / 5f)));
 
-            float rr = ringR * Random.Range(0.94f, 1.1f);
-            var p = center + new Vector3(Mathf.Cos(a), 0f, Mathf.Sin(a)) * rr;
-            if (terr != null) p.y = terr.SampleHeight(p) + terr.transform.position.y;
-            MakeRock(p, Random.Range(1.5f, 2.8f), Random.Range(1.4f, 2.6f));
-        }
-
-        // ── 안쪽 엄폐물 — 숨을 자리. 낮은 등급일수록 많다 (수비가 편하다) ──
-        int cover = Mathf.Max(0, 6 - Mathf.Max(0, grade - PetRank.Base));
-        for (int i = 0; i < cover; i++)
+        float inner = siteR * 0.85f;              // 제단 위에는 안 세운다 (알 자리 보호)
+        float outer = siteR * FieldMul;
+        for (int i = 0; i < n; i++)
         {
+            // ★고르게 흩되 무리 짓게 — 완전 균등이면 인공적이고, 완전 무작위면
+            //   한쪽에 뭉친다. 큰 놈 하나 + 곁에 작은 것 몇 개 = 자연스러운 바위 무리.
             float a = Random.value * Mathf.PI * 2f;
-            float rr = siteR * Random.Range(0.75f, 1.25f);
+            float rr = Mathf.Lerp(inner, outer, Mathf.Sqrt(Random.value));
             var p = center + new Vector3(Mathf.Cos(a), 0f, Mathf.Sin(a)) * rr;
             if (terr != null) p.y = terr.SampleHeight(p) + terr.transform.position.y;
-            MakeRock(p, Random.Range(0.9f, 1.6f), Random.Range(1.0f, 1.8f));
+
+            float w = Random.Range(1.1f, 2.4f);
+            MakeRock(p, w, Random.Range(1.2f, 2.4f));
+            int buddies = Random.value < 0.45f ? Random.Range(1, 3) : 0;
+            for (int b = 0; b < buddies; b++)
+            {
+                float ba = Random.value * Mathf.PI * 2f;
+                float bd = w * Random.Range(0.7f, 1.5f);
+                var bp = p + new Vector3(Mathf.Cos(ba), 0f, Mathf.Sin(ba)) * bd;
+                if (terr != null) bp.y = terr.SampleHeight(bp) + terr.transform.position.y;
+                MakeRock(bp, w * Random.Range(0.4f, 0.75f), Random.Range(0.7f, 1.5f));
+            }
         }
 
         riseT = 0f; sinking = false;
@@ -167,7 +154,6 @@ public class HatcheryArena
         UnblockAll();
         foreach (var r in rocks) if (r.t != null) Object.Destroy(r.t.gameObject);
         rocks.Clear();
-        Lanes.Clear();
     }
 
     public bool HasRocks => rocks.Count > 0;
