@@ -520,7 +520,37 @@ public class PetSpawner : MonoBehaviour
         //   벌판에는 한 마리만 어슬렁거리고, 싸움이 붙어야 무리가 나타난다.
         //   마릿수는 예산 ÷ 등급 — 작은 놈은 떼로, 브론토 같은 놈은 두어 마리만.
         pu.packBudget = Mathf.Max(0, PackBudgetAt(pos));   // ★밴드가 무리 규모를 정한다
+        MaybeElite(pu, e);                                 // 드물게 우두머리로
         return unit;
+    }
+
+    // ── 우두머리 (2026-07-31 사용자 "상대 몬스터나 팻들은 어떻게 하지?") ──────
+    //
+    // ★평범한 야생은 **계속 C 등급**이다 (사용자 "적 팻은 같아도 좋다"). 야생이 다
+    //   무작위면 ①무엇이 센지 읽을 수 없고 ②리그 측정이 오염된다.
+    //
+    // ★대신 **드물게 「우두머리」**가 나온다 — 등급을 가진 야생. 개체 등급 오라를
+    //   그대로 쓰므로 **멀리서도 빛나는 게 보인다**: "어? 저놈 빛나는데?" 가 곧
+    //   사냥할 이유가 된다 (디아블로 엘리트·팰월드 알파와 같은 문법).
+    //   → 내 펫이 SSS 로 강해져도 세상에 도전할 상대가 남는다. 그게 이 층의 목적이다.
+    [Header("★우두머리 야생 (등급을 가진 야생 — 빛나서 눈에 띈다)")]
+    [Tooltip("우두머리로 나올 확률 (0~1). 흔하면 특별함이 사라진다")]
+    [Range(0f, 0.2f)] public float eliteChance = 0.05f;
+    [Tooltip("우두머리 등급 행운 — 클수록 좋은 등급이 잘 뜬다")]
+    [Range(0, 6)] public int eliteLuck = 3;
+    [Tooltip("우두머리 몸집 배수 — 한눈에 커 보이게")]
+    public float eliteSizeMul = 1.18f;
+
+    void MaybeElite(PetUnit pu, Entry e)
+    {
+        if (pu == null || PetUnit.DebugNoRanks) return;      // 측정 중엔 안 나온다
+        if (Random.value >= eliteChance) return;
+        pu.RollRanks(eliteLuck);
+        // ★평범하게 뽑히면 우두머리라 부를 게 없다 — 오라가 켜지는 A 이상만 인정
+        if (pu.RankOverall < 5) { pu.ranks = PetRank.AllBase(); return; }
+        pu.transform.localScale *= eliteSizeMul;
+        string nm = string.IsNullOrEmpty(e.koreanName) ? e.species : e.koreanName;
+        pu.name = $"우두머리 {nm}";
     }
 
     // ── 내 펫 (시험용 지급) ────────────────────────────────────────────
