@@ -487,6 +487,9 @@ public class MenuUI : MonoBehaviour
             sb.AppendLine($"  <b>전투력 {Power.Of(pet)}</b>");
             sb.AppendLine($"  체력  {Mathf.CeilToInt(pet.hp)} / {Mathf.CeilToInt(pet.maxHp)}");
             sb.AppendLine($"  힘 {pet.str:F0}  ·  민첩 {pet.agi:F0}  ·  체력 {pet.vit:F0}");
+            // ★숨은 수치까지 전부 (2026-07-31 사용자 — "공속 이속 등 전투에 활용되는
+            //   모든 것을 써줄래"). 실전은 이속·공속·사거리가 정하는데 안 보였다.
+            sb.AppendLine(pet.CombatSheet());
         }
         else
         {

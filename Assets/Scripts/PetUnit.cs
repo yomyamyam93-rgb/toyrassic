@@ -552,6 +552,37 @@ public class PetUnit : MonoBehaviour
       : pattern == Pattern.Snipe ? 8f       // 저격 — 정확히 한 놈만
       : atkAngle;                           // 물기 — 좁다
 
+    /// 방식 한글 이름 (스탯창용)
+    public string PatternKorean =>
+        pattern == Pattern.Bite ? "물기" : pattern == Pattern.Claw ? "할퀴기"
+      : pattern == Pattern.Swipe ? "후려치기" : pattern == Pattern.Sweep ? "휩쓸기"
+      : pattern == Pattern.Slam ? "내려찍기" : pattern == Pattern.Charge ? "들이받기"
+      : pattern == Pattern.Stomp ? "짓밟기" : pattern == Pattern.Rapid ? "연사"
+      : pattern == Pattern.Shoot ? "쏘기" : pattern == Pattern.Snipe ? "저격"
+      : pattern == Pattern.Scatter ? "흩뿌리기" : pattern.ToString();
+
+    /// ★스탯창용 전투 요약 (2026-07-31 사용자 — "공속·이속 등 전투에 활용되는 모든 것").
+    ///   숨은 수치가 실전을 정한다 — **실제 계산과 같은 식**으로 뽑아야 거짓말이 안 된다
+    ///   (한 대 피해는 Strike, 사거리는 AttackReachTo, 회피는 투사체 명중 굴림 그대로).
+    public string CombatSheet()
+    {
+        float hit = str * dmgPerStr * PatternDmg * hitDmgMul * (atkBuffT > 0f ? atkBuffMul : 1f);
+        float period = AtkPeriodNow;
+        float dps = period > 0.01f ? hit / period : 0f;
+        float reach = AttackReachTo(null);
+        float dodge = Mathf.Min(35f, agi * 0.8f);
+        var sb = new System.Text.StringBuilder();
+        sb.AppendLine($"  한 대 {hit:F0}  ·  간격 {period:F2}초  ·  초당 {dps:F0}");
+        sb.AppendLine(IsRanged
+            ? $"  사거리 {reach:F1}m  (원거리 · 단일 표적)"
+            : $"  사거리 {reach:F1}m  ·  부채꼴 {AtkSpread:F0}°");
+        sb.AppendLine($"  이동 {MoveSpd:F1}m/s  ·  투사체 회피 {dodge:F0}%");
+        sb.Append($"  {tier} 등급  ·  {PatternKorean}  ·  인구수 {supply}");
+        if (IsRanged)
+            sb.Append(KitingPattern(pattern) ? "  ·  카이팅 함" : "  ·  카이팅 안 함(산탄)");
+        return sb.ToString();
+    }
+
     /// 방식별 팔 길이 배수
     float PatternReach =>
         // ★0.8 → 0.95 → 1.25 (2026-07-30 실측). 돌북이 3승 9패 잔여 6% 로 최하위였다.
