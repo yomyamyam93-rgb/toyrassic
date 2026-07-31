@@ -39,20 +39,39 @@ public static class PetRank
     public static readonly string[] StatName =
         { "피해량", "공격속도", "사정거리", "공격범위", "이동속도", "회피력", "체력", "회복력", "충원속도" };
 
-    /// F 일 때 배수 · SSS 일 때 배수 (C = 1.0 고정, 사이는 보간)
-    /// ★★이 표가 헌법이다 — 위험한 스탯의 폭을 넓히면 상성이 무너진다
+    /// F 일 때 배수 · SSS 일 때 배수 (C = 1.0 고정)
+    ///
+    /// ★★SS·SSS 는 사기캐다 (2026-07-31 사용자 — "밸런스에 영향이 가더라도 좀 더
+    ///   풀어주는 게 어때? 어떻게 보면 사기캐 느낌이 되어야 하니까").
+    ///   0.5% 를 뚫고 나온 개체가 "조금 좋음" 이면 뽑은 보람이 없다.
+    ///
+    /// ★단 **위험한 스탯의 상한은 실제 속도표로 계산해서** 정했다 (헌법 ⑨는 유효):
+    ///   이속 SSS 1.18 → 티라(XL 물기 ≈1.69) × 1.18 = 1.99 로, 딜롭 F(2.7×0.96=2.59)
+    ///   보다도 **여전히 느리다.** 즉 「늑구 > 딜롭 > 티라」 순위는 어떤 등급 조합에서도
+    ///   안 뒤집힌다 — 사기캐가 되어도 상성 삼각형은 살아 있다.
+    ///   사거리·범위도 면적(각도×팔²)이 최대 1.5배 안쪽에 머물게 잡았다.
     static readonly float[] Lo = { 0.78f, 0.84f, 0.97f, 0.96f, 0.96f, 0.85f, 0.94f, 0.55f, 0.65f };
-    static readonly float[] Hi = { 1.30f, 1.22f, 1.05f, 1.06f, 1.05f, 1.15f, 1.32f, 2.10f, 1.90f };
+    static readonly float[] Hi = { 1.75f, 1.50f, 1.15f, 1.20f, 1.18f, 1.60f, 1.80f, 3.00f, 2.50f };
 
-    /// 등급 → 배수. C 아래는 Lo 쪽으로, 위는 Hi 쪽으로 선형 보간
+    // ★곡선을 위로 몬다 (지수 2.0). 선형이면 흔한 B·A 까지 같이 세져서 **기준선이
+    //   통째로 인플레**된다. 제곱 곡선이면 B 는 거의 안 변하고 SSS 만 폭발한다:
+    //     피해 기준 — B ×1.03 · A ×1.12 · S ×1.27 · SS ×1.48 · SSS ×1.75
+    //   "흔한 건 평범하고 전설은 전설" 이 이 한 줄에서 나온다.
+    const float Curve = 2.0f;
+
+    /// 등급 → 배수. C 아래는 Lo 쪽으로, 위는 Hi 쪽으로 (양쪽 다 꼭짓점이 가파른 곡선)
     public static float Mul(Stat s, int rank)
     {
         int i = (int)s;
         rank = Mathf.Clamp(rank, 0, Count - 1);
         if (rank == Base) return 1f;
-        return rank < Base
-            ? Mathf.Lerp(Lo[i], 1f, rank / (float)Base)
-            : Mathf.Lerp(1f, Hi[i], (rank - Base) / (float)(Count - 1 - Base));
+        if (rank > Base)
+        {
+            float t = (rank - Base) / (float)(Count - 1 - Base);
+            return 1f + (Hi[i] - 1f) * Mathf.Pow(t, Curve);
+        }
+        float d = (Base - rank) / (float)Base;
+        return 1f - (1f - Lo[i]) * Mathf.Pow(d, Curve);
     }
 
     // ★뽑기 확률 — 높은 등급은 어렵다 (사용자 "높은 등급을 만드는 게 조금은 어려웠음해").
@@ -94,14 +113,21 @@ public static class PetRank
         return a;
     }
 
-    /// 종합 등급 — 아홉 개의 평균.
-    /// ★평균은 **가운데로 몰린다** (큰 수의 법칙). 그래서 종합 A 만 돼도 드물고
-    ///   SSS 는 거의 안 나온다 — 사용자가 원한 "높은 등급은 어렵다" 가 저절로 된다.
+    /// 종합 등급 — **평균 6 : 최고 4** 의 혼합.
+    ///
+    /// ★순수 평균이면 안 된다: 아홉 개 평균은 큰 수의 법칙으로 가운데(C~B)에 못 박혀
+    ///   **종합 S 이상이 영영 안 나온다** — 오라의 윗칸이 죽은 콘텐츠가 된다.
+    ///   최고값을 섞으면 "하나가 미친 개체" 가 종합에도 반영된다. 실제로:
+    ///     · 평범한 개체 → 종합 C~B (안 빛남)
+    ///     · SSS 스탯이 하나 있는 개체 → 종합 A (빛나기 시작)
+    ///     · 전체가 좋고 최고도 SSS → 종합 S~SS (전설)
+    ///   "특출난 데가 있으면 특별한 놈" 이라는 감각과도 맞는다.
     public static int Overall(int[] ranks)
     {
         if (ranks == null || ranks.Length == 0) return Base;
-        float sum = 0f;
-        for (int i = 0; i < ranks.Length; i++) sum += ranks[i];
-        return Mathf.Clamp(Mathf.RoundToInt(sum / ranks.Length), 0, Count - 1);
+        float sum = 0f; int max = 0;
+        for (int i = 0; i < ranks.Length; i++) { sum += ranks[i]; if (ranks[i] > max) max = ranks[i]; }
+        float avg = sum / ranks.Length;
+        return Mathf.Clamp(Mathf.RoundToInt(avg * 0.6f + max * 0.4f), 0, Count - 1);
     }
 }

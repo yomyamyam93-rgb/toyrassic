@@ -282,8 +282,23 @@ public class PetUnit : MonoBehaviour
         c.a = 0.5f + (r - 5) * 0.1f;
         auraMpb.SetColor("_BaseColor", c);
         auraRing.GetComponent<MeshRenderer>().SetPropertyBlock(auraMpb);
+
+        // ★SS(7) 이상은 불티가 피어오른다 — 사기캐는 눈에 띄어야 한다.
+        //   확률상 극히 드문 등급이라 부대 규모에서도 안전하다 (희소성 = 비용 상한).
+        if (r >= 7)
+        {
+            auraSpark -= Time.deltaTime;
+            if (auraSpark <= 0f)
+            {
+                auraSpark = r >= 8 ? 0.22f : 0.4f;
+                FX.Burst(transform.position + Vector3.up * body * 0.35f,
+                         PetRank.Color1(r), r >= 8 ? 5 : 3,
+                         body * 0.04f, body * 0.35f, 0.5f);
+            }
+        }
     }
     static MaterialPropertyBlock auraMpb;
+    float auraSpark;
     float airT, airDur, airHeight, airY;             // 에어본 — 붕 떴다 내려옴
     float ghostHp;                                   // 롤식 지연 감소 바
     Transform barGhost;
