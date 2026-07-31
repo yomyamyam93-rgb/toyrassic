@@ -33,8 +33,12 @@ public class HatcherySite : MonoBehaviour
     [Tooltip("첫 차수 마릿수")] public int baseWaveSize = 6;
     [Tooltip("차수마다 몇 마리씩 늘어나나")] public int waveSizeGrow = 4;
     [Tooltip("소환 흘려보내는 간격 (초)")] public float spawnInterval = 0.5f;
+    // ★0.85/0.7/0.7 → 0.95/0.9/0.85 (2026-07-31 사용자 — "나오는 양이 너무 쉽다").
+    //   1차 때 순하게 잡아둔 너프를 거의 걷는다. 마릿수도 ApplyTier 에서 같이 올렸다.
+    //   ★이 값은 1차 상향일 뿐이다 — 확정은 실측으로. 그리고 진짜 난이도는 물량이
+    //   아니라 「방향」(다방향 진군·우회조·연속 웨이브, CLAUDE.md ⑥)에서 나온다.
     [Tooltip("습격 쫄병 배율 — 크기·체력·피해")]
-    public float sizeMul = 0.85f, hpMul = 0.7f, dmgMul = 0.7f;
+    public float sizeMul = 0.95f, hpMul = 0.9f, dmgMul = 0.85f;
 
     bool incubating;
     float hatchT, hatchDuration; int totalWaves, wavesSent; float firstWaveDelay;
@@ -202,10 +206,12 @@ public class HatcherySite : MonoBehaviour
     {
         switch (t)
         {
-            case PetScale.Tier.S: hatchDuration = 25f; totalWaves = 1; baseWaveSize = 6; waveSizeGrow = 0; firstWaveDelay = 4f; break;
-            case PetScale.Tier.M: hatchDuration = 45f; totalWaves = 2; baseWaveSize = 6; waveSizeGrow = 4; firstWaveDelay = 5f; break;
-            case PetScale.Tier.L: hatchDuration = 75f; totalWaves = 3; baseWaveSize = 8; waveSizeGrow = 5; firstWaveDelay = 6f; break;
-            default: hatchDuration = 110f; totalWaves = 4; baseWaveSize = 10; waveSizeGrow = 6; firstWaveDelay = 6f; break;
+            // ★마릿수 상향 (2026-07-31 사용자 "너무 쉽다") — M 판 합계 16 → 26마리.
+            //   계단 원칙(CLAUDE.md ⑥): M = 펫만으로 빡빡 / L↑ = 설치물이 필요해지는 쪽으로.
+            case PetScale.Tier.S: hatchDuration = 25f; totalWaves = 1; baseWaveSize = 10; waveSizeGrow = 0; firstWaveDelay = 4f; break;
+            case PetScale.Tier.M: hatchDuration = 45f; totalWaves = 2; baseWaveSize = 10; waveSizeGrow = 6; firstWaveDelay = 5f; break;
+            case PetScale.Tier.L: hatchDuration = 75f; totalWaves = 3; baseWaveSize = 14; waveSizeGrow = 8; firstWaveDelay = 6f; break;
+            default: hatchDuration = 110f; totalWaves = 4; baseWaveSize = 18; waveSizeGrow = 10; firstWaveDelay = 6f; break;
         }
     }
 
