@@ -382,24 +382,55 @@ public class PetSpawner : MonoBehaviour
         return entries[entries.Count - 1];
     }
 
+    [Header("★그레이박스 (2026-08-03) — 체크하면 펫이 전부 상자로 나온다")]
+    [Tooltip("모델 대신 색칠한 상자. 프리팹은 그대로 있으므로 체크만 끄면 원래대로 돌아온다")]
+    public bool greybox = true;
+
+    /// ★그레이박스 — 모델 대신 색칠한 상자로 (2026-08-03 사용자 "단순화해서 먼저 만들자").
+    ///   **프리팹은 그대로 둔다.** 이 체크만 끄면 원래 모델이 그대로 돌아온다.
+    ///   종마다 색이 고정되고(이름에서 뽑는다), 앞에 작은 상자가 붙어 보는 방향이 보인다.
+    GameObject MakeBoxUnit(Entry e)
+    {
+        var body = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        var bc = body.GetComponent<Collider>(); if (bc != null) Destroy(bc);
+        body.transform.localScale = new Vector3(0.62f, 0.78f, 1f);   // 앞뒤로 길게 = 방향이 읽힌다
+
+        var c = Greybox.ColorFor(string.IsNullOrEmpty(e.species) ? e.koreanName : e.species);
+        body.GetComponent<MeshRenderer>().sharedMaterial = Greybox.MatFor(c);
+
+        var head = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        var hc = head.GetComponent<Collider>(); if (hc != null) Destroy(hc);
+        head.name = "머리";
+        head.transform.SetParent(body.transform, false);
+        head.transform.localScale = new Vector3(0.7f, 0.7f, 0.35f);
+        head.transform.localPosition = new Vector3(0f, 0.42f, 0.62f);
+        head.GetComponent<MeshRenderer>().sharedMaterial =
+            Greybox.MatFor(new Color(c.r * 0.55f, c.g * 0.55f, c.b * 0.55f));
+        return body;
+    }
+
     /// 배율 스폰 — 둥지 쫄병 등 (크기·체력·공격 배율)
     public GameObject Spawn(Entry e, Vector3 pos, float sizeMul = 1f, float hpMul = 1f, float dmgMul = 1f)
     {
-        if (e.prefab == null) return null;
-        var inst = Instantiate(e.prefab);
-        var mr0 = inst.GetComponentInChildren<MeshRenderer>();
         GameObject unit;
-        if (mr0.gameObject == inst) unit = inst;
+        if (greybox) unit = MakeBoxUnit(e);
         else
-        {   // 래퍼 노드 제거 — 렌더러 오브젝트만 승격
-            unit = mr0.gameObject;
-            unit.transform.SetParent(null, true);
-            unit.transform.position = Vector3.zero;
-            Destroy(inst);
+        {
+            if (e.prefab == null) return null;
+            var inst = Instantiate(e.prefab);
+            var mr0 = inst.GetComponentInChildren<MeshRenderer>();
+            if (mr0.gameObject == inst) unit = inst;
+            else
+            {   // 래퍼 노드 제거 — 렌더러 오브젝트만 승격
+                unit = mr0.gameObject;
+                unit.transform.SetParent(null, true);
+                unit.transform.position = Vector3.zero;
+                Destroy(inst);
+            }
+            if (e.material != null) unit.GetComponent<MeshRenderer>().sharedMaterial = e.material;
         }
         unit.transform.SetParent(transform);
         unit.name = e.koreanName;
-        if (e.material != null) unit.GetComponent<MeshRenderer>().sharedMaterial = e.material;
 
         // 크기: 티어 기본 → 같은 종을 인스펙터로 조절해뒀으면 그 값 따라감
         PetScale.Normalize(unit, e.tier);
